@@ -8,9 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
-	"net"
 	"os"
-	"strconv"
 	"time"
 
 	ethereum "github.com/celo-org/celo-blockchain"
@@ -25,7 +23,6 @@ import (
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/ethclient"
-	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"github.com/celo-org/celo-blockchain/mycelo/genesis"
 	"github.com/celo-org/celo-blockchain/node"
@@ -40,9 +37,11 @@ var (
 		Name:    "celo",
 		Version: params.Version,
 		P2P: p2p.Config{
-			MaxPeers:    100,
-			NoDiscovery: true,
-			ListenAddr:  "0.0.0.0:0",
+			MaxPeers:              100,
+			NoDiscovery:           true,
+			ListenAddr:            "0.0.0.0:0",
+			InboundThrottleTime:   200 * time.Millisecond,
+			DialHistoryExpiration: 210 * time.Millisecond,
 		},
 		NoUSB: true,
 		// It is important that HTTPHost and WSHost remain the same. This
@@ -55,6 +54,7 @@ var (
 
 	baseEthConfig = &eth.Config{
 		SyncMode:        downloader.FullSync,
+		MinSyncPeers:    1,
 		DatabaseCache:   256,
 		DatabaseHandles: 256,
 		TxPool:          core.DefaultTxPoolConfig,
@@ -69,11 +69,14 @@ var (
 			// 50ms is a really low timeout, we set this here because nodes
 			// fail the first round of consensus and so setting this higher
 			// makes tests run slower.
-			RequestTimeout:        50,
-			Epoch:                 10,
-			ProposerPolicy:        istanbul.ShuffledRoundRobin,
-			DefaultLookbackWindow: 3,
-			BlockPeriod:           0,
+			RequestTimeout:              200,
+			TimeoutBackoffFactor:        200,
+			MinResendRoundChangeTimeout: 200,
+			MaxResendRoundChangeTimeout: 10000,
+			Epoch:                       20,
+			ProposerPolicy:              istanbul.ShuffledRoundRobin,
+			DefaultLookbackWindow:       3,
+			BlockPeriod:                 0,
 		},
 	}
 )
@@ -84,6 +87,7 @@ type Node struct {
 	*node.Node
 	Config        *node.Config
 	P2PListenAddr string
+	Enode         *enode.Node
 	Eth           *eth.Ethereum
 	EthConfig     *eth.Config
 	WsClient      *ethclient.Client
@@ -108,8 +112,13 @@ func NewNode(
 
 	// Copy the node config so we can modify it without damaging the original
 	ncCopy := *nc
-	// p2p key and address
-	ncCopy.P2P.PrivateKey = validatorAccount.PrivateKey
+
+	// p2p key and address, this is not the same as the validator key.
+	p2pKey, err := crypto.GenerateKey()
+	if err != nil {
+		return nil, err
+	}
+	ncCopy.P2P.PrivateKey = p2pKey
 
 	// Make temp datadir
 	datadir, err := ioutil.TempDir("", "celo_datadir")
@@ -155,17 +164,6 @@ func (n *Node) Start() error {
 		return err
 	}
 
-	// Give this logger context based on the node address so that we can easily
-	// trace single node execution in the logs. We set the logger only on the
-	// copy, since it is not useful for black box testing and it is also not
-	// marshalable since the implementation contains unexported fields.
-	//
-	// Note unfortunately there are many other loggers created in geth separate
-	// from this one, which means we still see a lot of output that is not
-	// attributable to a specific node.
-	nodeConfigCopy.Logger = log.New("node", n.Address.String()[2:7])
-	nodeConfigCopy.Logger.SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
-
 	n.Node, err = node.New(nodeConfigCopy)
 	if err != nil {
 		return err
@@ -206,6 +204,7 @@ func (n *Node) Start() error {
 	if err != nil {
 		return err
 	}
+
 	_, _, err = core.SetupGenesisBlock(n.Eth.ChainDb(), n.EthConfig.Genesis)
 	if err != nil {
 		return err
@@ -222,23 +221,75 @@ func (n *Node) Start() error {
 	if err != nil {
 		return err
 	}
-	return n.Eth.StartMining()
+	err = n.Eth.StartMining()
+	if err != nil {
+		return err
+	}
+
+	// Note we need to use the LocalNode from the p2p server because that is
+	// what is also used by the announce protocol when building enode
+	// certificates, so that is what is used by the announce protocol to check
+	// if a validator enode has changed. If we constructed the enode ourselves
+	// here we could not be sure it matches the enode from the p2p.Server.
+	n.Enode = n.Server().LocalNode().Node()
+
+	return nil
+}
+
+func (n *Node) AddPeers(nodes ...*Node) {
+	// Add the given nodes as peers. Although this means that nodes can reach
+	// each other nodes don't start sending consensus messages to another node
+	// until they have received an enode certificate from that node.
+	for _, no := range nodes {
+		n.Server().AddPeer(no.Enode, p2p.ValidatorPurpose)
+	}
+}
+
+// GossipEnodeCertificatge gossips this nodes enode certificates to the rest of
+// the network.
+func (n *Node) GossipEnodeCertificatge() error {
+	enodeCertificate := &istanbul.EnodeCertificate{
+		EnodeURL: n.Enode.URLv4(),
+		Version:  uint(time.Now().Unix()),
+	}
+	enodeCertificateBytes, err := rlp.EncodeToBytes(enodeCertificate)
+	if err != nil {
+		return err
+	}
+	msg := &istanbul.Message{
+		Code:    istanbul.EnodeCertificateMsg,
+		Address: n.Address,
+		Msg:     enodeCertificateBytes,
+	}
+	b := n.Eth.Engine().(*backend.Backend)
+	if err := msg.Sign(b.Sign); err != nil {
+		return err
+	}
+	payload, err := msg.Payload()
+	if err != nil {
+		return err
+	}
+	// Share enode certificates to the other nodes, nodes wont consider other
+	// nodes valid validators without seeing an enode certificate message from
+	// them.
+	return b.Gossip(payload, istanbul.EnodeCertificateMsg)
 }
 
 // Close shuts down the node and releases all resources and removes the datadir
 // unless an error is returned, in which case there is no guarantee that all
-// resources are released.
+// resources are released. It is assumed that this is only called after calling
+// Start otherwise it will panic.
 func (n *Node) Close() error {
 	err := n.Tracker.StopTracking()
 	if err != nil {
 		return err
 	}
 	n.WsClient.Close()
-	if n.Node != nil {
-		err = n.Node.Close() // This also shuts down the Eth service
+	err = n.Node.Close() // This also shuts down the Eth service
+	if err != nil {
+		return err
 	}
-	os.RemoveAll(n.Config.DataDir)
-	return err
+	return os.RemoveAll(n.Config.DataDir)
 }
 
 // SendCeloTracked functions like SendCelo but also waits for the transaction to be processed.
@@ -346,10 +397,11 @@ func BuildConfig(accounts *env.AccountsConfig) (*genesis.Config, *eth.Config, er
 // NewNetwork generates a network of nodes that are running and mining. For
 // each provided validator account a corresponding node is created and each
 // node is also assigned a developer account, there must be at least as many
-// developer accounts provided as validator accounts. If there is an error it
-// will be returned immediately, meaning that some nodes may be running and
-// others not.
-func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config) (Network, error) {
+// developer accounts provided as validator accounts. A shutdown function is
+// also returned which will shutdown and clean up the network when called.  In
+// the case that an error is returned the shutdown function will be nil and so
+// no attempt should be made to call it.
+func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config) (Network, func(), error) {
 
 	// Copy eth istanbul config fields to the genesis istanbul config.
 	// There is a ticket to remove this duplication of config.
@@ -364,42 +416,26 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 
 	genesis, err := genesis.GenerateGenesis(accounts, gc, "../compiled-system-contracts")
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate genesis: %v", err)
+		return nil, nil, fmt.Errorf("failed to generate genesis: %v", err)
 	}
 
 	va := accounts.ValidatorAccounts()
 	da := accounts.DeveloperAccounts()
-	network := make([]*Node, len(va))
-	for i := range va {
+	var network Network = make([]*Node, len(va))
 
+	for i := range va {
 		n, err := NewNode(&va[i], &da[i], baseNodeConfig, ec, genesis)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build node for network: %v", err)
+			return nil, nil, fmt.Errorf("failed to build node for network: %v", err)
 		}
 		network[i] = n
 	}
 
-	enodes := make([]*enode.Node, len(network))
-	for i, n := range network {
-		host, port, err := net.SplitHostPort(n.P2PListenAddr)
-		if err != nil {
-			return nil, err
-		}
-		portNum, err := strconv.Atoi(port)
-		if err != nil {
-			return nil, err
-		}
-		en := enode.NewV4(&n.Key.PublicKey, net.ParseIP(host), portNum, portNum)
-		enodes[i] = en
-	}
 	// Connect nodes to each other, although this means that nodes can reach
 	// each other nodes don't start sending consensus messages to another node
 	// until they have received an enode certificate from that node.
-	for i, en := range enodes {
-		// Connect to the remaining nodes
-		for _, n := range network[i+1:] {
-			n.Server().AddPeer(en, p2p.ValidatorPurpose)
-		}
+	for i := range network {
+		network[i].AddPeers(network[i+1:]...)
 	}
 
 	// Give nodes some time to connect. Also there is a race condition in
@@ -411,42 +447,21 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 	// bit and cross our fingers.
 	time.Sleep(25 * time.Millisecond)
 
-	version := uint(time.Now().Unix())
-
-	// Share enode certificates between nodes, nodes wont consider other nodes
-	// valid validators without seeing an enode certificate message from them.
 	for i := range network {
-		enodeCertificate := &istanbul.EnodeCertificate{
-			EnodeURL: enodes[i].URLv4(),
-			Version:  version,
-		}
-		enodeCertificateBytes, err := rlp.EncodeToBytes(enodeCertificate)
+		err := network[i].GossipEnodeCertificatge()
 		if err != nil {
-			return nil, err
-		}
-
-		b := network[i].Eth.Engine().(*backend.Backend)
-		msg := &istanbul.Message{
-			Code:    istanbul.EnodeCertificateMsg,
-			Address: b.Address(),
-			Msg:     enodeCertificateBytes,
-		}
-		// Sign the message
-		if err := msg.Sign(b.Sign); err != nil {
-			return nil, err
-		}
-		p, err := msg.Payload()
-		if err != nil {
-			return nil, err
-		}
-
-		err = b.Gossip(p, istanbul.EnodeCertificateMsg)
-		if err != nil {
-			return nil, err
+			network.Shutdown()
+			return nil, nil, err
 		}
 	}
 
-	return network, nil
+	shutdown := func() {
+		for _, err := range network.Shutdown() {
+			fmt.Println(err.Error())
+		}
+	}
+
+	return network, shutdown, nil
 }
 
 // AwaitTransactions ensures that the entire network has processed the provided transactions.
@@ -471,17 +486,19 @@ func (n Network) AwaitBlock(ctx context.Context, num uint64) error {
 	return nil
 }
 
-// Shutdown closes all nodes in the network, any errors that are encountered are
-// printed to stdout.
-func (n Network) Shutdown() {
-	for _, node := range n {
+// Shutdown closes all nodes in the network, any errors encountered when
+// shutting down nodes are returned in a slice.
+func (n Network) Shutdown() []error {
+	var errors []error
+	for i, node := range n {
 		if node != nil {
 			err := node.Close()
 			if err != nil {
-				fmt.Printf("error shutting down node %v: %v", node.Address.String(), err)
+				errors = append(errors, fmt.Errorf("error shutting down node %v index %d: %w", node.Address.String(), i, err))
 			}
 		}
 	}
+	return errors
 }
 
 // ValueTransferTransaction builds a signed value transfer transaction from the
