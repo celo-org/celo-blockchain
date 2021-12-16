@@ -54,7 +54,7 @@ type blockState struct {
 }
 
 // prepareBlock intializes a new blockState that is ready to have transaction included to.
-// Note that if blockState is not nil, blockState.close() needs to be called to shut down the state prefetcher.
+// If no error is returned blockState.close() needs to be called to shut down the state prefetcher.
 func prepareBlock(w *worker) (*blockState, error) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
@@ -98,7 +98,6 @@ func prepareBlock(w *worker) (*blockState, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get the parent state: %w:", err)
 	}
-	state.StartPrefetcher("miner")
 
 	vmRunner := w.chain.NewEVMRunner(header, state)
 	b := &blockState{
@@ -121,31 +120,31 @@ func prepareBlock(w *worker) (*blockState, error) {
 
 		lastCommitment, err := random.GetLastCommitment(vmRunner, w.validator)
 		if err != nil {
-			return b, fmt.Errorf("Failed to get last commitment: %w", err)
+			return nil, fmt.Errorf("Failed to get last commitment: %w", err)
 		}
 
 		lastRandomness := common.Hash{}
 		if (lastCommitment != common.Hash{}) {
 			lastRandomnessParentHash := rawdb.ReadRandomCommitmentCache(w.db, lastCommitment)
 			if (lastRandomnessParentHash == common.Hash{}) {
-				return b, errors.New("Failed to get last randomness cache entry")
+				return nil, errors.New("Failed to get last randomness cache entry")
 			}
 
 			var err error
 			lastRandomness, _, err = istanbul.GenerateRandomness(lastRandomnessParentHash)
 			if err != nil {
-				return b, fmt.Errorf("Failed to generate last randomness: %w", err)
+				return nil, fmt.Errorf("Failed to generate last randomness: %w", err)
 			}
 		}
 
 		_, newCommitment, err := istanbul.GenerateRandomness(b.header.ParentHash)
 		if err != nil {
-			return b, fmt.Errorf("Failed to generate new randomness: %w", err)
+			return nil, fmt.Errorf("Failed to generate new randomness: %w", err)
 		}
 
 		err = random.RevealAndCommit(vmRunner, lastRandomness, newCommitment, w.validator)
 		if err != nil {
-			return b, fmt.Errorf("Failed to reveal and commit randomness: %w", err)
+			return nil, fmt.Errorf("Failed to reveal and commit randomness: %w", err)
 		}
 		// always true (EIP158)
 		b.state.IntermediateRoot(true)
@@ -155,6 +154,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 		b.randomness = &types.EmptyRandomness
 	}
 
+	state.StartPrefetcher("miner")
 	return b, nil
 }
 

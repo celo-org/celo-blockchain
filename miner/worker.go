@@ -245,15 +245,11 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 
 	// Initialize the block.
 	b, err := prepareBlock(w)
-	defer func() {
-		if b != nil {
-			b.close()
-		}
-	}()
 	if err != nil {
 		log.Error("Failed to create mining context", "err", err)
 		return
 	}
+	defer b.close()
 	w.updatePendingBlock(b)
 
 	// TODO: worker based adaptive sleep with this delay
@@ -304,15 +300,11 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 func (w *worker) constructPendingStateBlock(ctx context.Context, txsCh chan core.NewTxsEvent) {
 	// Initialize the block.
 	b, err := prepareBlock(w)
-	defer func() {
-		if b != nil {
-			b.close()
-		}
-	}()
 	if err != nil {
 		log.Error("Failed to create mining context", "err", err)
 		return
 	}
+	defer b.close()
 	w.updatePendingBlock(b)
 
 	err = b.selectAndApplyTransactions(ctx, w)
