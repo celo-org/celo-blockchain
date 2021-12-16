@@ -981,6 +981,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 	// Gather the block infos from the local blockchain
 	var (
 		header   *types.Header
+		td       *big.Int
 		txs      []txStats
 		valSet   validatorSet
 		gasLimit uint64
@@ -1006,7 +1007,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		}
 		txs = []txStats{}
 	}
-	td := s.backend.GetTd(context.Background(), header.Hash())
+	td = s.backend.GetTd(context.Background(), header.Hash())
 
 	// Assemble and return the block stats
 	author, _ := s.engine.Author(header)
