@@ -1017,7 +1017,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 
 	stateDB, _, err := s.backend.StateAndHeaderByNumberOrHash(context.Background(), rpc.BlockNumberOrHashWithHash(header.Hash(), true))
 
-	if err != nil {
+	if err == nil {
 		log.Warn("Block state unavailable for reporting block stats", "hash", header.Hash(), "number", header.Number.Uint64(), "err", err)
 
 		// only assemble every valSetInterval blocks
