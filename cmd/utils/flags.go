@@ -507,6 +507,21 @@ var (
 		Usage: "HTTP path path prefix on which JSON-RPC is served. Use '/' to serve on all paths.",
 		Value: "",
 	}
+	HTTPRequestReadTimeout = cli.IntFlag{
+		Name:  "http.timeout.read",
+		Usage: "Timeout for HTTP-RPC read requests",
+		Value: node.DefaultHTTPTimeoutRead,
+	}
+	HTTPRequestWriteTimeout = cli.IntFlag{
+		Name:  "http.timeout.write",
+		Usage: "Timeout for HTTP-RPC write requests",
+		Value: node.DefaultHTTPTimeoutWrite,
+	}
+	HTTPRequestIdleTimeout = cli.IntFlag{
+		Name:  "http.timeout.idle",
+		Usage: "Timeout for HTTP-RPC idle connections",
+		Value: node.DefaultHTTPTimeoutIdle,
+	}
 	GraphQLEnabledFlag = cli.BoolFlag{
 		Name:  "graphql",
 		Usage: "Enable GraphQL on the HTTP-RPC server. Note that GraphQL can only be started if an HTTP server is started as well.",
@@ -961,6 +976,16 @@ func setHTTP(ctx *cli.Context, cfg *node.Config) {
 
 	if ctx.GlobalIsSet(HTTPPathPrefixFlag.Name) {
 		cfg.HTTPPathPrefix = ctx.GlobalString(HTTPPathPrefixFlag.Name)
+	}
+
+	if ctx.GlobalIsSet(HTTPRequestReadTimeout.Name) {
+		cfg.HTTPTimeouts.ReadTimeout = time.Duration(ctx.GlobalInt(HTTPRequestReadTimeout.Name)) * time.Second
+	}
+	if ctx.GlobalIsSet(HTTPRequestWriteTimeout.Name) {
+		cfg.HTTPTimeouts.WriteTimeout = time.Duration(ctx.GlobalInt(HTTPRequestWriteTimeout.Name)) * time.Second
+	}
+	if ctx.GlobalIsSet(HTTPRequestIdleTimeout.Name) {
+		cfg.HTTPTimeouts.IdleTimeout = time.Duration(ctx.GlobalInt(HTTPRequestIdleTimeout.Name)) * time.Second
 	}
 }
 
