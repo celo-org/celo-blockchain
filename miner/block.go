@@ -53,8 +53,10 @@ type blockState struct {
 	txFeeRecipient common.Address
 }
 
-// prepareBlock intializes a new blockState that is ready to have transaction included to.
-// If no error is returned blockState.close() needs to be called to shut down the state prefetcher.
+// prepareBlock intializes a new blockState that is ready to have transactions
+// included in it, and uses it to set the worker's pending block and state. If
+// no error is returned blockState.close() needs to be called to shut down the
+// state prefetcher.
 func prepareBlock(w *worker) (*blockState, error) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
@@ -155,6 +157,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 	}
 
 	state.StartPrefetcher("miner")
+	w.updatePendingBlock(b)
 	return b, nil
 }
 

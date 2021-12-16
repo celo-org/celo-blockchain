@@ -250,7 +250,6 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 		return
 	}
 	defer b.close()
-	w.updatePendingBlock(b)
 
 	// TODO: worker based adaptive sleep with this delay
 	// wait for the timestamp of header, use this to adjust the block period
@@ -305,7 +304,6 @@ func (w *worker) constructPendingStateBlock(ctx context.Context, txsCh chan core
 		return
 	}
 	defer b.close()
-	w.updatePendingBlock(b)
 
 	err = b.selectAndApplyTransactions(ctx, w)
 	if err != nil {
