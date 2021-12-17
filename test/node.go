@@ -92,11 +92,8 @@ type Node struct {
 	Eth           *eth.Ethereum
 	EthConfig     *eth.Config
 	WsClient      *ethclient.Client
-	Nonce         uint64
 	Key           *ecdsa.PrivateKey
 	Address       common.Address
-	DevKey        *ecdsa.PrivateKey
-	DevAddress    common.Address
 	Tracker       *Tracker
 	// The transactions that this node has sent.
 	SentTxs []*types.Transaction
@@ -104,8 +101,7 @@ type Node struct {
 
 // NewNode creates a new running node with the provided config.
 func NewNode(
-	validatorAccount,
-	devAccount *env.Account,
+	validatorAccount *env.Account,
 	nc *node.Config,
 	ec *eth.Config,
 	genesis *core.Genesis,
@@ -141,13 +137,11 @@ func NewNode(
 	ecCopy.TxFeeRecipient = validatorAccount.Address
 
 	node := &Node{
-		Config:     &ncCopy,
-		EthConfig:  ecCopy,
-		Key:        validatorAccount.PrivateKey,
-		Address:    validatorAccount.Address,
-		DevAddress: devAccount.Address,
-		DevKey:     devAccount.PrivateKey,
-		Tracker:    NewTracker(),
+		Config:    &ncCopy,
+		EthConfig: ecCopy,
+		Key:       validatorAccount.PrivateKey,
+		Address:   validatorAccount.Address,
+		Tracker:   NewTracker(),
 	}
 
 	return node, node.Start()
@@ -211,10 +205,6 @@ func (n *Node) Start() error {
 		return err
 	}
 	n.WsClient, err = ethclient.Dial(n.WSEndpoint())
-	if err != nil {
-		return err
-	}
-	n.Nonce, err = n.WsClient.PendingNonceAt(context.Background(), n.DevAddress)
 	if err != nil {
 		return err
 	}
@@ -298,44 +288,6 @@ func (n *Node) Close() error {
 	return os.RemoveAll(n.Config.DataDir)
 }
 
-// SendCeloTracked functions like SendCelo but also waits for the transaction to be processed.
-func (n *Node) SendCeloTracked(ctx context.Context, recipient common.Address, value int64) (*types.Transaction, error) {
-	tx, err := n.SendCelo(ctx, recipient, value)
-	if err != nil {
-		return nil, err
-	}
-	err = n.AwaitTransactions(ctx, tx)
-	if err != nil {
-		return nil, err
-	}
-	return n.Tracker.GetProcessedTx(tx.Hash()), nil
-}
-
-// SendCelo submits a value transfer transaction to the network to send celo to
-// the recipient. The submitted transaction is returned.
-func (n *Node) SendCelo(ctx context.Context, recipient common.Address, value int64) (*types.Transaction, error) {
-	signer := types.MakeSigner(n.EthConfig.Genesis.Config, common.Big0)
-	tx, err := ValueTransferTransaction(
-		n.WsClient,
-		n.DevKey,
-		n.DevAddress,
-		recipient,
-		n.Nonce,
-		big.NewInt(value),
-		signer)
-
-	if err != nil {
-		return nil, err
-	}
-	err = n.WsClient.SendTransaction(ctx, tx)
-	if err != nil {
-		return nil, err
-	}
-	n.Nonce++
-	n.SentTxs = append(n.SentTxs, tx)
-	return tx, nil
-}
-
 // AwaitTransactions awaits all the provided transactions.
 func (n *Node) AwaitTransactions(ctx context.Context, txs ...*types.Transaction) error {
 	sentHashes := make([]common.Hash, len(txs))
@@ -343,12 +295,6 @@ func (n *Node) AwaitTransactions(ctx context.Context, txs ...*types.Transaction)
 		sentHashes[i] = tx.Hash()
 	}
 	return n.Tracker.AwaitTransactions(ctx, sentHashes)
-}
-
-// AwaitSentTransactions awaits all the transactions that this node has sent
-// via SendCelo.
-func (n *Node) AwaitSentTransactions(ctx context.Context) error {
-	return n.AwaitTransactions(ctx, n.SentTxs...)
 }
 
 // ProcessedTxBlock returns the block that the given transaction was processed
@@ -370,12 +316,12 @@ func (n *Node) TxFee(ctx context.Context, tx *types.Transaction) (*big.Int, erro
 // create, start and stop a collection of nodes.
 type Network []*Node
 
-func Accounts(numValidators int) *env.AccountsConfig {
+func AccountConfig(numValidators, numExternal int) *env.AccountsConfig {
 	return &env.AccountsConfig{
 		Mnemonic:             env.MustNewMnemonic(),
 		NumValidators:        numValidators,
 		ValidatorsPerGroup:   1,
-		NumDeveloperAccounts: numValidators,
+		NumDeveloperAccounts: numExternal,
 	}
 }
 
@@ -426,11 +372,10 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 	}
 
 	va := accounts.ValidatorAccounts()
-	da := accounts.DeveloperAccounts()
 	var network Network = make([]*Node, len(va))
 
 	for i := range va {
-		n, err := NewNode(&va[i], &da[i], baseNodeConfig, ec, genesis)
+		n, err := NewNode(&va[i], baseNodeConfig, ec, genesis)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to build node for network: %v", err)
 		}
