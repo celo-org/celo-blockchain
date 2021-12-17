@@ -200,11 +200,7 @@ func (w *worker) start() {
 			w.chain.Validator().ValidateState,
 			func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) {
 				if err := w.chain.InsertPreprocessedBlock(block, receipts, logs, state); err != nil {
-					if err == core.ErrNotHeadBlock {
-						log.Warn("Tried to insert duplicated produced block", "blockNumber", block.Number(), "hash", block.Hash(), "err", err)
-					} else {
-						log.Error("Failed to insert produced block", "blockNumber", block.Number(), "hash", block.Hash(), "err", err)
-					}
+					log.Error("Failed to insert produced block", "blockNumber", block.Number(), "hash", block.Hash(), "err", err)
 					return
 				}
 				log.Info("Successfully produced new block", "number", block.Number(), "hash", block.Hash())
