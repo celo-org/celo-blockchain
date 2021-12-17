@@ -17,13 +17,14 @@ the code and vice versa, requires considerable effort.
 ### High level overview
 
 The Celo IBFT protocol is a BFT (Byzantine Fault Tolerant) protocol that allows
-a group of participants to agree on the ordering of values by exchanging voting
-messages across a network. The voting proceeds in rounds and for each round a
-specific participant is able to propose the value to be agreed upon, they are
-known as the proposer. As long as less than 1/3rd of participants deviate from
-the protocol then the protocol should ensure that there is only one ordering of
-values that participants agree on and also that and that they can continue to
-agree on new values, i.e. they don't get stuck.
+a group of participants (commonly referred to as validators in the Celo
+ecosystem) to agree on the ordering of values by exchanging voting messages
+across a network. The voting proceeds in rounds and for each round a specific
+participant is able to propose the value to be agreed upon, they are known as
+the proposer. As long as less than 1/3rd of participants deviate from the
+protocol then the protocol should ensure that there is only one ordering of
+values that participants agree on and also that they can continue to agree on
+new values, i.e. they don't get stuck.
 
 Ensuring that only one ordering is agreed upon is referred to as 'safety' and
 ensuring that the participants can continue to agree on new values is referred
@@ -91,8 +92,9 @@ upon: <FinalCommittedEvent>
   Vc ← nil
   schedule onRoundChangeTimeout(Hc, 0) after roundChangeTimeout(0)
 
-// A request event is a request to reach agreement on the provided value, if this parcicipant
-// is the proposer it will propose that value by sending a preprepared message.
+// A request event is a request to reach agreement on the provided value, the
+// request event is sent by the application, if this parcicipant is the proposer
+// it will propose that value by sending a preprepared message.
 upon: <RequestEvent, Hc, V> && Sc = AcceptRequest
   if Rc = 0 && isProposer(Hc, Rd) {
     bc(<Preprepare, Hc, 0, V, nil>)
@@ -115,7 +117,7 @@ upon: M ← { <T, Hc, Rd, Vc> : T ∈ {Prepare, Commit} } && |M| >= 2f+1 && Sc �
   PCc ← <PreparedCertificate, M, Vc>
   bc(<Commit, Hc, Rd, Vc>)
 
-// When a participant sees at least 2f+1 commit messages for a vlaue, they
+// When a participant sees at least 2f+1 commit messages for a value, they
 // consider that value committed (agreed) and pass the value to the application,
 // which will in turn issue a final committed event if the value is considered
 // valid by the application.
