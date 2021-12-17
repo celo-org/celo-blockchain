@@ -243,7 +243,7 @@ validRCC(V, RCC) {
     return 2f+1 <= |M| <= 3f+1 &&
     ∃ m<RoundChange, *, *, Pcm> ∈ N : validPC(PCm) && PCValue(PCm) = V && ∀ n<RoundChange, * , *, PCn> ∈ N != m : PCRound(PCm) >= PCRound(PCn)
   }
-  return 2f+1 <= |M| <= 3f+1 &&
+  return 2f+1 <= |M| <= 3f+1
 }
 ```
 
