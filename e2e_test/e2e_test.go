@@ -24,18 +24,19 @@ func init() {
 // This test starts a network submits a transaction and waits for the whole
 // network to process the transaction.
 func TestSendCelo(t *testing.T) {
-	accounts := test.Accounts(3)
-	gc, ec, err := test.BuildConfig(accounts)
+	ac := test.AccountConfig(3, 2)
+	gc, ec, err := test.BuildConfig(ac)
 	require.NoError(t, err)
-	network, shutdown, err := test.NewNetwork(accounts, gc, ec)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
 	defer shutdown()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	// Send 1 celo from the dev account attached to node 0 to the dev account
-	// attached to node 1.
-	tx, err := network[0].SendCelo(ctx, network[1].DevAddress, 1)
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, network[0])
 	require.NoError(t, err)
 
 	// Wait for the whole network to process the transaction.
@@ -46,7 +47,7 @@ func TestSendCelo(t *testing.T) {
 // This test is intended to ensure that epoch blocks can be correctly marshalled.
 // We previously had an open bug for this https://github.com/celo-org/celo-blockchain/issues/1574
 func TestEpochBlockMarshaling(t *testing.T) {
-	accounts := test.Accounts(1)
+	accounts := test.AccountConfig(1, 0)
 	gc, ec, err := test.BuildConfig(accounts)
 	require.NoError(t, err)
 
@@ -75,10 +76,10 @@ func TestEpochBlockMarshaling(t *testing.T) {
 // and that it can continue to function, it also checks that if more than f
 // validators are shut down, when they restart the network is able to continue.
 func TestStartStopValidators(t *testing.T) {
-	accounts := test.Accounts(4)
-	gc, ec, err := test.BuildConfig(accounts)
+	ac := test.AccountConfig(4, 2)
+	gc, ec, err := test.BuildConfig(ac)
 	require.NoError(t, err)
-	network, _, err := test.NewNetwork(accounts, gc, ec)
+	network, _, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
 
 	// We define our own shutdown function because we don't want to print
@@ -97,9 +98,10 @@ func TestStartStopValidators(t *testing.T) {
 
 	var txs []*types.Transaction
 
-	// Send 1 celo from the dev account attached to node 0 to the dev account
-	// attached to node 1.
-	tx, err := network[0].SendCelo(ctx, network[1].DevAddress, 1)
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, network[0])
 	require.NoError(t, err)
 	txs = append(txs, tx)
 
@@ -111,9 +113,8 @@ func TestStartStopValidators(t *testing.T) {
 	err = network[3].Close()
 	require.NoError(t, err)
 
-	// Send 1 celo from the dev account attached to node 0 to the dev account
-	// attached to node 1.
-	tx, err = network[0].SendCelo(ctx, network[1].DevAddress, 1)
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err = accounts[0].SendCelo(ctx, accounts[1].Address, 1, network[0])
 	require.NoError(t, err)
 	txs = append(txs, tx)
 
@@ -130,9 +131,8 @@ func TestStartStopValidators(t *testing.T) {
 	// transaction and assuming it is not processing transactions if we time out.
 	shortCtx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
-	// Send 1 celo from the dev account attached to node 0 to the dev account
-	// attached to node 1.
-	tx, err = network[0].SendCelo(shortCtx, network[1].DevAddress, 1)
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err = accounts[0].SendCelo(ctx, accounts[1].Address, 1, network[0])
 	require.NoError(t, err)
 	txs = append(txs, tx)
 
@@ -159,7 +159,8 @@ func TestStartStopValidators(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that the network now quickly processes incoming transactions.
-	tx, err = network[0].SendCelo(ctx, network[1].DevAddress, 1)
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err = accounts[0].SendCelo(ctx, accounts[1].Address, 1, network[0])
 	require.NoError(t, err)
 	txs = append(txs, tx)
 
@@ -179,7 +180,8 @@ func TestStartStopValidators(t *testing.T) {
 	}
 
 	// Check that the network continues to quickly processes incoming transactions.
-	tx, err = network[0].SendCelo(ctx, network[1].DevAddress, 1)
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err = accounts[0].SendCelo(ctx, accounts[1].Address, 1, network[0])
 	require.NoError(t, err)
 	txs = append(txs, tx)
 
