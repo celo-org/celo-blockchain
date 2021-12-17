@@ -82,11 +82,7 @@ func (a *Account) SendCeloTracked(ctx context.Context, recipient common.Address,
 func Accounts(accts []env.Account, chainConfig *params.ChainConfig) []*Account {
 	accounts := make([]*Account, 0, len(accts))
 	for _, a := range accts {
-		accounts = append(accounts, &Account{
-			Address:     a.Address,
-			Key:         a.PrivateKey,
-			ChainConfig: chainConfig,
-		})
+		accounts = append(accounts, NewAccount(a.PrivateKey, a.Address, chainConfig))
 	}
 	return accounts
 }
