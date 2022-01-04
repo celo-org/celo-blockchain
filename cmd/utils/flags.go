@@ -62,6 +62,7 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p/nat"
 	"github.com/celo-org/celo-blockchain/p2p/netutil"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rpc"
 	gopsutil "github.com/shirou/gopsutil/mem"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -510,17 +511,17 @@ var (
 	HTTPRequestReadTimeout = cli.IntFlag{
 		Name:  "http.timeout.read",
 		Usage: "Timeout in seconds for HTTP-RPC read requests",
-		Value: node.DefaultHTTPTimeoutRead,
+		Value: int(rpc.DefaultHTTPTimeouts.ReadTimeout),
 	}
 	HTTPRequestWriteTimeout = cli.IntFlag{
 		Name:  "http.timeout.write",
 		Usage: "Timeout in seconds for HTTP-RPC write requests",
-		Value: node.DefaultHTTPTimeoutWrite,
+		Value: int(rpc.DefaultHTTPTimeouts.WriteTimeout),
 	}
 	HTTPRequestIdleTimeout = cli.IntFlag{
 		Name:  "http.timeout.idle",
 		Usage: "Timeout in seconds for HTTP-RPC idle connections",
-		Value: node.DefaultHTTPTimeoutIdle,
+		Value: int(rpc.DefaultHTTPTimeouts.IdleTimeout),
 	}
 	GraphQLEnabledFlag = cli.BoolFlag{
 		Name:  "graphql",

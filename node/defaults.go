@@ -28,15 +28,12 @@ import (
 )
 
 const (
-	DefaultHTTPHost         = "localhost" // Default host interface for the HTTP RPC server
-	DefaultHTTPPort         = 8545        // Default TCP port for the HTTP RPC server
-	DefaultWSHost           = "localhost" // Default host interface for the websocket RPC server
-	DefaultWSPort           = 8546        // Default TCP port for the websocket RPC server
-	DefaultGraphQLHost      = "localhost" // Default host interface for the GraphQL server
-	DefaultGraphQLPort      = 8547        // Default TCP port for the GraphQL server
-	DefaultHTTPTimeoutRead  = 30          // Default HTTP Read request timeout in seconds
-	DefaultHTTPTimeoutWrite = 30          // Default HTTP Write request timeout in seconds
-	DefaultHTTPTimeoutIdle  = 120         // Default HTTP Idle request timeout in seconds
+	DefaultHTTPHost    = "localhost" // Default host interface for the HTTP RPC server
+	DefaultHTTPPort    = 8545        // Default TCP port for the HTTP RPC server
+	DefaultWSHost      = "localhost" // Default host interface for the websocket RPC server
+	DefaultWSPort      = 8546        // Default TCP port for the websocket RPC server
+	DefaultGraphQLHost = "localhost" // Default host interface for the GraphQL server
+	DefaultGraphQLPort = 8547        // Default TCP port for the GraphQL server
 )
 
 // DefaultConfig contains reasonable default settings.

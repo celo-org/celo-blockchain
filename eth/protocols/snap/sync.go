@@ -509,7 +509,7 @@ func (s *Syncer) Unregister(id string) error {
 	// Remove all traces of the peer from the registry
 	s.lock.Lock()
 	if _, ok := s.peers[id]; !ok {
-		log.Error("Snap peer not registered", "id", id)
+		log.Error("Snap ", "id", id)
 
 		s.lock.Unlock()
 		return errors.New("not registered")
