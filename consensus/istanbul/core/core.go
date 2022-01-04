@@ -115,8 +115,9 @@ type core struct {
 	finalCommittedSub *event.TypeMuxSubscription
 	timeoutSub        *event.TypeMuxSubscription
 
-	futurePreprepareTimer         *time.Timer
-	resendRoundChangeMessageTimer *time.Timer
+	futurePreprepareTimer           *time.Timer
+	resendRoundChangeMessageTimer   *time.Timer
+	resendRoundChangeMessageTimerMu sync.Mutex
 
 	roundChangeTimer   *time.Timer
 	roundChangeTimerMu sync.RWMutex
@@ -127,6 +128,7 @@ type core struct {
 
 	rsdb      RoundStateDB
 	current   RoundState
+	currentMu sync.RWMutex
 	handlerWg *sync.WaitGroup
 
 	roundChangeSet *roundChangeSet
@@ -191,6 +193,11 @@ func (c *core) SetAddress(address common.Address) {
 }
 
 func (c *core) CurrentView() *istanbul.View {
+	// CurrentView is called by Prepare which is called by miner.worker the
+	// main loop, we need to synchronise this access with the write which occurs
+	// in Stop, which is called from the miner's update loop.
+	c.currentMu.RLock()
+	defer c.currentMu.RUnlock()
 	if c.current == nil {
 		return nil
 	}
@@ -200,6 +207,11 @@ func (c *core) CurrentView() *istanbul.View {
 func (c *core) CurrentRoundState() RoundState { return c.current }
 
 func (c *core) ParentCommits() MessageSet {
+	// ParentCommits is called by Prepare which is called by miner.worker the
+	// main loop, we need to synchronise this access with the write which
+	// occurs in Stop, which is called from the miner's update loop.
+	c.currentMu.RLock()
+	defer c.currentMu.RUnlock()
 	if c.current == nil {
 		return nil
 	}
@@ -682,6 +694,8 @@ func (c *core) stopRoundChangeTimer() {
 }
 
 func (c *core) stopResendRoundChangeTimer() {
+	c.resendRoundChangeMessageTimerMu.Lock()
+	defer c.resendRoundChangeMessageTimerMu.Unlock()
 	if c.resendRoundChangeMessageTimer != nil {
 		c.resendRoundChangeMessageTimer.Stop()
 		c.resendRoundChangeMessageTimer = nil
@@ -771,6 +785,8 @@ func (c *core) resetResendRoundChangeTimer() {
 			resendTimeout = maxResendTimeout
 		}
 		view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
+		c.resendRoundChangeMessageTimerMu.Lock()
+		defer c.resendRoundChangeMessageTimerMu.Unlock()
 		c.resendRoundChangeMessageTimer = time.AfterFunc(resendTimeout, func() {
 			c.sendEvent(resendRoundChangeEvent{view})
 		})

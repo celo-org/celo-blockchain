@@ -164,6 +164,9 @@ type chainSyncer struct {
 	forced      bool // true when force timer fired
 	peerEventCh chan struct{}
 	doneCh      chan error // non-nil when sync is running
+
+	// The minimum number of peers required to initiate a sync.
+	minSyncPeers int
 }
 
 // chainSyncOp is a scheduled sync operation.
@@ -174,11 +177,17 @@ type chainSyncOp struct {
 	head common.Hash
 }
 
-// newChainSyncer creates a chainSyncer.
-func newChainSyncer(handler *handler) *chainSyncer {
+// newChainSyncer creates a chainSyncer, specifying a protocol manager and the
+// minimum number of peers required to sync, if minSyncPeers is 0 then the
+// default value is used.
+func newChainSyncer(handler *handler, minSyncPeers int) *chainSyncer {
+	if minSyncPeers == 0 {
+		minSyncPeers = defaultMinSyncPeers
+	}
 	return &chainSyncer{
-		handler:     handler,
-		peerEventCh: make(chan struct{}),
+		handler:      handler,
+		peerEventCh:  make(chan struct{}),
+		minSyncPeers: minSyncPeers,
 	}
 }
 
@@ -244,7 +253,7 @@ func (cs *chainSyncer) nextSyncOp() *chainSyncOp {
 	}
 
 	// Ensure we're at minimum peer count.
-	minPeers := defaultMinSyncPeers
+	minPeers := cs.minSyncPeers
 	if cs.forced {
 		minPeers = 1
 	} else if minPeers > cs.handler.maxPeers {

@@ -346,6 +346,11 @@ func (sb *Backend) newChainHead(newBlock *types.Block) {
 
 		sb.logger.Info("Validator Election Results", "address", sb.ValidatorAddress(), "elected", valSetIndex >= 0, "number", newBlock.Number().Uint64())
 
+		// We lock here to protect access to announceRunning because
+		// announceRunning is also accessed in StartAnnouncing and
+		// StopAnnouncing.
+		sb.announceMu.Lock()
+		defer sb.announceMu.Unlock()
 		if sb.announceRunning {
 			sb.logger.Trace("At end of epoch and going to refresh validator peers", "new_block_number", newBlock.Number().Uint64())
 			if err := sb.RefreshValPeers(); err != nil {

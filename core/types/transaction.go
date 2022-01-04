@@ -172,14 +172,12 @@ func (tx *Transaction) DecodeRLP(s *rlp.Stream) error {
 func (tx *Transaction) UnmarshalBinary(b []byte) error {
 	if len(b) > 0 && b[0] > 0x7f {
 		// It's a legacy transaction.
-		r := bytes.NewReader(b)
-		s := rlp.NewStream(r, 10_000)
-		var inner LegacyTx
-		err := s.Decode(&inner)
+		var data LegacyTx
+		err := rlp.DecodeBytes(b, &data)
 		if err != nil {
 			return err
 		}
-		tx.setDecoded(&inner, len(b))
+		tx.setDecoded(&data, len(b))
 		return nil
 	}
 	// It's an EIP2718 typed transaction envelope.
