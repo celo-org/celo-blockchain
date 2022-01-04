@@ -511,17 +511,17 @@ var (
 	HTTPRequestReadTimeout = cli.IntFlag{
 		Name:  "http.timeout.read",
 		Usage: "Timeout in seconds for HTTP-RPC read requests",
-		Value: int(rpc.DefaultHTTPTimeouts.ReadTimeout),
+		Value: int(rpc.DefaultHTTPTimeouts.ReadTimeout / time.Second),
 	}
 	HTTPRequestWriteTimeout = cli.IntFlag{
 		Name:  "http.timeout.write",
 		Usage: "Timeout in seconds for HTTP-RPC write requests",
-		Value: int(rpc.DefaultHTTPTimeouts.WriteTimeout),
+		Value: int(rpc.DefaultHTTPTimeouts.WriteTimeout / time.Second),
 	}
 	HTTPRequestIdleTimeout = cli.IntFlag{
 		Name:  "http.timeout.idle",
 		Usage: "Timeout in seconds for HTTP-RPC idle connections",
-		Value: int(rpc.DefaultHTTPTimeouts.IdleTimeout),
+		Value: int(rpc.DefaultHTTPTimeouts.IdleTimeout / time.Second),
 	}
 	GraphQLEnabledFlag = cli.BoolFlag{
 		Name:  "graphql",
