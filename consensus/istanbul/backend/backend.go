@@ -549,8 +549,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 			return err
 		}
 	}
-	go sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
-
+	sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
 	return nil
 }
 
@@ -570,7 +569,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (*istanbulCore.StateProces
 
 	// check bad block
 	if sb.hasBadProposal(block.Hash()) {
-		return nil, 0, core.ErrBlacklistedHash
+		return nil, 0, core.ErrBannedHash
 	}
 
 	// check block body

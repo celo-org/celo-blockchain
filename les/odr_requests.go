@@ -118,7 +118,7 @@ func (r *BlockRequest) Validate(db ethdb.Database, msg *Msg) error {
 	if r.Header == nil {
 		return errHeaderUnavailable
 	}
-	if r.Header.TxHash != types.DeriveSha(types.Transactions(body.Transactions), new(trie.Trie)) {
+	if r.Header.TxHash != types.DeriveSha(types.Transactions(body.Transactions), trie.NewStackTrie(nil)) {
 		return errTxHashMismatch
 	}
 	// Validations passed, encode and store RLP
@@ -232,7 +232,7 @@ func (r *ReceiptsRequest) Validate(db ethdb.Database, msg *Msg) error {
 	if r.Header == nil {
 		return errHeaderUnavailable
 	}
-	if r.Header.ReceiptHash != types.DeriveSha(receipt, new(trie.Trie)) {
+	if r.Header.ReceiptHash != types.DeriveSha(receipt, trie.NewStackTrie(nil)) {
 		return errReceiptHashMismatch
 	}
 	// Validations passed, store and return
@@ -353,10 +353,9 @@ const (
 	htCanonical = iota // Canonical hash trie
 	htBloomBits        // BloomBits trie
 
-	// applicable for all helper trie requests
-	auxRoot = 1
-	// applicable for htCanonical
-	auxHeader = 2
+	// helper trie auxiliary types
+	// htAuxNone = 1 ; deprecated number, used in les2/3 previously.
+	htAuxHeader = 2 // applicable for htCanonical, requests for relevant headers
 )
 
 type HelperTrieReq struct {
@@ -397,7 +396,7 @@ func (r *ChtRequest) Request(reqID uint64, peer *serverPeer) error {
 		Type:    htCanonical,
 		TrieIdx: r.ChtNum,
 		Key:     encNum[:],
-		AuxReq:  auxHeader,
+		AuxReq:  htAuxHeader,
 	}
 	return peer.requestHelperTrieProofs(reqID, []HelperTrieReq{req})
 }
@@ -546,7 +545,7 @@ func (r *TxStatusRequest) GetCost(peer *serverPeer) uint64 {
 
 // CanSend tells if a certain peer is suitable for serving the given request
 func (r *TxStatusRequest) CanSend(peer *serverPeer) bool {
-	return peer.version >= lpv2
+	return peer.txHistory != txIndexDisabled
 }
 
 // Request sends an ODR request to the LES network (implementation of LesOdrRequest)
@@ -555,13 +554,12 @@ func (r *TxStatusRequest) Request(reqID uint64, peer *serverPeer) error {
 	return peer.requestTxStatus(reqID, r.Hashes)
 }
 
-// Valid processes an ODR request reply message from the LES network
+// Validate processes an ODR request reply message from the LES network
 // returns true and stores results in memory if the message was a valid reply
 // to the request (implementation of LesOdrRequest)
 func (r *TxStatusRequest) Validate(db ethdb.Database, msg *Msg) error {
 	log.Debug("Validating transaction status", "count", len(r.Hashes))
 
-	// Ensure we have a correct message with a single block body
 	if msg.MsgType != MsgTxStatus {
 		return errInvalidMessageType
 	}

@@ -84,15 +84,17 @@ type worker struct {
 	// Channels
 	startCh chan struct{}
 	exitCh  chan struct{}
+	wg      sync.WaitGroup
 
 	mu             sync.RWMutex // The lock used to protect the validator, txFeeRecipient and extra fields
 	validator      common.Address
 	txFeeRecipient common.Address
 	extra          []byte
 
-	snapshotMu    sync.RWMutex // The lock used to protect the block snapshot and state snapshot
-	snapshotBlock *types.Block
-	snapshotState *state.StateDB
+	snapshotMu       sync.RWMutex // The lock used to protect the snapshots below
+	snapshotBlock    *types.Block
+	snapshotReceipts types.Receipts
+	snapshotState    *state.StateDB
 
 	// atomic status counters
 	running int32 // The indicator whether the consensus engine is running or not.
@@ -128,7 +130,11 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	// Subscribe events for blockchain
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 
-	go worker.mainLoop()
+	worker.wg.Add(1)
+	go func() {
+		defer worker.wg.Done()
+		worker.mainLoop()
+	}()
 
 	return worker
 }
@@ -171,6 +177,14 @@ func (w *worker) pendingBlock() *types.Block {
 	w.snapshotMu.RLock()
 	defer w.snapshotMu.RUnlock()
 	return w.snapshotBlock
+}
+
+// pendingBlockAndReceipts returns pending block and corresponding receipts.
+func (w *worker) pendingBlockAndReceipts() (*types.Block, types.Receipts) {
+	// return a snapshot to avoid contention on currentMu mutex
+	w.snapshotMu.RLock()
+	defer w.snapshotMu.RUnlock()
+	return w.snapshotBlock, w.snapshotReceipts
 }
 
 // start sets the running status as 1 and triggers new work submitting.
@@ -227,6 +241,7 @@ func (w *worker) isRunning() bool {
 func (w *worker) close() {
 	atomic.StoreInt32(&w.running, 0)
 	close(w.exitCh)
+	w.wg.Wait()
 }
 
 // constructAndSubmitNewBlock constructs a new block and if the worker is running, submits
@@ -236,6 +251,11 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 
 	// Initialize the block.
 	b, err := prepareBlock(w)
+	defer func() {
+		if b != nil {
+			b.close()
+		}
+	}()
 	if err != nil {
 		log.Error("Failed to create mining context", "err", err)
 		return
@@ -277,8 +297,8 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 			w.fullTaskHook()
 		}
 		w.submitTaskToEngine(&task{receipts: b.receipts, state: b.state, block: block, createdAt: time.Now()})
-
-		feesCelo := totalFees(block, b.receipts)
+		baseFeeFn, toCELO := createConversionFunctions(b.sysCtx, w.chain, b.header, b.state)
+		feesCelo := totalFees(block, b.receipts, baseFeeFn, toCELO, w.chainConfig.IsEspresso(b.header.Number))
 		log.Info("Commit new mining work", "number", block.Number(), "txs", b.tcount, "gas", block.GasUsed(),
 			"fees", feesCelo, "elapsed", common.PrettyDuration(time.Since(start)))
 
@@ -290,6 +310,11 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 func (w *worker) constructPendingStateBlock(ctx context.Context, txsCh chan core.NewTxsEvent) {
 	// Initialize the block.
 	b, err := prepareBlock(w)
+	defer func() {
+		if b != nil {
+			b.close()
+		}
+	}()
 	if err != nil {
 		log.Error("Failed to create mining context", "err", err)
 		return
@@ -328,7 +353,8 @@ func (w *worker) constructPendingStateBlock(ctx context.Context, txsCh chan core
 					txs[acc] = append(txs[acc], tx)
 				}
 
-				txset := types.NewTransactionsByPriceAndNonce(b.signer, txs, createTxCmp(w.chain, b.header, b.state))
+				baseFeeFn, toCElOFn := createConversionFunctions(b.sysCtx, w.chain, b.header, b.state)
+				txset := types.NewTransactionsByPriceAndNonce(b.signer, txs, baseFeeFn, toCElOFn)
 				tcount := b.tcount
 				b.commitTransactions(ctx, w, txset, txFeeRecipient)
 				// Only update the snapshot if any new transactons were added
@@ -353,6 +379,8 @@ func (w *worker) mainLoop() {
 	var cancel context.CancelFunc
 	var wg sync.WaitGroup
 
+	// Ensure that block construction is complete before exiting this function.
+	defer wg.Wait()
 	txsCh := make(chan core.NewTxsEvent, txChanSize)
 
 	generateNewBlock := func() {
@@ -423,11 +451,9 @@ func (w *worker) submitTaskToEngine(task *task) {
 	if w.newTaskHook != nil {
 		w.newTaskHook(task)
 	}
-
 	if w.skipSealHook != nil && w.skipSealHook(task) {
 		return
 	}
-
 	if err := w.engine.Seal(w.chain, task.block); err != nil {
 		log.Warn("Block sealing failed", "err", err)
 	}
@@ -443,8 +469,8 @@ func (w *worker) updatePendingBlock(b *blockState) {
 		b.txs,
 		b.receipts,
 		b.randomness,
-		new(trie.Trie),
+		trie.NewStackTrie(nil),
 	)
-
 	w.snapshotState = b.state.Copy()
+
 }

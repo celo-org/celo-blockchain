@@ -17,18 +17,20 @@
 package core
 
 import (
+	"bytes"
 	"fmt"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 // BlockGen creates blocks for testing.
@@ -94,15 +96,29 @@ func (b *BlockGen) AddTxWithChain(bc ChainContext, tx *types.Transaction) {
 	if b.gasPool == nil {
 		b.SetCoinbase(common.Address{})
 	}
-	b.statedb.Prepare(tx.Hash(), common.Hash{}, len(b.txs))
+	b.statedb.Prepare(tx.Hash(), len(b.txs))
 
 	celoMock := testutil.NewCeloMock()
-	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{}, celoMock.Runner)
+
+	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{}, celoMock.Runner, MockSysContractCallCtx())
 	if err != nil {
 		panic(err)
 	}
 	b.txs = append(b.txs, tx)
 	b.receipts = append(b.receipts, receipt)
+}
+
+// MockSysContractCallCtx returns a SysContractCallCtx mock.
+func MockSysContractCallCtx() *SysContractCallCtx {
+	return &SysContractCallCtx{
+		// Set common.ZeroAddress to non-zero value to test on proper base fee distribution
+		gasPriceMinimums: map[common.Address]*big.Int{common.ZeroAddress: common.Big3},
+	}
+}
+
+// GetBalance returns the balance of the given address at the generated block.
+func (b *BlockGen) GetBalance(addr common.Address) *big.Int {
+	return b.statedb.GetBalance(addr)
 }
 
 // AddUncheckedTx forcefully adds a transaction to the block without any
@@ -184,18 +200,6 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		b := &BlockGen{i: i, chain: blocks, parent: parent, statedb: statedb, config: config, engine: engine}
 		b.header = makeHeader(chainreader, parent, statedb, b.engine)
 
-		// Mutate the state and block according to any hard-fork specs
-		if daoBlock := config.DAOForkBlock; daoBlock != nil {
-			limit := new(big.Int).Add(daoBlock, params.DAOForkExtraRange)
-			if b.header.Number.Cmp(daoBlock) >= 0 && b.header.Number.Cmp(limit) < 0 {
-				if config.DAOForkSupport {
-					b.header.Extra = common.CopyBytes(params.DAOForkBlockExtra)
-				}
-			}
-		}
-		if config.DAOForkSupport && config.DAOForkBlock != nil && config.DAOForkBlock.Cmp(b.header.Number) == 0 {
-			misc.ApplyDAOHardFork(statedb)
-		}
 		// Execute any user modifications to the block
 		if gen != nil {
 			gen(i, b)
@@ -229,6 +233,26 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 	return blocks, receipts
 }
 
+// Modified from  'func writeEmptyIstanbulExtra(header *types.Header) error' from consensus/backend/engine.go
+func CreateEmptyIstanbulExtra(vanity []byte) []byte {
+	extra := types.IstanbulExtra{
+		AddedValidators:           []common.Address{},
+		AddedValidatorsPublicKeys: []blscrypto.SerializedPublicKey{},
+		RemovedValidators:         big.NewInt(0),
+		Seal:                      []byte{},
+		AggregatedSeal:            types.IstanbulAggregatedSeal{},
+		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
+	}
+	payload, _ := rlp.EncodeToBytes(&extra)
+
+	if len(vanity) < types.IstanbulExtraVanity {
+		vanity = append(vanity, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(vanity))...)
+	}
+	vanity = append(vanity[:types.IstanbulExtraVanity], payload...)
+
+	return vanity
+}
+
 func makeHeader(chain consensus.ChainHeaderReader, parent *types.Block, state *state.StateDB, engine consensus.Engine) *types.Header {
 	var time uint64
 	if parent.Time() == 0 {
@@ -236,14 +260,16 @@ func makeHeader(chain consensus.ChainHeaderReader, parent *types.Block, state *s
 	} else {
 		time = parent.Time() + 10 // block time is fixed at 10 seconds
 	}
-
-	return &types.Header{
+	header := &types.Header{
 		Root:       state.IntermediateRoot(chain.Config().IsEIP158(parent.Number())),
 		ParentHash: parent.Hash(),
 		Coinbase:   parent.Coinbase(),
 		Number:     new(big.Int).Add(parent.Number(), common.Big1),
 		Time:       time,
 	}
+	// Properly set the extra data field
+	header.Extra = CreateEmptyIstanbulExtra(header.Extra)
+	return header
 }
 
 // makeHeaderChain creates a deterministic chain of headers rooted at parent.

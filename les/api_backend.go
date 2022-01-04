@@ -32,8 +32,8 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/light"
@@ -43,8 +43,9 @@ import (
 )
 
 type LesApiBackend struct {
-	extRPCEnabled bool
-	eth           *LightEthereum
+	extRPCEnabled       bool
+	allowUnprotectedTxs bool
+	eth                 *LightEthereum
 }
 
 func (b *LesApiBackend) ChainConfig() *params.ChainConfig {
@@ -61,7 +62,13 @@ func (b *LesApiBackend) SetHead(number uint64) {
 }
 
 func (b *LesApiBackend) HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Header, error) {
-	if number == rpc.LatestBlockNumber || number == rpc.PendingBlockNumber {
+	// Return the latest current as the pending one since there
+	// is no pending notion in the light client. TODO(rjl493456442)
+	// unify the behavior of `HeaderByNumber` and `PendingBlockAndReceipts`.
+	if number == rpc.PendingBlockNumber {
+		return b.eth.blockchain.CurrentHeader(), nil
+	}
+	if number == rpc.LatestBlockNumber {
 		return b.eth.blockchain.CurrentHeader(), nil
 	}
 	return b.eth.blockchain.GetHeaderByNumberOdr(ctx, uint64(number))
@@ -123,6 +130,10 @@ func (b *LesApiBackend) BlockByNumberOrHash(ctx context.Context, blockNrOrHash r
 	return nil, errors.New("invalid arguments; neither block nor hash specified")
 }
 
+func (b *LesApiBackend) PendingBlockAndReceipts() (*types.Block, types.Receipts) {
+	return nil, nil
+}
+
 func (b *LesApiBackend) StateAndHeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*state.StateDB, *types.Header, error) {
 	header, err := b.HeaderByNumber(ctx, number)
 	if err != nil {
@@ -172,10 +183,13 @@ func (b *LesApiBackend) GetTd(ctx context.Context, hash common.Hash) *big.Int {
 	return nil
 }
 
-func (b *LesApiBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header) (*vm.EVM, func() error, error) {
+func (b *LesApiBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header, vmConfig *vm.Config) (*vm.EVM, func() error, error) {
+	if vmConfig == nil {
+		vmConfig = new(vm.Config)
+	}
 	txContext := core.NewEVMTxContext(msg)
 	context := core.NewEVMBlockContext(header, b.eth.blockchain, nil)
-	return vm.NewEVM(context, txContext, state, b.eth.chainConfig, vm.Config{}), state.Error, nil
+	return vm.NewEVM(context, txContext, state, b.eth.chainConfig, *vmConfig), state.Error, nil
 }
 
 func (b *LesApiBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
@@ -208,6 +222,10 @@ func (b *LesApiBackend) Stats() (pending int, queued int) {
 
 func (b *LesApiBackend) TxPoolContent() (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
 	return b.eth.txPool.Content()
+}
+
+func (b *LesApiBackend) TxPoolContentFrom(addr common.Address) (types.Transactions, types.Transactions) {
+	return b.eth.txPool.ContentFrom(addr)
 }
 
 func (b *LesApiBackend) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
@@ -281,6 +299,29 @@ func (b *LesApiBackend) NewEVMRunner(header *types.Header, state vm.StateDB) vm.
 	return b.eth.BlockChain().NewEVMRunner(header, state)
 }
 
+func (b *LesApiBackend) SuggestGasTipCap(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
+	if err != nil {
+		return nil, err
+	}
+	return gpm.GetGasTipCapSuggestion(vmRunner, currencyAddress)
+}
+
+func (b *LesApiBackend) CurrentGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
+	if err != nil {
+		return nil, err
+	}
+	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
+}
+
+func (b *LesApiBackend) GasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error) {
+	state := light.NewState(ctx, header, b.eth.odr)
+	vmRunner := b.eth.blockchain.NewEVMRunner(header, state)
+
+	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
+}
+
 func (b *LesApiBackend) ChainDb() ethdb.Database {
 	return b.eth.chainDb
 }
@@ -291,6 +332,10 @@ func (b *LesApiBackend) AccountManager() *accounts.Manager {
 
 func (b *LesApiBackend) ExtRPCEnabled() bool {
 	return b.extRPCEnabled
+}
+
+func (b *LesApiBackend) UnprotectedAllowed() bool {
+	return b.allowUnprotectedTxs
 }
 
 func (b *LesApiBackend) RPCGasCap() uint64 {
@@ -321,7 +366,7 @@ func (b *LesApiBackend) GatewayFeeRecipient() common.Address {
 
 func (b *LesApiBackend) GatewayFee() *big.Int {
 	// TODO(nategraf): Create a method to fetch the gateway fee values of peers along with the coinbase.
-	return eth.DefaultConfig.GatewayFee
+	return ethconfig.Defaults.GatewayFee
 }
 
 func (b *LesApiBackend) Engine() consensus.Engine {
@@ -330,4 +375,16 @@ func (b *LesApiBackend) Engine() consensus.Engine {
 
 func (b *LesApiBackend) CurrentHeader() *types.Header {
 	return b.eth.blockchain.CurrentHeader()
+}
+
+func (b *LesApiBackend) StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, checkLive bool) (*state.StateDB, error) {
+	return b.eth.stateAtBlock(ctx, block, reexec)
+}
+
+func (b *LesApiBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, vm.EVMRunner, *state.StateDB, error) {
+	return b.eth.stateAtTransaction(ctx, block, txIndex, reexec)
+}
+
+func (b *LesApiBackend) VmRunnerAtHeader(header *types.Header, state *state.StateDB) vm.EVMRunner {
+	return b.eth.blockchain.NewEVMRunner(header, state)
 }

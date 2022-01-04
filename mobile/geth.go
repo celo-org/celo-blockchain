@@ -26,8 +26,8 @@ import (
 	"strings"
 
 	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/ethclient"
 	"github.com/celo-org/celo-blockchain/ethstats"
 	"github.com/celo-org/celo-blockchain/internal/debug"
@@ -246,7 +246,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 	}
 	// Register the Ethereum protocol if requested
 	if config.EthereumEnabled {
-		ethConf := eth.DefaultConfig
+		ethConf := ethconfig.Defaults
 		ethConf.Genesis = genesis
 
 		ethConf.SyncMode = getSyncMode(config.SyncMode)

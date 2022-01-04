@@ -21,12 +21,14 @@ import (
 	"errors"
 	"math"
 	"math/big"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/mclock"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/forkid"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
@@ -50,9 +52,11 @@ type clientHandler struct {
 	// TODO(nategraf) Remove this field once gateway fees can be retreived.
 	gatewayFee *big.Int
 
-	closeCh  chan struct{}
-	wg       sync.WaitGroup // WaitGroup used to track all connected peers.
-	syncDone func()         // Test hooks when syncing is done.
+	closeCh chan struct{}
+	wg      sync.WaitGroup // WaitGroup used to track all connected peers.
+	// Hooks used in the testing
+	syncStart func(header *types.Header) // Hook called when the syncing is started
+	syncEnd   func(header *types.Header) // Hook called when the syncing is done
 
 	gatewayFeeCache *gatewayFeeCache
 }
@@ -196,11 +200,25 @@ func (h *clientHandler) handle(p *serverPeer) error {
 	// TODO(nategraf) The local gateway fee is temporarily being used as the peer gateway fee.
 	p.SetGatewayFee(h.gatewayFee)
 
+	// Register peer with the server pool
+	if h.backend.serverPool != nil {
+		if nvt, err := h.backend.serverPool.RegisterNode(p.Node()); err == nil {
+			p.setValueTracker(nvt)
+			p.updateVtParams()
+			defer func() {
+				p.setValueTracker(nil)
+				h.backend.serverPool.UnregisterNode(p.Node())
+			}()
+		} else {
+			return err
+		}
+	}
 	// Register the peer locally
 	if err := h.backend.peers.register(p); err != nil {
 		p.Log().Error("Light Ethereum peer registration failed", "err", err)
 		return err
 	}
+
 	serverConnectionGauge.Update(int64(h.backend.peers.len()))
 
 	connectedAt := mclock.Now()
@@ -216,7 +234,7 @@ func (h *clientHandler) handle(p *serverPeer) error {
 		maxRequests := 10
 		for requests := 1; requests <= maxRequests; requests++ {
 			p.Log().Trace("Requesting etherbase from new peer")
-			reqID := genReqID()
+			reqID := rand.Uint64()
 			cost := p.getRequestCost(GetEtherbaseMsg, int(1))
 			err := p.RequestEtherbase(reqID, cost)
 
@@ -331,7 +349,7 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 			}
 			if len(headers) != 0 || !filter {
 				if err := h.downloader.DeliverHeaders(p.id, headers); err != nil {
-					log.Error("Failed to deliver headers", "err", err)
+					log.Debug("Failed to deliver headers", "err", err)
 				}
 			}
 		}
@@ -509,7 +527,7 @@ func (pc *peerConnection) RequestHeadersByHash(origin common.Hash, amount int, s
 			return dp.(*serverPeer) == pc.peer
 		},
 		request: func(dp distPeer) func() {
-			reqID := genReqID()
+			reqID := rand.Uint64()
 			peer := dp.(*serverPeer)
 			cost := peer.getRequestCost(GetBlockHeadersMsg, amount)
 			peer.fcServer.QueuedRequest(reqID, cost)
@@ -533,7 +551,7 @@ func (pc *peerConnection) RequestHeadersByNumber(origin uint64, amount int, skip
 			return dp.(*serverPeer) == pc.peer
 		},
 		request: func(dp distPeer) func() {
-			reqID := genReqID()
+			reqID := rand.Uint64()
 			peer := dp.(*serverPeer)
 			cost := peer.getRequestCost(GetBlockHeadersMsg, amount)
 			peer.fcServer.QueuedRequest(reqID, cost)
@@ -550,7 +568,7 @@ func (pc *peerConnection) RequestHeadersByNumber(origin uint64, amount int, skip
 // RetrieveSingleHeaderByNumber requests a single header by the specified block
 // number. This function will wait the response until it's timeout or delivered.
 func (pc *peerConnection) RetrieveSingleHeaderByNumber(context context.Context, number uint64) (*types.Header, error) {
-	reqID := genReqID()
+	reqID := rand.Uint64()
 	rq := &distReq{
 		getCost: func(dp distPeer) uint64 {
 			peer := dp.(*serverPeer)
@@ -592,7 +610,7 @@ func (d *downloaderPeerNotify) registerPeer(p *serverPeer) {
 		handler: h,
 		peer:    p,
 	}
-	h.downloader.RegisterLightPeer(p.id, ethVersion, pc)
+	h.downloader.RegisterLightPeer(p.id, istanbul.Celo66, pc)
 }
 
 func (d *downloaderPeerNotify) unregisterPeer(p *serverPeer) {

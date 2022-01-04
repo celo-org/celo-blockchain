@@ -166,7 +166,7 @@ Every 5 minutes it should multicast its version certificate table to all peers.
 
 #### Peer handshake
 
-When a [NearlyElectedValidator] connects to another [NearlyElectedValidator], the inbound peer can send an [enodeCertificateMsg] to identify itself as a [NearlyElectedValidator]. This allows for preferential treatment for the p2p connection.
+When a [NearlyElectedValidator] connects to another [NearlyElectedValidator] (identified by being present at the [eNodeURL] table), the initiator peer can send an [enodeCertificateMsg] to identify itself as a [NearlyElectedValidator]. This allows for preferential treatment for the p2p connection.
 
 This can happen for example if: Say `A` and `B` are both [NearlyElectedValidator] nodes and not directly connected in the p2p network. `A` sends a [queryEnodeMsg] to the network, `B` receives it and therefore decides to directly open a p2p connection to `A`. As soon as the conection is registered, it identifies itself by sending the [enodeCertificateMsg] to `A`.
 

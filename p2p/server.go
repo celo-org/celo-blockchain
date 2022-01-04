@@ -35,7 +35,6 @@ import (
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p/discover"
-	"github.com/celo-org/celo-blockchain/p2p/discv5"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/p2p/enr"
 	"github.com/celo-org/celo-blockchain/p2p/nat"
@@ -109,7 +108,7 @@ type Config struct {
 	// BootstrapNodesV5 are used to establish connectivity
 	// with the rest of the network using the V5 discovery
 	// protocol.
-	BootstrapNodesV5 []*discv5.Node `toml:",omitempty"`
+	BootstrapNodesV5 []*enode.Node `toml:",omitempty"`
 
 	// Static nodes are used as pre-configured connections which are always
 	// maintained and re-connected on disconnects.
@@ -171,6 +170,15 @@ type Config struct {
 	Logger log.Logger `toml:",omitempty"`
 
 	clock mclock.Clock
+
+	// DialHistoryExpiration is the time waited between dialling a specific node.
+	DialHistoryExpiration time.Duration
+
+	// InboundThrottleTime is used to rate limit inbound connection attempts
+	// from a specific IP. If setting up a small private network this should
+	// probably be set smaller than DialHistoryExpiration to avoid lots of
+	// failed dial attempts.
+	InboundThrottleTime time.Duration
 }
 
 // Server manages all peer connections.
@@ -196,7 +204,7 @@ type Server struct {
 	nodedb    *enode.DB
 	localnode *enode.LocalNode
 	ntab      *discover.UDPv4
-	DiscV5    *discv5.Network
+	DiscV5    *discover.UDPv5
 	discmix   *enode.FairMix
 	dialsched *dialScheduler
 
@@ -431,7 +439,7 @@ func (srv *Server) RemovePeer(node *enode.Node, purpose PurposeFlag) {
 	}
 }
 
-// AddTrustedPeer adds the given node to a reserved whitelist which allows the
+// AddTrustedPeer adds the given node to a reserved trusted list which allows the
 // node to always connect, even if the slot are full.
 func (srv *Server) AddTrustedPeer(node *enode.Node, purpose PurposeFlag) {
 	select {
@@ -499,7 +507,7 @@ type SharedUDPConn struct {
 	Unhandled chan discover.ReadPacket
 }
 
-// ReadFromUDP implements discv5.conn
+// ReadFromUDP implements discover.UDPConn
 func (s *SharedUDPConn) ReadFromUDP(b []byte) (n int, addr *net.UDPAddr, err error) {
 	packet, ok := <-s.Unhandled
 	if !ok {
@@ -513,7 +521,7 @@ func (s *SharedUDPConn) ReadFromUDP(b []byte) (n int, addr *net.UDPAddr, err err
 	return l, packet.Addr, nil
 }
 
-// Close implements discv5.conn
+// Close implements discover.UDPConn
 func (s *SharedUDPConn) Close() error {
 	return nil
 }
@@ -525,6 +533,9 @@ func (srv *Server) Start() (err error) {
 	defer srv.lock.Unlock()
 	if srv.running {
 		return errors.New("server already running")
+	}
+	if srv.InboundThrottleTime == 0 {
+		srv.InboundThrottleTime = inboundThrottleTime
 	}
 	srv.running = true
 	srv.log = srv.Config.Logger
@@ -678,7 +689,7 @@ func (srv *Server) setupDiscovery() error {
 			Unhandled:        unhandled,
 			Log:              srv.log,
 		}
-		ntab, err := discover.ListenUDP(conn, srv.localnode, cfg)
+		ntab, err := discover.ListenV4(conn, srv.localnode, cfg)
 		if err != nil {
 			return err
 		}
@@ -688,33 +699,35 @@ func (srv *Server) setupDiscovery() error {
 
 	// Discovery V5
 	if srv.DiscoveryV5 {
-		var ntab *discv5.Network
+		cfg := discover.Config{
+			PrivateKey:  srv.PrivateKey,
+			NetRestrict: srv.NetRestrict,
+			Bootnodes:   srv.BootstrapNodesV5,
+			Log:         srv.log,
+		}
 		var err error
 		if sconn != nil {
-			ntab, err = discv5.ListenUDP(srv.PrivateKey, sconn, "", srv.NetRestrict)
+			srv.DiscV5, err = discover.ListenV5(sconn, srv.localnode, cfg)
 		} else {
-			ntab, err = discv5.ListenUDP(srv.PrivateKey, conn, "", srv.NetRestrict)
+			srv.DiscV5, err = discover.ListenV5(conn, srv.localnode, cfg)
 		}
 		if err != nil {
 			return err
 		}
-		if err := ntab.SetFallbackNodes(srv.BootstrapNodesV5); err != nil {
-			return err
-		}
-		srv.DiscV5 = ntab
 	}
 	return nil
 }
 
 func (srv *Server) setupDialScheduler() {
 	config := dialConfig{
-		self:           srv.localnode.ID(),
-		maxDialPeers:   srv.maxDialedConns(),
-		maxActiveDials: srv.MaxPendingPeers,
-		log:            srv.Logger,
-		netRestrict:    srv.NetRestrict,
-		dialer:         srv.Dialer,
-		clock:          srv.clock,
+		self:                  srv.localnode.ID(),
+		maxDialPeers:          srv.maxDialedConns(),
+		maxActiveDials:        srv.MaxPendingPeers,
+		log:                   srv.Logger,
+		netRestrict:           srv.NetRestrict,
+		dialer:                srv.Dialer,
+		clock:                 srv.clock,
+		dialHistoryExpiration: srv.DialHistoryExpiration,
 	}
 	if srv.ntab != nil {
 		config.resolver = srv.ntab
@@ -1072,8 +1085,8 @@ func (srv *Server) listenLoop() {
 		}
 
 		remoteIP := netutil.AddrIP(fd.RemoteAddr())
-		if err := srv.checkInboundConn(fd, remoteIP); err != nil {
-			srv.log.Debug("Rejected inbound connnection", "addr", fd.RemoteAddr(), "err", err)
+		if err := srv.checkInboundConn(remoteIP); err != nil {
+			srv.log.Debug("Rejected inbound connection", "addr", fd.RemoteAddr(), "err", err)
 			fd.Close()
 			slots <- struct{}{}
 			continue
@@ -1093,13 +1106,13 @@ func (srv *Server) listenLoop() {
 	}
 }
 
-func (srv *Server) checkInboundConn(fd net.Conn, remoteIP net.IP) error {
+func (srv *Server) checkInboundConn(remoteIP net.IP) error {
 	if remoteIP == nil {
 		return nil
 	}
 	// Reject connections that do not match NetRestrict.
 	if srv.NetRestrict != nil && !srv.NetRestrict.Contains(remoteIP) {
-		return fmt.Errorf("not whitelisted in NetRestrict")
+		return fmt.Errorf("not in netrestrict list")
 	}
 	// Reject Internet peers that try too often.
 	now := srv.clock.Now()
@@ -1107,7 +1120,7 @@ func (srv *Server) checkInboundConn(fd net.Conn, remoteIP net.IP) error {
 	if !netutil.IsLAN(remoteIP) && srv.inboundHistory.contains(remoteIP.String()) {
 		return fmt.Errorf("too many attempts")
 	}
-	srv.inboundHistory.add(remoteIP.String(), now.Add(inboundThrottleTime))
+	srv.inboundHistory.add(remoteIP.String(), now.Add(srv.InboundThrottleTime))
 	return nil
 }
 

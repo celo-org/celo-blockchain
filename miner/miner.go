@@ -171,6 +171,7 @@ func (miner *Miner) update() {
 			miner.worker.stop()
 		case <-miner.exitCh:
 			miner.worker.close()
+			miner.exitCh <- struct{}{}
 			return
 		}
 	}
@@ -187,7 +188,8 @@ func (miner *Miner) Stop() {
 }
 
 func (miner *Miner) Close() {
-	close(miner.exitCh)
+	miner.exitCh <- struct{}{}
+	<-miner.exitCh
 }
 
 func (miner *Miner) Mining() bool {
@@ -225,6 +227,11 @@ func (miner *Miner) SetValidator(addr common.Address) {
 // SetTxFeeRecipient sets the address where the miner and worker will receive fees
 func (miner *Miner) SetTxFeeRecipient(addr common.Address) {
 	miner.worker.setTxFeeRecipient(addr)
+}
+
+// PendingBlockAndReceipts returns the currently pending block and corresponding receipts.
+func (miner *Miner) PendingBlockAndReceipts() (*types.Block, types.Receipts) {
+	return miner.worker.pendingBlockAndReceipts()
 }
 
 // SubscribePendingLogs starts delivering logs from pending transactions

@@ -17,6 +17,7 @@
 package core
 
 import (
+	"math/big"
 	"sync/atomic"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -54,17 +55,26 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 		header   = block.Header()
 		vmRunner = p.bc.NewEVMRunner(header, statedb)
 		gaspool  = new(GasPool).AddGas(blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner))
+		baseFee  *big.Int
+		sysCtx   *SysContractCallCtx
 	)
 	// Iterate over and process the individual transactions
 	byzantium := p.config.IsByzantium(block.Number())
+	espresso := p.bc.chainConfig.IsEspresso(block.Number())
+	if espresso {
+		sysCtx = NewSysContractCallCtx(p.bc.NewEVMRunner(header, statedb))
+	}
 	for i, tx := range block.Transactions() {
 		// If block precaching was interrupted, abort
 		if interrupt != nil && atomic.LoadUint32(interrupt) == 1 {
 			return
 		}
 		// Block precaching permitted to continue, execute the transaction
-		statedb.Prepare(tx.Hash(), block.Hash(), i)
-		if err := precacheTransaction(p.config, p.bc, nil, gaspool, statedb, header, tx, cfg); err != nil {
+		statedb.Prepare(tx.Hash(), i)
+		if espresso {
+			baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
+		}
+		if err := precacheTransaction(p.config, p.bc, nil, gaspool, statedb, header, tx, cfg, baseFee); err != nil {
 			return // Ugh, something went horribly wrong, bail out
 		}
 		// If we're pre-byzantium, pre-load trie nodes for the intermediate root
@@ -81,9 +91,9 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 // precacheTransaction attempts to apply a transaction to the given state database
 // and uses the input parameters for its environment. The goal is not to execute
 // the transaction successfully, rather to warm up touched data slots.
-func precacheTransaction(config *params.ChainConfig, bc *BlockChain, author *common.Address, gaspool *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, cfg vm.Config) error {
+func precacheTransaction(config *params.ChainConfig, bc *BlockChain, author *common.Address, gaspool *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, cfg vm.Config, baseFee *big.Int) error {
 	// Convert the transaction into an executable message and pre-cache its sender
-	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number))
+	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number), baseFee)
 	if err != nil {
 		return err
 	}
@@ -92,6 +102,11 @@ func precacheTransaction(config *params.ChainConfig, bc *BlockChain, author *com
 	txContext := NewEVMTxContext(msg)
 	vm := vm.NewEVM(context, txContext, statedb, config, cfg)
 
-	_, err = ApplyMessage(vm, msg, gaspool, bc.NewEVMRunner(header, statedb))
+	var sysCtx *SysContractCallCtx
+	if config.IsEspresso(header.Number) {
+		sysVmRunner := bc.NewEVMRunner(header, statedb)
+		sysCtx = NewSysContractCallCtx(sysVmRunner)
+	}
+	_, err = ApplyMessage(vm, msg, gaspool, bc.NewEVMRunner(header, statedb), sysCtx)
 	return err
 }

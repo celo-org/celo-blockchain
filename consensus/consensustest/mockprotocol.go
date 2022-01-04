@@ -19,7 +19,6 @@ package consensustest
 import (
 	"crypto/ecdsa"
 	"errors"
-	"fmt"
 	"math/big"
 	"net"
 	"runtime"
@@ -105,7 +104,7 @@ func (mp *MockPeer) Node() *enode.Node {
 	return mp.node
 }
 
-func (mp *MockPeer) Version() int {
+func (mp *MockPeer) Version() uint {
 	return 0
 }
 
@@ -228,9 +227,9 @@ func (e *MockEngine) VerifyHeader(chain consensus.ChainHeaderReader, header *typ
 
 // verifyHeader checks whether a header conforms to the consensus rules
 func (e *MockEngine) verifyHeader(chain consensus.ChainHeaderReader, header, parent *types.Header, seal bool) error {
-	// Ensure that the header's extra-data section is of a reasonable size
-	if uint64(len(header.Extra)) > params.MaximumExtraDataSize {
-		return fmt.Errorf("extra-data too long: %d > %d", len(header.Extra), params.MaximumExtraDataSize)
+	// Ensure that the extra data format is satisfied
+	if _, err := types.ExtractIstanbulExtra(header); err != nil {
+		return errors.New("invalid extra data format")
 	}
 	// Verify the header's timestamp
 	if header.Time > uint64(time.Now().Add(allowedFutureBlockTime).Unix()) {
