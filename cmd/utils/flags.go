@@ -519,7 +519,7 @@ var (
 	}
 	HTTPRequestIdleTimeout = cli.IntFlag{
 		Name:  "http.timeout.idle",
-		Usage: "Timeout for HTTP-RPC idle connections",
+		Usage: "Timeout in seconds for HTTP-RPC idle connections",
 		Value: node.DefaultHTTPTimeoutIdle,
 	}
 	GraphQLEnabledFlag = cli.BoolFlag{
