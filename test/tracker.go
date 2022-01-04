@@ -14,7 +14,8 @@ import (
 )
 
 var (
-	errStopped = errors.New("transaction tracker closed")
+	errStopped               = errors.New("transaction tracker closed")
+	ErrTrackerAlreadyStopped = errors.New("attempted to stop already stopped tracker")
 )
 
 // Tracker tracks processed blocks and transactions through a subscription with
@@ -192,11 +193,14 @@ func (tr *Tracker) await(ctx context.Context, condition func() bool) error {
 // StopTracking shuts down all the goroutines in the tracker.
 func (tr *Tracker) StopTracking() error {
 	if tr.sub == nil {
-		return errors.New("attempted to stop already stopped tracker")
+		return ErrTrackerAlreadyStopped
 	}
 	tr.sub.Unsubscribe()
 	close(tr.stopCh)
 	tr.wg.Wait()
+	// Set this to nil to mark the tracker as stopped. This must be done after
+	// waiting for wg, to avoid a data race in trackTransactions.
+	tr.sub = nil
 	tr.wg = sync.WaitGroup{}
 	return nil
 }

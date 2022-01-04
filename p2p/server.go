@@ -170,6 +170,15 @@ type Config struct {
 	Logger log.Logger `toml:",omitempty"`
 
 	clock mclock.Clock
+
+	// DialHistoryExpiration is the time waited between dialling a specific node.
+	DialHistoryExpiration time.Duration
+
+	// InboundThrottleTime is used to rate limit inbound connection attempts
+	// from a specific IP. If setting up a small private network this should
+	// probably be set smaller than DialHistoryExpiration to avoid lots of
+	// failed dial attempts.
+	InboundThrottleTime time.Duration
 }
 
 // Server manages all peer connections.
@@ -525,6 +534,9 @@ func (srv *Server) Start() (err error) {
 	if srv.running {
 		return errors.New("server already running")
 	}
+	if srv.InboundThrottleTime == 0 {
+		srv.InboundThrottleTime = inboundThrottleTime
+	}
 	srv.running = true
 	srv.log = srv.Config.Logger
 	if srv.log == nil {
@@ -708,13 +720,14 @@ func (srv *Server) setupDiscovery() error {
 
 func (srv *Server) setupDialScheduler() {
 	config := dialConfig{
-		self:           srv.localnode.ID(),
-		maxDialPeers:   srv.maxDialedConns(),
-		maxActiveDials: srv.MaxPendingPeers,
-		log:            srv.Logger,
-		netRestrict:    srv.NetRestrict,
-		dialer:         srv.Dialer,
-		clock:          srv.clock,
+		self:                  srv.localnode.ID(),
+		maxDialPeers:          srv.maxDialedConns(),
+		maxActiveDials:        srv.MaxPendingPeers,
+		log:                   srv.Logger,
+		netRestrict:           srv.NetRestrict,
+		dialer:                srv.Dialer,
+		clock:                 srv.clock,
+		dialHistoryExpiration: srv.DialHistoryExpiration,
 	}
 	if srv.ntab != nil {
 		config.resolver = srv.ntab
@@ -1107,7 +1120,7 @@ func (srv *Server) checkInboundConn(remoteIP net.IP) error {
 	if !netutil.IsLAN(remoteIP) && srv.inboundHistory.contains(remoteIP.String()) {
 		return fmt.Errorf("too many attempts")
 	}
-	srv.inboundHistory.add(remoteIP.String(), now.Add(inboundThrottleTime))
+	srv.inboundHistory.add(remoteIP.String(), now.Add(srv.InboundThrottleTime))
 	return nil
 }
 
