@@ -514,7 +514,7 @@ var (
 	}
 	HTTPRequestWriteTimeout = cli.IntFlag{
 		Name:  "http.timeout.write",
-		Usage: "Timeout for HTTP-RPC write requests",
+		Usage: "Timeout in seconds for HTTP-RPC write requests",
 		Value: node.DefaultHTTPTimeoutWrite,
 	}
 	HTTPRequestIdleTimeout = cli.IntFlag{
