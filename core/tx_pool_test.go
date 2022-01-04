@@ -893,42 +893,72 @@ func TestTransactionGapFilling(t *testing.T) {
 // (a) to set pool.donut = false at its start (so we can add unprotected transactions)
 // (b) different functions to generate protected vs unprotected transactions, since we will
 //     need to update transaction() and the others to use replay protection
-func TestHandleDonutActivation(t *testing.T) {
+func TestPoolReAcceptingUnprotectedTxsFromEFork(t *testing.T) {
 	t.Parallel()
 
-	// Create a test account and fund it
 	pool, key := setupTxPool()
+	// Create a test account and fund it
 	defer pool.Stop()
 
 	account := crypto.PubkeyToAddress(key.PublicKey)
 	pool.currentState.AddBalance(account, big.NewInt(1000000))
 
+	// flag it as before donut
+	pool.donut = false
+	pool.espresso = false
+
 	pool.AddRemotesSync([]*types.Transaction{
 		protectedTransaction(0, 100000, key),
 		transaction(1, 100000, key),
-		protectedTransaction(2, 100000, key),
-		transaction(7, 100000, key),
-		protectedTransaction(8, 100000, key),
-		transaction(9, 100000, key),
-		transaction(10, 100000, key),
+
+		protectedTransaction(10, 100000, key),
+		transaction(11, 100000, key),
 	})
 
 	pending, queued := pool.Stats()
-	if pending != 3 {
-		t.Fatalf("pending transactions mismatched: have %d, want %d", pending, 3)
-	}
-	if queued != 4 {
-		t.Fatalf("queued transactions mismatched: have %d, want %d", queued, 4)
-	}
-
-	pool.handleDonutActivation()
-
-	pending, queued = pool.Stats()
-	if pending != 1 {
-		t.Fatalf("pending transactions mismatched: have %d, want %d", pending, 1)
+	if pending != 2 {
+		t.Fatalf("before donut, pending transactions mismatched: have %d, want %d", pending, 2)
 	}
 	if queued != 2 {
-		t.Fatalf("queued transactions mismatched: have %d, want %d", queued, 2)
+		t.Fatalf("before donut, queued transactions mismatched: have %d, want %d", queued, 2)
+	}
+
+	// In donut fork
+	pool.donut = true
+
+	pool.AddRemotesSync([]*types.Transaction{
+		protectedTransaction(2, 100000, key),
+		transaction(3, 100000, key),
+
+		protectedTransaction(12, 100000, key),
+		transaction(13, 100000, key),
+	})
+
+	pending, queued = pool.Stats()
+	if pending != 3 {
+		t.Fatalf("after donut, pending transactions mismatched: have %d, want %d", pending, 3)
+	}
+	if queued != 3 {
+		t.Fatalf("after donut, queued transactions mismatched: have %d, want %d", queued, 3)
+	}
+
+	// In E fork
+	// flag it as E hard fork
+	pool.espresso = true
+	pool.AddRemotesSync([]*types.Transaction{
+		transaction(3, 100000, key),
+		protectedTransaction(4, 100000, key),
+
+		transaction(13, 100000, key),
+		protectedTransaction(14, 100000, key),
+	})
+
+	pending, queued = pool.Stats()
+	if pending != 5 {
+		t.Fatalf("after espresso, pending transactions mismatched: have %d, want %d", pending, 5)
+	}
+	if queued != 5 {
+		t.Fatalf("after espresso, queued transactions mismatched: have %d, want %d", queued, 5)
 	}
 
 	if err := validateTxPoolInternals(pool); err != nil {

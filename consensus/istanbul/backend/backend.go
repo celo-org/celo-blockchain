@@ -550,8 +550,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 			return err
 		}
 	}
-	go sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
-
+	sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
 	return nil
 }
 

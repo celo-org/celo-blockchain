@@ -30,7 +30,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
-	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -1623,15 +1622,21 @@ func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 	if err := checkFeeFromCeloTx(ctx, b, tx); err != nil {
 		return common.Hash{}, err
 	}
+	currentBlockNumber := b.CurrentBlock().Number()
 	if !tx.Protected() {
-		// Ensure only eip155 signed transactions are submitted if EIP155Required is set.
-		return common.Hash{}, errors.New("only replay-protected (EIP-155) transactions allowed over RPC")
+		if !b.UnprotectedAllowed() {
+			// Ensure only eip155 signed transactions are submitted if EIP155Required is set.
+			return common.Hash{}, errors.New("only replay-protected (EIP-155) transactions allowed over RPC for this node")
+		}
+		if b.ChainConfig().IsDonut(currentBlockNumber) && !b.ChainConfig().IsEspresso(currentBlockNumber) {
+			return common.Hash{}, errors.New("only replay-protected (EIP-155) transactions allowed over RPC")
+		}
 	}
 	if err := b.SendTx(ctx, tx); err != nil {
 		return common.Hash{}, err
 	}
 	// Print a log with full tx details for manual investigations and interventions
-	signer := types.MakeSigner(b.ChainConfig(), b.CurrentBlock().Number())
+	signer := types.MakeSigner(b.ChainConfig(), currentBlockNumber)
 	from, err := types.Sender(signer, tx)
 	if err != nil {
 		return common.Hash{}, err
@@ -1943,21 +1948,6 @@ func (s *PublicNetAPI) PeerCount() hexutil.Uint {
 // Version returns the current ethereum protocol version.
 func (s *PublicNetAPI) Version() string {
 	return fmt.Sprintf("%d", s.networkVersion)
-}
-
-// checkTxFee is an internal function used to check whether the fee of
-// the given transaction is _reasonable_(under the cap).
-func checkTxFee(cm *currency.CurrencyManager, feeCurrency *common.Address, fee *big.Int, cap float64) error {
-	// Short circuit if there is no cap for transaction fee at all.
-	if cap == 0 {
-		return nil
-	}
-	weiCap := getWei(cap)
-	if cm.CmpValues(fee, feeCurrency, weiCap, nil) > 0 {
-		feeFloat := float64(fee.Uint64()) / params.Ether
-		return fmt.Errorf("tx fee (%.2f ether) exceeds the configured cap (%.2f celo)", feeFloat, cap)
-	}
-	return nil
 }
 
 // toHexSlice creates a slice of hex-strings based on []byte.

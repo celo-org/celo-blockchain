@@ -78,17 +78,18 @@ type txPool interface {
 // handlerConfig is the collection of initialization parameters to create a full
 // node network handler.
 type handlerConfig struct {
-	Database    ethdb.Database            // Database for direct sync insertions
-	Chain       *core.BlockChain          // Blockchain to serve data from
-	TxPool      txPool                    // Transaction pool to propagate from
-	Network     uint64                    // Network identifier to adfvertise
-	Sync        downloader.SyncMode       // Whether to fast or full sync
-	BloomCache  uint64                    // Megabytes to alloc for fast sync bloom
-	EventMux    *event.TypeMux            // Legacy event mux, deprecate for `feed`
-	Checkpoint  *params.TrustedCheckpoint // Hard coded checkpoint for sync challenges
-	Whitelist   map[uint64]common.Hash    // Hard coded whitelist for sync challenged
-	server      *p2p.Server
-	proxyServer *p2p.Server
+	Database     ethdb.Database            // Database for direct sync insertions
+	Chain        *core.BlockChain          // Blockchain to serve data from
+	TxPool       txPool                    // Transaction pool to propagate from
+	Network      uint64                    // Network identifier to adfvertise
+	Sync         downloader.SyncMode       // Whether to fast or full sync
+	BloomCache   uint64                    // Megabytes to alloc for fast sync bloom
+	EventMux     *event.TypeMux            // Legacy event mux, deprecate for `feed`
+	Checkpoint   *params.TrustedCheckpoint // Hard coded checkpoint for sync challenges
+	Whitelist    map[uint64]common.Hash    // Hard coded whitelist for sync challenged
+	server       *p2p.Server
+	proxyServer  *p2p.Server
+	MinSyncPeers int // The minimum peers required to sstart syncing
 }
 
 type handler struct {
@@ -132,7 +133,6 @@ type handler struct {
 	proxyServer *p2p.Server
 }
 
-// newHandler returns a handler for all Ethereum chain management protocol.
 func newHandler(config *handlerConfig) (*handler, error) {
 	// Create the protocol manager with the base fields
 	if config.EventMux == nil {
@@ -243,7 +243,7 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		return p.RequestTxs(hashes)
 	}
 	h.txFetcher = fetcher.NewTxFetcher(h.txpool.Has, h.txpool.AddRemotes, fetchTx)
-	h.chainSync = newChainSyncer(h)
+	h.chainSync = newChainSyncer(h, config.MinSyncPeers)
 	return h, nil
 }
 

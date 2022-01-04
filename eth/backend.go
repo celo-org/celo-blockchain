@@ -216,17 +216,18 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		checkpoint = params.TrustedCheckpoints[genesisHash]
 	}
 	if eth.handler, err = newHandler(&handlerConfig{
-		Database:    chainDb,
-		Chain:       eth.blockchain,
-		TxPool:      eth.txPool,
-		Network:     config.NetworkId,
-		Sync:        config.SyncMode,
-		BloomCache:  uint64(cacheLimit),
-		EventMux:    eth.eventMux,
-		Checkpoint:  checkpoint,
-		Whitelist:   config.Whitelist,
-		server:      stack.Server(),
-		proxyServer: stack.ProxyServer(),
+		Database:     chainDb,
+		Chain:        eth.blockchain,
+		TxPool:       eth.txPool,
+		Network:      config.NetworkId,
+		Sync:         config.SyncMode,
+		BloomCache:   uint64(cacheLimit),
+		EventMux:     eth.eventMux,
+		Checkpoint:   checkpoint,
+		Whitelist:    config.Whitelist,
+		server:       stack.Server(),
+		proxyServer:  stack.ProxyServer(),
+		MinSyncPeers: config.MinSyncPeers,
 	}); err != nil {
 		return nil, err
 	}
@@ -244,7 +245,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, chainDb)
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
 
-	eth.APIBackend = &EthAPIBackend{stack.Config().ExtRPCEnabled(), eth}
+	eth.APIBackend = &EthAPIBackend{stack.Config().ExtRPCEnabled(), true, eth}
 
 	// Setup DNS discovery iterators.
 	dnsclient := dnsdisc.NewClient(dnsdisc.Config{})
@@ -607,6 +608,7 @@ func (s *Ethereum) Stop() error {
 	close(s.closeBloomHandler)
 	s.txPool.Stop()
 	s.miner.Stop()
+	s.miner.Close()
 	s.blockchain.Stop()
 	s.engine.Close()
 	rawdb.PopUncleanShutdownMarker(s.chainDb)
