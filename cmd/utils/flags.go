@@ -509,7 +509,7 @@ var (
 	}
 	HTTPRequestReadTimeout = cli.IntFlag{
 		Name:  "http.timeout.read",
-		Usage: "Timeout for HTTP-RPC read requests",
+		Usage: "Timeout in seconds for HTTP-RPC read requests",
 		Value: node.DefaultHTTPTimeoutRead,
 	}
 	HTTPRequestWriteTimeout = cli.IntFlag{
