@@ -82,9 +82,6 @@ var (
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
 	// errInvalidValidatorSetDiff is returned if the header contains invalid validator set diff
 	errInvalidValidatorSetDiff = errors.New("invalid validator set diff")
-	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
-	// an unregistered validator
-	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
 	// errNotAValidator is returned when the node is not configured as a validator
 	errNotAValidator = errors.New("Not configured as a validator")
 )
@@ -709,45 +706,6 @@ func (sb *Backend) StopValidating() error {
 	sb.coreStarted.Store(false)
 
 	return nil
-}
-
-// StartAnnouncing implements consensus.Istanbul.StartAnnouncing
-func (sb *Backend) StartAnnouncing() error {
-	sb.announceMu.Lock()
-	defer sb.announceMu.Unlock()
-	if sb.announceRunning {
-		return istanbul.ErrStartedAnnounce
-	}
-
-	sb.announceThreadQuit = make(chan struct{})
-	sb.announceRunning = true
-
-	sb.announceThreadWg.Add(1)
-	go sb.announceThread()
-
-	if err := sb.vph.startThread(); err != nil {
-		sb.StopAnnouncing()
-		return err
-	}
-
-	return nil
-}
-
-// StopAnnouncing implements consensus.Istanbul.StopAnnouncing
-func (sb *Backend) StopAnnouncing() error {
-	sb.announceMu.Lock()
-	defer sb.announceMu.Unlock()
-
-	if !sb.announceRunning {
-		return istanbul.ErrStoppedAnnounce
-	}
-
-	close(sb.announceThreadQuit)
-	sb.announceThreadWg.Wait()
-
-	sb.announceRunning = false
-
-	return sb.vph.stopThread()
 }
 
 // StartProxiedValidatorEngine implements consensus.Istanbul.StartProxiedValidatorEngine

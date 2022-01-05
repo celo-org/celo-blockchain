@@ -6,6 +6,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
 
@@ -53,7 +54,7 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error in encoding vCert1.  Error: %v", err)
 	}
-	err = engine0.handleVersionCertificatesMsg(common.Address{}, nil, vCert1MsgPayload)
+	err = engine0.announceManager.HandleVersionCertificatesMsg(common.Address{}, nil, vCert1MsgPayload)
 	if err != nil {
 		t.Errorf("Error in handling vCert1.  Error: %v", err)
 	}
@@ -62,13 +63,14 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error in encoding vCert2.  Error: %v", err)
 	}
-	err = engine0.handleVersionCertificatesMsg(common.Address{}, nil, vCert2MsgPayload)
+	err = engine0.announceManager.HandleVersionCertificatesMsg(common.Address{}, nil, vCert2MsgPayload)
 	if err != nil {
 		t.Errorf("Error in handling vCert2.  Error: %v", err)
 	}
 
 	// Verify that engine0 will query for both engine1 and engine2's enodeURL
-	qeEntries, err := engine0.announceManager.getQueryEnodeValEnodeEntries(false)
+	qeep := announce.NewQueryEnodeEntryProvider(engine0.valEnodeTable)
+	qeEntries, err := qeep.GetQueryEnodeValEnodeEntries(false, engine0.wallets().Ecdsa.Address)
 	if err != nil {
 		t.Errorf("Error in retrieving entries for queryEnode request")
 	}
@@ -93,7 +95,9 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	}
 
 	// Generate query enode message for engine0
-	qeMsg, err := engine0.announceManager.generateAndGossipQueryEnode(engine0AnnounceVersion, false)
+	// TODO: refactor this test to remove the hard dependency on the generate&gossip fn
+	wk := engine0.announceManager.Worker()
+	qeMsg, err := wk.GenerateAndGossipQueryEnode(false)
 	if err != nil {
 		t.Errorf("Error in generating a query enode message.  Error: %v", err)
 	}
@@ -105,12 +109,12 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	}
 
 	// Handle the qeMsg for both engine1 and engine2
-	err = engine1.announceManager.handleQueryEnodeMsg(engine0.Address(), nil, qePayload)
+	err = engine1.announceManager.HandleQueryEnodeMsg(engine0.Address(), nil, qePayload)
 	if err != nil {
 		t.Errorf("Error in handling query enode message for engine1.  Error: %v", err)
 	}
 
-	err = engine2.announceManager.handleQueryEnodeMsg(engine0.Address(), nil, qePayload)
+	err = engine2.announceManager.HandleQueryEnodeMsg(engine0.Address(), nil, qePayload)
 	if err != nil {
 		t.Errorf("Error in handling query enode message for engine2.  Error: %v", err)
 	}
@@ -164,7 +168,7 @@ func TestHandleEnodeCertificateMsg(t *testing.T) {
 	enodeCertMsgPayload, _ := enodeCerts[engine0Node.ID()].Msg.Payload()
 
 	// Handle the enodeCertMsg in engine1
-	err := engine1.handleEnodeCertificateMsg(nil, enodeCertMsgPayload)
+	err := engine1.announceManager.HandleEnodeCertificateMsg(nil, enodeCertMsgPayload)
 	if err != nil {
 		t.Errorf("Error in handling an enode certificate message. Error: %v", err)
 	}
@@ -207,7 +211,8 @@ func TestSetAndShareUpdatedAnnounceVersion(t *testing.T) {
 	time.Sleep(10 * time.Second)
 
 	announceVersion := engine.GetAnnounceVersion() + 10000
-	if err := engine.announceManager.setAndShareUpdatedAnnounceVersion(announceVersion); err != nil {
+	wrk := engine.announceManager.Worker()
+	if err := wrk.UpdateVersionTo(announceVersion); err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 

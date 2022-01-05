@@ -26,17 +26,17 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/replica"
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/election"
+	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/trie"
 
 	"github.com/celo-org/celo-blockchain/contracts/random"
@@ -53,57 +53,6 @@ import (
 	"github.com/celo-org/celo-blockchain/params"
 	lru "github.com/hashicorp/golang-lru"
 )
-
-var (
-	// errInvalidSigningFn is returned when the consensus signing function is invalid.
-	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
-)
-
-type EcdsaInfo struct {
-	Address   common.Address   // Ethereum address of the ECDSA signing key
-	PublicKey *ecdsa.PublicKey // The signer public key
-
-	decrypt  istanbul.DecryptFn    // Decrypt function to decrypt ECIES ciphertext
-	sign     istanbul.SignerFn     // Signer function to authorize hashes with
-	signHash istanbul.HashSignerFn // Signer function to create random seed
-}
-
-// Sign hashes and signs the data with the ecdsa account
-func (ei EcdsaInfo) Sign(data []byte) ([]byte, error) {
-	if ei.sign == nil {
-		return nil, errInvalidSigningFn
-	}
-	return ei.sign(accounts.Account{Address: ei.Address}, accounts.MimetypeIstanbul, data)
-}
-
-// SignHash signs the given hash with the ecdsa account
-func (ei EcdsaInfo) SignHash(hash common.Hash) ([]byte, error) {
-	return ei.signHash(accounts.Account{Address: ei.Address}, hash.Bytes())
-}
-
-// Decrypt is a decrypt callback function to request an ECIES ciphertext to be
-// decrypted
-func (ei EcdsaInfo) Decrypt(payload []byte) ([]byte, error) {
-	return ei.decrypt(accounts.Account{Address: ei.Address}, payload, nil, nil)
-}
-
-type BlsInfo struct {
-	Address common.Address       // Ethereum address of the BLS signing key
-	sign    istanbul.BLSSignerFn // Signer function to authorize BLS messages
-}
-
-// Sign signs with the bls account
-func (bi *BlsInfo) Sign(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
-	if bi.sign == nil {
-		return blscrypto.SerializedSignature{}, errInvalidSigningFn
-	}
-	return bi.sign(accounts.Account{Address: bi.Address}, data, extra, useComposite, cip22)
-}
-
-type Wallets struct {
-	Ecdsa EcdsaInfo
-	Bls   BlsInfo
-}
 
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
@@ -123,11 +72,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		db:                                 db,
 		recentSnapshots:                    recentSnapshots,
 		coreStarted:                        coreStarted,
-		announceRunning:                    false,
-		gossipCache:                        NewLRUGossipCache(inmemoryPeers, inmemoryMessages),
-		announceThreadWg:                   new(sync.WaitGroup),
-		generateAndGossipQueryEnodeCh:      make(chan struct{}, 1),
-		updateAnnounceVersionCh:            make(chan struct{}, 1),
+		gossipCache:                        istanbul.NewLRUGossipCache(inmemoryPeers, inmemoryMessages),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
@@ -145,7 +90,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 		sleepGauge:                         metrics.NewRegisteredGauge("consensus/istanbul/backend/sleep", nil),
 	}
-	backend.aWallets.Store(&Wallets{})
+	backend.aWallets.Store(&istanbul.Wallets{})
 	if config.LoadTestCSVFile != "" {
 		if f, err := os.Create(config.LoadTestCSVFile); err == nil {
 			backend.csvRecorder = metrics.NewCSVRecorder(f, "blockNumber", "txCount", "gasUsed", "round",
@@ -167,7 +112,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	}
 
 	backend.vph = newVPH(backend)
-	valEnodeTable, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph)
+	valEnodeTable, err := announce.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph)
 	if err != nil {
 		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
 	}
@@ -186,21 +131,94 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		}
 	}
 
-	announceConfig := AnnounceManagerConfig{
-		IsProxiedValidator: backend.IsProxiedValidator(),
-		AWallets:           &backend.aWallets,
-		VcDbPath:           config.VersionCertificateDBPath,
-	}
-
-	backend.announceManager = NewAnnounceManager(
-		announceConfig,
-		backend,
-		backend,
-		backend,
-		backend.valEnodeTable,
-		backend.gossipCache)
+	backend.announceManager = createAnnounceManager(backend)
 
 	return backend
+}
+
+func createAnnounceManager(backend *Backend) *announce.Manager {
+	versionCertificateTable, err := announce.OpenVersionCertificateDB(backend.config.VersionCertificateDBPath)
+	if err != nil {
+		backend.logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", backend.config.VersionCertificateDBPath)
+	}
+	vcGossiper := announce.NewVcGossiper(func(payload []byte) error {
+		return backend.Gossip(payload, istanbul.VersionCertificatesMsg)
+	})
+
+	state := announce.NewAnnounceState(backend.valEnodeTable, versionCertificateTable)
+	checker := announce.NewValidatorChecker(&backend.aWallets, backend.RetrieveValidatorConnSet, backend.IsValidating)
+	ovcp := announce.NewOutboundVCProcessor(checker, backend, vcGossiper)
+	ecertHolder := announce.NewLockedHolder()
+	pruner := announce.NewAnnounceStatePruner(backend.RetrieveValidatorConnSet)
+
+	var vpap announce.ValProxyAssigmnentProvider
+	var ecertGenerator announce.EnodeCertificateMsgGenerator
+	var onNewEnodeMsgs announce.OnNewEnodeCertsMsgSentFn
+	if backend.IsProxiedValidator() {
+		ecertGenerator = announce.NewEnodeCertificateMsgGenerator(
+			announce.NewProxiedExternalFacingEnodeGetter(backend.proxiedValidatorEngine.GetProxiesAndValAssignments),
+		)
+		vpap = announce.NewProxiedValProxyAssigmentProvider(backend.proxiedValidatorEngine.GetValidatorProxyAssignments)
+		onNewEnodeMsgs = backend.proxiedValidatorEngine.SendEnodeCertsToAllProxies
+	} else {
+		ecertGenerator = announce.NewEnodeCertificateMsgGenerator(announce.NewSelfExternalFacingEnodeGetter(backend.SelfNode))
+		vpap = announce.NewSelfValProxyAssigmentProvider(backend.SelfNode)
+		onNewEnodeMsgs = nil
+	}
+
+	avs := announce.NewVersionSharer(&backend.aWallets, backend, state, ovcp, ecertGenerator, ecertHolder, onNewEnodeMsgs)
+	worker := createAnnounceWorker(backend, state, ovcp, vcGossiper, checker, pruner, vpap, avs)
+	return announce.NewManager(
+		backend.config,
+		&backend.aWallets,
+		backend,
+		backend,
+		backend,
+		state,
+		backend.gossipCache,
+		checker,
+		ovcp,
+		ecertHolder,
+		vcGossiper,
+		vpap,
+		worker)
+}
+
+func createAnnounceWorker(backend *Backend, state *announce.AnnounceState, ovcp announce.OutboundVersionCertificateProcessor,
+	vcGossiper announce.VersionCertificateGossiper,
+	checker announce.ValidatorChecker, pruner announce.AnnounceStatePruner,
+	vpap announce.ValProxyAssigmnentProvider, avs announce.VersionSharer) announce.Worker {
+	announceVersion := announce.NewAtomicVersion()
+	peerCounter := func(purpose p2p.PurposeFlag) int {
+		return len(backend.broadcaster.FindPeers(nil, p2p.AnyPurpose))
+	}
+
+	enodeGossiper := announce.NewEnodeQueryGossiper(announceVersion, func(payload []byte) error {
+		return backend.Gossip(payload, istanbul.QueryEnodeMsg)
+	})
+	// Gossip the announce after a minute.
+	// The delay allows for all receivers of the announce message to
+	// have a more up-to-date cached registered/elected valset, and
+	// hence more likely that they will be aware that this node is
+	// within that set.
+	waitPeriod := 1 * time.Minute
+	if backend.config.Epoch <= 10 {
+		waitPeriod = 5 * time.Second
+	}
+	return announce.NewWorker(
+		waitPeriod,
+		&backend.aWallets,
+		announceVersion,
+		state,
+		checker,
+		pruner,
+		vcGossiper,
+		enodeGossiper,
+		backend.config,
+		peerCounter,
+		vpap,
+		avs,
+	)
 }
 
 // ----------------------------------------------------------------------------
@@ -245,21 +263,11 @@ type Backend struct {
 	// interface to the p2p server
 	p2pserver consensus.P2PServer
 
-	gossipCache GossipCache
+	gossipCache istanbul.GossipCache
 
-	valEnodeTable *enodes.ValidatorEnodeDB
+	valEnodeTable *announce.ValidatorEnodeDB
 
-	announceManager *AnnounceManager
-
-	announceRunning               bool
-	announceMu                    sync.RWMutex
-	announceThreadWg              *sync.WaitGroup
-	announceThreadQuit            chan struct{}
-	announceVersion               uint
-	announceVersionMu             sync.RWMutex
-	generateAndGossipQueryEnodeCh chan struct{}
-
-	updateAnnounceVersionCh chan struct{}
+	announceManager *announce.Manager
 
 	delegateSignFeed  event.Feed
 	delegateSignScope event.SubscriptionScope
@@ -401,27 +409,18 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 
 // Authorize implements istanbul.Backend.Authorize
 func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn, signHashFn istanbul.HashSignerFn) {
-	bls := BlsInfo{
-		Address: blsAddress,
-		sign:    signBLSFn,
-	}
-	ecdsa := EcdsaInfo{
-		Address:   ecdsaAddress,
-		PublicKey: publicKey,
-		decrypt:   decryptFn,
-		sign:      signFn,
-		signHash:  signHashFn,
-	}
-	w := &Wallets{
-		Ecdsa: ecdsa,
-		Bls:   bls,
+	bls := istanbul.NewBlsInfo(blsAddress, signBLSFn)
+	ecdsa := istanbul.NewEcdsaInfo(ecdsaAddress, publicKey, decryptFn, signFn, signHashFn)
+	w := &istanbul.Wallets{
+		Ecdsa: *ecdsa,
+		Bls:   *bls,
 	}
 	sb.aWallets.Store(w)
-	sb.core.SetAddress(ecdsaAddress)
+	sb.core.SetAddress(w.Ecdsa.Address)
 }
 
-func (sb *Backend) wallets() *Wallets {
-	return sb.aWallets.Load().(*Wallets)
+func (sb *Backend) wallets() *istanbul.Wallets {
+	return sb.aWallets.Load().(*istanbul.Wallets)
 }
 
 // Address implements istanbul.Backend.Address
@@ -550,8 +549,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 			return err
 		}
 	}
-	go sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
-
+	sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
 	return nil
 }
 
@@ -1069,4 +1067,73 @@ func (sb *Backend) recordBlockProductionTimes(blockNumber uint64, txCount int, g
 		cycle.Nanoseconds(), sleepGauge.Value(), consensusGauge.Value(), verifyGauge.Value(), blockConstructGauge.Value(),
 		cpuSysLoadGauge.Value(), cpuSysWaitGauge.Value(), cpuProcLoadGauge.Value())
 
+}
+
+func (sb *Backend) GetValEnodeTableEntries(valAddresses []common.Address) (map[common.Address]*istanbul.AddressEntry, error) {
+	addressEntries, err := sb.valEnodeTable.GetValEnodes(valAddresses)
+
+	if err != nil {
+		return nil, err
+	}
+
+	returnMap := make(map[common.Address]*istanbul.AddressEntry)
+
+	for address, addressEntry := range addressEntries {
+		returnMap[address] = addressEntry
+	}
+
+	return returnMap, nil
+}
+
+func (sb *Backend) RewriteValEnodeTableEntries(entries map[common.Address]*istanbul.AddressEntry) error {
+	addressesToKeep := make(map[common.Address]bool)
+	entriesToUpsert := make([]*istanbul.AddressEntry, 0, len(entries))
+
+	for _, entry := range entries {
+		addressesToKeep[entry.GetAddress()] = true
+		entriesToUpsert = append(entriesToUpsert, entry)
+	}
+
+	sb.valEnodeTable.PruneEntries(addressesToKeep)
+	sb.valEnodeTable.UpsertVersionAndEnode(entriesToUpsert)
+
+	return nil
+}
+
+// AnnounceManager wrapping functions
+
+// GetAnnounceVersion will retrieve the current announce version.
+func (sb *Backend) GetAnnounceVersion() uint {
+	return sb.announceManager.GetAnnounceVersion()
+}
+
+// UpdateAnnounceVersion will asynchronously update the announce version.
+func (sb *Backend) UpdateAnnounceVersion() {
+	sb.announceManager.UpdateAnnounceVersion()
+}
+
+// SetEnodeCertificateMsgMap will verify the given enode certificate message map, then update it on this struct.
+func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istanbul.EnodeCertMsg) error {
+	return sb.announceManager.SetEnodeCertificateMsgMap(enodeCertMsgMap)
+}
+
+// RetrieveEnodeCertificateMsgMap gets the most recent enode certificate messages.
+// May be nil if no message was generated as a result of the core not being
+// started, or if a proxy has not received a message from its proxied validator
+func (sb *Backend) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg {
+	return sb.announceManager.RetrieveEnodeCertificateMsgMap()
+}
+
+// StartAnnouncing implements consensus.Istanbul.StartAnnouncing
+func (sb *Backend) StartAnnouncing() error {
+	return sb.announceManager.StartAnnouncing(func() error {
+		return sb.vph.startThread()
+	})
+}
+
+// StopAnnouncing implements consensus.Istanbul.StopAnnouncing
+func (sb *Backend) StopAnnouncing() error {
+	return sb.announceManager.StopAnnouncing(func() error {
+		return sb.vph.stopThread()
+	})
 }
