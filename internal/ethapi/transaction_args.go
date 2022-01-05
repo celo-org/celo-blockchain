@@ -120,7 +120,7 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 				return errors.New("maxFeePerGas or maxPriorityFeePerGas specified but london is not active yet")
 			}
 			if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
-				price, err := b.SuggestGasTipCap(ctx, args.FeeCurrency)
+				price, err := b.SuggestPrice(ctx, args.FeeCurrency)
 				if err != nil {
 					return err
 				}
