@@ -24,7 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	vet "github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/replica"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
@@ -180,11 +180,11 @@ func (api *API) RemoveProxy(url string) (bool, error) {
 }
 
 // Retrieve the Validator Enode Table
-func (api *API) GetValEnodeTable() (map[string]*vet.ValEnodeEntryInfo, error) {
+func (api *API) GetValEnodeTable() (map[string]*announce.ValEnodeEntryInfo, error) {
 	return api.istanbul.valEnodeTable.ValEnodeTableInfo()
 }
 
-func (api *API) GetVersionCertificateTableInfo() (map[string]*vet.VersionCertificateEntryInfo, error) {
+func (api *API) GetVersionCertificateTableInfo() (map[string]*announce.VersionCertificateEntryInfo, error) {
 	return api.istanbul.announceManager.GetVersionCertificateTableInfo()
 }
 
