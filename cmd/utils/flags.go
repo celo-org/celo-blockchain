@@ -35,7 +35,6 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/keystore"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/fdlimit"
-	"github.com/celo-org/celo-blockchain/consensus"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core"
@@ -2034,10 +2033,6 @@ func MakeGenesis(ctx *cli.Context) *core.Genesis {
 
 // MakeChain creates a chain manager from set command line flags.
 func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chainDb ethdb.Database) {
-	return MakeChainWithEngine(ctx, stack, mockEngine.NewFaker())
-}
-
-func MakeChainWithEngine(ctx *cli.Context, stack *node.Node, engine consensus.Engine) (chain *core.BlockChain, chainDb ethdb.Database) {
 	var err error
 	chainDb = MakeChainDatabase(ctx, stack, false) // TODO(rjl493456442) support read-only database
 	config, _, err := core.SetupGenesisBlock(chainDb, MakeGenesis(ctx))
@@ -2045,6 +2040,7 @@ func MakeChainWithEngine(ctx *cli.Context, stack *node.Node, engine consensus.En
 		Fatalf("%v", err)
 	}
 	config.FullHeaderChainAvailable = ctx.GlobalString(SyncModeFlag.Name) != "lightest"
+	engine := mockEngine.NewFaker()
 
 	if gcmode := ctx.GlobalString(GCModeFlag.Name); gcmode != "full" && gcmode != "archive" {
 		Fatalf("--%s must be either 'full' or 'archive'", GCModeFlag.Name)
