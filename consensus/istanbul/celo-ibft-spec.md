@@ -112,7 +112,7 @@ upon: <Preprepare, Hc, Rd, V, RCC> from proposer(Hc, Rd) && Sc = AcceptRequest
 
 // When a participant sees at least 2f+1 prepare or commit messages for a value
 // it will send a commit message for that value.
-upon: M ← { <T, Hc, Rd, Vc> : T ∈ {Prepare, Commit} } && |M| >= 2f+1 && Sc ∈ {AcceptRequest, Preprepared} 
+upon: M ← { <T, Hc, Rd, Vc> : T ∈ {Prepare, Commit} } && |M| >= 2f+1 && Sc = Preprepared
   Sc ← Prepared
   PCc ← <PreparedCertificate, M, Vc>
   broadcast(<Commit, Hc, Rd, Vc>)
