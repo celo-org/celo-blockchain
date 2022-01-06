@@ -62,6 +62,7 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p/nat"
 	"github.com/celo-org/celo-blockchain/p2p/netutil"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rpc"
 	gopsutil "github.com/shirou/gopsutil/mem"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -506,6 +507,21 @@ var (
 		Name:  "http.rpcprefix",
 		Usage: "HTTP path path prefix on which JSON-RPC is served. Use '/' to serve on all paths.",
 		Value: "",
+	}
+	HTTPRequestReadTimeout = cli.IntFlag{
+		Name:  "http.timeout.read",
+		Usage: "Timeout in seconds for HTTP-RPC read requests",
+		Value: int(rpc.DefaultHTTPTimeouts.ReadTimeout / time.Second),
+	}
+	HTTPRequestWriteTimeout = cli.IntFlag{
+		Name:  "http.timeout.write",
+		Usage: "Timeout in seconds for HTTP-RPC write requests",
+		Value: int(rpc.DefaultHTTPTimeouts.WriteTimeout / time.Second),
+	}
+	HTTPRequestIdleTimeout = cli.IntFlag{
+		Name:  "http.timeout.idle",
+		Usage: "Timeout in seconds for HTTP-RPC idle connections",
+		Value: int(rpc.DefaultHTTPTimeouts.IdleTimeout / time.Second),
 	}
 	GraphQLEnabledFlag = cli.BoolFlag{
 		Name:  "graphql",
@@ -961,6 +977,16 @@ func setHTTP(ctx *cli.Context, cfg *node.Config) {
 
 	if ctx.GlobalIsSet(HTTPPathPrefixFlag.Name) {
 		cfg.HTTPPathPrefix = ctx.GlobalString(HTTPPathPrefixFlag.Name)
+	}
+
+	if ctx.GlobalIsSet(HTTPRequestReadTimeout.Name) {
+		cfg.HTTPTimeouts.ReadTimeout = time.Duration(ctx.GlobalInt(HTTPRequestReadTimeout.Name)) * time.Second
+	}
+	if ctx.GlobalIsSet(HTTPRequestWriteTimeout.Name) {
+		cfg.HTTPTimeouts.WriteTimeout = time.Duration(ctx.GlobalInt(HTTPRequestWriteTimeout.Name)) * time.Second
+	}
+	if ctx.GlobalIsSet(HTTPRequestIdleTimeout.Name) {
+		cfg.HTTPTimeouts.IdleTimeout = time.Duration(ctx.GlobalInt(HTTPRequestIdleTimeout.Name)) * time.Second
 	}
 }
 
