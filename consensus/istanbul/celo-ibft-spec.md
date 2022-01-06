@@ -97,7 +97,7 @@ upon: <FinalCommittedEvent>
 // it will propose that value by sending a preprepared message.
 upon: <RequestEvent, Hc, V> && Sc = AcceptRequest
   if Rc = 0 && isProposer(Hc, Rd) {
-    bc(<Preprepare, Hc, 0, V, nil>)
+    broadcast(<Preprepare, Hc, 0, V, nil>)
   }
 
 // When receiving a preprepare from a proposer participants will vote for the
@@ -107,7 +107,7 @@ upon: <Preprepare, Hc, Rd, V, RCC> from proposer(Hc, Rd) && Sc = AcceptRequest
     Rc ← Rd
     Vc ← V
     Sc ← Preprepared
-    bc(<Prepare, Hc, Rd, Vc>)
+    broadcast(<Prepare, Hc, Rd, Vc>)
   }
 
 // When a participant sees at least 2f+1 prepare or commit messages for a value
@@ -115,7 +115,7 @@ upon: <Preprepare, Hc, Rd, V, RCC> from proposer(Hc, Rd) && Sc = AcceptRequest
 upon: M ← { <T, Hc, Rd, Vc> : T ∈ {Prepare, Commit} } && |M| >= 2f+1 && Sc ∈ {AcceptRequest, Preprepared} 
   Sc ← Prepared
   PCc ← <PreparedCertificate, M, Vc>
-  bc(<Commit, Hc, Rd, Vc>)
+  broadcast(<Commit, Hc, Rd, Vc>)
 
 // When a participant sees at least 2f+1 commit messages for a value, they
 // consider that value committed (agreed) and pass the value to the application,
@@ -139,13 +139,13 @@ upon: m<RoundChange, Hc , R, PC> && (PC = nil || validPC(PC))
     Sc ← AcceptRequest
     schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
     if Vc != nil && isProposer(Hc, Rc) {
-      bc(<Preprepare, Hc, Rc, Vc, PCc>)
+      broadcast(<Preprepare, Hc, Rc, Vc, PCc>)
     }
   } else if f1Round() > Rd {
     Rd ← f1Round() 
     Sc ← WaitingForNewRound
     schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
-    bc(<RoundChange, Hc, Rd, PCc>)
+    broadcast(<RoundChange, Hc, Rd, PCc>)
   }
 
 // Functions that modify instance state.
@@ -164,7 +164,7 @@ onRoundChangeTimeout(H, R) {
     Rd ← Rc+1
     Sc ← WaitingForNewRound
     schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
-    bc<RoundChange, Hc, Rd, PCc>
+    broadcast(<RoundChange, Hc, Rd, PCc>)
   }
 }
 ```
@@ -190,7 +190,7 @@ Delivers the given value to the application.
 `roundChangeTimeout(R)`\
 Returns the timeout for the given round 
 
-`bc(<PP, H, R, V>)`\
+`broadcast(<PP, H, R, V>)`\
 Broadcasts the given message to all connected participants. 
 
 `send(<Commit, H, R, V>, sender(m))`\
@@ -293,7 +293,7 @@ onRoundChangeTimeout(H, R) {
     Rd ← Rc+1
     Sc ← WaitingForNewRound
     schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
-    bc<RoundChange, Hc, Rd, PCc>
+    broadcast(<RoundChange, Hc, Rd, PCc>)
   }
 }
 ```
