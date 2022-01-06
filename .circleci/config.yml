@@ -11,14 +11,19 @@ parameters:
   system-contracts-path:
     type: string
     default: "compiled-system-contracts"
+  system-contracts-executor-image:
+    type: string
+      # The system contracts executor needs node 10 to function, this should
+      # only be changed when system-contracts-monorepo-version is changed.
+    default: "celohq/node10-gcloud:v3"
 executors:
   golang:
     docker:
       - image: circleci/golang:1.16
     working_directory: ~/repos/geth
-  node-v12:
+  system-contracts-executor:
     docker:
-      - image: us.gcr.io/celo-testnet/circleci-node12:1.0.0
+      - image: <<pipeline.parameters.system-contracts-executor-image>>
     working_directory: ~/repos/geth
   e2e:
     docker:
@@ -76,8 +81,8 @@ jobs:
     parameters:
       cache-key:
         type: string
-        default: system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>-<<pipeline.parameters.system-contracts-path>>-v<<pipeline.parameters.system-contracts-cache-version>>
-    executor: node-v12
+        default: system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>-<<pipeline.parameters.system-contracts-path>>-v<<pipeline.parameters.system-contracts-cache-version>>-<<pipeline.parameters.system-contracts-executor-image>>
+    executor: system-contracts-executor
     resource_class: medium+
     steps:
       - checkout
