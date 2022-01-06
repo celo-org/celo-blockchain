@@ -396,7 +396,7 @@ Upon statements are triggered upon receipt of messages or events when the
 associated upon condition evaluates to true.
 Upon conditions are structured thus:
 
-<composite object, set of objects or eventto match against> <additional qualifications>
+<composite object, set of objects or event to match against> <additional qualifications>
 
 E.G:
 // 2f+1 commit messages for the current round and height with a non nil value.
