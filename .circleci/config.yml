@@ -126,7 +126,7 @@ jobs:
           command: |
             mkdir -p /tmp/test-results
             trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
-            go test -p 1 -v ./... | tee /tmp/test-results/go-test.out
+            go test -p 1 -v -race ./... | tee /tmp/test-results/go-test.out
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
