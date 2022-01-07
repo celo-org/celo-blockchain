@@ -64,7 +64,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		ChurritoBlock:       big.NewInt(6774000),
 		DonutBlock:          big.NewInt(6774000),
-		EspressoBlock:       nil,
+		EspressoBlock:       big.NewInt(11355000),
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -114,7 +114,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		ChurritoBlock:       big.NewInt(4960000),
 		DonutBlock:          big.NewInt(4960000),
-		EspressoBlock:       nil,
+		EspressoBlock:       big.NewInt(9472000),
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
