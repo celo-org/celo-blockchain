@@ -121,7 +121,7 @@ upon: M ← { <T, Hc, Rd, Vc> : T ∈ {Prepare, Commit} } && |M| >= 2f+1 && Sc =
 // consider that value committed (agreed) and pass the value to the application,
 // which will in turn issue a final committed event if the value is considered
 // valid by the application.
-upon: M ← { <Commit, Hc, Rd, Vc> } && |M| >= 2f+1 && Sc ∈ {AcceptRequest, Preprepared, Prepared} 
+upon: M ← { <Commit, Hc, Rd, Vc> } && |M| >= 2f+1 && Sc ∈ {Preprepared, Prepared} 
   Sc ← Committed
   deliverValue(Vc)
 
