@@ -76,15 +76,17 @@ Variable names                  |Instance state
 `T - Message type`              |`Vc - currently proposed value`         
 `RCC - round change certificate`|`PCc - current prepared certificate`    
 `PC - prepared certificate`     |`Sc - current participant state`        
-`S - participant state`         |
-`M or N - message sets`         |
+`S - participant state`         |`Msgs - set of messages sent and received for the current height`
+`M or N - message sets`         |`Events - set of events received from the application`
 
 ```
 
 // Upon receiving this event the algorithm transitions to the next height the
 // final committed event signifies that the application has accepted the agreed
 // upon value for the current height.
-upon: <FinalCommittedEvent>
+upon: <FinalCommittedEvent> ∈ Events
+  Msgs ← nil
+  Events ← nil
   Hc ← Hc+1
   Rc ← 0
   Rd ← 0
@@ -95,14 +97,15 @@ upon: <FinalCommittedEvent>
 // A request event is a request to reach agreement on the provided value, the
 // request event is sent by the application, if this parcicipant is the proposer
 // it will propose that value by sending a preprepared message.
-upon: <RequestEvent, Hc, V> && Sc = AcceptRequest
+upon: <RequestEvent, Hc, V> ∈ Events && Sc = AcceptRequest
+  Events ← nil
   if Rc = 0 && isProposer(Hc, Rd) {
     broadcast(<Preprepare, Hc, 0, V, nil>)
   }
 
 // When receiving a preprepare from a proposer participants will vote for the
 // value (if valid) by sending a prepare message.
-upon: <Preprepare, Hc, Rd, V, RCC> from proposer(Hc, Rd) && Sc = AcceptRequest
+upon: m ← <Preprepare, Hc, Rd, V, RCC> ∈ Msgs && m from proposer(Hc, Rd) && Sc = AcceptRequest
   if (Rd > 0 && validRCC(V, RCC)) || (Rd = 0 && RCC = nil)  {
     Rc ← Rd
     Vc ← V
@@ -112,7 +115,7 @@ upon: <Preprepare, Hc, Rd, V, RCC> from proposer(Hc, Rd) && Sc = AcceptRequest
 
 // When a participant sees at least 2f+1 prepare or commit messages for a value
 // it will send a commit message for that value.
-upon: M ← { <T, Hc, Rd, Vc> : T ∈ {Prepare, Commit} } && |M| >= 2f+1 && Sc = Preprepared
+upon: M ← { <T, Hc, Rd, Vc> : T ∈ {Prepare, Commit} } ∈ Msgs && |M| >= 2f+1 && Sc = Preprepared
   Sc ← Prepared
   PCc ← <PreparedCertificate, M, Vc>
   broadcast(<Commit, Hc, Rd, Vc>)
@@ -121,7 +124,7 @@ upon: M ← { <T, Hc, Rd, Vc> : T ∈ {Prepare, Commit} } && |M| >= 2f+1 && Sc =
 // consider that value committed (agreed) and pass the value to the application,
 // which will in turn issue a final committed event if the value is considered
 // valid by the application.
-upon: M ← { <Commit, Hc, Rd, Vc> } && |M| >= 2f+1 && Sc ∈ {Preprepared, Prepared} 
+upon: M ← { <Commit, Hc, Rd, Vc> } ∈ Msgs && |M| >= 2f+1 && Sc ∈ {Preprepared, Prepared} 
   Sc ← Committed
   deliverValue(Vc)
 
@@ -130,8 +133,9 @@ upon: M ← { <Commit, Hc, Rd, Vc> } && |M| >= 2f+1 && Sc ∈ {Preprepared, Prep
 // change messages sharing the same round then switch to it. Otherwise if there are at least
 // f+1 round change messages switch to the higest round that is less than or equal to the top
 // f+1 rounds.
-upon: m<RoundChange, Hc , R, PC> && (PC = nil || validPC(PC)) 
+upon: m<RoundChange, Hc , R, PC> ∈ Msgs && (PC = nil || validPC(PC)) 
   if R < Rd {
+  	Msgs ← Msgs/{m}
     send(<RoundChange, Hc, Rd, PCc>, sender(m))
   } else if quorumRound() > Rd {
     Rd ← quorumRound()
@@ -419,7 +423,8 @@ function call to occur after the given duration.
 `m ∈ M - m is an element of the set M`\
 `{ m : C(m) } - set builder notiation, the set of messages m such that they satisfy condition C`\
 `∃ m : C(m) - there exists m that satisfies condition C`\
-`∀ m : C(m) - all m satisfy condition C`
+`∀ m : C(m) - all m satisfy condition C`\
+`M/N - Set difference, the set containing all elements of M and no elements of N`
 
 ### Math Notation examples
 ```
