@@ -16,6 +16,10 @@ parameters:
       # The system contracts executor needs node 10 to function, this should
       # only be changed when system-contracts-monorepo-version is changed.
     default: "celohq/node10-gcloud:v3"
+  slow-test-packages:
+    type: string
+      # This is an argument passed to grep to filter some selection of packages.
+    default: "downloader"
 executors:
   golang:
     docker:
@@ -147,7 +151,7 @@ jobs:
           command: |
             mkdir -p /tmp/test-results
             trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
-            go test -v -covermode=atomic -cover -coverprofile=coverage.out ./... | tee /tmp/test-results/go-test.out
+            go test -v -covermode=atomic -cover -coverprofile=coverage.out `go list ./... | grep -Ev <<pipeline.parameters.slow-test-packages>>` | tee /tmp/test-results/go-test.out
             bash <(curl -s https://codecov.io/bash)
       - store_artifacts:
           path: /tmp/test-results
