@@ -62,16 +62,20 @@ func SignV4(r *enr.Record, privkey *ecdsa.PrivateKey) error {
 }
 
 func (V4ID) Verify(r *enr.Record, sig []byte) error {
+	fmt.Println("PONTI VERIFY 1")
 	var entry s256raw
 	if err := r.Load(&entry); err != nil {
 		return err
 	} else if len(entry) != 33 {
 		return fmt.Errorf("invalid public key")
 	}
+	fmt.Println("PONTI VERIFY 2")
 
 	h := sha3.NewLegacyKeccak256()
 	rlp.Encode(h, r.AppendElements(nil))
 	if !crypto.VerifySignature(entry, h.Sum(nil), sig) {
+		fmt.Println("PONTI VERIFY 3")
+
 		return enr.ErrInvalidSig
 	}
 	return nil

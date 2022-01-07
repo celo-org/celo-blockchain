@@ -189,6 +189,7 @@ func (t *UDPv5) Close() {
 
 // Ping sends a ping message to the given node.
 func (t *UDPv5) Ping(n *enode.Node) error {
+	fmt.Println("PONTI PING 1", n)
 	_, err := t.ping(n)
 	return err
 }
@@ -205,6 +206,7 @@ func (t *UDPv5) Resolve(n *enode.Node) *enode.Node {
 	}
 	// Otherwise do a network lookup.
 	result := t.Lookup(n.ID())
+	fmt.Println("PONTI RESOLVE 1", result)
 	for _, rn := range result {
 		if rn.ID() == n.ID() && rn.Seq() > n.Seq() {
 			return rn
@@ -275,7 +277,9 @@ func (t *UDPv5) Lookup(target enode.ID) []*enode.Node {
 // lookupRandom looks up a random target.
 // This is needed to satisfy the transport interface.
 func (t *UDPv5) lookupRandom() []*enode.Node {
-	return t.newRandomLookup(t.closeCtx).run()
+	nodes := t.newRandomLookup(t.closeCtx).run()
+	fmt.Println("PONTI NODOOOOOOSSSSS", nodes)
+	return nodes
 }
 
 // lookupSelf looks up our own node ID.
@@ -298,6 +302,7 @@ func (t *UDPv5) newLookup(ctx context.Context, target enode.ID) *lookup {
 
 // lookupWorker performs FINDNODE calls against a single node during lookup.
 func (t *UDPv5) lookupWorker(destNode *node, target enode.ID) ([]*node, error) {
+	fmt.Println("            PONTI LOOKUP WORKER 1", destNode, target)
 	var (
 		dists = lookupDistances(target, destNode.ID())
 		nodes = nodesByDistance{target: target}
@@ -306,10 +311,13 @@ func (t *UDPv5) lookupWorker(destNode *node, target enode.ID) ([]*node, error) {
 	var r []*enode.Node
 	r, err = t.findnode(unwrapNode(destNode), dists)
 	if err == errClosed {
+		fmt.Println("            PONTI LOOKUP WORKER 2", err)
 		return nil, err
 	}
+	fmt.Println("            PONTI LOOKUP WORKER 3", r)
 	for _, n := range r {
 		if n.ID() != t.Self().ID() {
+			fmt.Println("            PONTI LOOKUP WORKER 4", n.ID())
 			nodes.push(wrapNode(n), findnodeResultLimit)
 		}
 	}
@@ -404,21 +412,31 @@ func (t *UDPv5) verifyResponseNode(c *callV5, r *enr.Record, distances []uint, s
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("PONTI V RESPONSE NODE 1")
+
 	if err := netutil.CheckRelayIP(c.node.IP(), node.IP()); err != nil {
 		return nil, err
 	}
+	fmt.Println("PONTI V RESPONSE NODE 2")
+
 	if c.node.UDP() <= 1024 {
 		return nil, errLowPort
 	}
+	fmt.Println("PONTI V RESPONSE NODE 3")
+
 	if distances != nil {
 		nd := enode.LogDist(c.node.ID(), node.ID())
 		if !containsUint(uint(nd), distances) {
 			return nil, errors.New("does not match any requested distance")
 		}
 	}
+	fmt.Println("PONTI V RESPONSE NODE 4")
+
 	if _, ok := seen[node.ID()]; ok {
 		return nil, fmt.Errorf("duplicate record")
 	}
+	fmt.Println("PONTI V RESPONSE NODE 5")
+
 	seen[node.ID()] = struct{}{}
 	return node, nil
 }
@@ -446,6 +464,7 @@ func (t *UDPv5) call(node *enode.Node, responseType byte, packet v5wire.Packet) 
 	// Assign request ID.
 	crand.Read(c.reqid)
 	packet.SetRequestID(c.reqid)
+	fmt.Println("PONTI UDP CALL 1", node, c.packet, responseType, c.reqid)
 	// Send call to dispatch.
 	select {
 	case t.callCh <- c:
@@ -616,7 +635,10 @@ func (t *UDPv5) readLoop() {
 
 	buf := make([]byte, maxPacketSize)
 	for range t.readNextCh {
+		fmt.Println("PONTI READ LOOP V5 1")
 		nbytes, from, err := t.conn.ReadFromUDP(buf)
+		fmt.Println("PONTI READ LOOP V5 2", nbytes, from, err)
+
 		if netutil.IsTemporaryError(err) {
 			// Ignore temporary read errors.
 			t.log.Debug("Temporary UDP read error", "err", err)
@@ -646,6 +668,7 @@ func (t *UDPv5) dispatchReadPacket(from *net.UDPAddr, content []byte) bool {
 func (t *UDPv5) handlePacket(rawpacket []byte, fromAddr *net.UDPAddr) error {
 	addr := fromAddr.String()
 	fromID, fromNode, packet, err := t.codec.Decode(rawpacket, addr)
+	fmt.Println("PONTI HANDLE PACKET 1", fromID, fromNode, packet, err)
 	if err != nil {
 		t.log.Debug("Bad discv5 packet", "id", fromID, "addr", addr, "err", err)
 		return err
@@ -654,8 +677,11 @@ func (t *UDPv5) handlePacket(rawpacket []byte, fromAddr *net.UDPAddr) error {
 		// Handshake succeeded, add to table.
 		t.tab.addSeenNode(wrapNode(fromNode))
 	}
+	fmt.Println("PONTI HANDLE PACKET 2", fromID, packet.Kind(), packet.Name())
+
 	if packet.Kind() != v5wire.WhoareyouPacket {
 		// WHOAREYOU logged separately to report errors.
+		fmt.Println("PONTI RECEIVE NOT WHOAREYOU 1", packet.RequestID(), fromID, addr)
 		t.log.Trace("<< "+packet.Name(), "id", fromID, "addr", addr)
 	}
 	t.handle(packet, fromID, fromAddr)
@@ -735,11 +761,13 @@ var (
 
 // handleWhoareyou resends the active call as a handshake packet.
 func (t *UDPv5) handleWhoareyou(p *v5wire.Whoareyou, fromID enode.ID, fromAddr *net.UDPAddr) {
+	fmt.Println("PONTI HANDLE W_A_Y 1")
 	c, err := t.matchWithCall(fromID, p.Nonce)
 	if err != nil {
 		t.log.Debug("Invalid "+p.Name(), "addr", fromAddr, "err", err)
 		return
 	}
+	fmt.Println("PONTI HANDLE W_A_Y 2")
 
 	// Resend the call that was answered by WHOAREYOU.
 	t.log.Trace("<< "+p.Name(), "id", c.node.ID(), "addr", fromAddr)

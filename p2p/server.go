@@ -504,6 +504,7 @@ func (s *SharedUDPConn) ReadFromUDP(b []byte) (n int, addr *net.UDPAddr, err err
 	if !ok {
 		return 0, nil, errors.New("connection was closed")
 	}
+	fmt.Println("PONTI SHARED READ UDP")
 	l := len(packet.Data)
 	if l > len(b) {
 		l = len(b)
@@ -664,11 +665,18 @@ func (srv *Server) setupDiscovery() error {
 	// Discovery V4
 	var unhandled chan discover.ReadPacket
 	var sconn *SharedUDPConn
+	fmt.Println("PONTI SETUP DISC 1")
 	if !srv.NoDiscovery {
+		fmt.Println("PONTI SETUP DISC 2")
+
 		if srv.DiscoveryV5 {
+			fmt.Println("PONTI SETUP DISC 3")
+
 			unhandled = make(chan discover.ReadPacket, 100)
 			sconn = &SharedUDPConn{conn, unhandled}
 		}
+		fmt.Println("PONTI SETUP DISC 4")
+
 		cfg := discover.Config{
 			PingIPFromPacket: srv.PingIPFromPacket,
 			PrivateKey:       srv.PrivateKey,
@@ -678,11 +686,14 @@ func (srv *Server) setupDiscovery() error {
 			Log:              srv.log,
 		}
 		ntab, err := discover.ListenV4(conn, srv.localnode, cfg)
+		fmt.Println("PONTI DISC v4 1", ntab, err)
 		if err != nil {
 			return err
 		}
 		srv.ntab = ntab
-		srv.discmix.AddSource(ntab.RandomNodes())
+		ble := ntab.RandomNodes()
+		fmt.Println("PONTI DISC v4 2", ble)
+		srv.discmix.AddSource(ble)
 	}
 
 	// Discovery V5
@@ -695,8 +706,12 @@ func (srv *Server) setupDiscovery() error {
 		}
 		var err error
 		if sconn != nil {
+			fmt.Println("PONTI DISC v4 3")
+
 			srv.DiscV5, err = discover.ListenV5(sconn, srv.localnode, cfg)
 		} else {
+			fmt.Println("PONTI DISC v4 4")
+
 			srv.DiscV5, err = discover.ListenV5(conn, srv.localnode, cfg)
 		}
 		if err != nil {
@@ -723,6 +738,7 @@ func (srv *Server) setupDialScheduler() {
 		config.dialer = tcpDialer{&net.Dialer{Timeout: defaultDialTimeout}}
 	}
 	srv.dialsched = newDialScheduler(config, srv.discmix, srv.SetupConn)
+	fmt.Println("PONTI SETUP DIAL SCHEDULER 1", srv.StaticNodes)
 	for _, n := range srv.StaticNodes {
 		srv.dialsched.addStatic(n)
 	}
@@ -809,7 +825,10 @@ func (srv *Server) run() {
 	}
 
 	addStatic := func(n *enode.Node, purpose PurposeFlag) {
+		fmt.Println("PONTI ADD STATIC WITH PURPOSE 1")
 		newPurpose := static[n.ID()].Add(purpose)
+		fmt.Println("PONTI ADD STATIC WITH PURPOSE 2", newPurpose)
+
 		static[n.ID()] = newPurpose
 
 		// If already connected, set the peer's static node purpose set
@@ -929,6 +948,7 @@ running:
 			// TODO: track in-progress inbound node IDs (pre-Peer) to avoid dialing them.
 			c.cont <- srv.postHandshakeChecks(peers, c)
 		case c := <-srv.checkpointAddPeer:
+			fmt.Println("MARTA")
 			// At this point the connection is past the protocol handshake.
 			// Its capabilities are known and the remote identity is verified.
 			err := srv.addPeerChecks(peers, c)
@@ -1031,6 +1051,7 @@ func (srv *Server) listenLoop() {
 	if srv.MaxPendingPeers > 0 {
 		tokens = srv.MaxPendingPeers
 	}
+	fmt.Println("PONTI LISTEN LOOP 1", tokens)
 	slots := make(chan struct{}, tokens)
 	for i := 0; i < tokens; i++ {
 		slots <- struct{}{}
@@ -1056,7 +1077,10 @@ func (srv *Server) listenLoop() {
 		)
 		for {
 			fd, err = srv.listener.Accept()
+			fmt.Println("PONTI LISTEN LOOP 2", err)
 			if netutil.IsTemporaryError(err) {
+				fmt.Println("PONTI LISTEN LOOP 3")
+
 				if time.Since(lastLog) > 1*time.Second {
 					srv.log.Debug("Temporary read error", "err", err)
 					lastLog = time.Now()
@@ -1072,18 +1096,25 @@ func (srv *Server) listenLoop() {
 		}
 
 		remoteIP := netutil.AddrIP(fd.RemoteAddr())
+		fmt.Println("PONTI LISTEN LOOP 4", remoteIP)
 		if err := srv.checkInboundConn(remoteIP); err != nil {
+			fmt.Println("PONTI LISTEN LOOP 5")
+
 			srv.log.Debug("Rejected inbound connection", "addr", fd.RemoteAddr(), "err", err)
 			fd.Close()
 			slots <- struct{}{}
 			continue
 		}
+		fmt.Println("PONTI LISTEN LOOP 6")
+
 		if remoteIP != nil {
 			var addr *net.TCPAddr
 			if tcp, ok := fd.RemoteAddr().(*net.TCPAddr); ok {
 				addr = tcp
 			}
 			fd = newMeteredConn(fd, true, addr)
+			fmt.Println("PONTI LISTEN LOOP 7")
+
 			srv.log.Trace("Accepted connection", "addr", fd.RemoteAddr())
 		}
 		go func() {
@@ -1115,6 +1146,7 @@ func (srv *Server) checkInboundConn(remoteIP net.IP) error {
 // as a peer. It returns when the connection has been added as a peer
 // or the handshakes have failed.
 func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *enode.Node) error {
+	fmt.Println("PONTI SETUP CONN 1")
 	c := &conn{fd: fd, flags: flags, cont: make(chan error)}
 	if dialDest == nil {
 		c.transport = srv.newTransport(fd, nil)

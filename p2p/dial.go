@@ -161,6 +161,7 @@ func (cfg dialConfig) withDefaults() dialConfig {
 }
 
 func newDialScheduler(config dialConfig, it enode.Iterator, setupFunc dialSetupFunc) *dialScheduler {
+	fmt.Println("PONTI DIAL SCHEDULER 1")
 	d := &dialScheduler{
 		dialConfig:  config.withDefaults(),
 		setupFunc:   setupFunc,
@@ -190,6 +191,7 @@ func (d *dialScheduler) stop() {
 
 // addStatic adds a static dial candidate.
 func (d *dialScheduler) addStatic(n *enode.Node) {
+	fmt.Println("PONTI ADD STATIC 1")
 	select {
 	case d.addStaticCh <- n:
 	case <-d.ctx.Done():
@@ -231,9 +233,10 @@ loop:
 	for {
 		// Launch new dials if slots are available.
 		slots := d.freeDialSlots()
-		slots -= d.startStaticDials()
+		slots -= d.startStaticDials(slots)
 		if slots > 0 {
 			nodesCh = d.nodesIn
+			println("PONTI SLOTSSSSSS")
 		} else {
 			nodesCh = nil
 		}
@@ -242,6 +245,7 @@ loop:
 
 		select {
 		case node := <-nodesCh:
+			fmt.Println("PONTI DIALER CANDIDATE 1", node)
 			if err := d.checkDial(node); err != nil {
 				d.log.Trace("Discarding dial candidate", "id", node.ID(), "ip", node.IP(), "reason", err)
 			} else {
@@ -275,6 +279,7 @@ loop:
 			d.updateStaticPool(c.node.ID())
 
 		case node := <-d.addStaticCh:
+			fmt.Println("PONTI DIALER CANDIDATE 2 STATIC", node)
 			id := node.ID()
 			_, exists := d.static[id]
 			d.log.Trace("Adding static node", "id", id, "ip", node.IP(), "added", !exists)
@@ -318,8 +323,9 @@ loop:
 // the input iterator to the nodesIn channel.
 func (d *dialScheduler) readNodes(it enode.Iterator) {
 	defer d.wg.Done()
-
+	fmt.Println("PONTI READ NODES 0")
 	for it.Next() {
+		fmt.Println("PONTI READ NODES 1, node", it.Node())
 		discoveredPeersCounter.Inc(1)
 		select {
 		case d.nodesIn <- it.Node():
@@ -412,12 +418,29 @@ func (d *dialScheduler) checkDial(n *enode.Node) error {
 	return nil
 }
 
-// startStaticDials starts static dials nodes in the static pool, subject to the maxActiveDials limit
-func (d *dialScheduler) startStaticDials() (started int) {
-	limit := d.maxActiveDials - len(d.dialing)
-	for started = 0; started < limit && len(d.staticPool) > 0; started++ {
+// // startStaticDials starts static dials nodes in the static pool, subject to the maxActiveDials limit
+// func (d *dialScheduler) startStaticDials() (started int) {
+// 	fmt.Println("PONTI STATIC NODES 1")
+// 	limit := d.maxActiveDials - len(d.dialing)
+// 	for started = 0; started < limit && len(d.staticPool) > 0; started++ {
+// 		fmt.Println("PONTI STATIC NODES 2", started)
+// 		idx := d.rand.Intn(len(d.staticPool))
+// 		task := d.staticPool[idx]
+// 		fmt.Println("PONTI STATIC NODES 3", task)
+// 		d.startDial(task)
+// 		d.removeFromStaticPool(idx)
+// 	}
+// 	return started
+// }
+
+// startStaticDials starts n static dial tasks.
+func (d *dialScheduler) startStaticDials(n int) (started int) {
+	fmt.Println("PONTI STATIC NODES 1", n, len(d.staticPool))
+	for started = 0; started < n && len(d.staticPool) > 0; started++ {
+		fmt.Println("PONTI STATIC NODES 2", started)
 		idx := d.rand.Intn(len(d.staticPool))
 		task := d.staticPool[idx]
+		fmt.Println("PONTI STATIC NODES 3", task)
 		d.startDial(task)
 		d.removeFromStaticPool(idx)
 	}
@@ -476,6 +499,7 @@ type dialTask struct {
 }
 
 func newDialTask(dest *enode.Node, flags connFlag) *dialTask {
+	fmt.Println("PONTI NEW DIAL TASK 1", dest, flags)
 	return &dialTask{dest: dest, flags: flags, staticPoolIndex: -1}
 }
 
@@ -538,6 +562,8 @@ func (t *dialTask) resolve(d *dialScheduler) bool {
 
 // dial performs the actual connection attempt.
 func (t *dialTask) dial(d *dialScheduler, dest *enode.Node) error {
+	fmt.Println("PONTI DIAL TASK 1")
+
 	fd, err := d.dialer.Dial(d.ctx, t.dest)
 	if err != nil {
 		d.log.Trace("Dial error", "id", t.dest.ID(), "addr", nodeAddr(t.dest), "conn", t.flags, "err", cleanupDialErr(err))

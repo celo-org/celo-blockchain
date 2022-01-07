@@ -67,8 +67,16 @@ type IdentityScheme interface {
 type SchemeMap map[string]IdentityScheme
 
 func (m SchemeMap) Verify(r *Record, sig []byte) error {
+	fmt.Println("PONTI VERIFY SCHEMA MAP 1", r)
+	for _, a := range r.pairs {
+		fmt.Printf("pair: %v\n", a)
+	}
+	fmt.Println("PONTI MAP", m)
 	s := m[r.IdentityScheme()]
+	fmt.Println("PONTI VERIFY SCHEMA MAP 2", r.IdentityScheme(), s)
+
 	if s == nil {
+		fmt.Println("PONTI VERIFY SCHEMA MAP 3")
 		return ErrInvalidSig
 	}
 	return s.Verify(r, sig)

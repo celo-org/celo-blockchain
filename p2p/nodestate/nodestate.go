@@ -18,6 +18,7 @@ package nodestate
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"time"
@@ -474,6 +475,7 @@ func (id dummyIdentity) NodeAddr(r *enr.Record) []byte          { return id[:] }
 
 // decodeNode decodes a node database entry and adds it to the node set if successful
 func (ns *NodeStateMachine) decodeNode(id enode.ID, data []byte) {
+	fmt.Println("PONTI 1")
 	var enc nodeInfoEnc
 	if err := rlp.DecodeBytes(data, &enc); err != nil {
 		log.Error("Failed to decode node info", "id", id, "error", err)

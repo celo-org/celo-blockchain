@@ -1199,7 +1199,7 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 
 	cfg.NetworkId = getNetworkId(ctx)
 
-	lightClient := ctx.GlobalString(SyncModeFlag.Name) == "light"
+	lightClient := ctx.GlobalString(SyncModeFlag.Name) == "light" || ctx.GlobalString(SyncModeFlag.Name) == "lightest"
 	lightServer := (ctx.GlobalInt(LightServeFlag.Name)) != 0
 
 	// LightPeers is in the eth config, not the p2p config, so we don't have it here, so we
@@ -1223,9 +1223,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 			cfg.MaxPeers = lightPeers
 		}
 	}
-	if !(lightClient || lightServer) {
-		lightPeers = 0
-	}
+	// if !(lightClient || lightServer) {
+	// 	lightPeers = 0
+	// }
 	ethPeers := cfg.MaxPeers - lightPeers
 	if lightClient {
 		ethPeers = 0
@@ -1652,9 +1652,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	if ctx.GlobalIsSet(SyncModeFlag.Name) {
 		cfg.SyncMode = *GlobalTextMarshaler(ctx, SyncModeFlag.Name).(*downloader.SyncMode)
 	}
-	if ctx.GlobalIsSet(NetworkIdFlag.Name) {
-		cfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)
-	}
+	cfg.NetworkId = getNetworkId(ctx)
 	if ctx.GlobalIsSet(CacheFlag.Name) || ctx.GlobalIsSet(CacheDatabaseFlag.Name) {
 		cfg.DatabaseCache = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheDatabaseFlag.Name) / 100
 	}
@@ -1740,30 +1738,22 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		cfg.EthDiscoveryURLs = SplitAndTrim(urls)
 	}
 	// Override any default configs for hard coded networks.
-	switch {
-	case ctx.GlobalBool(MainnetFlag.Name):
-		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = params.MainnetNetworkId
-		}
+	switch cfg.NetworkId {
+	case params.MainnetNetworkId:
 		cfg.Genesis = core.MainnetGenesisBlock()
 		SetDNSDiscoveryDefaults(cfg, params.MainnetGenesisHash)
-	case ctx.GlobalBool(BaklavaFlag.Name):
-		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			log.Info("Setting baklava id")
-			cfg.NetworkId = params.BaklavaNetworkId
-		}
+	case params.BaklavaNetworkId:
+		log.Info("Setting baklava id")
 		cfg.Genesis = core.DefaultBaklavaGenesisBlock()
 		SetDNSDiscoveryDefaults(cfg, params.BaklavaGenesisHash)
-	case ctx.GlobalBool(AlfajoresFlag.Name):
+	case params.AlfajoresNetworkId:
+		log.Info("Setting alfajores id")
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = params.AlfajoresNetworkId
 		}
 		cfg.Genesis = core.DefaultAlfajoresGenesisBlock()
 		SetDNSDiscoveryDefaults(cfg, params.AlfajoresGenesisHash)
-	case ctx.GlobalBool(DeveloperFlag.Name):
-		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 1337
-		}
+	case 1337:
 		cfg.SyncMode = downloader.FullSync
 		// Create new developer account or reuse existing one
 		var (

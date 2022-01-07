@@ -126,6 +126,7 @@ func newTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger
 		ips:        netutil.DistinctNetSet{Subnet: tableSubnet, Limit: tableIPLimit},
 		log:        log,
 	}
+	fmt.Println("PONTI BOOTNODES", bootnodes)
 	if err := tab.setFallbackNodes(bootnodes); err != nil {
 		return nil, err
 	}
@@ -200,11 +201,13 @@ func (tab *Table) close() {
 // are used to connect to the network if the table is empty and there
 // are no known nodes in the database.
 func (tab *Table) setFallbackNodes(nodes []*enode.Node) error {
+	fmt.Println("PONTI FALLBACK 1")
 	for _, n := range nodes {
 		if err := n.ValidateComplete(); err != nil {
 			return fmt.Errorf("bad bootstrap node %q: %v", n, err)
 		}
 	}
+	fmt.Println("PONTI FALLBACK 2")
 	tab.nursery = wrapNodes(nodes)
 	return nil
 }
@@ -316,8 +319,11 @@ func (tab *Table) doRefresh(done chan struct{}) {
 }
 
 func (tab *Table) loadSeedNodes() {
+	fmt.Println("PONTI LOAD SEED NODES 1", seedCount, seedMaxAge)
 	seeds := wrapNodes(tab.db.QuerySeeds(seedCount, seedMaxAge))
+	fmt.Println("PONTI LOAD SEED NODES 2", seeds)
 	seeds = append(seeds, tab.nursery...)
+	fmt.Println("PONTI LOAD SEED NODES 3", seeds)
 	for i := range seeds {
 		seed := seeds[i]
 		age := log.Lazy{Fn: func() interface{} { return time.Since(tab.db.LastPongReceived(seed.ID(), seed.IP())) }}
@@ -478,7 +484,10 @@ func (tab *Table) bucketAtDistance(d int) *bucket {
 //
 // The caller must not hold tab.mutex.
 func (tab *Table) addSeenNode(n *node) {
+	fmt.Println("PONTI ADD SEEN NODE 1", n, n.ID())
+
 	if n.ID() == tab.self().ID() {
+		fmt.Println("PONTI ADD SEEN NODE 2", n.ID(), tab.self().ID())
 		return
 	}
 
@@ -486,15 +495,20 @@ func (tab *Table) addSeenNode(n *node) {
 	defer tab.mutex.Unlock()
 	b := tab.bucket(n.ID())
 	if contains(b.entries, n.ID()) {
+		fmt.Println("PONTI ADD SEEN NODE 3", n.ID())
 		// Already in bucket, don't add.
 		return
 	}
 	if len(b.entries) >= bucketSize {
+		fmt.Println("PONTI ADD SEEN NODE 4")
+
 		// Bucket full, maybe add as replacement.
 		tab.addReplacement(b, n)
 		return
 	}
 	if !tab.addIP(b, n.IP()) {
+		fmt.Println("PONTI ADD SEEN NODE 5")
+
 		// Can't add: IP limit reached.
 		return
 	}
@@ -502,7 +516,11 @@ func (tab *Table) addSeenNode(n *node) {
 	b.entries = append(b.entries, n)
 	b.replacements = deleteNode(b.replacements, n)
 	n.addedAt = time.Now()
+	fmt.Println("PONTI ADD SEEN NODE 6")
+
 	if tab.nodeAddedHook != nil {
+		fmt.Println("PONTI ADD SEEN NODE 7")
+
 		tab.nodeAddedHook(n)
 	}
 }

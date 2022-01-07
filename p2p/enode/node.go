@@ -44,10 +44,12 @@ func New(validSchemes enr.IdentityScheme, r *enr.Record) (*Node, error) {
 	if err := r.VerifySignature(validSchemes); err != nil {
 		return nil, err
 	}
+	fmt.Println("PONTI AFTER VERIFY SIGNATURE 1")
 	node := &Node{r: *r}
 	if n := copy(node.id[:], validSchemes.NodeAddr(&node.r)); n != len(ID{}) {
 		return nil, fmt.Errorf("invalid node ID length %d, need %d", n, len(ID{}))
 	}
+	fmt.Println("PONTI AFTER VERIFY SIGNATURE 2", node)
 	return node, nil
 }
 
