@@ -91,46 +91,38 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 	// need to consult the chain for defaults. It's definitely a London tx.
 	if args.MaxPriorityFeePerGas == nil || args.MaxFeePerGas == nil {
 		// In this clause, user left some fields unspecified.
-		if b.ChainConfig().IsEspresso(head.Number) && (args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0) {
-			if args.MaxPriorityFeePerGas == nil {
-				tip, err := b.SuggestGasTipCap(ctx, args.FeeCurrency)
-				if err != nil {
-					return err
+		if b.ChainConfig().IsEspresso(head.Number) {
+			if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
+				if args.MaxPriorityFeePerGas == nil {
+					tip, err := b.SuggestGasTipCap(ctx, args.FeeCurrency)
+					if err != nil {
+						return err
+					}
+					args.MaxPriorityFeePerGas = (*hexutil.Big)(tip)
 				}
-				args.MaxPriorityFeePerGas = (*hexutil.Big)(tip)
-			}
-			if args.MaxFeePerGas == nil {
-				gasPriceMinimum, err := b.CurrentGasPriceMinimum(ctx, args.FeeCurrency)
-				if err != nil {
-					return err
+				if args.MaxFeePerGas == nil {
+					gasPriceMinimum, err := b.CurrentGasPriceMinimum(ctx, args.FeeCurrency)
+					if err != nil {
+						return err
+					}
+					gasFeeCap := new(big.Int).Add(
+						(*big.Int)(args.MaxPriorityFeePerGas),
+						new(big.Int).Mul(gasPriceMinimum, big.NewInt(2)),
+					)
+					args.MaxFeePerGas = (*hexutil.Big)(gasFeeCap)
 				}
-				gasFeeCap := new(big.Int).Add(
-					(*big.Int)(args.MaxPriorityFeePerGas),
-					new(big.Int).Mul(gasPriceMinimum, big.NewInt(2)),
-				)
-				args.MaxFeePerGas = (*hexutil.Big)(gasFeeCap)
-			}
-			if args.MaxFeePerGas.ToInt().Cmp(args.MaxPriorityFeePerGas.ToInt()) < 0 {
-				return fmt.Errorf("maxFeePerGas (%v) < maxPriorityFeePerGas (%v)", args.MaxFeePerGas, args.MaxPriorityFeePerGas)
+				if args.MaxFeePerGas.ToInt().Cmp(args.MaxPriorityFeePerGas.ToInt()) < 0 {
+					return fmt.Errorf("maxFeePerGas (%v) < maxPriorityFeePerGas (%v)", args.MaxFeePerGas, args.MaxPriorityFeePerGas)
+				}
 			}
 		} else {
 			if args.MaxFeePerGas != nil || args.MaxPriorityFeePerGas != nil {
 				return errors.New("maxFeePerGas or maxPriorityFeePerGas specified but london is not active yet")
 			}
 			if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
-				price, err := b.SuggestGasTipCap(ctx, args.FeeCurrency)
+				price, err := b.SuggestPrice(ctx, args.FeeCurrency)
 				if err != nil {
 					return err
-				}
-				if b.ChainConfig().IsEspresso(head.Number) {
-					gasPriceMinimum, err := b.CurrentGasPriceMinimum(ctx, args.FeeCurrency)
-					if err != nil {
-						return err
-					}
-					// The legacy tx gas price suggestion should not add 2x base fee
-					// because all fees are consumed, so it would result in a spiral
-					// upwards.
-					price.Add(price, gasPriceMinimum)
 				}
 				args.GasPrice = (*hexutil.Big)(price)
 			}
@@ -173,6 +165,9 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 			GasPrice:             args.GasPrice,
 			MaxFeePerGas:         args.MaxFeePerGas,
 			MaxPriorityFeePerGas: args.MaxPriorityFeePerGas,
+			FeeCurrency:          args.FeeCurrency,
+			GatewayFee:           args.GatewayFee,
+			GatewayFeeRecipient:  args.GatewayFeeRecipient,
 			Value:                args.Value,
 			Data:                 args.Data,
 			AccessList:           args.AccessList,
@@ -276,16 +271,33 @@ func (args *TransactionArgs) toTransaction() *types.Transaction {
 		if args.AccessList != nil {
 			al = *args.AccessList
 		}
-		data = &types.DynamicFeeTx{
-			To:         args.To,
-			ChainID:    (*big.Int)(args.ChainID),
-			Nonce:      uint64(*args.Nonce),
-			Gas:        uint64(*args.Gas),
-			GasFeeCap:  (*big.Int)(args.MaxFeePerGas),
-			GasTipCap:  (*big.Int)(args.MaxPriorityFeePerGas),
-			Value:      (*big.Int)(args.Value),
-			Data:       args.data(),
-			AccessList: al,
+		if args.FeeCurrency != nil || args.GatewayFeeRecipient != nil || args.GatewayFee != nil {
+			data = &types.CeloDynamicFeeTx{
+				To:                  args.To,
+				ChainID:             (*big.Int)(args.ChainID),
+				Nonce:               uint64(*args.Nonce),
+				Gas:                 uint64(*args.Gas),
+				GasFeeCap:           (*big.Int)(args.MaxFeePerGas),
+				GasTipCap:           (*big.Int)(args.MaxPriorityFeePerGas),
+				FeeCurrency:         args.FeeCurrency,
+				GatewayFeeRecipient: args.GatewayFeeRecipient,
+				GatewayFee:          (*big.Int)(args.GatewayFee),
+				Value:               (*big.Int)(args.Value),
+				Data:                args.data(),
+				AccessList:          al,
+			}
+		} else {
+			data = &types.DynamicFeeTx{
+				To:         args.To,
+				ChainID:    (*big.Int)(args.ChainID),
+				Nonce:      uint64(*args.Nonce),
+				Gas:        uint64(*args.Gas),
+				GasFeeCap:  (*big.Int)(args.MaxFeePerGas),
+				GasTipCap:  (*big.Int)(args.MaxPriorityFeePerGas),
+				Value:      (*big.Int)(args.Value),
+				Data:       args.data(),
+				AccessList: al,
+			}
 		}
 	case args.AccessList != nil:
 		data = &types.AccessListTx{

@@ -22,7 +22,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/db"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/db"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/rlp"
 )

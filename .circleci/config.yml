@@ -112,27 +112,6 @@ jobs:
           paths:
             - geth/<<pipeline.parameters.system-contracts-path>>
 
-  unit-tests:
-    <<: *unit-tests-defaults
-    steps:
-      - attach_workspace:
-          at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-      - run: go get github.com/jstemmer/go-junit-report
-      - run:
-          name: Run Tests
-          command: |
-            mkdir -p /tmp/test-results
-            trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
-            go test -p 1 -v ./... | tee /tmp/test-results/go-test.out
-      - store_artifacts:
-          path: /tmp/test-results
-          destination: raw-test-output
-      - store_test_results:
-          path: /tmp/test-results
-
   race:
     <<: *unit-tests-defaults
     steps:
@@ -143,7 +122,7 @@ jobs:
             - go-mod-v1-{{ checksum "go.sum" }}
       - run: go get github.com/jstemmer/go-junit-report
       - run:
-          name: Run Tests
+          name: Run tests
           command: |
             mkdir -p /tmp/test-results
             trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
@@ -154,7 +133,7 @@ jobs:
       - store_test_results:
           path: /tmp/test-results
 
-  coverage:
+  unit-tests:
     <<: *unit-tests-defaults
     steps:
       - attach_workspace:
@@ -162,8 +141,19 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-      - run: go test -p 1 -v -covermode=atomic -cover -coverprofile=coverage.out ./...
-      - run: bash <(curl -s https://codecov.io/bash)
+      - run: go get github.com/jstemmer/go-junit-report
+      - run:
+          name: Run tests
+          command: |
+            mkdir -p /tmp/test-results
+            trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
+            go test -p 1 -v -covermode=atomic -cover -coverprofile=coverage.out ./... | tee /tmp/test-results/go-test.out
+            bash <(curl -s https://codecov.io/bash)
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results:
+          path: /tmp/test-results
 
   istanbul-e2e-coverage:
     <<: *unit-tests-defaults
@@ -490,10 +480,6 @@ workflows:
             - build-geth
             - prepare-system-contracts
       - race:
-          requires:
-            - build-geth
-            - prepare-system-contracts
-      - coverage:
           requires:
             - build-geth
             - prepare-system-contracts
