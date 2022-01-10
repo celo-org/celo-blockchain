@@ -42,8 +42,9 @@ know which participant a message came from and that messages cannot be forged.
 
 Only messages from participants are considered.
 
-When considering sets of messages only messages from distinct participants are
-considered, I.E no set of messages can contain more than one message from any
+When considering sets of messages (denoted by either `M` or `N`, this doesn't
+apply to Msgs) only messages from distinct participants are considered, I.E
+sets denoted by `M` or `N` cannot contain more than one message from any
 participant.
 
 For messages containing a value only messages with valid values are considered.
