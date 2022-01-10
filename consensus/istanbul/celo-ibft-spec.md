@@ -308,11 +308,12 @@ onRoundChangeTimeout(H, R) {
 
 
 ## Appendix 1: Notation
+Message sets are represented as `M` if there is need to represent more than one
+message set within a single scope then `N` is used for the other message set.
 Elements of sets are represented with lower case letters (e.g. `m ∈ M`).
-Because all sets are messages we use `m` to represent an element and if we
-need to denote 2 messages from the same set we use `n` to denote the second
-message. Other variables are represented with Upper case letters (e.g. `H` for
-height).
+Because all sets are messages we use `m` to represent an element and if we need
+to denote 2 messages from the same set we use `n` to denote the second message.
+Other variables are represented with Upper case letters (e.g. `H` for height).
 
 Composite objects are defined by a set of comma separated variables enclosed in
 angled brackets.\
