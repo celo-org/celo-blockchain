@@ -42,7 +42,10 @@ know which participant a message came from and that messages cannot be forged.
 
 Only messages from participants are considered.
 
-When considering sets of messages (denoted by either `M` or `N`, this doesn't
+The Msgs variable holds all the messages ever received by a participant except
+for messages explicitly removed by the consensus algorithm.
+
+When considering sets of messages denoted by either `M` or `N` (this doesn't
 apply to Msgs) only messages from distinct participants are considered, I.E
 sets denoted by `M` or `N` cannot contain more than one message from any
 participant.
@@ -54,10 +57,7 @@ case that a participant is off-line or somehow inaccessible they will not
 receive broadcast messages and there is no mechanism for these messages to be
 re-sent.
 
-We refer to a consensus instance to mean consensus for a specific height,
-consensus instances are independent (they have no shared state), that is
-messages or values from the previous height have no bearing on the outcome of
-the current height
+We refer to a consensus instance to mean consensus for a specific height.
 
 We assume the existence of an application that feeds values to be agreed upon
 to the consensus instance and also receives agreed upon values from the
@@ -81,17 +81,15 @@ Variable names                  |Instance state
 `T - Message type`              |`Vc - currently proposed value`         
 `RCC - round change certificate`|`PCc - current prepared certificate`    
 `PC - prepared certificate`     |`Sc - current participant state`        
-`S - participant state`         |`Msgs - set of messages sent and received for the current height`
-`M or N - message sets`         |`Events - set of events received from the application`
+`S - participant state`         |`Msgs - set of all sent and received messages`
+`M or N - message sets`         |`PendingEvent - the most recent event sent from the application`
 
 ```
-
 // Upon receiving this event the algorithm transitions to the next height the
 // final committed event signifies that the application has accepted the agreed
 // upon value for the current height.
-upon: <FinalCommittedEvent> ∈ Events
-  Msgs ← nil
-  Events ← nil
+upon: <FinalCommittedEvent> = PendingEvent
+  PendingEvent ← nil
   Hc ← Hc+1
   Rc ← 0
   Rd ← 0
@@ -103,8 +101,8 @@ upon: <FinalCommittedEvent> ∈ Events
 // A request event is a request to reach agreement on the provided value, the
 // request event is sent by the application, if this parcicipant is the proposer
 // it will propose that value by sending a preprepared message.
-upon: <RequestEvent, Hc, V> ∈ Events && Sc = AcceptRequest
-  Events ← nil
+upon: <RequestEvent, Hc, V> = PendingEvent && Sc = AcceptRequest
+  PendingEvent ← nil
   if Rc = 0 && isProposer(Hc, Rd) {
     broadcast(<Preprepare, Hc, 0, V, nil>)
   }
@@ -135,10 +133,11 @@ upon: M ← { <Commit, Hc, Rd, Vc> } ∈ Msgs && |M| >= 2f+1 && Sc ∈ {Preprepa
   deliverValue(Vc)
 
 // Upon receipt of a round change if that round change is old, send the participant's round
-// change back to the sender to help them catch up. Othewise if there are at least 2f+1 round
-// change messages sharing the same round then switch to it. Otherwise if there are at least
-// f+1 round change messages switch to the higest round that is less than or equal to the top
-// f+1 rounds.
+// change back to the sender to help them catch up, in order to avoid this condition triggering
+// repeatedly the received round change message is then removed from Msgs. Othewise if there are
+// at least 2f+1 round change messages sharing the same round then switch to it. Otherwise if
+// there are at least f+1 round change messages switch to the higest round that is less than or
+// equal to the top f+1 rounds.
 upon: m<RoundChange, Hc , R, PC> ∈ Msgs && (PC = nil || validPC(PC)) 
   if R < Rd {
   	Msgs ← Msgs/{m}
@@ -263,7 +262,7 @@ Asserts that at least 2f+1 round change messages share the same round and
 returns that round.
 ```
 quorumRound() {
-  M ← { m<RoundChange, Hc, Rm, *>, n<RoundChange, Hc, Rn, *> : Rm = Rn } &&
+  M ← { m<RoundChange, Hc, Rm, *>, n<RoundChange, Hc, Rn, *> ∈ Msgs : Rm = Rn } &&
   |M| >= 2f+1 &&
   ∃ R : ∀ m<*, *, Rm, *> ∈ M : R = Rm
   return R
@@ -279,7 +278,7 @@ f1Round() {
   // This is saying that for any Rm there cannot be >= f+1 elements set with a
   // larger R, since if there were that would mean that Rm is not in the top
   // f+1 rounds. 
-  M ← { m<RoundChange, Hc, Rm, *> : |{ n<RoundChange, Hc, Rn, *> : Rm < Rn }| < f+1 } &&
+  M ← { m<RoundChange, Hc, Rm, *> ∈ Msgs : |{ n<RoundChange, Hc, Rn, *> ∈ Msgs : Rm < Rn }| < f+1 } &&
   |M| >= f+1 &&
   ∃ R : ∀ m<*, *, Rm, *> ∈ M : R <= Rm
   return R
