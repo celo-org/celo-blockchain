@@ -95,6 +95,7 @@ upon: <FinalCommittedEvent> ∈ Events
   Hc ← Hc+1
   Rc ← 0
   Rd ← 0
+  PCc ← nil
   Sc ← AcceptRequest
   Vc ← nil
   schedule onRoundChangeTimeout(Hc, 0) after roundChangeTimeout(0)
