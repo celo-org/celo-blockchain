@@ -143,7 +143,7 @@ func NewNode(
 		Tracker:   NewTracker(),
 	}
 
-	return node, nil
+	return node, node.Start()
 }
 
 // Start creates the node.Node and eth.Ethereum and starts the node.Node and
@@ -360,17 +360,6 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 		RequestTimeout: ec.Istanbul.RequestTimeout,
 	}
 
-	}
-	return nil
-}
-
-// NewNetwork generates a network of nodes that are running and mining. For
-// each provided validator account a corresponding node is created and each
-// node is also assigned a developer account, there must be at least as many
-// developer accounts provided as validator accounts. If there is an error it
-// will be returned immediately, meaning that some nodes may be running and
-// others not.
-func newNetwork(accounts *env.AccountsConfig, gc *genesis.Config, concurrent bool) (Network, error) {
 	genesis, err := genesis.GenerateGenesis(accounts, gc, "../compiled-system-contracts")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate genesis: %v", err)
@@ -385,19 +374,6 @@ func newNetwork(accounts *env.AccountsConfig, gc *genesis.Config, concurrent boo
 			return nil, nil, fmt.Errorf("failed to build node for network: %v", err)
 		}
 		network[i] = n
-	}
-	if concurrent {
-		// Start all nodes concurrently
-		if err := startConcurrently(network); err != nil {
-			return network, fmt.Errorf("failed to start node for network: %v", err)
-		}
-	} else {
-		// Start them sequentially
-		for _, n := range network {
-			if err = n.Start(); err != nil {
-				return nil, fmt.Errorf("failed to start node for network: %v", err)
-			}
-		}
 	}
 
 	// Connect nodes to each other, although this means that nodes can reach
