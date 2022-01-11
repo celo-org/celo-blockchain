@@ -45,7 +45,9 @@ func TestSendCelo(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSingleNodeManyTxs(t *testing.T) {
+// This test verifies correct behavior in a network of size one, in the case that 
+// this fails we know that the problem does not lie with our network code.
+func TestSingleNodeNetworkManyTxs(t *testing.T) {
 	rounds := 100
 	txsPerRound := 5
 	accounts := test.Accounts(1)
