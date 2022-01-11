@@ -21,6 +21,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
+	"sync"
 
 	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/accounts/abi"
@@ -32,7 +34,7 @@ import (
 
 // SignerFn is a signer function callback when a contract requires a method to
 // sign the transaction before submission.
-type SignerFn func(types.Signer, common.Address, *types.Transaction) (*types.Transaction, error)
+type SignerFn func(common.Address, *types.Transaction) (*types.Transaction, error)
 
 // CallOpts is the collection of options to fine tune a contract call request.
 type CallOpts struct {
@@ -55,6 +57,8 @@ type TransactOpts struct {
 	FeeCurrency         *common.Address // Fee currency to be used for transaction (nil = default currency = Celo Gold)
 	GatewayFeeRecipient *common.Address // Address to which gateway fees should be paid (nil = no gateway fees are paid)
 	GatewayFee          *big.Int        // Value of gateway fees to be paid (nil = no gateway fees are paid)
+	GasFeeCap           *big.Int        // Gas fee cap to use for the 1559 transaction execution (nil = gas price oracle)
+	GasTipCap           *big.Int        // Gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle)
 	GasLimit            uint64          // Gas limit to set for the transaction execution (0 = estimate)
 
 	Context context.Context // Network context to support cancellation and timeouts (nil = no timeout)
@@ -74,6 +78,29 @@ type FilterOpts struct {
 type WatchOpts struct {
 	Start   *uint64         // Start of the queried range (nil = latest)
 	Context context.Context // Network context to support cancellation and timeouts (nil = no timeout)
+}
+
+// MetaData collects all metadata for a bound contract.
+type MetaData struct {
+	mu   sync.Mutex
+	Sigs map[string]string
+	Bin  string
+	ABI  string
+	ab   *abi.ABI
+}
+
+func (m *MetaData) GetAbi() (*abi.ABI, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.ab != nil {
+		return m.ab, nil
+	}
+	if parsed, err := abi.JSON(strings.NewReader(m.ABI)); err != nil {
+		return nil, err
+	} else {
+		m.ab = &parsed
+	}
+	return m.ab, nil
 }
 
 // BoundContract is the base wrapper object that reflects a contract on the
@@ -132,10 +159,13 @@ func (c *BoundContract) TxObj(opts *TransactOpts, method string, params ...inter
 // sets the output to result. The result type might be a single field for simple
 // returns, a slice of interfaces for anonymous returns and a struct for named
 // returns.
-func (c *BoundContract) Call(opts *CallOpts, result interface{}, method string, params ...interface{}) error {
+func (c *BoundContract) Call(opts *CallOpts, results *[]interface{}, method string, params ...interface{}) error {
 	// Don't crash on a lazy user
 	if opts == nil {
 		opts = new(CallOpts)
+	}
+	if results == nil {
+		results = new([]interface{})
 	}
 	// Pack the input, call and unpack the results
 	input, err := c.abi.Pack(method, params...)
@@ -164,7 +194,10 @@ func (c *BoundContract) Call(opts *CallOpts, result interface{}, method string, 
 		}
 	} else {
 		output, err = c.backend.CallContract(ctx, msg, opts.BlockNumber)
-		if err == nil && len(output) == 0 {
+		if err != nil {
+			return err
+		}
+		if len(output) == 0 {
 			// Make sure we have a contract to operate on, and bail out otherwise.
 			if code, err = c.backend.CodeAt(ctx, c.address, opts.BlockNumber); err != nil {
 				return err
@@ -173,10 +206,14 @@ func (c *BoundContract) Call(opts *CallOpts, result interface{}, method string, 
 			}
 		}
 	}
-	if err != nil {
+
+	if len(*results) == 0 {
+		res, err := c.abi.Unpack(method, output)
+		*results = res
 		return err
 	}
-	return c.abi.Unpack(result, method, output)
+	res := *results
+	return c.abi.UnpackIntoInterface(res[0], method, output)
 }
 
 // Transact invokes the (paid) contract method with params as input values.
@@ -256,14 +293,45 @@ func (c *BoundContract) transactionFor(opts *TransactOpts, contract *common.Addr
 	} else {
 		nonce = opts.Nonce.Uint64()
 	}
-	// Figure out the gas allowance and gas price values
-	gasPrice := opts.GasPrice
-	if gasPrice == nil {
-		gasPrice, err = c.backend.SuggestGasPrice(ensureContext(opts.Context))
-		if err != nil {
-			return nil, fmt.Errorf("failed to suggest gas price: %v", err)
-		}
+	// Figure out reasonable gas price values
+	if opts.GasPrice != nil && (opts.GasFeeCap != nil || opts.GasTipCap != nil) {
+		return nil, errors.New("both gasPrice and (maxFeePerGas or maxPriorityFeePerGas) specified")
 	}
+	// head, err := c.transactor.HeaderByNumber(ensureContext(opts.Context), nil)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// TODO: Use GPM here
+	// if head.BaseFee != nil && opts.GasPrice == nil {
+	// 	if opts.GasTipCap == nil {
+	// 		tip, err := c.transactor.SuggestGasTipCap(ensureContext(opts.Context))
+	// 		if err != nil {
+	// 			return nil, err
+	// 		}
+	// 		opts.GasTipCap = tip
+	// 	}
+	// 	if opts.GasFeeCap == nil {
+	// 		gasFeeCap := new(big.Int).Add(
+	// 			opts.GasTipCap,
+	// 			new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
+	// 		)
+	// 		opts.GasFeeCap = gasFeeCap
+	// 	}
+	// 	if opts.GasFeeCap.Cmp(opts.GasTipCap) < 0 {
+	// 		return nil, fmt.Errorf("maxFeePerGas (%v) < maxPriorityFeePerGas (%v)", opts.GasFeeCap, opts.GasTipCap)
+	// 	}
+	// } else {
+	if opts.GasFeeCap != nil || opts.GasTipCap != nil {
+		return nil, errors.New("maxFeePerGas or maxPriorityFeePerGas specified but london is not active yet")
+	}
+	if opts.GasPrice == nil {
+		price, err := c.backend.SuggestGasPrice(ensureContext(opts.Context))
+		if err != nil {
+			return nil, err
+		}
+		opts.GasPrice = price
+	}
+	// }
 
 	feeCurrency := opts.FeeCurrency
 	// TODO(nategraf): Add SuggestFeeCurrency to Transactor to get fee currency
@@ -289,7 +357,18 @@ func (c *BoundContract) transactionFor(opts *TransactOpts, contract *common.Addr
 			}
 		}
 		// If the contract surely has code (or code is not needed), estimate the transaction
-		msg := ethereum.CallMsg{From: opts.From, To: contract, GasPrice: gasPrice, Value: value, Data: input}
+		msg := ethereum.CallMsg{
+			From:                opts.From,
+			To:                  contract,
+			GasPrice:            opts.GasPrice,
+			GasTipCap:           opts.GasTipCap,
+			GasFeeCap:           opts.GasFeeCap,
+			Value:               value,
+			FeeCurrency:         feeCurrency,
+			GatewayFeeRecipient: gatewayFeeRecipient,
+			GatewayFee:          gatewayFee,
+			Data:                input,
+		}
 		gasLimit, err = c.backend.EstimateGas(ensureContext(opts.Context), msg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to estimate gas needed: %v", err)
@@ -300,19 +379,39 @@ func (c *BoundContract) transactionFor(opts *TransactOpts, contract *common.Addr
 	}
 	// Create the transaction, sign it and schedule it for execution
 	var rawTx *types.Transaction
-	if contract == nil {
-		rawTx = types.NewContractCreation(nonce, value, gasLimit, gasPrice, feeCurrency, gatewayFeeRecipient, gatewayFee, input)
+	if opts.GasFeeCap == nil {
+		baseTx := &types.LegacyTx{
+			Nonce:               nonce,
+			GasPrice:            opts.GasPrice,
+			Gas:                 gasLimit,
+			Value:               value,
+			FeeCurrency:         feeCurrency,
+			GatewayFeeRecipient: gatewayFeeRecipient,
+			GatewayFee:          gatewayFee,
+			Data:                input,
+		}
+		if contract != nil {
+			baseTx.To = &c.address
+		}
+		rawTx = types.NewTx(baseTx)
 	} else {
-		rawTx = types.NewTransaction(nonce, c.address, value, gasLimit, gasPrice, feeCurrency, gatewayFeeRecipient, gatewayFee, input)
+		baseTx := &types.DynamicFeeTx{
+			Nonce:     nonce,
+			GasFeeCap: opts.GasFeeCap,
+			GasTipCap: opts.GasTipCap,
+			Gas:       gasLimit,
+			Value:     value,
+			Data:      input,
+		}
+		if contract != nil {
+			baseTx.To = &c.address
+		}
+		rawTx = types.NewTx(baseTx)
 	}
 	if opts.Signer == nil {
 		return nil, errors.New("no signer to authorize the transaction with")
 	}
-	var signer types.Signer = types.HomesteadSigner{}
-	if opts.ChainID != nil {
-		signer = types.NewEIP155Signer(opts.ChainID)
-	}
-	signedTx, err := opts.Signer(signer, opts.From, rawTx)
+	signedTx, err := opts.Signer(opts.From, rawTx)
 	if err != nil {
 		return nil, err
 	}
@@ -359,7 +458,7 @@ func (c *BoundContract) FilterLogs(opts *FilterOpts, name string, query ...[]int
 	// Append the event selector to the query parameters and construct the topic set
 	query = append([][]interface{}{{c.abi.Events[name].ID}}, query...)
 
-	topics, err := makeTopics(query...)
+	topics, err := abi.MakeTopics(query...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -408,7 +507,7 @@ func (c *BoundContract) WatchLogs(opts *WatchOpts, name string, query ...[]inter
 	// Append the event selector to the query parameters and construct the topic set
 	query = append([][]interface{}{{c.abi.Events[name].ID}}, query...)
 
-	topics, err := makeTopics(query...)
+	topics, err := abi.MakeTopics(query...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -432,7 +531,7 @@ func (c *BoundContract) WatchLogs(opts *WatchOpts, name string, query ...[]inter
 // UnpackLog unpacks a retrieved log into the provided output structure.
 func (c *BoundContract) UnpackLog(out interface{}, event string, log types.Log) error {
 	if len(log.Data) > 0 {
-		if err := c.abi.Unpack(out, event, log.Data); err != nil {
+		if err := c.abi.UnpackIntoInterface(out, event, log.Data); err != nil {
 			return err
 		}
 	}
@@ -442,7 +541,7 @@ func (c *BoundContract) UnpackLog(out interface{}, event string, log types.Log) 
 			indexed = append(indexed, arg)
 		}
 	}
-	return parseTopics(out, indexed, log.Topics[1:])
+	return abi.ParseTopics(out, indexed, log.Topics[1:])
 }
 
 // UnpackLogIntoMap unpacks a retrieved log into the provided map.
@@ -458,14 +557,14 @@ func (c *BoundContract) UnpackLogIntoMap(out map[string]interface{}, event strin
 			indexed = append(indexed, arg)
 		}
 	}
-	return parseTopicsIntoMap(out, indexed, log.Topics[1:])
+	return abi.ParseTopicsIntoMap(out, indexed, log.Topics[1:])
 }
 
 // ensureContext is a helper method to ensure a context is not nil, even if the
 // user specified it as such.
 func ensureContext(ctx context.Context) context.Context {
 	if ctx == nil {
-		return context.TODO()
+		return context.Background()
 	}
 	return ctx
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/shared/signer"
+	"github.com/celo-org/celo-blockchain/signer/core/apitypes"
 )
 
 var (
@@ -53,7 +54,7 @@ type ValidatorData struct {
 //
 // Note, the produced signature conforms to the secp256k1 curve R, S and V values,
 // where the V value will be 27 or 28 for legacy reasons, if legacyV==true.
-func (api *SignerAPI) sign(addr common.MixedcaseAddress, req *SignDataRequest, legacyV bool) (hexutil.Bytes, error) {
+func (api *SignerAPI) sign(req *SignDataRequest, legacyV bool) (hexutil.Bytes, error) {
 	// We make the request prior to looking up if we actually have the account, to prevent
 	// account-enumeration via the API
 	res, err := api.UI.ApproveSignData(req)
@@ -64,7 +65,7 @@ func (api *SignerAPI) sign(addr common.MixedcaseAddress, req *SignDataRequest, l
 		return nil, ErrRequestDenied
 	}
 	// Look up the wallet containing the requested signer
-	account := accounts.Account{Address: addr.Address()}
+	account := accounts.Account{Address: req.Address.Address()}
 	wallet, err := api.am.Find(account)
 	if err != nil {
 		return nil, err
@@ -95,7 +96,7 @@ func (api *SignerAPI) SignData(ctx context.Context, contentType string, addr com
 	if err != nil {
 		return nil, err
 	}
-	signature, err := api.sign(addr, req, transformV)
+	signature, err := api.sign(req, transformV)
 	if err != nil {
 		api.UI.ShowError(err.Error())
 		return nil, err
@@ -187,28 +188,47 @@ func SignTextValidator(validatorData ValidatorData) (hexutil.Bytes, string) {
 
 // SignTypedData signs EIP-712 conformant typed data
 // hash = keccak256("\x19${byteVersion}${domainSeparator}${hashStruct(message)}")
+// It returns
+// - the signature,
+// - and/or any error
 func (api *SignerAPI) SignTypedData(ctx context.Context, addr common.MixedcaseAddress, typedData signer.TypedData) (hexutil.Bytes, error) {
+	signature, _, err := api.signTypedData(ctx, addr, typedData, nil)
+	return signature, err
+}
+
+// signTypedData is identical to the capitalized version, except that it also returns the hash (preimage)
+// - the signature preimage (hash)
+func (api *SignerAPI) signTypedData(ctx context.Context, addr common.MixedcaseAddress,
+	typedData signer.TypedData, validationMessages *apitypes.ValidationMessages) (hexutil.Bytes, hexutil.Bytes, error) {
 	domainSeparator, err := typedData.HashStruct("EIP712Domain", typedData.Domain.Map())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	typedDataHash, err := typedData.HashStruct(typedData.PrimaryType, typedData.Message)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	rawData := []byte(fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(typedDataHash)))
 	sighash := crypto.Keccak256(rawData)
 	messages, err := typedData.Format()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	req := &SignDataRequest{ContentType: DataTyped.Mime, Rawdata: rawData, Messages: messages, Hash: sighash}
-	signature, err := api.sign(addr, req, true)
+	req := &SignDataRequest{
+		ContentType: DataTyped.Mime,
+		Rawdata:     rawData,
+		Messages:    messages,
+		Hash:        sighash,
+		Address:     addr}
+	if validationMessages != nil {
+		req.Callinfo = validationMessages.Messages
+	}
+	signature, err := api.sign(req, true)
 	if err != nil {
 		api.UI.ShowError(err.Error())
-		return nil, err
+		return nil, nil, err
 	}
-	return signature, nil
+	return signature, sighash, nil
 }
 
 // EcRecover recovers the address associated with the given sig.
@@ -224,7 +244,7 @@ func (api *SignerAPI) EcRecover(ctx context.Context, data hexutil.Bytes, sig hex
 	// Note, the signature must conform to the secp256k1 curve R, S and V values, where
 	// the V value must be be 27 or 28 for legacy reasons.
 	//
-	// https://github.com/celo-org/celo-blockchain/wiki/Management-APIs#personal_ecRecover
+	// https://github.com/ethereum/go-ethereum/wiki/Management-APIs#personal_ecRecover
 	if len(sig) != 65 {
 		return common.Address{}, fmt.Errorf("signature must be 65 bytes long")
 	}

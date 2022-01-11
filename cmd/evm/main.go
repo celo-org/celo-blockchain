@@ -129,11 +129,6 @@ var (
 		Name:  "noreturndata",
 		Usage: "disable return data output",
 	}
-	EVMInterpreterFlag = cli.StringFlag{
-		Name:  "vm.evm",
-		Usage: "External EVM configuration (default = built-in interpreter)",
-		Value: "",
-	}
 )
 
 // FIXME broken command
@@ -147,8 +142,10 @@ var (
 // 		t8ntool.TraceDisableMemoryFlag,
 // 		t8ntool.TraceDisableStackFlag,
 // 		t8ntool.TraceDisableReturnDataFlag,
+// 		t8ntool.OutputBasedir,
 // 		t8ntool.OutputAllocFlag,
 // 		t8ntool.OutputResultFlag,
+// 		t8ntool.OutputBodyFlag,
 // 		t8ntool.InputAllocFlag,
 // 		t8ntool.InputEnvFlag,
 // 		t8ntool.InputTxsFlag,
@@ -184,7 +181,6 @@ func init() {
 		DisableStackFlag,
 		DisableStorageFlag,
 		DisableReturnDataFlag,
-		EVMInterpreterFlag,
 	}
 	app.Commands = []cli.Command{
 		compileCommand,

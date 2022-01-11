@@ -16,21 +16,21 @@
 
 package core
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/celo-org/celo-blockchain/core/types"
+)
 
 var (
 	// ErrKnownBlock is returned when a block to import is already known locally.
 	ErrKnownBlock = errors.New("block already known")
 
-	// ErrBlacklistedHash is returned if a block to import is on the blacklist.
-	ErrBlacklistedHash = errors.New("blacklisted hash")
+	// ErrBannedHash is returned if a block to import is on the banned list.
+	ErrBannedHash = errors.New("banned hash")
 
 	// ErrNoGenesis is returned when there is no Genesis Block.
 	ErrNoGenesis = errors.New("genesis not found in chain")
-
-	// ErrNotHeadBlock is returned when block to insert is not the next head
-	// of the canonical chain
-	ErrNotHeadBlock = errors.New("block is not next head block")
 )
 
 // List of evm-call-message pre-checking errors. All state transition messages will
@@ -66,9 +66,9 @@ var (
 	// minimum specified by the GasPriceMinimum contract.
 	ErrGasPriceDoesNotExceedMinimum = errors.New("gasprice is less than gas price minimum")
 
-	// ErrInsufficientFundsForFees is returned if the account does have enough funds (in the
-	// fee currency used for the transaction) to pay for the gas.
-	ErrInsufficientFundsForFees = errors.New("insufficient funds to pay for fees")
+	// ErrGasPriceDoesNotExceedMinimumFloor is returned if the gas price specified doesn't meet the
+	// minimum floor specified by the GasPriceMinimum contract.
+	ErrGasPriceDoesNotExceedMinimumFloor = errors.New("gasprice is less than gas price minimum floor")
 
 	// ErrNonWhitelistedFeeCurrency is returned if the currency specified to use for the fees
 	// isn't one of the currencies whitelisted for that purpose.
@@ -88,4 +88,27 @@ var (
 	// ErrUnprotectedTransaction is returned if replay protection is required (post-Donut) but the transaction doesn't
 	// use it.
 	ErrUnprotectedTransaction = errors.New("replay protection is required")
+
+	// ErrTxTypeNotSupported is returned if a transaction is not supported in the
+	// current network configuration.
+	ErrTxTypeNotSupported = types.ErrTxTypeNotSupported
+
+	// ErrTipAboveFeeCap is a sanity error to ensure no one is able to specify a
+	// transaction with a tip higher than the total fee cap.
+	ErrTipAboveFeeCap = errors.New("max priority fee per gas higher than max fee per gas")
+
+	// ErrTipVeryHigh is a sanity error to avoid extremely big numbers specified
+	// in the tip field.
+	ErrTipVeryHigh = errors.New("max priority fee per gas higher than 2^256-1")
+
+	// ErrFeeCapVeryHigh is a sanity error to avoid extremely big numbers specified
+	// in the fee cap field.
+	ErrFeeCapVeryHigh = errors.New("max fee per gas higher than 2^256-1")
+
+	// ErrFeeCapTooLow is returned if the transaction fee cap is less than the
+	// the base fee of the block.
+	ErrFeeCapTooLow = errors.New("max fee per gas less than block base fee")
+
+	// ErrSenderNoEOA is returned if the sender of a transaction is a contract.
+	ErrSenderNoEOA = errors.New("sender not an eoa")
 )

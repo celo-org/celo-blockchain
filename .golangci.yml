@@ -12,21 +12,21 @@ run:
 linters:
   disable-all: true
   enable:
-    # - deadcode
-    # - errcheck
+    - deadcode
+    - goconst
+    - goimports
     - gosimple
     - govet
     - ineffassign
-    - staticcheck
-    - unused
+    - misspell
+    # - staticcheck
+    - unconvert
+    # - unused
     - varcheck
 
-    - goconst
-    - goimports
-    - gosec
-    - misspell
+    # - gosec
+    # - errcheck
     # - prealloc
-    - unconvert
     # - unparam
 
 linters-settings:

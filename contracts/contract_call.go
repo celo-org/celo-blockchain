@@ -45,7 +45,7 @@ func (am Method) decodeResult(result interface{}, output []byte) error {
 	if result == nil {
 		return nil
 	}
-	return am.abi.Unpack(result, am.method, output)
+	return am.abi.UnpackIntoInterface(result, am.method, output)
 }
 
 // NewBoundMethod constructs a new bound method instance bound to the given address.

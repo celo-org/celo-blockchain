@@ -39,6 +39,7 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/celo-org/celo-blockchain/trie"
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/crypto/sha3"
 )
@@ -81,9 +82,6 @@ var (
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
 	// errInvalidValidatorSetDiff is returned if the header contains invalid validator set diff
 	errInvalidValidatorSetDiff = errors.New("invalid validator set diff")
-	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
-	// an unregistered validator
-	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
 	// errNotAValidator is returned when the node is not configured as a validator
 	errNotAValidator = errors.New("Not configured as a validator")
 )
@@ -472,7 +470,7 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 	// They are looked up using the zero hash instead of a transaction hash, and so we need to first call
 	// `state.Prepare()` so that they get filed under the zero hash. Otherwise, they would get filed under
 	// the hash of the last transaction in the block (if there were any).
-	state.Prepare(common.Hash{}, header.Hash(), len(txs))
+	state.Prepare(common.Hash{}, len(txs))
 
 	snapshot := state.Snapshot()
 	vmRunner := sb.chain.NewEVMRunner(header, state)
@@ -514,7 +512,7 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 	receipts = core.AddBlockReceipt(receipts, state, header.Hash())
 
 	// Assemble and return the final block for sealing
-	block := types.NewBlock(header, txs, receipts, randomness)
+	block := types.NewBlock(header, txs, receipts, randomness, new(trie.Trie))
 	return block, nil
 }
 
@@ -629,12 +627,10 @@ func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
 	for {
 		select {
 		case chainEvent := <-chainEventCh:
-			sb.coreMu.RLock()
 			if !sb.isCoreStarted() && sb.replicaState != nil {
 				consensusBlock := new(big.Int).Add(chainEvent.Block.Number(), common.Big1)
 				sb.replicaState.NewChainHead(consensusBlock)
 			}
-			sb.coreMu.RUnlock()
 		case err := <-chainEventSub.Err():
 			log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
 			return
@@ -710,45 +706,6 @@ func (sb *Backend) StopValidating() error {
 	sb.coreStarted.Store(false)
 
 	return nil
-}
-
-// StartAnnouncing implements consensus.Istanbul.StartAnnouncing
-func (sb *Backend) StartAnnouncing() error {
-	sb.announceMu.Lock()
-	defer sb.announceMu.Unlock()
-	if sb.announceRunning {
-		return istanbul.ErrStartedAnnounce
-	}
-
-	sb.announceThreadQuit = make(chan struct{})
-	sb.announceRunning = true
-
-	sb.announceThreadWg.Add(1)
-	go sb.announceThread()
-
-	if err := sb.vph.startThread(); err != nil {
-		sb.StopAnnouncing()
-		return err
-	}
-
-	return nil
-}
-
-// StopAnnouncing implements consensus.Istanbul.StopAnnouncing
-func (sb *Backend) StopAnnouncing() error {
-	sb.announceMu.Lock()
-	defer sb.announceMu.Unlock()
-
-	if !sb.announceRunning {
-		return istanbul.ErrStoppedAnnounce
-	}
-
-	close(sb.announceThreadQuit)
-	sb.announceThreadWg.Wait()
-
-	sb.announceRunning = false
-
-	return sb.vph.stopThread()
 }
 
 // StartProxiedValidatorEngine implements consensus.Istanbul.StartProxiedValidatorEngine

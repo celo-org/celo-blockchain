@@ -23,7 +23,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/math"
-	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -34,6 +33,7 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/celo-org/celo-blockchain/trie"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -51,7 +51,7 @@ type ExecutionResult struct {
 	LogsHash    common.Hash    `json:"logsHash"`
 	Bloom       types.Bloom    `json:"logsBloom"        gencodec:"required"`
 	Receipts    types.Receipts `json:"receipts"`
-	Rejected    []int          `json:"rejected,omitempty"`
+	Rejected    []*rejectedTx  `json:"rejected,omitempty"`
 }
 
 type ommer struct {
@@ -68,6 +68,7 @@ type stEnv struct {
 	Timestamp   uint64                              `json:"currentTimestamp"  gencodec:"required"`
 	BlockHashes map[math.HexOrDecimal64]common.Hash `json:"blockHashes,omitempty"`
 	Ommers      []ommer                             `json:"ommers,omitempty"`
+	BaseFee     *big.Int                            `json:"currentBaseFee,omitempty"`
 }
 
 type stEnvMarshaling struct {
@@ -76,12 +77,18 @@ type stEnvMarshaling struct {
 	GasLimit   math.HexOrDecimal64
 	Number     math.HexOrDecimal64
 	Timestamp  math.HexOrDecimal64
+	BaseFee    *math.HexOrDecimal256
+}
+
+type rejectedTx struct {
+	Index int    `json:"index"`
+	Err   string `json:"error"`
 }
 
 // Apply applies a set of transactions to a pre-state
 func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 	txs types.Transactions, miningReward int64,
-	getTracerFn func(txIndex int) (tracer vm.Tracer, err error)) (*state.StateDB, *ExecutionResult, error) {
+	getTracerFn func(txIndex int, txHash common.Hash) (tracer vm.Tracer, err error)) (*state.StateDB, *ExecutionResult, error) {
 
 	// Capture errors for BLOCKHASH operation, if we haven't been supplied the
 	// required blockhashes
@@ -102,58 +109,53 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 		signer      = types.MakeSigner(chainConfig, new(big.Int).SetUint64(pre.Env.Number))
 		gaspool     = new(core.GasPool)
 		blockHash   = common.Hash{0x13, 0x37}
-		rejectedTxs []int
+		rejectedTxs []*rejectedTx
 		includedTxs types.Transactions
 		gasUsed     = uint64(0)
 		receipts    = make(types.Receipts, 0)
 		txIndex     = 0
 	)
 	gaspool.AddGas(pre.Env.GasLimit)
-	vmContext := vm.Context{
+	vmContext := vm.BlockContext{
 		//		CanTransfer: core.CanTransfer,
 		//		Transfer:    core.Transfer,
 		Coinbase:    pre.Env.Coinbase,
 		BlockNumber: new(big.Int).SetUint64(pre.Env.Number),
 		Time:        new(big.Int).SetUint64(pre.Env.Timestamp),
 		GetHash:     getHash,
-		// GasPrice and Origin needs to be set per transaction
 	}
-	// If DAO is supported/enabled, we need to handle it here. In geth 'proper', it's
-	// done in StateProcessor.Process(block, ...), right before transactions are applied.
-	if chainConfig.DAOForkSupport &&
-		chainConfig.DAOForkBlock != nil &&
-		chainConfig.DAOForkBlock.Cmp(new(big.Int).SetUint64(pre.Env.Number)) == 0 {
-		misc.ApplyDAOHardFork(statedb)
+	// If currentBaseFee is defined, add it to the vmContext.
+	if pre.Env.BaseFee != nil {
+		vmContext.BaseFee = new(big.Int).Set(pre.Env.BaseFee)
 	}
 
 	for i, tx := range txs {
-		msg, err := tx.AsMessage(signer)
+		msg, err := tx.AsMessage(signer, pre.Env.BaseFee)
 		if err != nil {
-			log.Info("rejected tx", "index", i, "hash", tx.Hash(), "error", err)
-			rejectedTxs = append(rejectedTxs, i)
+			log.Warn("rejected tx", "index", i, "hash", tx.Hash(), "error", err)
+			rejectedTxs = append(rejectedTxs, &rejectedTx{i, err.Error()})
 			continue
 		}
-		tracer, err := getTracerFn(txIndex)
+		tracer, err := getTracerFn(txIndex, tx.Hash())
 		if err != nil {
 			return nil, nil, err
 		}
 		vmConfig.Tracer = tracer
 		vmConfig.Debug = (tracer != nil)
-		statedb.Prepare(tx.Hash(), blockHash, txIndex)
-		vmContext.GasPrice = msg.GasPrice()
-		vmContext.Origin = msg.From()
+		statedb.Prepare(tx.Hash(), txIndex)
+		txContext := core.NewEVMTxContext(msg)
 
-		evm := vm.NewEVM(vmContext, statedb, chainConfig, vmConfig)
+		evm := vm.NewEVM(vmContext, txContext, statedb, chainConfig, vmConfig)
 
 		snapshot := statedb.Snapshot()
 
 		// FIXME this is broken
 		// (ret []byte, usedGas uint64, failed bool, err error)
-		msgResult, err := core.ApplyMessage(evm, msg, gaspool, nil)
+		msgResult, err := core.ApplyMessage(evm, msg, gaspool, nil, &core.SysContractCallCtx{})
 		if err != nil {
 			statedb.RevertToSnapshot(snapshot)
 			log.Info("rejected tx", "index", i, "hash", tx.Hash(), "from", msg.From(), "error", err)
-			rejectedTxs = append(rejectedTxs, i)
+			rejectedTxs = append(rejectedTxs, &rejectedTx{i, err.Error()})
 			continue
 		}
 		includedTxs = append(includedTxs, tx)
@@ -161,7 +163,8 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 			return nil, nil, NewError(ErrorMissingBlockhash, hashError)
 		}
 		gasUsed += msgResult.UsedGas
-		// Create a new receipt for the transaction, storing the intermediate root and gas used by the tx
+
+		// Receipt:
 		{
 			var root []byte
 			if chainConfig.IsByzantium(vmContext.BlockNumber) {
@@ -170,22 +173,32 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 				root = statedb.IntermediateRoot(chainConfig.IsEIP158(vmContext.BlockNumber)).Bytes()
 			}
 
-			receipt := types.NewReceipt(root, msgResult.Failed(), gasUsed)
+			// Create a new receipt for the transaction, storing the intermediate root and
+			// gas used by the tx.
+			receipt := &types.Receipt{Type: tx.Type(), PostState: root, CumulativeGasUsed: gasUsed}
+			if msgResult.Failed() {
+				receipt.Status = types.ReceiptStatusFailed
+			} else {
+				receipt.Status = types.ReceiptStatusSuccessful
+			}
 			receipt.TxHash = tx.Hash()
 			receipt.GasUsed = msgResult.UsedGas
-			// if the transaction created a contract, store the creation address in the receipt.
+
+			// If the transaction created a contract, store the creation address in the receipt.
 			if msg.To() == nil {
-				receipt.ContractAddress = crypto.CreateAddress(evm.Context.Origin, tx.Nonce())
+				receipt.ContractAddress = crypto.CreateAddress(evm.TxContext.Origin, tx.Nonce())
 			}
-			// Set the receipt logs and create a bloom for filtering
-			receipt.Logs = statedb.GetLogs(tx.Hash())
+
+			// Set the receipt logs and create the bloom filter.
+			receipt.Logs = statedb.GetLogs(tx.Hash(), blockHash)
 			receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
-			// These three are non-consensus fields
+			// These three are non-consensus fields:
 			//receipt.BlockHash
-			//receipt.BlockNumber =
+			//receipt.BlockNumber
 			receipt.TransactionIndex = uint(txIndex)
 			receipts = append(receipts, receipt)
 		}
+
 		txIndex++
 	}
 	statedb.IntermediateRoot(chainConfig.IsEIP158(vmContext.BlockNumber))
@@ -221,8 +234,8 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 	}
 	execRs := &ExecutionResult{
 		StateRoot:   root,
-		TxRoot:      types.DeriveSha(includedTxs),
-		ReceiptRoot: types.DeriveSha(receipts),
+		TxRoot:      types.DeriveSha(includedTxs, trie.NewStackTrie(nil)),
+		ReceiptRoot: types.DeriveSha(receipts, trie.NewStackTrie(nil)),
 		Bloom:       types.CreateBloom(receipts),
 		LogsHash:    rlpHash(statedb.Logs()),
 		Receipts:    receipts,

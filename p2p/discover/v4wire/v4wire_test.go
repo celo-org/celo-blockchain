@@ -22,7 +22,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/davecgh/go-spew/spew"
@@ -43,7 +42,7 @@ var testPackets = []struct {
 			To:         Endpoint{net.ParseIP("::1"), 2222, 3333},
 			Expiration: 1136239445,
 			NetworkId:  testNetworkId,
-			Rest:       []rlp.RawValue{},
+			Rest:       nil,
 		},
 	},
 	{
@@ -54,27 +53,8 @@ var testPackets = []struct {
 			To:         Endpoint{net.ParseIP("::1"), 2222, 3333},
 			Expiration: 1136239445,
 			NetworkId:  testNetworkId,
-			Rest:       []rlp.RawValue{{0x01}, {0x02}},
-		},
-	},
-	{
-		input: "756eea192b2715cf03ba03d69b0bd9e0f9d1bc9b1fab7a79f1e09291e94d88a780480dcfd0ef9b5c82ec6ce99588be5a4d34adf61c6d0baaa31a4336a44b1b9214bfe9e095459073a494529b9b5fbbdf5eac1e5ec8c7017b80cc8d8da0f07c560101f83f82022bd79020010db83c4d001500000000abcdef12820cfa8215a8d79020010db885a308d313198a2e037073488208ae82823a8443b9a35501c50102030405",
-		wantPacket: &Ping{
-			Version:    555,
-			From:       Endpoint{net.ParseIP("2001:db8:3c4d:15::abcd:ef12"), 3322, 5544},
-			To:         Endpoint{net.ParseIP("2001:db8:85a3:8d3:1319:8a2e:370:7348"), 2222, 33338},
-			Expiration: 1136239445,
-			NetworkId:  testNetworkId,
-			Rest:       []rlp.RawValue{{0xC5, 0x01, 0x02, 0x03, 0x04, 0x05}},
-		},
-	},
-	{
-		input: "393771faaa6d2ec01c45c1c476e564e29aef48b65a480e7a3aee77c05b43c7c12f80cc9ae69d463552cf47c9fd3b468003f30cf198561d6fc76ef838dae25d2209c41dd7eb554cdd311a01d8dc628cd60ff761a484b858cea3b852f5f59d5a560102f846d79020010db885a308d313198a2e037073488208ae82823aa0fbc914b16819237dcd8801d7e53f69e9719adecb3cc0e790c57e91ca4461c9548443b9a355c6010203c2040506",
-		wantPacket: &Pong{
-			To:         Endpoint{net.ParseIP("2001:db8:85a3:8d3:1319:8a2e:370:7348"), 2222, 33338},
-			ReplyTok:   common.Hex2Bytes("fbc914b16819237dcd8801d7e53f69e9719adecb3cc0e790c57e91ca4461c954"),
-			Expiration: 1136239445,
-			Rest:       []rlp.RawValue{{0xC6, 0x01, 0x02, 0x03, 0xC2, 0x04, 0x05}, {0x06}},
+			ENRSeq:     1,
+			Rest:       []rlp.RawValue{{0x02}},
 		},
 	},
 	{

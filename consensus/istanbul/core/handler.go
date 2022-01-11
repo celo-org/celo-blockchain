@@ -47,6 +47,8 @@ func (c *core) Start() error {
 	// Tests will handle events itself, so we have to make subscribeEvents()
 	// be able to call in test.
 	c.subscribeEvents()
+
+	c.handlerWg.Add(1)
 	go c.handleEvents()
 
 	return nil
@@ -60,6 +62,8 @@ func (c *core) Stop() error {
 	// Make sure the handler goroutine exits
 	c.handlerWg.Wait()
 
+	c.currentMu.Lock()
+	defer c.currentMu.Unlock()
 	c.current = nil
 	return nil
 }
@@ -94,8 +98,6 @@ func (c *core) unsubscribeEvents() {
 func (c *core) handleEvents() {
 	// Clear state
 	defer c.handlerWg.Done()
-
-	c.handlerWg.Add(1)
 
 	for {
 		logger := c.newLogger("func", "handleEvents")

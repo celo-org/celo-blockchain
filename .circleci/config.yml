@@ -11,18 +11,23 @@ parameters:
   system-contracts-path:
     type: string
     default: "compiled-system-contracts"
+  system-contracts-executor-image:
+    type: string
+      # The system contracts executor needs node 10 to function, this should
+      # only be changed when system-contracts-monorepo-version is changed.
+    default: "celohq/node10-gcloud:v3"
 executors:
   golang:
     docker:
       - image: circleci/golang:1.16
     working_directory: ~/repos/geth
-  node-v10:
+  system-contracts-executor:
     docker:
-      - image: celohq/node10-gcloud:v3
+      - image: <<pipeline.parameters.system-contracts-executor-image>>
     working_directory: ~/repos/geth
   e2e:
     docker:
-      - image: celohq/node10-gcloud:v3
+      - image: us.gcr.io/celo-testnet/circleci-node12:1.0.0
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
       GO_VERSION: "1.16.4"
@@ -39,8 +44,18 @@ executors:
       # b16a2d472a7cf24858f9d8b33a7185c8b81a261a is the current commit on master as of August 25, 2021, and
       # includes contracts release 5 (core-contracts.v5)
       CELO_MONOREPO_COMMIT_OR_BRANCH: b16a2d472a7cf24858f9d8b33a7185c8b81a261a
-
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
+# Unfortunately we cannot use anchors to represent a set of standard steps and
+# then add or override one or more of those steps when referencing the anchor.
+# This would be useful because a lot of jobs share many steps, it is not
+# possible because anchors can be used to represent dictionaries but not
+# sequences, and steps are defined as a sequence. So we are limited here to only
+# reusing a small segment of our jobs. See this link for a discussion of this limitation.
+# https://stackoverflow.com/questions/4948933/is-there-a-way-to-alias-anchor-an-array-in-yaml
+unit-tests-defaults: &unit-tests-defaults
+  executor: golang
+  resource_class: medium+
+
 jobs:
   build-geth:
     executor: golang
@@ -66,8 +81,8 @@ jobs:
     parameters:
       cache-key:
         type: string
-        default: system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>-<<pipeline.parameters.system-contracts-path>>-v<<pipeline.parameters.system-contracts-cache-version>>
-    executor: node-v10
+        default: system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>-<<pipeline.parameters.system-contracts-path>>-v<<pipeline.parameters.system-contracts-cache-version>>-<<pipeline.parameters.system-contracts-executor-image>>
+    executor: system-contracts-executor
     resource_class: medium+
     steps:
       - checkout
@@ -98,8 +113,7 @@ jobs:
             - geth/<<pipeline.parameters.system-contracts-path>>
 
   unit-tests:
-    executor: golang
-    resource_class: medium+
+    <<: *unit-tests-defaults
     steps:
       - attach_workspace:
           at: ~/repos
@@ -112,28 +126,126 @@ jobs:
           command: |
             mkdir -p /tmp/test-results
             trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
-            go run build/ci.go test -v | tee /tmp/test-results/go-test.out
+            go test -p 1 -v ./... | tee /tmp/test-results/go-test.out
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
-
       - store_test_results:
           path: /tmp/test-results
 
-  coverage:
-    executor: golang
-    resource_class: medium+
+  race:
+    <<: *unit-tests-defaults
     steps:
       - attach_workspace:
           at: ~/repos
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-      - run: go run build/ci.go test -coverage
+      - run: go get github.com/jstemmer/go-junit-report
+      - run:
+          name: Run Tests
+          command: |
+            mkdir -p /tmp/test-results
+            trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
+            go test -p 1 -v -race ./... | tee /tmp/test-results/go-test.out
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results:
+          path: /tmp/test-results
+
+  coverage:
+    <<: *unit-tests-defaults
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run: go test -p 1 -v -covermode=atomic -cover -coverprofile=coverage.out ./...
       - run: bash <(curl -s https://codecov.io/bash)
+
+  istanbul-e2e-coverage:
+    <<: *unit-tests-defaults
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+        # Run the tests with coverage parse the coverage and output the summary
+      - run: 
+          name: Run tests and print coverage summary
+          command: |
+            go test -coverprofile cov.out -coverpkg ./consensus/istanbul/... ./e2e_test 
+            go run tools/parsecov/main.go -packagePrefix github.com/celo-org/celo-blockchain/ cov.out > summary
+            cat summary
+
+      - run: 
+          name: Post summary comment on PR
+          command: |
+            # Only post on PR if this build is running on a PR. If this build
+            # is running on a PR then CIRCLE_PULL_REQUEST contains the link to
+            # the PR.
+            if [[ -z ${CIRCLE_PULL_REQUEST} ]] ; then
+              exit 0
+            fi
+
+            # Generate per PR MARKER for this comment.
+            COMMENT_MARKER=`echo ${CIRCLE_PULL_REQUEST}| shasum | head -c 10`
+
+            line1=`head -n 1 summary`
+            remainder=`tail -n +2 summary`
+
+            # Build comment
+            echo "Coverage from tests in \`./e2e_test/...\` for \`./consensus/istanbul/...\` at commit ${CIRCLE_SHA1}" > comment
+            echo "<details><summary>${line1}</summary><br>" >> comment
+            echo "<pre>" >> comment
+            echo "${remainder}" >> comment
+            echo "</pre>" >> comment
+            # Add a per PR unique ID to the comment
+            echo "CommentID: `echo ${COMMENT_MARKER}`" >> comment
+            echo "</details>" >> comment
+
+            # This expansion deletes everything up to and including the final slash
+            # leaving just the PR ID.
+            PR_ID=${CIRCLE_PULL_REQUEST##*/}
+
+            # Note all the api paths here seem to be referencing issue comments
+            # rather than pr comments, but this is correct, since github's
+            # definition of an issue comment is a comment not attached to a
+            # review or attached to a specific section of code.
+
+            # This command grabs the list of comments for this PR and selects
+            # the id of the first one that contains the comment marker in its
+            # body, jq returns 'null' when it doesn't find anything.
+            COMMENT_ID=`curl https://api.github.com/repos/celo-org/celo-blockchain/issues/${PR_ID}/comments | jq "[.[] | select(.body | contains(\"${COMMENT_MARKER}\"))][0]| .id"`
+
+            # Determine if we are posting  a new comment or patching an
+            # existing one.
+            if [[ $COMMENT_ID == "null" ]]; then
+              # There was no previous comment
+              CURL_VERB=POST
+              URL=https://api.github.com/repos/celo-org/celo-blockchain/issues/${PR_ID}/comments
+            else
+              # We are updating a previous comment
+              CURL_VERB=PATCH
+              URL=https://api.github.com/repos/celo-org/celo-blockchain/issues/comments/${COMMENT_ID}
+            fi
+
+            # This command is quite involved, it's posting the comment on the
+            # associated PR.
+            # "{\"body\":\"`awk -v ORS='\\\\n' '1' comment`\"}" evaluates to
+            # a json object with comment as the content of body with newlines
+            # replaced by '\n'. Using backtics causes there to be a round of
+            # backslash processing on the command before execution, so we
+            # need to double the backslashes in the awk command.
+            curl -u piersy:${PR_COMMENT_TOKEN} -X ${CURL_VERB} $URL -d "{\"body\":\"`awk -v ORS='\\\\n' '1' comment`\"}" ;
+
 
   lint:
     executor: golang
+    resource_class: medium+
     steps:
       - attach_workspace:
           at: ~/repos
@@ -143,7 +255,7 @@ jobs:
           command: |
             mkdir -p /tmp/test-results
             go run build/ci.go ensure-linter
-            ./build/cache/golangci-lint-1.25.0-linux-amd64/golangci-lint run --config .golangci.yml --out-format junit-xml ./... | tee /tmp/test-results/go-lint-report.xml
+            ./build/cache/golangci-lint-1.39.0-linux-amd64/golangci-lint run --config .golangci.yml --out-format junit-xml ./... | tee /tmp/test-results/go-lint-report.xml
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
@@ -160,7 +272,7 @@ jobs:
 
   android:
     docker:
-      - image: celohq/circleci:android-v2
+      - image: us.gcr.io/celo-testnet/android:v3
     working_directory: ~/repos/geth
     steps:
       - checkout
@@ -174,7 +286,7 @@ jobs:
 
   ios:
     macos:
-      xcode: "11.3.1"
+      xcode: "12.5.1"
     working_directory: ~/repos/geth
     steps:
       - checkout
@@ -319,6 +431,32 @@ jobs:
             export PATH=${PATH}:~/repos/golang/go/bin
             ./ci_test_validator_order.sh local ~/repos/geth
 
+  end-to-end-cip35-eth-compatibility-test:
+    executor: e2e
+    resource_class: xlarge
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: End-to-end test of CIP 35
+          no_output_timeout: 15m
+          command: |
+            export PATH=${PATH}:~/repos/golang/go/bin
+            ./ci_test_cip35.sh local ~/repos/geth
+
+  end-to-end-replica-test:
+    executor: e2e
+    resource_class: xlarge
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: End-to-end test of hotswap functionality
+          no_output_timeout: 15m
+          command: |
+            export PATH=${PATH}:~/repos/golang/go/bin
+            ./ci_test_replicas.sh local ~/repos/geth
+
 workflows:
   version: 2
   build:
@@ -334,7 +472,15 @@ workflows:
           requires:
             - build-geth
             - prepare-system-contracts
+      - race:
+          requires:
+            - build-geth
+            - prepare-system-contracts
       - coverage:
+          requires:
+            - build-geth
+            - prepare-system-contracts
+      - istanbul-e2e-coverage:
           requires:
             - build-geth
             - prepare-system-contracts
@@ -382,6 +528,14 @@ workflows:
             - checkout-monorepo
             - build-geth
       - end-to-end-validator-order-test:
+          requires:
+            - checkout-monorepo
+            - build-geth
+      - end-to-end-cip35-eth-compatibility-test:
+          requires:
+            - checkout-monorepo
+            - build-geth
+      - end-to-end-replica-test:
           requires:
             - checkout-monorepo
             - build-geth

@@ -115,8 +115,9 @@ type core struct {
 	finalCommittedSub *event.TypeMuxSubscription
 	timeoutSub        *event.TypeMuxSubscription
 
-	futurePreprepareTimer         *time.Timer
-	resendRoundChangeMessageTimer *time.Timer
+	futurePreprepareTimer           *time.Timer
+	resendRoundChangeMessageTimer   *time.Timer
+	resendRoundChangeMessageTimerMu sync.Mutex
 
 	roundChangeTimer   *time.Timer
 	roundChangeTimerMu sync.RWMutex
@@ -127,6 +128,7 @@ type core struct {
 
 	rsdb      RoundStateDB
 	current   RoundState
+	currentMu sync.RWMutex
 	handlerWg *sync.WaitGroup
 
 	roundChangeSet *roundChangeSet
@@ -191,6 +193,11 @@ func (c *core) SetAddress(address common.Address) {
 }
 
 func (c *core) CurrentView() *istanbul.View {
+	// CurrentView is called by Prepare which is called by miner.worker the
+	// main loop, we need to synchronise this access with the write which occurs
+	// in Stop, which is called from the miner's update loop.
+	c.currentMu.RLock()
+	defer c.currentMu.RUnlock()
 	if c.current == nil {
 		return nil
 	}
@@ -200,6 +207,11 @@ func (c *core) CurrentView() *istanbul.View {
 func (c *core) CurrentRoundState() RoundState { return c.current }
 
 func (c *core) ParentCommits() MessageSet {
+	// ParentCommits is called by Prepare which is called by miner.worker the
+	// main loop, we need to synchronise this access with the write which
+	// occurs in Stop, which is called from the miner's update loop.
+	c.currentMu.RLock()
+	defer c.currentMu.RUnlock()
 	if c.current == nil {
 		return nil
 	}
@@ -682,6 +694,8 @@ func (c *core) stopRoundChangeTimer() {
 }
 
 func (c *core) stopResendRoundChangeTimer() {
+	c.resendRoundChangeMessageTimerMu.Lock()
+	defer c.resendRoundChangeMessageTimerMu.Unlock()
 	if c.resendRoundChangeMessageTimer != nil {
 		c.resendRoundChangeMessageTimer.Stop()
 		c.resendRoundChangeMessageTimer = nil
@@ -695,14 +709,40 @@ func (c *core) stopAllTimers() {
 }
 
 func (c *core) getRoundChangeTimeout() time.Duration {
+	/*
+		- Prior to Espresso:
+		Round 0 = baseTimeout + block time
+		Round n = baseTimeout + 2^n * backoff factor
+
+		- After Espresso:
+		Round 0 = baseTimeout + block time
+		Round n = baseTimeout + block time + 2^n * backoff factor
+
+		- Compare:
+		Round     before E     after E
+		0         8            8
+		1         5            10
+		2         7            12
+		3         11           16
+		4         19	       24
+		5         35           40
+		6         67           72
+		7         131          136
+		8         259	       264
+		9         515	       520
+		10        1027	       1032
+	*/
 	baseTimeout := time.Duration(c.config.RequestTimeout) * time.Millisecond
+	blockTime := time.Duration(c.config.BlockPeriod) * time.Second
 	round := c.current.DesiredRound().Uint64()
 	if round == 0 {
-		// timeout for first round takes into account expected block period
-		return baseTimeout + time.Duration(c.config.BlockPeriod)*time.Second
+		return baseTimeout + blockTime
 	} else {
-		// timeout for subsequent rounds adds an exponential backoff.
-		return baseTimeout + time.Duration(math.Pow(2, float64(round)))*time.Duration(c.config.TimeoutBackoffFactor)*time.Millisecond
+		if c.backend.ChainConfig().IsEspresso(c.current.Sequence()) {
+			return baseTimeout + blockTime + time.Duration(math.Pow(2, float64(round)))*time.Duration(c.config.TimeoutBackoffFactor)*time.Millisecond
+		} else {
+			return baseTimeout + time.Duration(math.Pow(2, float64(round)))*time.Duration(c.config.TimeoutBackoffFactor)*time.Millisecond
+		}
 	}
 }
 
@@ -745,6 +785,8 @@ func (c *core) resetResendRoundChangeTimer() {
 			resendTimeout = maxResendTimeout
 		}
 		view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
+		c.resendRoundChangeMessageTimerMu.Lock()
+		defer c.resendRoundChangeMessageTimerMu.Unlock()
 		c.resendRoundChangeMessageTimer = time.AfterFunc(resendTimeout, func() {
 			c.sendEvent(resendRoundChangeEvent{view})
 		})

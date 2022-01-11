@@ -22,25 +22,24 @@ import (
 )
 
 func NewEnv(cfg *Config) *vm.EVM {
-
-	context := vm.Context{
-		CanTransfer: vmcontext.CanTransfer,
-		Transfer:    vmcontext.TobinTransfer,
-
-		GetHash: cfg.GetHashFn,
-
-		Origin:      cfg.Origin,
-		Coinbase:    cfg.Coinbase,
-		BlockNumber: cfg.BlockNumber,
-		Time:        cfg.Time,
-		GasPrice:    cfg.GasPrice,
-
+	txContext := vm.TxContext{
+		Origin:   cfg.Origin,
+		GasPrice: cfg.GasPrice,
+	}
+	blockContext := vm.BlockContext{
+		CanTransfer:          vmcontext.CanTransfer,
+		Transfer:             vmcontext.TobinTransfer,
+		GetHash:              cfg.GetHashFn,
+		Coinbase:             cfg.Coinbase,
+		BlockNumber:          cfg.BlockNumber,
+		Time:                 cfg.Time,
 		GetRegisteredAddress: vmcontext.GetRegisteredAddress,
+		// BaseFee:     cfg.BaseFee, // TODO: Set to GPM
 	}
 
 	if cfg.ChainConfig.Istanbul != nil {
-		context.EpochSize = cfg.ChainConfig.Istanbul.Epoch
+		blockContext.EpochSize = cfg.ChainConfig.Istanbul.Epoch
 	}
 
-	return vm.NewEVM(context, cfg.State, cfg.ChainConfig, cfg.EVMConfig)
+	return vm.NewEVM(blockContext, txContext, cfg.State, cfg.ChainConfig, cfg.EVMConfig)
 }

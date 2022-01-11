@@ -45,8 +45,8 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
+	ethproto "github.com/celo-org/celo-blockchain/eth/protocols/eth"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/les"
 	"github.com/celo-org/celo-blockchain/log"
@@ -115,6 +115,8 @@ type fullNodeBackend interface {
 	BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error)
 	CurrentBlock() *types.Block
 	SuggestPrice(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
+	CurrentGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
+	SuggestGasTipCap(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
 }
 
 // StatsPayload todo: document this
@@ -142,7 +144,6 @@ type Service struct {
 
 	pongCh chan struct{} // Pong notifications are fed into this channel
 	histCh chan []uint64 // History request block numbers are fed into this channel
-
 }
 
 // connWrapper is a wrapper to prevent concurrent-write or concurrent-read on the
@@ -190,14 +191,18 @@ func (w *connWrapper) Close() error {
 	return w.conn.Close()
 }
 
-func parseStatsConnectionURL(url string, name *string, host *string) error {
-	re := regexp.MustCompile("([^:@]*)?@(.+)")
-	parts := re.FindStringSubmatch(url)
-	if len(parts) != 3 {
-		return fmt.Errorf("invalid netstats url: \"%s\", should be nodename@host:port", url)
+// parseEthstatsURL parses the netstats connection url.
+// URL argument should be of the form <name@host:port>
+func parseEthstatsURL(url string, name *string, host *string) error {
+	err := fmt.Errorf("invalid netstats url: \"%s\", should be nodename@host:port", url)
+
+	hostIndex := strings.LastIndex(url, "@")
+	if hostIndex == -1 || hostIndex == len(url)-1 {
+		return err
 	}
-	*name = parts[1]
-	*host = parts[2]
+	*name = url[:hostIndex]
+	*host = url[hostIndex+1:]
+
 	return nil
 }
 
@@ -212,7 +217,7 @@ func New(node *node.Node, backend backend, engine consensus.Engine, url string) 
 
 	if !istanbulBackend.IsProxiedValidator() {
 		// Parse the netstats connection url
-		if err := parseStatsConnectionURL(url, &name, &celostatsHost); err != nil {
+		if err := parseEthstatsURL(url, &name, &celostatsHost); err != nil {
 			return err
 		}
 	}
@@ -418,17 +423,17 @@ func (s *Service) login(conn *connWrapper, sendCh chan *StatsPayload) error {
 	// Construct and send the login authentication
 	infos := s.server.NodeInfo()
 
-	var (
-		network  string
-		protocol string
-	)
+	var protocols []string
+	for _, proto := range s.server.Protocols {
+		protocols = append(protocols, fmt.Sprintf("%s/%d", proto.Name, proto.Version))
+	}
+	var network string
 	if info := infos.Protocols[istanbul.ProtocolName]; info != nil {
-		ethInfo, ok := info.(*eth.NodeInfo)
+		ethInfo, ok := info.(*ethproto.NodeInfo)
 		if !ok {
 			return errors.New("could not resolve NodeInfo")
 		}
 		network = fmt.Sprintf("%d", ethInfo.Network)
-		protocol = fmt.Sprintf("%s/%d", istanbul.ProtocolName, istanbul.ProtocolVersions[0])
 	} else {
 		lesProtocol, ok := infos.Protocols["les"]
 		if !ok {
@@ -439,8 +444,8 @@ func (s *Service) login(conn *connWrapper, sendCh chan *StatsPayload) error {
 			return errors.New("could not resolve NodeInfo")
 		}
 		network = fmt.Sprintf("%d", lesInfo.Network)
-		protocol = fmt.Sprintf("les/%d", les.ClientProtocolVersions[0])
 	}
+
 	auth := &authMsg{
 		ID: s.istanbulBackend.ValidatorAddress().String(),
 		Info: nodeInfo{
@@ -448,7 +453,7 @@ func (s *Service) login(conn *connWrapper, sendCh chan *StatsPayload) error {
 			Node:     infos.Name,
 			Port:     infos.Ports.Listener,
 			Network:  network,
-			Protocol: protocol,
+			Protocol: strings.Join(protocols, ", "),
 			API:      "No",
 			Os:       runtime.GOOS,
 			OsVer:    runtime.GOARCH,
@@ -613,6 +618,10 @@ func (s *Service) handleNewTransactionEvents(ctx context.Context, txChan chan st
 	var lastTx mclock.AbsTime
 	ch := make(chan core.NewTxsEvent, txChanSize)
 	subscription := s.backend.SubscribeNewTxsEvent(ch)
+	if subscription == nil {
+		log.Error("Stats daemon stopped due to nil head subscription")
+		return errors.New("nil head subscription")
+	}
 	defer subscription.Unsubscribe()
 
 	for {
@@ -640,6 +649,10 @@ func (s *Service) handleNewTransactionEvents(ctx context.Context, txChan chan st
 func (s *Service) handleChainHeadEvents(ctx context.Context, headCh chan *types.Block) error {
 	ch := make(chan core.ChainHeadEvent, chainHeadChanSize)
 	subscription := s.backend.SubscribeChainHeadEvent(ch)
+	if subscription == nil {
+		log.Error("Stats daemon stopped due to nil head subscription")
+		return errors.New("nil head subscription")
+	}
 	defer subscription.Unsubscribe()
 
 	for {
@@ -664,7 +677,7 @@ func (s *Service) handleChainHeadEvents(ctx context.Context, headCh chan *types.
 // it, if they themselves are requests it initiates a reply, and lastly it drops
 // unknown packets.
 func (s *Service) readLoop(conn *connWrapper) {
-	// If the read loop exists, close the connection
+	// If the read loop exits, close the connection
 	defer conn.Close()
 
 	for {
@@ -968,11 +981,10 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 	// Gather the block infos from the local blockchain
 	var (
 		header   *types.Header
-		stateDB  *state.StateDB
-		vmRunner vm.EVMRunner
 		td       *big.Int
 		txs      []txStats
 		valSet   validatorSet
+		gasLimit uint64
 	)
 
 	// check if backend is a full node
@@ -996,8 +1008,6 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		txs = []txStats{}
 	}
 	td = s.backend.GetTd(context.Background(), header.Hash())
-	stateDB, _, _ = s.backend.StateAndHeaderByNumberOrHash(context.Background(), rpc.BlockNumberOrHashWithHash(header.Hash(), true))
-	vmRunner = s.backend.NewEVMRunner(header, stateDB)
 
 	// Assemble and return the block stats
 	author, _ := s.engine.Author(header)
@@ -1006,12 +1016,20 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 	epochSize := s.engine.EpochSize()
 	blockRemain := epochSize - istanbul.GetNumberWithinEpoch(header.Number.Uint64(), epochSize)
 
-	// only assemble every valSetInterval blocks
-	if block != nil && block.Number().Uint64()%valSetInterval == 0 {
-		valSet = s.assembleValidatorSet(block, stateDB)
-	}
+	stateDB, _, err := s.backend.StateAndHeaderByNumberOrHash(context.Background(), rpc.BlockNumberOrHashWithHash(header.Hash(), true))
 
-	gasLimit := blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
+	if err != nil {
+		log.Warn("Block state unavailable for reporting block stats", "hash", header.Hash(), "number", header.Number.Uint64(), "err", err)
+	} else {
+
+		// only assemble every valSetInterval blocks
+		if block != nil && block.Number().Uint64()%valSetInterval == 0 {
+			valSet = s.assembleValidatorSet(block, stateDB)
+		}
+
+		vmRunner := s.backend.NewEVMRunner(header, stateDB)
+		gasLimit = blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
+	}
 
 	return &blockStats{
 		Number:      header.Number,
@@ -1211,8 +1229,11 @@ func (s *Service) reportStats(conn *connWrapper) error {
 		sync := fullBackend.Downloader().Progress()
 		syncing = fullBackend.CurrentHeader().Number.Uint64() >= sync.HighestBlock
 
-		price, _ := fullBackend.SuggestPrice(context.Background(), nil)
+		price, _ := fullBackend.CurrentGasPriceMinimum(context.Background(), nil)
 		gasprice = int(price.Uint64())
+		tip, _ := fullBackend.SuggestGasTipCap(context.Background(), nil)
+		gasprice += int(tip.Uint64())
+
 	} else {
 		sync := s.backend.Downloader().Progress()
 		syncing = s.backend.CurrentHeader().Number.Uint64() >= sync.HighestBlock

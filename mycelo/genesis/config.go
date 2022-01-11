@@ -81,6 +81,7 @@ func (cfg *Config) ChainConfig() *params.ChainConfig {
 
 		ChurritoBlock: cfg.Hardforks.ChurritoBlock,
 		DonutBlock:    cfg.Hardforks.DonutBlock,
+		EspressoBlock: cfg.Hardforks.EspressoBlock,
 
 		Istanbul: &params.IstanbulConfig{
 			Epoch:          cfg.Istanbul.Epoch,
@@ -96,6 +97,7 @@ func (cfg *Config) ChainConfig() *params.ChainConfig {
 type HardforkConfig struct {
 	ChurritoBlock *big.Int `json:"churritoBlock"`
 	DonutBlock    *big.Int `json:"donutBlock"`
+	EspressoBlock *big.Int `json:"espressoBlock"`
 }
 
 // MultiSigParameters are the initial configuration parameters for a MultiSig contract
@@ -143,7 +145,6 @@ type BlockchainParameters struct {
 	Version                 Version `json:"version"`
 	GasForNonGoldCurrencies uint64  `json:"gasForNonGoldCurrencies"`
 	BlockGasLimit           uint64  `json:"blockGasLimit"`
-	UptimeLookbackWindow    uint64  `json:"uptimeLookbackWindow"`
 }
 
 //go:generate gencodec -type DoubleSigningSlasherParameters -field-override DoubleSigningSlasherParametersMarshaling -out gen_double_signing_slasher_parameters_json.go

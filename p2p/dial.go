@@ -77,7 +77,7 @@ var (
 	errAlreadyDialing   = errors.New("already dialing")
 	errAlreadyConnected = errors.New("already connected")
 	errRecentlyDialed   = errors.New("recently dialed")
-	errNotWhitelisted   = errors.New("not contained in netrestrict whitelist")
+	errNetRestrict      = errors.New("not contained in netrestrict list")
 	errNoPort           = errors.New("node does not provide TCP port")
 )
 
@@ -133,12 +133,15 @@ type dialConfig struct {
 	self           enode.ID         // our own ID
 	maxDialPeers   int              // maximum number of dialed peers
 	maxActiveDials int              // maximum number of active dials
-	netRestrict    *netutil.Netlist // IP whitelist, disabled if nil
+	netRestrict    *netutil.Netlist // IP netrestrict list, disabled if nil
 	resolver       nodeResolver
 	dialer         NodeDialer
 	log            log.Logger
 	clock          mclock.Clock
 	rand           *mrand.Rand
+
+	// The time waited before redialling a certain node
+	dialHistoryExpiration time.Duration
 }
 
 func (cfg dialConfig) withDefaults() dialConfig {
@@ -156,6 +159,9 @@ func (cfg dialConfig) withDefaults() dialConfig {
 		crand.Read(seedb)
 		seed := int64(binary.BigEndian.Uint64(seedb))
 		cfg.rand = mrand.New(mrand.NewSource(seed))
+	}
+	if cfg.dialHistoryExpiration == 0 {
+		cfg.dialHistoryExpiration = dialHistoryExpiration
 	}
 	return cfg
 }
@@ -404,7 +410,7 @@ func (d *dialScheduler) checkDial(n *enode.Node) error {
 		return errAlreadyConnected
 	}
 	if d.netRestrict != nil && !d.netRestrict.Contains(n.IP()) {
-		return errNotWhitelisted
+		return errNetRestrict
 	}
 	if d.history.contains(string(n.ID().Bytes())) {
 		return errRecentlyDialed
@@ -456,7 +462,7 @@ func (d *dialScheduler) removeFromStaticPool(idx int) {
 func (d *dialScheduler) startDial(task *dialTask) {
 	d.log.Trace("Starting p2p dial", "id", task.dest.ID(), "ip", task.dest.IP(), "flag", task.flags)
 	hkey := string(task.dest.ID().Bytes())
-	d.history.add(hkey, d.clock.Now().Add(dialHistoryExpiration))
+	d.history.add(hkey, d.clock.Now().Add(d.dialHistoryExpiration))
 	d.dialing[task.dest.ID()] = task
 	go func() {
 		task.run(d)

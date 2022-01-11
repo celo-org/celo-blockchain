@@ -130,7 +130,7 @@ func runTransaction(ctx context.Context, client *ethclient.Client, chainID *big.
 	abi := contract.AbiFor("StableToken")
 	stableToken := bind.NewBoundContract(env.MustProxyAddressFor("StableToken"), *abi, client)
 
-	transactor := bind.NewKeyedTransactor(txCfg.Acc.PrivateKey)
+	transactor, _ := bind.NewKeyedTransactorWithChainID(txCfg.Acc.PrivateKey, chainID)
 	transactor.Context = ctx
 	transactor.ChainID = chainID
 	transactor.Nonce = new(big.Int).SetUint64(txCfg.Nonce)

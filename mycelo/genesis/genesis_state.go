@@ -179,7 +179,14 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 		return nil, err
 	}
 
-	dump := ctx.statedb.RawDump(false, false, true).Accounts
+	dumpConfig := state.DumpConfig{
+		SkipCode:          false,
+		SkipStorage:       false,
+		OnlyWithAddresses: true,
+		Start:             nil,
+		Max:               0,
+	}
+	dump := ctx.statedb.RawDump(&dumpConfig).Accounts
 	genesisAlloc := make(map[common.Address]core.GenesisAccount)
 	for acc, dumpAcc := range dump {
 		var account core.GenesisAccount
@@ -188,9 +195,7 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 			account.Balance, _ = new(big.Int).SetString(dumpAcc.Balance, 10)
 		}
 
-		if dumpAcc.Code != "" {
-			account.Code = common.Hex2Bytes(dumpAcc.Code)
-		}
+		account.Code = dumpAcc.Code
 
 		if len(dumpAcc.Storage) > 0 {
 			account.Storage = make(map[common.Hash]common.Hash)
@@ -379,7 +384,7 @@ func (ctx *deployContext) deployBlockchainParameters() error {
 			big.NewInt(ctx.genesisConfig.Blockchain.Version.Patch),
 			newBigInt(ctx.genesisConfig.Blockchain.GasForNonGoldCurrencies),
 			newBigInt(ctx.genesisConfig.Blockchain.BlockGasLimit),
-			newBigInt(ctx.genesisConfig.Blockchain.UptimeLookbackWindow),
+			newBigInt(ctx.genesisConfig.Istanbul.LookbackWindow),
 		)
 	})
 }

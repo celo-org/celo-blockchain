@@ -240,7 +240,7 @@ func (w *Wallet) SignTxEIP155(account accounts.Account, tx *types.Transaction, c
 		return nil, err
 	}
 
-	msg, err := signedTx.AsMessage(types.NewEIP155Signer(chainID))
+	msg, err := signedTx.AsMessage(types.NewEIP155Signer(chainID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +275,7 @@ func (w *Wallet) SignTx(account accounts.Account, tx *types.Transaction, chainID
 		return nil, err
 	}
 
-	msg, err := signedTx.AsMessage(types.HomesteadSigner{})
+	msg, err := signedTx.AsMessage(types.HomesteadSigner{}, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -44,6 +44,7 @@ type blockState struct {
 	tcount   int            // tx count in cycle
 	gasPool  *core.GasPool  // available gas used to pack transactions
 	gasLimit uint64
+	sysCtx   *core.SysContractCallCtx
 
 	header         *types.Header
 	txs            []*types.Transaction
@@ -53,6 +54,7 @@ type blockState struct {
 }
 
 // prepareBlock intializes a new blockState that is ready to have transaction included to.
+// Note that if blockState is not nil, blockState.close() needs to be called to shut down the state prefetcher.
 func prepareBlock(w *worker) (*blockState, error) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
@@ -96,15 +98,17 @@ func prepareBlock(w *worker) (*blockState, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get the parent state: %w:", err)
 	}
+	state.StartPrefetcher("miner")
 
 	vmRunner := w.chain.NewEVMRunner(header, state)
 	b := &blockState{
-		signer:         types.NewEIP155Signer(w.chainConfig.ChainID),
+		signer:         types.LatestSigner(w.chainConfig),
 		state:          state,
 		tcount:         0,
 		gasLimit:       blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner),
 		header:         header,
 		txFeeRecipient: txFeeRecipient,
+		sysCtx:         core.NewSysContractCallCtx(w.chain.NewEVMRunner(header, state.Copy())),
 	}
 	b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
 
@@ -117,31 +121,31 @@ func prepareBlock(w *worker) (*blockState, error) {
 
 		lastCommitment, err := random.GetLastCommitment(vmRunner, w.validator)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get last commitment: %w", err)
+			return b, fmt.Errorf("Failed to get last commitment: %w", err)
 		}
 
 		lastRandomness := common.Hash{}
 		if (lastCommitment != common.Hash{}) {
 			lastRandomnessParentHash := rawdb.ReadRandomCommitmentCache(w.db, lastCommitment)
 			if (lastRandomnessParentHash == common.Hash{}) {
-				return nil, errors.New("Failed to get last randomness cache entry")
+				return b, errors.New("Failed to get last randomness cache entry")
 			}
 
 			var err error
 			lastRandomness, _, err = istanbul.GenerateRandomness(lastRandomnessParentHash)
 			if err != nil {
-				return nil, fmt.Errorf("Failed to generate last randomness: %w", err)
+				return b, fmt.Errorf("Failed to generate last randomness: %w", err)
 			}
 		}
 
 		_, newCommitment, err := istanbul.GenerateRandomness(b.header.ParentHash)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to generate new randomness: %w", err)
+			return b, fmt.Errorf("Failed to generate new randomness: %w", err)
 		}
 
 		err = random.RevealAndCommit(vmRunner, lastRandomness, newCommitment, w.validator)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to reveal and commit randomness: %w", err)
+			return b, fmt.Errorf("Failed to reveal and commit randomness: %w", err)
 		}
 		// always true (EIP158)
 		b.state.IntermediateRoot(true)
@@ -157,7 +161,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 // selectAndApplyTransactions selects and applies transactions to the in flight block state.
 func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) error {
 	// Fill the block with all available pending transactions.
-	pending, err := w.eth.TxPool().Pending()
+	pending, err := w.eth.TxPool().Pending(true)
 
 	// TODO: should this be a fatal error?
 	if err != nil {
@@ -178,15 +182,18 @@ func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) 
 		}
 	}
 
-	txComparator := createTxCmp(w.chain, b.header, b.state)
+	// TODO: Properly inject the basefee & toCELO function here
+	// txComparator := createTxCmp(w.chain, b.header, b.state)
 	if len(localTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(b.signer, localTxs, txComparator)
+		baseFeeFn, toCElOFn := createConversionFunctions(b.sysCtx, w.chain, b.header, b.state)
+		txs := types.NewTransactionsByPriceAndNonce(b.signer, localTxs, baseFeeFn, toCElOFn)
 		if err := b.commitTransactions(ctx, w, txs, b.txFeeRecipient); err != nil {
 			return fmt.Errorf("Failed to commit local transactions: %w", err)
 		}
 	}
 	if len(remoteTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(b.signer, remoteTxs, txComparator)
+		baseFeeFn, toCElOFn := createConversionFunctions(b.sysCtx, w.chain, b.header, b.state)
+		txs := types.NewTransactionsByPriceAndNonce(b.signer, remoteTxs, baseFeeFn, toCElOFn)
 		if err := b.commitTransactions(ctx, w, txs, b.txFeeRecipient); err != nil {
 			return fmt.Errorf("Failed to commit remote transactions: %w", err)
 		}
@@ -239,32 +246,32 @@ loop:
 			continue
 		}
 		// Start executing the transaction
-		b.state.Prepare(tx.Hash(), common.Hash{}, b.tcount)
+		b.state.Prepare(tx.Hash(), b.tcount)
 
 		logs, err := b.commitTransaction(w, tx, txFeeRecipient)
-		switch err {
-		case core.ErrGasLimitReached:
+		switch {
+		case errors.Is(err, core.ErrGasLimitReached):
 			// Pop the current out-of-gas transaction without shifting in the next from the account
 			log.Trace("Gas limit exceeded for current block", "sender", from)
 			txs.Pop()
 
-		case core.ErrNonceTooLow:
+		case errors.Is(err, core.ErrNonceTooLow):
 			// New head notification data race between the transaction pool and miner, shift
 			log.Trace("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce())
 			txs.Shift()
 
-		case core.ErrNonceTooHigh:
+		case errors.Is(err, core.ErrNonceTooHigh):
 			// Reorg notification data race between the transaction pool and miner, skip account =
 			log.Trace("Skipping account with hight nonce", "sender", from, "nonce", tx.Nonce())
 			txs.Pop()
 
-		case core.ErrGasPriceDoesNotExceedMinimum:
+		case errors.Is(err, core.ErrGasPriceDoesNotExceedMinimum):
 			// We are below the GPM, so we can stop (the rest of the transactions will either have
 			// even lower gas price or won't be mineable yet due to their nonce)
 			log.Trace("Skipping remaining transaction below the gas price minimum")
 			break loop
 
-		case nil:
+		case errors.Is(err, nil):
 			// Everything ok, collect the logs and shift in the next transaction from the same account
 			coalescedLogs = append(coalescedLogs, logs...)
 			b.tcount++
@@ -301,7 +308,7 @@ func (b *blockState) commitTransaction(w *worker, tx *types.Transaction, txFeeRe
 	snap := b.state.Snapshot()
 	vmRunner := w.chain.NewEVMRunner(b.header, b.state)
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, b.gasPool, b.state, b.header, tx, &b.header.GasUsed, *w.chain.GetVMConfig(), vmRunner)
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, b.gasPool, b.state, b.header, tx, &b.header.GasUsed, *w.chain.GetVMConfig(), vmRunner, b.sysCtx)
 	if err != nil {
 		b.state.RevertToSnapshot(snap)
 		return nil, err
@@ -325,7 +332,6 @@ func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
 			return nil, fmt.Errorf("Unable to update Validator Set Diff: %w", err)
 		}
 	}
-
 	// FinalizeAndAssemble adds the "block receipt" to then calculate the Bloom filter and receipts hash.
 	// But it doesn't return the receipts.  So we have to add the "block receipt" to b.receipts here, for
 	// use in calculating the "pending" block (and also in the `task`, though we could remove it from that).
@@ -335,20 +341,36 @@ func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
 }
 
 // totalFees computes total consumed fees in CELO. Block transactions and receipts have to have the same order.
-func totalFees(block *types.Block, receipts []*types.Receipt) *big.Float {
+func totalFees(block *types.Block, receipts []*types.Receipt, baseFeeFn func(*common.Address) *big.Int, toCELO func(*big.Int, *common.Address) *big.Int, espresso bool) *big.Float {
 	feesWei := new(big.Int)
 	for i, tx := range block.Transactions() {
-		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), tx.GasPrice()))
+		var basefee *big.Int
+		if espresso {
+			basefee = baseFeeFn(tx.FeeCurrency())
+		}
+		fee := toCELO(new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), tx.EffectiveGasTipValue(basefee)), tx.FeeCurrency())
+		feesWei.Add(feesWei, fee)
 	}
 	return new(big.Float).Quo(new(big.Float).SetInt(feesWei), new(big.Float).SetInt(big.NewInt(params.Ether)))
 }
 
-// createTxCmp creates a Transaction comparator
-func createTxCmp(chain *core.BlockChain, header *types.Header, state *state.StateDB) func(tx1 *types.Transaction, tx2 *types.Transaction) int {
+// createConversionFunctions creates a function to convert any currency to Celo and a function to get the gas price minimum for that currency.
+// Both functions internally cache their results.
+func createConversionFunctions(sysCtx *core.SysContractCallCtx, chain *core.BlockChain, header *types.Header, state *state.StateDB) (func(feeCurrency *common.Address) *big.Int, func(amount *big.Int, feeCurrency *common.Address) *big.Int) {
 	vmRunner := chain.NewEVMRunner(header, state)
 	currencyManager := currency.NewManager(vmRunner)
 
-	return func(tx1 *types.Transaction, tx2 *types.Transaction) int {
-		return currencyManager.CmpValues(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
+	baseFeeFn := func(feeCurrency *common.Address) *big.Int {
+		return sysCtx.GetGasPriceMinimum(feeCurrency)
 	}
+	toCeloFn := func(amount *big.Int, feeCurrency *common.Address) *big.Int {
+		curr, _ := currencyManager.GetCurrency(feeCurrency)
+		return curr.ToCELO(amount)
+	}
+
+	return baseFeeFn, toCeloFn
+}
+
+func (b *blockState) close() {
+	b.state.StopPrefetcher()
 }

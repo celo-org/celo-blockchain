@@ -43,7 +43,7 @@ func (p *MockPeer) Node() *enode.Node {
 	return enode.MustParse("enode://1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439@127.0.0.1:52150")
 }
 
-func (p *MockPeer) Version() int {
+func (p *MockPeer) Version() uint {
 	return 0
 }
 
@@ -207,8 +207,10 @@ func TestReadValidatorHandshakeMessage(t *testing.T) {
 	block := backend.currentBlock()
 	valSet := backend.getValidators(block.Number().Uint64(), block.Hash())
 	// set backend to a different validator
-	backend.wallets().Ecdsa.Address = valSet.GetByIndex(1).Address()
-
+	// use the atomic load & store to avoid race conditions
+	w := *backend.wallets()
+	w.Ecdsa.Address = valSet.GetByIndex(1).Address()
+	backend.aWallets.Store(&w)
 	isValidator, err = backend.readValidatorHandshakeMessage(peer)
 	if err != nil {
 		t.Errorf("Error from readValidatorHandshakeMessage with valid message %v", err)
