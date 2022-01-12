@@ -175,12 +175,12 @@ func IsFutureMsg(currentSequence, desiredRound *big.Int, currentState State, msg
 	if msgView.Sequence.Cmp(currentSequence) > 0 {
 		return true
 	}
-	// Future rounds inidcate a future message except for round changes
+	// Future rounds indicate a future message except for round changes
 	if msgView.Round.Cmp(desiredRound) > 0 && msgCode != istanbul.MsgRoundChange {
 		return true
 	}
 	// If we are waiting for a proposal or a proposed value then commit and
-	// prpepare messages are considered future.
+	// prepare messages are considered future.
 	if currentState.In(StateWaitingForNewRound, StateAcceptRequest) &&
 		(msgCode == istanbul.MsgCommit || msgCode == istanbul.MsgPrepare) {
 		return true
