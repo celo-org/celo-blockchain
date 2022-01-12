@@ -1463,21 +1463,55 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 	return nil
 }
 
-// InsertPreprocessedBlock inserts a block which is already processed.
-// It can only insert the new Head block
+// InsertPreprocessedBlock inserts a block which is already processed. This is
+// only called by validators when committing, since that is the only flow where
+// a block would have previously been preprocessed. It can happen that the
+// validator has already inserted the block that they attempt to insert here,
+// in the case that they received it over the network while the engine was
+// processing a message that caused a validator to commit. This is possible
+// because there is no synchronisation between the area of code that inserts
+// blocks received from the network and the engine.
 func (bc *BlockChain) InsertPreprocessedBlock(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) error {
 	if !bc.chainmu.TryLock() {
 		return errInsertionInterrupted
 	}
 	defer bc.chainmu.Unlock()
 
-	// check we are trying to insert the NEXT block
-	if block.Header().ParentHash != bc.CurrentHeader().Hash() {
-		return ErrNotHeadBlock
-	}
+	current := bc.CurrentHeader()
+	currentNum := current.Number.Uint64()
+	blockNum := block.NumberU64()
 
-	_, err := bc.insertPreprocessedBlock(block, receipts, logs, state, true)
-	return err
+	switch {
+	case blockNum > currentNum+1:
+		// If the block we are trying to insert is a future block, then something
+		// is badly wrong since validators should only start working on a block
+		// once they have agreed they previous block.
+		return fmt.Errorf(
+			"tried to insert preprocessed block that is in the future, current: (num:%d,hash:%v), preprocessed: (num:%d, hash:%v)",
+			currentNum,
+			current.Hash(),
+			blockNum,
+			block.Hash(),
+		)
+	case blockNum <= currentNum:
+		// We expect this to ocur sometimes, we log an info.
+		log.Info("Tried to insert preprocessed bock but it has already been inserted", "preprocessedNum", blockNum, "currentNum", currentNum)
+		return nil
+	default: // blockNum == currentNum + 1
+		if block.Header().ParentHash != current.Hash() {
+			return fmt.Errorf(
+				"tried to insert preprocessed block but parent-hash does not match parent, current: (num:%d, hash:%v), preprocessed: (num:%d, hash:%v, parentHash:%v)",
+				currentNum,
+				current.Hash(),
+				blockNum,
+				block.Hash(),
+				block.ParentHash(),
+			)
+		}
+		// Insert the block and return any error
+		_, err := bc.insertPreprocessedBlock(block, receipts, logs, state, true)
+		return err
+	}
 }
 
 // insertPreprocessedBlock writes the block and all associated state to the database,
