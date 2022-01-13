@@ -43,6 +43,8 @@ type ProxyContext interface {
 	GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine
 }
 
+// Manager is the facade and entry point for the implementation of the announce protocol. It exposes methods to
+// start and stop the announce Worker, and to handle announce messages.
 type Manager struct {
 	logger log.Logger
 
@@ -139,7 +141,7 @@ func (m *Manager) announceThread() {
 	m.worker.Run()
 }
 
-// This function will handle a queryEnode message.
+// HandleQueryEnodeMsg handles a queryEnodeMsg received by the p2p network, according to the announce protocol spec.
 func (m *Manager) HandleQueryEnodeMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
 	logger := m.logger.New("func", "HandleQueryEnodeMsg")
 
@@ -195,15 +197,9 @@ func (m *Manager) HandleQueryEnodeMsg(addr common.Address, peer consensus.Peer, 
 			if encEnodeURL.DestAddress != w.Ecdsa.Address {
 				continue
 			}
-			enodeBytes, err := w.Ecdsa.Decrypt(encEnodeURL.EncryptedEnodeURL)
+			node, err := DecryptEnodeURL(&w.Ecdsa, encEnodeURL.EncryptedEnodeURL)
 			if err != nil {
-				m.logger.Warn("Error decrypting endpoint", "err", err, "encEnodeURL.EncryptedEnodeURL", encEnodeURL.EncryptedEnodeURL)
-				return err
-			}
-			enodeURL := string(enodeBytes)
-			node, err := enode.ParseV4(enodeURL)
-			if err != nil {
-				logger.Warn("Error parsing enodeURL", "enodeUrl", enodeURL)
+				logger.Error("Can't process encEnodeURL. err", err, "encEnodeURL.EncryptedEnodeURL", encEnodeURL.EncryptedEnodeURL)
 				return err
 			}
 
@@ -339,6 +335,7 @@ func (m *Manager) SendVersionCertificateTable(peer consensus.Peer) error {
 	return m.vcGossiper.SendAllFrom(m.state.VersionCertificateTable, peer)
 }
 
+// HandleVersionCertificatesMsg handles a versionCertificates received by the p2p network, according to the announce protocol spec.
 func (m *Manager) HandleVersionCertificatesMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
 	logger := m.logger.New("func", "HandleVersionCertificatesMsg")
 	logger.Trace("Handling version certificates msg")
@@ -479,7 +476,7 @@ func (m *Manager) StartAnnouncing(onStart func() error) error {
 	go m.announceThread()
 
 	if err := onStart(); err != nil {
-		m.StopAnnouncing(func() error { return nil })
+		m.unlockedStopAnnouncing(func() error { return nil })
 		return err
 	}
 
@@ -494,6 +491,10 @@ func (m *Manager) StopAnnouncing(onStop func() error) error {
 		return istanbul.ErrStoppedAnnounce
 	}
 
+	return m.unlockedStopAnnouncing(onStop)
+}
+
+func (m *Manager) unlockedStopAnnouncing(onStop func() error) error {
 	m.worker.Stop()
 	m.announceThreadWg.Wait()
 
