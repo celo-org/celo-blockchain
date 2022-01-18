@@ -178,7 +178,11 @@ func (m *Manager) HandleQueryEnodeMsg(addr common.Address, peer consensus.Peer, 
 	logger = logger.New("msgAddress", msg.Address, "msgVersion", qeData.Version)
 
 	// Do some validation checks on the istanbul.QueryEnodeData
-	if isValid, err := m.validateQueryEnode(msg.Address, msg.QueryEnodeMsg()); !isValid || err != nil {
+
+	// Check if the number of rows in the queryEnodePayload is at most 2 times the size of the current validator connection set.
+	// Note that this is a heuristic of the actual size of validator connection set at the time the validator constructed the announce message.
+	maxQueries := len(validatorConnSet) * 2
+	if isValid, err := validateQueryEnode(m.logger, msg.Address, msg.QueryEnodeMsg(), maxQueries); !isValid || err != nil {
 		logger.Warn("Validation of queryEnode message failed", "isValid", isValid, "err", err)
 		return err
 	}
@@ -267,24 +271,17 @@ func (m *Manager) answerQueryEnodeMsg(address common.Address, node *enode.Node, 
 // message. This is to force all validators that send a queryEnode message to
 // create as succint message as possible, and prevent any possible network DOS attacks
 // via extremely large queryEnode message.
-func (m *Manager) validateQueryEnode(msgAddress common.Address, qeData *istanbul.QueryEnodeData) (bool, error) {
-	logger := m.logger.New("func", "validateQueryEnode", "msg address", msgAddress)
+func validateQueryEnode(lg log.Logger, msgAddress common.Address, qeData *istanbul.QueryEnodeData, maxQueries int) (bool, error) {
+	logger := lg.New("func", "validateQueryEnode", "msg address", msgAddress)
 
 	// Check if there are any duplicates in the queryEnode message
 	if has, dupAddress := qeData.HasDuplicates(); has {
 		logger.Info("QueryEnode message has duplicate entries", "address", dupAddress)
 		return false, nil
 	}
-	// Check if the number of rows in the queryEnodePayload is at most 2 times the size of the current validator connection set.
-	// Note that this is a heuristic of the actual size of validator connection set at the time the validator constructed the announce message.
-	validatorConnSet, err := m.network.RetrieveValidatorConnSet()
-	if err != nil {
-		return false, err
-	}
-
-	if len(qeData.EncryptedEnodeURLs) > 2*len(validatorConnSet) {
-		logger.Info("Number of queryEnode message encrypted enodes is more than two times the size of the current validator connection set", "num queryEnode enodes", len(qeData.EncryptedEnodeURLs), "reg/elected val set size", len(validatorConnSet))
-		return false, err
+	if len(qeData.EncryptedEnodeURLs) > maxQueries {
+		logger.Info("Number of queryEnode message encrypted enodes is more max allowed", "num queryEnode enodes", len(qeData.EncryptedEnodeURLs), "max", maxQueries)
+		return false, nil
 	}
 
 	return true, nil
