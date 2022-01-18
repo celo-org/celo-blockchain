@@ -271,16 +271,10 @@ func (m *Manager) validateQueryEnode(msgAddress common.Address, qeData *istanbul
 	logger := m.logger.New("func", "validateQueryEnode", "msg address", msgAddress)
 
 	// Check if there are any duplicates in the queryEnode message
-	var encounteredAddresses = make(map[common.Address]bool)
-	for _, encEnodeURL := range qeData.EncryptedEnodeURLs {
-		if encounteredAddresses[encEnodeURL.DestAddress] {
-			logger.Info("QueryEnode message has duplicate entries", "address", encEnodeURL.DestAddress)
-			return false, nil
-		}
-
-		encounteredAddresses[encEnodeURL.DestAddress] = true
+	if has, dupAddress := qeData.HasDuplicates(); has {
+		logger.Info("QueryEnode message has duplicate entries", "address", dupAddress)
+		return false, nil
 	}
-
 	// Check if the number of rows in the queryEnodePayload is at most 2 times the size of the current validator connection set.
 	// Note that this is a heuristic of the actual size of validator connection set at the time the validator constructed the announce message.
 	validatorConnSet, err := m.network.RetrieveValidatorConnSet()
