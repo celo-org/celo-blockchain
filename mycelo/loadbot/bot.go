@@ -9,8 +9,10 @@ import (
 	"sync"
 	"time"
 
+	ethereum "github.com/celo-org/celo-blockchain"
 	bind "github.com/celo-org/celo-blockchain/accounts/abi/bind_v2"
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core/types"
 
 	"github.com/celo-org/celo-blockchain/ethclient"
 	"github.com/celo-org/celo-blockchain/mycelo/contract"
@@ -23,9 +25,10 @@ const GasForTransferWithComment = 110000
 
 // LoadGenerator keeps track of in-flight transactions
 type LoadGenerator struct {
-	MaxPending uint64
-	Pending    uint64
-	PendingMu  sync.Mutex
+	MaxPending      uint64
+	Pending         chan struct{}
+	PendingMap      map[common.Hash]chan struct{}
+	PendingMapMutex sync.Mutex
 }
 
 // TxConfig contains the options for a transaction
@@ -71,35 +74,94 @@ func Start(ctx context.Context, cfg *Config) error {
 	sendIdx := 0
 	clientIdx := 0
 
-	// Fire off transactions
+	// Create a ticker to trigger a transaction go routine TPS times per second.
+	// Note that a ticker will drop events when the receiver is keeping up.
 	period := 1 * time.Second / time.Duration(cfg.TransactionsPerSecond)
 	ticker := time.NewTicker(period)
+
+	// Create the worker group and initialize the load generator state.
 	group, ctx := errgroup.WithContext(ctx)
 	lg := &LoadGenerator{
 		MaxPending: cfg.MaxPending,
+		Pending:    make(chan struct{}, cfg.MaxPending),
+		PendingMap: make(map[common.Hash]chan struct{}),
 	}
+
+	// Kick off a consumer for newly produced blocks to check for mined transactions.
+	// This method of marking transactions mined is implemented to be more efficient on the
+	// validator nodes RPC resources (than calling eth_getTransactionReceipt in a loop).
+	go func() {
+		latest := big.NewInt(1)
+		client := cfg.Clients[0]
+		ticker := time.NewTicker(time.Second)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+
+			// Fetch the latest block(s) and extract any tranactions that have been mined.
+			header, err := client.HeaderByNumber(ctx, latest)
+			for err == nil {
+				// Using the header, get the block body with transactions.
+				var block *types.Block
+				block, err = client.BlockByHash(ctx, header.Hash())
+				if err != nil {
+					fmt.Printf("Error in fetching block by hash: %v\n", err)
+					break
+				}
+
+				// Loop through all the transactions in a block and mark them as mined.
+				lg.PendingMapMutex.Lock()
+				for _, tx := range block.Transactions() {
+					txMined, ok := lg.PendingMap[tx.Hash()]
+					if !ok {
+						txMined = make(chan struct{})
+						lg.PendingMap[tx.Hash()] = txMined
+					}
+
+					// Signal that the transaction has been mined.
+					close(txMined)
+				}
+				lg.PendingMapMutex.Unlock()
+
+				// Adavance the latest block number by one and try to fetch again.
+				latest.Add(latest, big.NewInt(1))
+				header, err = client.HeaderByNumber(ctx, latest)
+			}
+			if err != ethereum.NotFound {
+				fmt.Printf("Error in fetching header by number: %d, %v\n", latest.Uint64(), err)
+			}
+		}
+	}()
+
+	// Fire off transactions in a loop.
 	for {
 		select {
 		case <-ticker.C:
-			lg.PendingMu.Lock()
-			if lg.MaxPending != 0 && lg.Pending > lg.MaxPending {
-				lg.PendingMu.Unlock()
+			select {
+			// Block until there is an open slot for a pending transaction.
+			case lg.Pending <- struct{}{}:
+			case <-ctx.Done():
 				continue
-			} else {
-				lg.Pending++
-				lg.PendingMu.Unlock()
 			}
-			// We use round robin selectors that rollover
+
+			// Choose the next receiver index via round robin selction.
 			recvIdx++
 			recipient := cfg.Accounts[recvIdx%len(cfg.Accounts)].Address
 
+			// Choose the next receiver index via round robin selection, and set the nonce.
 			sendIdx++
 			sender := cfg.Accounts[sendIdx%len(cfg.Accounts)]
 			nonce := nonces[sendIdx%len(cfg.Accounts)]
 			nonces[sendIdx%len(cfg.Accounts)]++
 
+			// Choose the next ethclient instance to use.
 			clientIdx++
 			client := cfg.Clients[clientIdx%len(cfg.Clients)]
+
+			// Kick off the goroutine to run the transaction.
 			group.Go(func() error {
 				txCfg := txConfig{
 					Acc:               sender,
@@ -120,11 +182,11 @@ func Start(ctx context.Context, cfg *Config) error {
 
 func runTransaction(ctx context.Context, client *ethclient.Client, chainID *big.Int, lg *LoadGenerator, txCfg txConfig) error {
 	defer func() {
-		lg.PendingMu.Lock()
-		if lg.MaxPending != 0 {
-			lg.Pending--
+		select {
+		case <-lg.Pending:
+		default:
+			fmt.Printf("Transaction concluded with empty pending channel\n")
 		}
-		lg.PendingMu.Unlock()
 	}()
 
 	abi := contract.AbiFor("StableToken")
@@ -159,15 +221,29 @@ func runTransaction(ctx context.Context, client *ethclient.Client, chainID *big.
 		printJSON(tx)
 	}
 
-	_, err = tx.WaitMined(ctx)
-
-	if err != nil {
-		if err != context.Canceled {
-			fmt.Printf("Error waiting for tx: %v\n", err)
-		}
-		return fmt.Errorf("Error waiting for tx: %w", err)
+	// Add a channel to the pending map to be notified when the transaction appears in a block.
+	// It's possible the transaction will have been mined before we get here, in which case the
+	// PendingMap will already have a channel set.
+	lg.PendingMapMutex.Lock()
+	txMined, ok := lg.PendingMap[tx.Transaction.Hash()]
+	if !ok {
+		txMined = make(chan struct{})
+		lg.PendingMap[tx.Transaction.Hash()] = txMined
 	}
-	return err
+	lg.PendingMapMutex.Unlock()
+
+	// Wait for the transaction to appear in a block, for the context to be canceled.
+	select {
+	case <-txMined:
+	case <-ctx.Done():
+	}
+
+	// Remove the reference to the channel so that it can be cleaned up.
+	lg.PendingMapMutex.Lock()
+	delete(lg.PendingMap, tx.Transaction.Hash())
+	lg.PendingMapMutex.Unlock()
+
+	return nil
 }
 
 func printJSON(obj interface{}) {
