@@ -297,7 +297,7 @@ func loadBot(ctx *cli.Context) error {
 		Clients:               clients,
 		Verbose:               verbose,
 		MaxPending:            ctx.Uint64(loadTestMaxPendingFlag.Name),
-		SkipGasEstimation:     ctx.GlobalBool(loadTestSkipGasEstimationFlag.Name),
-		MixFeeCurrency:        ctx.GlobalBool(loadTestMixFeeCurrencyFlag.Name),
+		SkipGasEstimation:     ctx.Bool(loadTestSkipGasEstimationFlag.Name),
+		MixFeeCurrency:        ctx.Bool(loadTestMixFeeCurrencyFlag.Name),
 	})
 }
