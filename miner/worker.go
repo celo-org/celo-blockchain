@@ -259,6 +259,7 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 	}
 	w.updatePendingBlock(b)
 
+	startConstruction := time.Now()
 	err = b.selectAndApplyTransactions(ctx, w)
 	if err != nil {
 		log.Error("Failed to apply transactions to the block", "err", err)
@@ -278,7 +279,7 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 	// the proposer and the engine has already gotten and is verifying the proposal).  See
 	// https://github.com/celo-org/celo-blockchain/issues/1639#issuecomment-888611039
 	// And we subtract the time we spent sleeping, since we want the time spent actually building the block.
-	w.blockConstructGauge.Update(time.Since(start).Nanoseconds() - delay.Nanoseconds())
+	w.blockConstructGauge.Update(time.Since(startConstruction).Nanoseconds())
 
 	if w.isRunning() {
 		if w.fullTaskHook != nil {
