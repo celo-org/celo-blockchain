@@ -24,7 +24,6 @@ import (
 	"math/big"
 	"math/rand"
 	"os"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -704,7 +703,7 @@ func TestTransactionDropping(t *testing.T) {
 		t.Errorf("total transaction mismatch: have %d, want %d", pool.all.Count(), 4)
 	}
 	// Reduce the block gas limit, check that invalidated transactions are dropped
-	atomic.StoreUint64(&pool.chain.(*testBlockChain).gasLimit, 100)
+	pool.setGasLimit(100)
 	<-pool.requestReset(nil, nil)
 
 	if _, ok := pool.pending[account].txs.items[tx0.Nonce()]; !ok {
