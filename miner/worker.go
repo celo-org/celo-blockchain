@@ -246,6 +246,7 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 	start := time.Now()
 
 	// Initialize the block.
+	// Note: In the current implementation, this will sleep until the time of the next block.
 	b, err := prepareBlock(w)
 	defer func() {
 		if b != nil {
@@ -257,15 +258,6 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 		return
 	}
 	w.updatePendingBlock(b)
-
-	// TODO: worker based adaptive sleep with this delay
-	// wait for the timestamp of header, use this to adjust the block period
-	delay := time.Until(time.Unix(int64(b.header.Time), 0))
-	select {
-	case <-time.After(delay):
-	case <-ctx.Done():
-		return
-	}
 
 	err = b.selectAndApplyTransactions(ctx, w)
 	if err != nil {
