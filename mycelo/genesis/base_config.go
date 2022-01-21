@@ -22,8 +22,8 @@ func BaseConfig() *Config {
 		},
 		GasPriceMinimum: GasPriceMinimumParameters{
 			MinimumFloor:    bigInt(100000000),
-			AdjustmentSpeed: fixed("0.5"),
-			TargetDensity:   fixed("0.5"),
+			AdjustmentSpeed: fixed("0"),
+			TargetDensity:   fixed("0.9999"),
 		},
 		Reserve: ReserveParameters{
 			TobinTaxStalenessThreshold: 3153600000,
