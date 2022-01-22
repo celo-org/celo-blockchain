@@ -47,6 +47,7 @@ import (
 	// "github.com/celo-org/celo-blockchain/eth/protocols/snap"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-blockchain/internal/debug"
 	"github.com/celo-org/celo-blockchain/internal/ethapi"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/miner"
@@ -277,6 +278,10 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 				"age", common.PrettyAge(t))
 		}
 	}
+	debug.Memsize.Add("chainDb", eth.handler.database)
+	debug.Memsize.Add("blockchain", eth.blockchain)
+	debug.Memsize.Add("server(p2p)", eth.handler.server)
+	debug.Memsize.Add("miner", eth.miner)
 	return eth, nil
 }
 

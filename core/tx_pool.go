@@ -36,6 +36,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-blockchain/internal/debug"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/params"
@@ -356,6 +357,13 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 	pool.chainHeadSub = pool.chain.SubscribeChainHeadEvent(pool.chainHeadCh)
 	pool.wg.Add(1)
 	go pool.loop()
+
+	debug.Memsize.Add("pool", pool)
+	debug.Memsize.Add("pool.pending", pool.pending)
+	debug.Memsize.Add("pool.queue", pool.queue)
+	debug.Memsize.Add("pool.all", pool.all)
+	debug.Memsize.Add("pool.queueTxEventCh", pool.queueTxEventCh)
+	debug.Memsize.Add("pool.priced", pool.priced)
 
 	return pool
 }
@@ -854,10 +862,6 @@ func (pool *TxPool) enqueueTx(hash common.Hash, tx *types.Transaction, local boo
 	if addAll {
 		pool.all.Add(tx, local)
 		pool.priced.Put(tx, local)
-	}
-	// If we never record the heartbeat, do it right now.
-	if _, exist := pool.beats[from]; !exist {
-		pool.beats[from] = time.Now()
 	}
 	// If we never record the heartbeat, do it right now.
 	if _, exist := pool.beats[from]; !exist {
