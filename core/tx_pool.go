@@ -361,10 +361,10 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 	go pool.loop()
 
 	debug.Memsize.Add("pool", pool)
-	debug.Memsize.Add("pool.pending", pool.pending)
-	debug.Memsize.Add("pool.queue", pool.queue)
+	debug.Memsize.Add("pool.pending", &pool.pending)
+	debug.Memsize.Add("pool.queue", &pool.queue)
 	debug.Memsize.Add("pool.all", pool.all)
-	debug.Memsize.Add("pool.queueTxEventCh", pool.queueTxEventCh)
+	debug.Memsize.Add("pool.queueTxEventCh", &pool.queueTxEventCh)
 	debug.Memsize.Add("pool.priced", pool.priced)
 
 	return pool
