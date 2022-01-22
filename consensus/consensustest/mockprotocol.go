@@ -350,6 +350,13 @@ func (e *MockEngine) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
+
+	// Matches delay in consensus/istanbul/backend/engine.go:386 in (*Backend).Prepare
+	delay := time.Until(time.Unix(int64(header.Time), 0))
+	if delay > 0 {
+		time.Sleep(delay)
+	}
+
 	return nil
 }
 
