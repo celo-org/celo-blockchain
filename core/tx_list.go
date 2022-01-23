@@ -18,6 +18,7 @@ package core
 
 import (
 	"container/heap"
+	"fmt"
 	"math"
 	"math/big"
 	"sort"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/internal/debug"
 	"github.com/celo-org/celo-blockchain/log"
 )
 
@@ -617,6 +619,7 @@ func (h *priceHeap) Pop() interface{} {
 // effective tip based on the given base fee. If baseFee is nil then the sorting
 // is based on gasFeeCap.
 type multiCurrencyPriceHeap struct {
+	name                string
 	currencyCmpFn       func(*big.Int, *common.Address, *big.Int, *common.Address) int
 	baseFeeFn           func(*common.Address) *big.Int // heap should always be re-sorted after baseFee is changed
 	nonNilCurrencyHeaps map[common.Address]*priceHeap  // Heap of prices of all the stored non-nil currency transactions
@@ -630,10 +633,11 @@ func (h *multiCurrencyPriceHeap) Add(tx *types.Transaction) {
 		h.nilCurrencyHeap.list = append(h.nilCurrencyHeap.list, tx)
 	} else {
 		if _, ok := h.nonNilCurrencyHeaps[*fc]; !ok {
-			h.nonNilCurrencyHeaps[*fc] = &priceHeap{
+			ph := &priceHeap{
 				baseFee: h.baseFeeFn(fc),
 			}
-
+			debug.Memsize.Add(fmt.Sprintf("%v.curr[%v]", h.name, fc.Hex()[:6]), ph)
+			h.nonNilCurrencyHeaps[*fc] = ph
 		}
 		sh := h.nonNilCurrencyHeaps[*fc]
 		sh.list = append(sh.list, tx)
@@ -645,10 +649,11 @@ func (h *multiCurrencyPriceHeap) Push(tx *types.Transaction) {
 		h.nilCurrencyHeap.Push(tx)
 	} else {
 		if _, ok := h.nonNilCurrencyHeaps[*fc]; !ok {
-			h.nonNilCurrencyHeaps[*fc] = &priceHeap{
+			ph := &priceHeap{
 				baseFee: h.baseFeeFn(fc),
 			}
-
+			debug.Memsize.Add(fmt.Sprintf("%v.curr[%v]", h.name, fc.Hex()[:6]), ph)
+			h.nonNilCurrencyHeaps[*fc] = ph
 		}
 		sh := h.nonNilCurrencyHeaps[*fc]
 		sh.Push(tx)
@@ -745,18 +750,24 @@ const (
 // newTxPricedList creates a new price-sorted transaction heap.
 func newTxPricedList(all *txLookup, ctx *atomic.Value) *txPricedList {
 	txCtx := ctx.Load().(txPoolContext)
+	urgentNilHeap := &priceHeap{}
+	debug.Memsize.Add("pool.priced.urgent.nilCurrency", urgentNilHeap)
+	floatingNilHeap := &priceHeap{}
+	debug.Memsize.Add("pool.priced.floating.nilCurrency", floatingNilHeap)
 	return &txPricedList{
 		ctx: ctx,
 		all: all,
 		urgent: multiCurrencyPriceHeap{
+			name:                "pool.priced.urgent",
 			currencyCmpFn:       txCtx.CmpValues,
-			nilCurrencyHeap:     &priceHeap{},
+			nilCurrencyHeap:     urgentNilHeap,
 			nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
 			baseFeeFn:           txCtx.GetGasPriceMinimum,
 		},
 		floating: multiCurrencyPriceHeap{
+			name:                "pool.priced.floating",
 			currencyCmpFn:       txCtx.CmpValues,
-			nilCurrencyHeap:     &priceHeap{},
+			nilCurrencyHeap:     floatingNilHeap,
 			nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
 			baseFeeFn:           txCtx.GetGasPriceMinimum,
 		},

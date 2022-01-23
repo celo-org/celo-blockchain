@@ -18,6 +18,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"math/big"
 	"sort"
@@ -359,11 +360,7 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 	go pool.loop()
 
 	debug.Memsize.Add("pool", pool)
-	debug.Memsize.Add("pool.pending", &pool.pending)
-	debug.Memsize.Add("pool.queue", &pool.queue)
 	debug.Memsize.Add("pool.all", pool.all)
-	debug.Memsize.Add("pool.queueTxEventCh", &pool.queueTxEventCh)
-	debug.Memsize.Add("pool.priced", pool.priced)
 
 	return pool
 }
@@ -837,6 +834,10 @@ func (pool *TxPool) enqueueTx(hash common.Hash, tx *types.Transaction, local boo
 	// Try to insert the transaction into the future queue
 	from, _ := types.Sender(pool.signer, tx) // already validated
 	if pool.queue[from] == nil {
+		// Add Memsize cache
+		txL := newTxList(false, &pool.currentCtx)
+		name := fmt.Sprintf("pool.queue[%v].txs", from.Hex()[:6])
+		debug.Memsize.Add(name, txL.txs)
 		pool.queue[from] = newTxList(false, &pool.currentCtx)
 	}
 	inserted, old := pool.queue[from].Add(tx, pool.config.PriceBump)
@@ -889,7 +890,11 @@ func (pool *TxPool) journalTx(from common.Address, tx *types.Transaction) {
 func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.Transaction) bool {
 	// Try to insert the transaction into the pending queue
 	if pool.pending[addr] == nil {
-		pool.pending[addr] = newTxList(true, &pool.currentCtx)
+		// Add Memsize cache
+		txL := newTxList(true, &pool.currentCtx)
+		name := fmt.Sprintf("pool.pending[%v].txs", addr.Hex()[:6])
+		debug.Memsize.Add(name, txL.txs)
+		pool.pending[addr] = txL
 	}
 	list := pool.pending[addr]
 
