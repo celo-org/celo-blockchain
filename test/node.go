@@ -5,10 +5,12 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/big"
 	"os"
+	"path/filepath"
 	"time"
 
 	ethereum "github.com/celo-org/celo-blockchain"
@@ -341,6 +343,21 @@ func BuildConfig(accounts *env.AccountsConfig) (*genesis.Config, *ethconfig.Conf
 	return gc, ec, err
 }
 
+// GenerateGenesis checks that the contractsBuildPath exists and if so proceeds to generate the genesis.
+func GenerateGenesis(accounts *env.AccountsConfig, gc *genesis.Config, contractsBuildPath string) (*core.Genesis, error) {
+	// Check for the existence of the compiled-system-contracts dir
+	_, err := os.Stat(contractsBuildPath)
+	if errors.Is(err, os.ErrNotExist) {
+		abs, err := filepath.Abs(contractsBuildPath)
+		if err != nil {
+			panic(fmt.Sprintf("failed to get abs path for %s, error: %v", contractsBuildPath, err))
+		}
+		return nil, fmt.Errorf("Could not find dir %s, try running 'make compiled-system-contracts' and then re-running the test", abs)
+
+	}
+	return genesis.GenerateGenesis(accounts, gc, contractsBuildPath)
+}
+
 // NewNetwork generates a network of nodes that are running and mining. For
 // each provided validator account a corresponding node is created and each
 // node is also assigned a developer account, there must be at least as many
@@ -361,7 +378,7 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 		RequestTimeout: ec.Istanbul.RequestTimeout,
 	}
 
-	genesis, err := genesis.GenerateGenesis(accounts, gc, "../compiled-system-contracts")
+	genesis, err := GenerateGenesis(accounts, gc, "../compiled-system-contracts")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate genesis: %v", err)
 	}
