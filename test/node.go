@@ -12,6 +12,7 @@ import (
 	"time"
 
 	ethereum "github.com/celo-org/celo-blockchain"
+	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 
 	"github.com/celo-org/celo-blockchain/accounts/keystore"
 	"github.com/celo-org/celo-blockchain/common"
@@ -325,7 +326,7 @@ func AccountConfig(numValidators, numExternal int) *env.AccountsConfig {
 // NOTE: Do not edit the Istanbul field of the returned genesis config it will
 // be overwritten with the corresponding config from the Istanbul field of the
 // returned eth config.
-func BuildConfig(accounts *env.AccountsConfig) (*genesis.Config, *eth.Config, error) {
+func BuildConfig(accounts *env.AccountsConfig) (*genesis.Config, *ethconfig.Config, error) {
 	gc := genesis.CreateCommonGenesisConfig(
 		big.NewInt(1),
 		accounts.AdminAccount().Address,
