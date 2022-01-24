@@ -18,7 +18,6 @@ package core
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"math/big"
 	"sort"
@@ -834,10 +833,6 @@ func (pool *TxPool) enqueueTx(hash common.Hash, tx *types.Transaction, local boo
 	// Try to insert the transaction into the future queue
 	from, _ := types.Sender(pool.signer, tx) // already validated
 	if pool.queue[from] == nil {
-		// Add Memsize cache
-		txL := newTxList(false, &pool.currentCtx)
-		name := fmt.Sprintf("pool.queue[%v].txs", from.Hex()[:6])
-		debug.Memsize.Add(name, txL.txs)
 		pool.queue[from] = newTxList(false, &pool.currentCtx)
 	}
 	inserted, old := pool.queue[from].Add(tx, pool.config.PriceBump)
@@ -890,11 +885,7 @@ func (pool *TxPool) journalTx(from common.Address, tx *types.Transaction) {
 func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.Transaction) bool {
 	// Try to insert the transaction into the pending queue
 	if pool.pending[addr] == nil {
-		// Add Memsize cache
-		txL := newTxList(true, &pool.currentCtx)
-		name := fmt.Sprintf("pool.pending[%v].txs", addr.Hex()[:6])
-		debug.Memsize.Add(name, txL.txs)
-		pool.pending[addr] = txL
+		pool.pending[addr] = newTxList(true, &pool.currentCtx)
 	}
 	list := pool.pending[addr]
 
