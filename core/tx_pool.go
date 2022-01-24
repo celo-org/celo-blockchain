@@ -364,6 +364,9 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 	debug.Memsize.Add("pool.all", pool.all)
 	debug.Memsize.Add("pool.queueTxEventCh", &pool.queueTxEventCh)
 	debug.Memsize.Add("pool.priced", pool.priced)
+	debug.Memsize.Add("pool.priced.urgent", pool.priced.urgent)
+	debug.Memsize.Add("pool.priced.floating", pool.priced.floating)
+	debug.Memsize.Add("pool.priced.ctx", pool.priced.ctx)
 
 	return pool
 }

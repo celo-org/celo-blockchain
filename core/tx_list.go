@@ -729,7 +729,7 @@ func (h *multiCurrencyPriceHeap) SetBaseFee(txCtx *txPoolContext) {
 // better candidates for inclusion while in other cases (at the top of the baseFee peak)
 // the floating heap is better. When baseFee is decreasing they behave similarly.
 type txPricedList struct {
-	ctx              *atomic.Value
+	ctx              txPoolContext
 	all              *txLookup              // Pointer to the map of all transactions
 	urgent, floating multiCurrencyPriceHeap // Heaps of prices of all the stored **remote** transactions
 	stales           int                    // Number of stale price points to (re-heap trigger)
@@ -746,7 +746,7 @@ const (
 func newTxPricedList(all *txLookup, ctx *atomic.Value) *txPricedList {
 	txCtx := ctx.Load().(txPoolContext)
 	return &txPricedList{
-		ctx: ctx,
+		ctx: txCtx,
 		all: all,
 		urgent: multiCurrencyPriceHeap{
 			currencyCmpFn:       txCtx.CmpValues,
