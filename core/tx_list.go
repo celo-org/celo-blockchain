@@ -778,7 +778,7 @@ func (l *txPricedList) Put(tx *types.Transaction, local bool) {
 func (l *txPricedList) Removed(count int) {
 	// Bump the stale counter, but exit if still too low (< 25%)
 	l.stales += count
-	if l.stales <= (l.urgent.Len() + l.floating.Len()/4) {
+	if l.stales <= (l.urgent.Len()+l.floating.Len())/4 {
 		return
 	}
 	// Seems we've reached a critical number of stale transactions, reheap
