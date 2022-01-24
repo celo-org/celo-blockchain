@@ -10,13 +10,6 @@ import (
 
 type Token int
 
-const (
-	Celo Token = iota
-	cUSD
-	cEUR
-	cREAL
-)
-
 type Balances map[common.Address]*big.Int
 
 // BalanceWatcher is a helper to watch balance changes over addresses.

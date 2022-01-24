@@ -67,7 +67,7 @@ func TestTransferCELO(t *testing.T) {
 			GatewayFeeRecipient: &gateWayFeeRecipient.Address,
 		},
 
-		// AccessListTxType eth compatible
+		// AccessListTxType
 		{
 			To:         &recipient.Address,
 			Value:      (*hexutil.Big)(new(big.Int).SetInt64(oneCelo)),
@@ -103,7 +103,7 @@ func TestTransferCELO(t *testing.T) {
 			GatewayFeeRecipient:  &gateWayFeeRecipient.Address,
 		},
 		// CeloDynamicFeeTxType
-		// Tip gas will be MaxPriorityFeePerGas
+		// Tip gas will be MaxPriorityFeePerGasBuildConfig
 		{
 			To:                   &recipient.Address,
 			Value:                (*hexutil.Big)(new(big.Int).SetInt64(oneCelo)),
@@ -125,6 +125,7 @@ func TestTransferCELO(t *testing.T) {
 		require.NoError(t, err)
 		watcher.Update()
 		receipt, err := client.TransactionReceipt(ctx, tx.Hash())
+		require.NoError(t, err)
 
 		// check value goes to recipient
 		expected := tx.Value()
