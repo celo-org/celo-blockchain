@@ -119,6 +119,7 @@ func TestTransferCELO(t *testing.T) {
 		require.NoError(t, err)
 		signer := types.MakeSigner(devAccounts[0].ChainConfig, new(big.Int).SetUint64(blockNum))
 		tx, err := prepareTransaction(*txArgs, sender.Key, sender.Address, signer, client)
+		require.NoError(t, err)
 		err = client.SendTransaction(ctx, tx)
 		require.NoError(t, err, "SendTransaction failed", "tx", *tx)
 		err = network.AwaitTransactions(ctx, tx)
