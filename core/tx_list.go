@@ -679,7 +679,7 @@ func (h *multiCurrencyPriceHeap) Pop() *types.Transaction {
 	}
 
 	if cheapestHeap != nil {
-		return heap.Pop(cheapestHeap).(*types.Transaction)
+		return cheapestHeap.Pop().(*types.Transaction)
 	}
 	return nil
 
