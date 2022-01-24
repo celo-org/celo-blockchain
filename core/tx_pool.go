@@ -1255,6 +1255,9 @@ func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirt
 		pool.demoteUnexecutables()
 		if reset.newHead != nil && pool.chainconfig.IsEspresso(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
 			pool.priced.SetBaseFee(pool.ctx())
+		} else {
+			// Prevent the price heap from growing indefinitely
+			pool.priced.Reheap()
 		}
 	}
 	// Ensure pool.queue and pool.pending sizes stay within the configured limits.
