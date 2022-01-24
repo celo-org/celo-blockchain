@@ -148,7 +148,7 @@ func (tx *Transaction) DecodeRLP(s *rlp.Stream) error {
 		var inner LegacyTx
 		err := s.Decode(&inner)
 		if err == nil {
-			tx.setDecoded(&inner, int(size))
+			tx.setDecoded(&inner, int(rlp.ListSize(size)))
 		}
 		return err
 	case kind == rlp.String:
