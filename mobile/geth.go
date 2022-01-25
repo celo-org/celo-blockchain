@@ -34,6 +34,7 @@ import (
 	"github.com/celo-org/celo-blockchain/les"
 	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/p2p"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/p2p/nat"
 	"github.com/celo-org/celo-blockchain/params"
 )
@@ -132,7 +133,6 @@ type NodeConfig struct {
 // defaultNodeConfig contains the default node configuration values to use if all
 // or some fields are missing from the user's specified list.
 var defaultNodeConfig = &NodeConfig{
-	BootstrapNodes:        FoundationBootnodes(),
 	MaxPeers:              25,
 	NoDiscovery:           true,
 	EthereumEnabled:       true,
@@ -174,9 +174,6 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 	if config == nil {
 		config = NewNodeConfig()
 	}
-	if config.BootstrapNodes == nil || config.BootstrapNodes.Size() == 0 {
-		config.BootstrapNodes = defaultNodeConfig.BootstrapNodes
-	}
 
 	// gomobile doesn't allow arrays to be passed in, so comma separated strings are used
 	var httpVirtualHosts []string
@@ -190,6 +187,37 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 
 	if config.PprofAddress != "" {
 		debug.StartPProf(config.PprofAddress, true)
+	}
+
+	// Parse or infer the genesis block from the network ID.
+	var genesis *core.Genesis
+	if config.EthereumGenesis != "" {
+		// Parse the user supplied genesis spec if not mainnet
+		genesis = new(core.Genesis)
+		if err := json.Unmarshal([]byte(config.EthereumGenesis), genesis); err != nil {
+			return nil, fmt.Errorf("invalid genesis spec: %v", err)
+		}
+	} else if config.EthereumNetworkID == int64(params.MainnetNetworkId) {
+		genesis = core.MainnetGenesisBlock()
+	} else if config.EthereumNetworkID == int64(params.AlfajoresNetworkId) {
+		genesis = core.DefaultAlfajoresGenesisBlock()
+	} else if config.EthereumNetworkID == int64(params.BaklavaNetworkId) {
+		genesis = core.DefaultBaklavaGenesisBlock()
+	}
+
+	// If a genesis block is provided, but a network ID is not, extract the network ID from genesis.
+	networkId := uint64(config.EthereumNetworkID)
+	if networkId == 0 && genesis != nil && genesis.Config != nil && genesis.Config.ChainID != nil {
+		networkId = genesis.Config.ChainID.Uint64()
+	}
+
+	if config.BootstrapNodes == nil || config.BootstrapNodes.Size() == 0 {
+		config.BootstrapNodes = DefaultBootnodes(networkId)
+	}
+
+	var bootnodes []*enode.Node
+	if config.BootstrapNodes != nil {
+		bootnodes = config.BootstrapNodes.nodes
 	}
 
 	// Create the empty networking stack
@@ -207,7 +235,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		P2P: p2p.Config{
 			NoDiscovery:      config.NoDiscovery,
 			DiscoveryV5:      !config.NoDiscovery,
-			BootstrapNodesV5: config.BootstrapNodes.nodes,
+			BootstrapNodesV5: bootnodes,
 			ListenAddr:       ":0",
 			NAT:              nat.Any(),
 			MaxPeers:         config.MaxPeers,
@@ -223,35 +251,8 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 	// Add the root node object to memsize for debugging memory allocations.
 	debug.Memsize.Add("node", rawStack)
 
-	var genesis *core.Genesis
 	var nodeResponse = Node{}
 	nodeResponse.node = rawStack
-	if config.EthereumGenesis != "" {
-		// Parse the user supplied genesis spec if not mainnet
-		genesis = new(core.Genesis)
-		if err := json.Unmarshal([]byte(config.EthereumGenesis), genesis); err != nil {
-			return nil, fmt.Errorf("invalid genesis spec: %v", err)
-		}
-
-		// If we have the testnet, hard code the chain configs too
-		// NOTE(victor): It's unclear if this behavior is a sensible way to establish defaults. We
-		// may want to remove these statements.
-		if config.EthereumGenesis == AlfajoresGenesis() {
-			genesis.Config = params.AlfajoresChainConfig
-			if config.EthereumNetworkID == 1 {
-				config.EthereumNetworkID = int64(params.AlfajoresNetworkId)
-			}
-		} else if config.EthereumGenesis == BaklavaGenesis() {
-			genesis.Config = params.BaklavaChainConfig
-			if config.EthereumNetworkID == 1 {
-				config.EthereumNetworkID = int64(params.BaklavaNetworkId)
-			}
-		}
-	} else if config.EthereumNetworkID == int64(params.AlfajoresNetworkId) {
-		genesis = core.DefaultAlfajoresGenesisBlock()
-	} else if config.EthereumNetworkID == int64(params.BaklavaNetworkId) {
-		genesis = core.DefaultBaklavaGenesisBlock()
-	}
 
 	// Register the Ethereum protocol if requested
 	if config.EthereumEnabled {

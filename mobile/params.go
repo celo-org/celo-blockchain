@@ -19,40 +19,28 @@
 package geth
 
 import (
-	"encoding/json"
-
-	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-// MainnetGenesis returns the JSON spec to use for the main Ethereum network. It
-// is actually empty since that defaults to the hard coded binary genesis block.
-func MainnetGenesis() string {
-	return ""
-}
-
-func AlfajoresGenesis() string {
-	enc, err := json.Marshal(core.DefaultAlfajoresGenesisBlock())
-	if err != nil {
-		panic(err)
+// DefaultBootnodes returns the enode URLs of the P2P bootstrap nodes operated
+// by cLabs running the V5 discovery protocol.
+func DefaultBootnodes(networkId uint64) *Enodes {
+	// Set the default bootnode urls from the network we are on.
+	// Don't default to mainnet bootnodes, as this is likely incorrect behavior.
+	var urls []string
+	switch networkId {
+	case params.MainnetNetworkId:
+		urls = params.MainnetBootnodes
+	case params.AlfajoresNetworkId:
+		urls = params.AlfajoresBootnodes
+	case params.BaklavaNetworkId:
+		urls = params.BaklavaBootnodes
 	}
-	return string(enc)
-}
 
-func BaklavaGenesis() string {
-	enc, err := json.Marshal(core.DefaultBaklavaGenesisBlock())
-	if err != nil {
-		panic(err)
-	}
-	return string(enc)
-}
-
-// FoundationBootnodes returns the enode URLs of the P2P bootstrap nodes operated
-// by the foundation running the V5 discovery protocol.
-func FoundationBootnodes() *Enodes {
-	nodes := &Enodes{nodes: make([]*enode.Node, len(params.MainnetBootnodes))}
-	for i, url := range params.MainnetBootnodes {
+	// Parse the given bootnode urls.
+	nodes := &Enodes{nodes: make([]*enode.Node, len(urls))}
+	for i, url := range urls {
 		var err error
 		nodes.nodes[i], err = enode.Parse(enode.ValidSchemes, url)
 		if err != nil {
