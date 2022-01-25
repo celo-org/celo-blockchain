@@ -674,6 +674,7 @@ func (h *multiCurrencyPriceHeap) Pop() *types.Transaction {
 				txn := priceHeap.list[0]
 				if h.currencyCmpFn(txn.GasPrice(), txn.FeeCurrency(), cheapestTxn.GasPrice(), cheapestTxn.FeeCurrency()) < 0 {
 					cheapestHeap = priceHeap
+					cheapestTxn = txn
 				}
 			}
 		}
