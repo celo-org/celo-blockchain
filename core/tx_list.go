@@ -779,7 +779,7 @@ func (l *txPricedList) Put(tx *types.Transaction, local bool) {
 // from the pool. The list will just keep a counter of stale objects and update
 // the heap if a large enough ratio of transactions go stale.
 func (l *txPricedList) Removed(count int) {
-	// Bump the stale counter, but exit if still too low (< 25%)
+	// Bump the stale counter
 	stales := atomic.AddInt64(&l.stales, int64(count))
 	urgentSize := l.urgent.Len()
 	floatingSize := l.floating.Len()
@@ -788,10 +788,8 @@ func (l *txPricedList) Removed(count int) {
 	overStalesRatio := int(stales) > (urgentSize+floatingSize)/4
 	// Reheap if stales exceed the max stales limit
 	overMaxStales := stales >= l.maxStales
-	// Reheap if the size of the heaps exceed twice of the all remotes size.
-	heapsTooBig := urgentSize+floatingSize > 2*len(l.all.remotes)
 
-	if overStalesRatio || overMaxStales || heapsTooBig {
+	if overStalesRatio || overMaxStales {
 		l.Reheap()
 	}
 }
