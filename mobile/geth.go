@@ -220,6 +220,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		return nil, err
 	}
 
+	// Add the root node object to memsize for debugging memory allocations.
 	debug.Memsize.Add("node", rawStack)
 
 	var genesis *core.Genesis
@@ -231,7 +232,10 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		if err := json.Unmarshal([]byte(config.EthereumGenesis), genesis); err != nil {
 			return nil, fmt.Errorf("invalid genesis spec: %v", err)
 		}
+
 		// If we have the testnet, hard code the chain configs too
+		// NOTE(victor): It's unclear if this behavior is a sensible way to establish defaults. We
+		// may want to remove these statements.
 		if config.EthereumGenesis == AlfajoresGenesis() {
 			genesis.Config = params.AlfajoresChainConfig
 			if config.EthereumNetworkID == 1 {
@@ -243,7 +247,12 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 				config.EthereumNetworkID = int64(params.BaklavaNetworkId)
 			}
 		}
+	} else if config.EthereumNetworkID == int64(params.AlfajoresNetworkId) {
+		genesis = core.DefaultAlfajoresGenesisBlock()
+	} else if config.EthereumNetworkID == int64(params.BaklavaNetworkId) {
+		genesis = core.DefaultBaklavaGenesisBlock()
 	}
+
 	// Register the Ethereum protocol if requested
 	if config.EthereumEnabled {
 		ethConf := ethconfig.Defaults
