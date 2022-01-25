@@ -62,10 +62,10 @@ func (n *proofList) Delete(key []byte) error {
 // * Contracts
 // * Accounts
 type StateDB struct {
-	db           Database
+	Db           Database
 	prefetcher   *triePrefetcher
 	originalRoot common.Hash // The pre-state root, before any changes were made
-	trie         Trie
+	Trie         Trie
 	hasher       crypto.KeccakState
 
 	snaps         *snapshot.Tree
@@ -126,8 +126,8 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 		return nil, err
 	}
 	sdb := &StateDB{
-		db:                  db,
-		trie:                tr,
+		Db:                  db,
+		Trie:                tr,
 		originalRoot:        root,
 		snaps:               snaps,
 		stateObjects:        make(map[common.Address]*stateObject),
@@ -158,7 +158,7 @@ func (s *StateDB) StartPrefetcher(namespace string) {
 		s.prefetcher = nil
 	}
 	if s.snap != nil {
-		s.prefetcher = newTriePrefetcher(s.db, s.originalRoot, namespace)
+		s.prefetcher = newTriePrefetcher(s.Db, s.originalRoot, namespace)
 	}
 }
 
@@ -278,7 +278,7 @@ func (s *StateDB) TxIndex() int {
 func (s *StateDB) GetCode(addr common.Address) []byte {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
-		return stateObject.Code(s.db)
+		return stateObject.Code(s.Db)
 	}
 	return nil
 }
@@ -286,7 +286,7 @@ func (s *StateDB) GetCode(addr common.Address) []byte {
 func (s *StateDB) GetCodeSize(addr common.Address) int {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
-		return stateObject.CodeSize(s.db)
+		return stateObject.CodeSize(s.Db)
 	}
 	return 0
 }
@@ -303,7 +303,7 @@ func (s *StateDB) GetCodeHash(addr common.Address) common.Hash {
 func (s *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
-		return stateObject.GetState(s.db, hash)
+		return stateObject.GetState(s.Db, hash)
 	}
 	return common.Hash{}
 }
@@ -316,7 +316,7 @@ func (s *StateDB) GetProof(addr common.Address) ([][]byte, error) {
 // GetProofByHash returns the Merkle proof for a given account.
 func (s *StateDB) GetProofByHash(addrHash common.Hash) ([][]byte, error) {
 	var proof proofList
-	err := s.trie.Prove(addrHash[:], 0, &proof)
+	err := s.Trie.Prove(addrHash[:], 0, &proof)
 	return proof, err
 }
 
@@ -335,14 +335,14 @@ func (s *StateDB) GetStorageProof(a common.Address, key common.Hash) ([][]byte, 
 func (s *StateDB) GetCommittedState(addr common.Address, hash common.Hash) common.Hash {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
-		return stateObject.GetCommittedState(s.db, hash)
+		return stateObject.GetCommittedState(s.Db, hash)
 	}
 	return common.Hash{}
 }
 
 // Database retrieves the low level database supporting the lower level trie ops.
 func (s *StateDB) Database() Database {
-	return s.db
+	return s.Db
 }
 
 // StorageTrie returns the storage trie of an account.
@@ -353,8 +353,8 @@ func (s *StateDB) StorageTrie(addr common.Address) Trie {
 		return nil
 	}
 	cpy := stateObject.deepCopy(s)
-	cpy.updateTrie(s.db)
-	return cpy.getTrie(s.db)
+	cpy.updateTrie(s.Db)
+	return cpy.getTrie(s.Db)
 }
 
 func (s *StateDB) HasSuicided(addr common.Address) bool {
@@ -409,7 +409,7 @@ func (s *StateDB) SetCode(addr common.Address, code []byte) {
 func (s *StateDB) SetState(addr common.Address, key, value common.Hash) {
 	stateObject := s.GetOrNewStateObject(addr)
 	if stateObject != nil {
-		stateObject.SetState(s.db, key, value)
+		stateObject.SetState(s.Db, key, value)
 	}
 }
 
@@ -460,7 +460,7 @@ func (s *StateDB) updateStateObject(obj *stateObject) {
 	if err != nil {
 		panic(fmt.Errorf("can't encode object at %x: %v", addr[:], err))
 	}
-	if err = s.trie.TryUpdate(addr[:], data); err != nil {
+	if err = s.Trie.TryUpdate(addr[:], data); err != nil {
 		s.setError(fmt.Errorf("updateStateObject (%x) error: %v", addr[:], err))
 	}
 
@@ -481,7 +481,7 @@ func (s *StateDB) deleteStateObject(obj *stateObject) {
 	}
 	// Delete the account from the trie
 	addr := obj.Address()
-	if err := s.trie.TryDelete(addr[:]); err != nil {
+	if err := s.Trie.TryDelete(addr[:]); err != nil {
 		s.setError(fmt.Errorf("deleteStateObject (%x) error: %v", addr[:], err))
 	}
 }
@@ -538,7 +538,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 		if metrics.EnabledExpensive {
 			defer func(start time.Time) { s.AccountReads += time.Since(start) }(time.Now())
 		}
-		enc, err := s.trie.TryGet(addr.Bytes())
+		enc, err := s.Trie.TryGet(addr.Bytes())
 		if err != nil {
 			s.setError(fmt.Errorf("getDeleteStateObject (%x) error: %v", addr.Bytes(), err))
 			return nil
@@ -618,10 +618,10 @@ func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common
 	if so == nil {
 		return nil
 	}
-	it := trie.NewIterator(so.getTrie(db.db).NodeIterator(nil))
+	it := trie.NewIterator(so.getTrie(db.Db).NodeIterator(nil))
 
 	for it.Next() {
-		key := common.BytesToHash(db.trie.GetKey(it.Key))
+		key := common.BytesToHash(db.Trie.GetKey(it.Key))
 		if value, dirty := so.dirtyStorage[key]; dirty {
 			if !cb(key, value) {
 				return nil
@@ -647,8 +647,8 @@ func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common
 func (s *StateDB) Copy() *StateDB {
 	// Copy all the basic fields, initialize the memory ones
 	state := &StateDB{
-		db:                  s.db,
-		trie:                s.db.CopyTrie(s.trie),
+		Db:                  s.Db,
+		Trie:                s.Db.CopyTrie(s.Trie),
 		stateObjects:        make(map[common.Address]*stateObject, len(s.journal.dirties)),
 		stateObjectsPending: make(map[common.Address]struct{}, len(s.stateObjectsPending)),
 		stateObjectsDirty:   make(map[common.Address]struct{}, len(s.journal.dirties)),
@@ -846,7 +846,7 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	// to pull useful data from disk.
 	for addr := range s.stateObjectsPending {
 		if obj := s.stateObjects[addr]; !obj.deleted {
-			obj.updateRoot(s.db)
+			obj.updateRoot(s.Db)
 		}
 	}
 	// Now we're about to start to write changes to the trie. The trie is so far
@@ -854,7 +854,7 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	// which has the same root, but also has some content loaded into it.
 	if prefetcher != nil {
 		if trie := prefetcher.trie(s.originalRoot); trie != nil {
-			s.trie = trie
+			s.Trie = trie
 		}
 	}
 	usedAddrs := make([][]byte, 0, len(s.stateObjectsPending))
@@ -876,7 +876,7 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	if metrics.EnabledExpensive {
 		defer func(start time.Time) { s.AccountHashes += time.Since(start) }(time.Now())
 	}
-	return s.trie.Hash()
+	return s.Trie.Hash()
 }
 
 // Prepare sets the current transaction hash and index which are
@@ -904,7 +904,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	s.IntermediateRoot(deleteEmptyObjects)
 
 	// Commit objects to the trie, measuring the elapsed time
-	codeWriter := s.db.TrieDB().DiskDB().NewBatch()
+	codeWriter := s.Db.TrieDB().DiskDB().NewBatch()
 	for addr := range s.stateObjectsDirty {
 		if obj := s.stateObjects[addr]; !obj.deleted {
 			// Write any contract code associated with the state object
@@ -913,7 +913,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 				obj.dirtyCode = false
 			}
 			// Write any storage changes in the state object to its storage trie
-			if err := obj.CommitTrie(s.db); err != nil {
+			if err := obj.CommitTrie(s.Db); err != nil {
 				return common.Hash{}, err
 			}
 		}
@@ -934,12 +934,12 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	// The onleaf func is called _serially_, so we can reuse the same account
 	// for unmarshalling every time.
 	var account Account
-	root, err := s.trie.Commit(func(_ [][]byte, _ []byte, leaf []byte, parent common.Hash) error {
+	root, err := s.Trie.Commit(func(_ [][]byte, _ []byte, leaf []byte, parent common.Hash) error {
 		if err := rlp.DecodeBytes(leaf, &account); err != nil {
 			return nil
 		}
 		if account.Root != emptyRoot {
-			s.db.TrieDB().Reference(account.Root, parent)
+			s.Db.TrieDB().Reference(account.Root, parent)
 		}
 		return nil
 	})

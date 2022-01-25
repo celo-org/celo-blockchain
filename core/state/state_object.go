@@ -453,7 +453,7 @@ func (s *stateObject) setBalance(amount *big.Int) {
 func (s *stateObject) deepCopy(db *StateDB) *stateObject {
 	stateObject := newObject(db, s.address, s.data)
 	if s.trie != nil {
-		stateObject.trie = db.db.CopyTrie(s.trie)
+		stateObject.trie = db.Db.CopyTrie(s.trie)
 	}
 	stateObject.code = s.code
 	stateObject.dirtyStorage = s.dirtyStorage.Copy()
@@ -508,7 +508,7 @@ func (s *stateObject) CodeSize(db Database) int {
 }
 
 func (s *stateObject) SetCode(codeHash common.Hash, code []byte) {
-	prevcode := s.Code(s.db.db)
+	prevcode := s.Code(s.db.Db)
 	s.db.journal.append(codeChange{
 		account:  &s.address,
 		prevhash: s.CodeHash(),

@@ -32,15 +32,15 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-// freezerdb is a database wrapper that enabled freezer data retrievals.
-type freezerdb struct {
+// Freezerdb is a database wrapper that enabled freezer data retrievals.
+type Freezerdb struct {
 	ethdb.KeyValueStore
 	ethdb.AncientStore
 }
 
 // Close implements io.Closer, closing both the fast key-value store as well as
 // the slow ancient tables.
-func (frdb *freezerdb) Close() error {
+func (frdb *Freezerdb) Close() error {
 	var errs []error
 	if err := frdb.AncientStore.Close(); err != nil {
 		errs = append(errs, err)
@@ -57,7 +57,7 @@ func (frdb *freezerdb) Close() error {
 // Freeze is a helper method used for external testing to trigger and block until
 // a freeze cycle completes, without having to sleep for a minute to trigger the
 // automatic background run.
-func (frdb *freezerdb) Freeze(threshold uint64) error {
+func (frdb *Freezerdb) Freeze(threshold uint64) error {
 	if frdb.AncientStore.(*freezer).readonly {
 		return errReadOnly
 	}
@@ -203,7 +203,7 @@ func NewDatabaseWithFreezer(db ethdb.KeyValueStore, freezer string, namespace st
 			frdb.wg.Done()
 		}()
 	}
-	return &freezerdb{
+	return &Freezerdb{
 		KeyValueStore: db,
 		AncientStore:  frdb,
 	}, nil

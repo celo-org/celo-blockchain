@@ -121,10 +121,10 @@ func (er *ExchangeRate) FromBase(goldAmount *big.Int) *big.Int {
 //
 // It's implements an internal cache to avoid perfoming duplicated EVM calls
 type CurrencyManager struct {
-	vmRunner vm.EVMRunner
+	VmRunner vm.EVMRunner
 
-	currencyCache    map[common.Address]*Currency                               // map of exchange rates of the form (CELO, token)
-	_getExchangeRate func(vm.EVMRunner, *common.Address) (*ExchangeRate, error) // function to obtain exchange rate from blockchain state
+	CurrencyCache   map[common.Address]*Currency                               // map of exchange rates of the form (CELO, token)
+	GetExchangeRate func(vm.EVMRunner, *common.Address) (*ExchangeRate, error) // function to obtain exchange rate from blockchain state
 }
 
 // NewManager creates a new CurrencyManager
@@ -134,9 +134,9 @@ func NewManager(vmRunner vm.EVMRunner) *CurrencyManager {
 
 func newManager(_getExchangeRate func(vm.EVMRunner, *common.Address) (*ExchangeRate, error), vmRunner vm.EVMRunner) *CurrencyManager {
 	return &CurrencyManager{
-		vmRunner:         vmRunner,
-		currencyCache:    make(map[common.Address]*Currency),
-		_getExchangeRate: _getExchangeRate,
+		VmRunner:        vmRunner,
+		CurrencyCache:   make(map[common.Address]*Currency),
+		GetExchangeRate: _getExchangeRate,
 	}
 }
 
@@ -146,12 +146,12 @@ func (cc *CurrencyManager) GetCurrency(currencyAddress *common.Address) (*Curren
 		return &CELOCurrency, nil
 	}
 
-	val, ok := cc.currencyCache[*currencyAddress]
+	val, ok := cc.CurrencyCache[*currencyAddress]
 	if ok {
 		return val, nil
 	}
 
-	currencyExchangeRate, err := cc._getExchangeRate(cc.vmRunner, currencyAddress)
+	currencyExchangeRate, err := cc.GetExchangeRate(cc.VmRunner, currencyAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +161,7 @@ func (cc *CurrencyManager) GetCurrency(currencyAddress *common.Address) (*Curren
 		toCELORate: *currencyExchangeRate,
 	}
 
-	cc.currencyCache[*currencyAddress] = val
+	cc.CurrencyCache[*currencyAddress] = val
 
 	return val, nil
 }

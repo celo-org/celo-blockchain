@@ -123,7 +123,7 @@ func testMissingNode(t *testing.T, memonly bool) {
 
 	hash := common.HexToHash("0xe1d943cc8f061a0c0b98162830b970395ac9315654824bf21b73b891365262f9")
 	if memonly {
-		delete(triedb.dirties, hash)
+		delete(triedb.Dirties, hash)
 	} else {
 		diskdb.Delete(hash[:])
 	}
@@ -501,7 +501,7 @@ func benchGet(b *testing.B, commit bool) {
 	b.StopTimer()
 
 	if commit {
-		ldb := trie.db.diskdb.(*leveldb.Database)
+		ldb := trie.db.Diskdb.(*leveldb.Database)
 		ldb.Close()
 		os.RemoveAll(ldb.Path())
 	}

@@ -1,7 +1,6 @@
 module github.com/celo-org/celo-blockchain
 
 go 1.15
-
 require (
 	github.com/Azure/azure-pipeline-go v0.2.2 // indirect
 	github.com/Azure/azure-storage-blob-go v0.7.0

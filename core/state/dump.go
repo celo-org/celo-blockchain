@@ -135,10 +135,10 @@ func (s *StateDB) DumpToCollector(c DumpCollector, conf *DumpConfig) (nextKey []
 		start            = time.Now()
 		logged           = time.Now()
 	)
-	log.Info("Trie dumping started", "root", s.trie.Hash())
-	c.OnRoot(s.trie.Hash())
+	log.Info("Trie dumping started", "root", s.Trie.Hash())
+	c.OnRoot(s.Trie.Hash())
 
-	it := trie.NewIterator(s.trie.NodeIterator(conf.Start))
+	it := trie.NewIterator(s.Trie.NodeIterator(conf.Start))
 	for it.Next() {
 		var data Account
 		if err := rlp.DecodeBytes(it.Value, &data); err != nil {
@@ -151,7 +151,7 @@ func (s *StateDB) DumpToCollector(c DumpCollector, conf *DumpConfig) (nextKey []
 			CodeHash:  data.CodeHash,
 			SecureKey: it.Key,
 		}
-		addrBytes := s.trie.GetKey(it.Key)
+		addrBytes := s.Trie.GetKey(it.Key)
 		if addrBytes == nil {
 			// Preimage missing
 			missingPreimages++
@@ -163,18 +163,18 @@ func (s *StateDB) DumpToCollector(c DumpCollector, conf *DumpConfig) (nextKey []
 		addr := common.BytesToAddress(addrBytes)
 		obj := newObject(s, addr, data)
 		if !conf.SkipCode {
-			account.Code = obj.Code(s.db)
+			account.Code = obj.Code(s.Db)
 		}
 		if !conf.SkipStorage {
 			account.Storage = make(map[common.Hash]string)
-			storageIt := trie.NewIterator(obj.getTrie(s.db).NodeIterator(nil))
+			storageIt := trie.NewIterator(obj.getTrie(s.Db).NodeIterator(nil))
 			for storageIt.Next() {
 				_, content, _, err := rlp.Split(storageIt.Value)
 				if err != nil {
 					log.Error("Failed to decode the value returned by iterator", "error", err)
 					continue
 				}
-				account.Storage[common.BytesToHash(s.trie.GetKey(storageIt.Key))] = common.Bytes2Hex(content)
+				account.Storage[common.BytesToHash(s.Trie.GetKey(storageIt.Key))] = common.Bytes2Hex(content)
 			}
 		}
 		c.OnAccount(addr, account)

@@ -30,6 +30,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-blockchain/internal/debug"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/rpc"
@@ -58,7 +59,7 @@ type Node struct {
 	ipc           *ipcServer  // Stores information about the ipc http server
 	inprocHandler *rpc.Server // In-process RPC request handler to process the API requests
 
-	databases map[*closeTrackingDB]struct{} // All open databases
+	databases map[*CloseTrackingDB]struct{} // All open databases
 }
 
 const (
@@ -103,7 +104,7 @@ func New(conf *Config) (*Node, error) {
 		log:           conf.Logger,
 		stop:          make(chan struct{}),
 		server:        &p2p.Server{Config: conf.P2P},
-		databases:     make(map[*closeTrackingDB]struct{}),
+		databases:     make(map[*CloseTrackingDB]struct{}),
 	}
 
 	// Register built-in APIs.
@@ -165,6 +166,15 @@ func New(conf *Config) (*Node, error) {
 	node.ws = newHTTPServer(node.log, rpc.DefaultHTTPTimeouts)
 	node.ipc = newIPCServer(node.log, conf.IPCEndpoint())
 
+	debug.Memsize.Add("node.http", node.http)
+	debug.Memsize.Add("node.ws", node.ws)
+	debug.Memsize.Add("node.ipc", node.ipc)
+	debug.Memsize.Add("node.rpcAPIs", &node.rpcAPIs)
+	debug.Memsize.Add("node.server", node.server)
+
+	for i, a := range node.rpcAPIs {
+		debug.Memsize.Add(fmt.Sprintf("node.rpcAPI_%d_%s_%s", i, a.Namespace, a.Version), a.Service)
+	}
 	return node, nil
 }
 
@@ -606,6 +616,7 @@ func (n *Node) OpenDatabase(name string, cache, handles int, namespace string, r
 		db, err = rawdb.NewLevelDBDatabase(n.ResolvePath(name), cache, handles, namespace, readonly)
 	}
 
+	debug.Memsize.Add("node db "+name, db)
 	if err == nil {
 		db = n.wrapDatabase(db)
 	}
@@ -639,6 +650,7 @@ func (n *Node) OpenDatabaseWithFreezer(name string, cache, handles int, freezer,
 		db, err = rawdb.NewLevelDBDatabaseWithFreezer(root, cache, handles, freezer, namespace, readonly)
 	}
 
+	debug.Memsize.Add("node db with freezer"+name, db)
 	if err == nil {
 		db = n.wrapDatabase(db)
 	}
@@ -650,15 +662,15 @@ func (n *Node) ResolvePath(x string) string {
 	return n.config.ResolvePath(x)
 }
 
-// closeTrackingDB wraps the Close method of a database. When the database is closed by the
+// CloseTrackingDB wraps the Close method of a database. When the database is closed by the
 // service, the wrapper removes it from the node's database map. This ensures that Node
 // won't auto-close the database if it is closed by the service that opened it.
-type closeTrackingDB struct {
+type CloseTrackingDB struct {
 	ethdb.Database
 	n *Node
 }
 
-func (db *closeTrackingDB) Close() error {
+func (db *CloseTrackingDB) Close() error {
 	db.n.lock.Lock()
 	delete(db.n.databases, db)
 	db.n.lock.Unlock()
@@ -667,7 +679,7 @@ func (db *closeTrackingDB) Close() error {
 
 // wrapDatabase ensures the database will be auto-closed when Node is closed.
 func (n *Node) wrapDatabase(db ethdb.Database) ethdb.Database {
-	wrapper := &closeTrackingDB{db, n}
+	wrapper := &CloseTrackingDB{db, n}
 	n.databases[wrapper] = struct{}{}
 	return wrapper
 }

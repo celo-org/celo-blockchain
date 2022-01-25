@@ -171,7 +171,7 @@ func TestSnapshot2(t *testing.T) {
 	state.setStateObject(so0)
 
 	root, _ := state.Commit(false)
-	state, _ = New(root, state.db, state.snaps)
+	state, _ = New(root, state.Db, state.snaps)
 
 	// and one with deleted == true
 	so1 := state.getStateObject(stateobjaddr1)
@@ -192,8 +192,8 @@ func TestSnapshot2(t *testing.T) {
 
 	so0Restored := state.getStateObject(stateobjaddr0)
 	// Update lazily-loaded values before comparing.
-	so0Restored.GetState(state.db, storageaddr)
-	so0Restored.Code(state.db)
+	so0Restored.GetState(state.Db, storageaddr)
+	so0Restored.Code(state.Db)
 	// non-deleted is equal (restored)
 	compareStateObjects(so0Restored, so0, t)
 

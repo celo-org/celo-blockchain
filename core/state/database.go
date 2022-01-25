@@ -114,22 +114,22 @@ func NewDatabase(db ethdb.Database) Database {
 // large memory cache.
 func NewDatabaseWithConfig(db ethdb.Database, config *trie.Config) Database {
 	csc, _ := lru.New(codeSizeCacheSize)
-	return &cachingDB{
-		db:            trie.NewDatabaseWithConfig(db, config),
+	return &CachingDB{
+		Db:            trie.NewDatabaseWithConfig(db, config),
 		codeSizeCache: csc,
 		codeCache:     fastcache.New(codeCacheSize),
 	}
 }
 
-type cachingDB struct {
-	db            *trie.Database
+type CachingDB struct {
+	Db            *trie.Database
 	codeSizeCache *lru.Cache
 	codeCache     *fastcache.Cache
 }
 
 // OpenTrie opens the main account trie at a specific root hash.
-func (db *cachingDB) OpenTrie(root common.Hash) (Trie, error) {
-	tr, err := trie.NewSecure(root, db.db)
+func (db *CachingDB) OpenTrie(root common.Hash) (Trie, error) {
+	tr, err := trie.NewSecure(root, db.Db)
 	if err != nil {
 		return nil, err
 	}
@@ -137,8 +137,8 @@ func (db *cachingDB) OpenTrie(root common.Hash) (Trie, error) {
 }
 
 // OpenStorageTrie opens the storage trie of an account.
-func (db *cachingDB) OpenStorageTrie(addrHash, root common.Hash) (Trie, error) {
-	tr, err := trie.NewSecure(root, db.db)
+func (db *CachingDB) OpenStorageTrie(addrHash, root common.Hash) (Trie, error) {
+	tr, err := trie.NewSecure(root, db.Db)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +146,7 @@ func (db *cachingDB) OpenStorageTrie(addrHash, root common.Hash) (Trie, error) {
 }
 
 // CopyTrie returns an independent copy of the given trie.
-func (db *cachingDB) CopyTrie(t Trie) Trie {
+func (db *CachingDB) CopyTrie(t Trie) Trie {
 	switch t := t.(type) {
 	case *trie.SecureTrie:
 		return t.Copy()
@@ -156,11 +156,11 @@ func (db *cachingDB) CopyTrie(t Trie) Trie {
 }
 
 // ContractCode retrieves a particular contract's code.
-func (db *cachingDB) ContractCode(addrHash, codeHash common.Hash) ([]byte, error) {
+func (db *CachingDB) ContractCode(addrHash, codeHash common.Hash) ([]byte, error) {
 	if code := db.codeCache.Get(nil, codeHash.Bytes()); len(code) > 0 {
 		return code, nil
 	}
-	code := rawdb.ReadCode(db.db.DiskDB(), codeHash)
+	code := rawdb.ReadCode(db.Db.DiskDB(), codeHash)
 	if len(code) > 0 {
 		db.codeCache.Set(codeHash.Bytes(), code)
 		db.codeSizeCache.Add(codeHash, len(code))
@@ -172,11 +172,11 @@ func (db *cachingDB) ContractCode(addrHash, codeHash common.Hash) ([]byte, error
 // ContractCodeWithPrefix retrieves a particular contract's code. If the
 // code can't be found in the cache, then check the existence with **new**
 // db scheme.
-func (db *cachingDB) ContractCodeWithPrefix(addrHash, codeHash common.Hash) ([]byte, error) {
+func (db *CachingDB) ContractCodeWithPrefix(addrHash, codeHash common.Hash) ([]byte, error) {
 	if code := db.codeCache.Get(nil, codeHash.Bytes()); len(code) > 0 {
 		return code, nil
 	}
-	code := rawdb.ReadCodeWithPrefix(db.db.DiskDB(), codeHash)
+	code := rawdb.ReadCodeWithPrefix(db.Db.DiskDB(), codeHash)
 	if len(code) > 0 {
 		db.codeCache.Set(codeHash.Bytes(), code)
 		db.codeSizeCache.Add(codeHash, len(code))
@@ -186,7 +186,7 @@ func (db *cachingDB) ContractCodeWithPrefix(addrHash, codeHash common.Hash) ([]b
 }
 
 // ContractCodeSize retrieves a particular contracts code's size.
-func (db *cachingDB) ContractCodeSize(addrHash, codeHash common.Hash) (int, error) {
+func (db *CachingDB) ContractCodeSize(addrHash, codeHash common.Hash) (int, error) {
 	if cached, ok := db.codeSizeCache.Get(codeHash); ok {
 		return cached.(int), nil
 	}
@@ -195,6 +195,6 @@ func (db *cachingDB) ContractCodeSize(addrHash, codeHash common.Hash) (int, erro
 }
 
 // TrieDB retrieves any intermediate trie-node caching layer.
-func (db *cachingDB) TrieDB() *trie.Database {
-	return db.db
+func (db *CachingDB) TrieDB() *trie.Database {
+	return db.Db
 }

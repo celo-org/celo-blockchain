@@ -35,6 +35,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/internal/debug"
 	"github.com/celo-org/celo-blockchain/log"
@@ -365,8 +366,17 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 	debug.Memsize.Add("pool.queueTxEventCh", &pool.queueTxEventCh)
 	debug.Memsize.Add("pool.priced", pool.priced)
 	debug.Memsize.Add("pool.priced.urgent", &pool.priced.urgent)
+	debug.Memsize.Add("pool.priced.urgent.NilCurrencyHeap", pool.priced.urgent.NilCurrencyHeap)
+	debug.Memsize.Add("pool.priced.urgent.NonNilCurrencyHeap", &pool.priced.urgent.NonNilCurrencyHeaps)
 	debug.Memsize.Add("pool.priced.floating", &pool.priced.floating)
 	debug.Memsize.Add("pool.priced.ctx", &pool.priced.ctx)
+	debug.Memsize.Add("pool.priced.ctx.SysContractCallCtx", pool.priced.ctx.SysContractCallCtx)
+	debug.Memsize.Add("pool.priced.ctx.CurrencyManager", pool.priced.ctx.CurrencyManager)
+	debug.Memsize.Add("pool.priced.ctx.CurrencyManager.VmRunner", pool.priced.ctx.CurrencyManager.VmRunner)
+	debug.Memsize.Add("pool.priced.ctx.CurrencyManager.CurrencyCache", &pool.priced.ctx.CurrencyManager.CurrencyCache)
+	debug.Memsize.Add("pool.priced.ctx.CurrencyManager.GetExchangeRate", &pool.priced.ctx.CurrencyManager.GetExchangeRate)
+	debug.Memsize.Add("pool.priced.ctx.CurrencyManager.VmRunner.State", pool.priced.ctx.CurrencyManager.VmRunner.(*vmcontext.EvmRunner).State)
+	debug.Memsize.Add("pool.priced.ctx.CurrencyManager.VmRunner.NewEVM", &pool.priced.ctx.CurrencyManager.VmRunner.(*vmcontext.EvmRunner).NewEVM)
 
 	return pool
 }
@@ -1364,6 +1374,15 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 		return
 	}
 	pool.currentState = statedb
+	debug.Memsize.Add("pool.currentState", pool.currentState)
+	debug.Memsize.Add("pool.currentState.Db", pool.currentState.Db)
+	debug.Memsize.Add("pool.currentState.Trie", pool.currentState.Trie)
+	debug.Memsize.Add("pool.currentState.Db.Db", pool.currentState.Db.(*state.CachingDB).Db)
+	debug.Memsize.Add("pool.currentState.Db.Db.Cleans", &pool.currentState.Db.(*state.CachingDB).Db.Cleans)
+	debug.Memsize.Add("pool.currentState.Db.Db.Dirties", &pool.currentState.Db.(*state.CachingDB).Db.Dirties)
+	debug.Memsize.Add("pool.currentState.Db.Db.DiskDB", pool.currentState.Db.(*state.CachingDB).Db.Diskdb)
+	// debug.Memsize.Add("pool.currentState.Db.Db.DiskDB", pool.currentState.Db.(*state.CachingDB).Db.Diskdb.(*node.CloseTrackingDB))
+
 	pool.pendingNonces = newTxNoncer(statedb)
 
 	pool.currentVMRunner = pool.chain.NewEVMRunner(newHead, statedb)

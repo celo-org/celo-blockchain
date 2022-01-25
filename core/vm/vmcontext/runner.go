@@ -24,18 +24,18 @@ type evmRunnerContext interface {
 	State() (*state.StateDB, error)
 }
 
-type evmRunner struct {
-	newEVM func(from common.Address) *vm.EVM
-	state  vm.StateDB
+type EvmRunner struct {
+	NewEVM func(from common.Address) *vm.EVM
+	State  vm.StateDB
 
 	dontMeterGas bool
 }
 
 func NewEVMRunner(chain evmRunnerContext, header *types.Header, state vm.StateDB) vm.EVMRunner {
 
-	return &evmRunner{
-		state: state,
-		newEVM: func(from common.Address) *vm.EVM {
+	return &EvmRunner{
+		State: state,
+		NewEVM: func(from common.Address) *vm.EVM {
 			// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 			// Putting in zero values for gas price and tx fee recipient
 			blockContext := NewBlockContext(header, chain, nil)
@@ -48,8 +48,8 @@ func NewEVMRunner(chain evmRunnerContext, header *types.Header, state vm.StateDB
 	}
 }
 
-func (ev *evmRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
-	evm := ev.newEVM(VMAddress)
+func (ev *EvmRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
+	evm := ev.NewEVM(VMAddress)
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
 	}
@@ -57,8 +57,8 @@ func (ev *evmRunner) Execute(recipient common.Address, input []byte, gas uint64,
 	return ret, err
 }
 
-func (ev *evmRunner) ExecuteFrom(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
-	evm := ev.newEVM(sender)
+func (ev *EvmRunner) ExecuteFrom(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
+	evm := ev.NewEVM(sender)
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
 	}
@@ -66,8 +66,8 @@ func (ev *evmRunner) ExecuteFrom(sender, recipient common.Address, input []byte,
 	return ret, err
 }
 
-func (ev *evmRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, err error) {
-	evm := ev.newEVM(VMAddress)
+func (ev *EvmRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, err error) {
+	evm := ev.NewEVM(VMAddress)
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
 	}
@@ -75,17 +75,17 @@ func (ev *evmRunner) Query(recipient common.Address, input []byte, gas uint64) (
 	return ret, err
 }
 
-func (ev *evmRunner) StopGasMetering() {
+func (ev *EvmRunner) StopGasMetering() {
 	ev.dontMeterGas = true
 }
 
-func (ev *evmRunner) StartGasMetering() {
+func (ev *EvmRunner) StartGasMetering() {
 	ev.dontMeterGas = false
 }
 
 // GetStateDB implements Backend.GetStateDB
-func (ev *evmRunner) GetStateDB() vm.StateDB {
-	return ev.state
+func (ev *EvmRunner) GetStateDB() vm.StateDB {
+	return ev.State
 }
 
 // SharedEVMRunner is an evm runner that REUSES an evm
