@@ -1021,7 +1021,7 @@ func doAndroidArchive(cmdline []string) {
 	}
 
 	// Build gomobile.
-	install := tc.Install(GOBIN, "golang.org/x/mobile/cmd/gomobile@latest", "golang.org/x/mobile/cmd/gobind@latest")
+	install := tc.Install(GOBIN, "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind")
 	install.Env = append(install.Env)
 	build.MustRun(install)
 
@@ -1157,7 +1157,7 @@ func doXCodeFramework(cmdline []string) {
 	tc := new(build.GoToolchain)
 
 	// Build gomobile.
-	build.MustRun(tc.Install(GOBIN, "golang.org/x/mobile/cmd/gomobile@latest", "golang.org/x/mobile/cmd/gobind@latest"))
+	build.MustRun(tc.Install(GOBIN, "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
 
 	// Ensure all dependencies are available. This is required to make
 	// gomobile bind work because it expects go.sum to contain all checksums.
@@ -1169,7 +1169,7 @@ func doXCodeFramework(cmdline []string) {
 	if env.MetricsDefault {
 		ldflags = ldflags + " -X 'github.com/celo-org/celo-blockchain/metrics.EnabledDefaultValue=true'"
 	}
-	bind := gomobileTool("bind", "-ldflags", ldflags, "--target", "ios,iossimulator", "-v", "github.com/celo-org/celo-blockchain/mobile")
+	bind := gomobileTool("bind", "-ldflags", ldflags, "--target", "ios/arm64,ios/amd64", "-v", "github.com/celo-org/celo-blockchain/mobile")
 	bind.Env = append(bind.Env, "CGO_ENABLED=1")
 
 	if *local {
