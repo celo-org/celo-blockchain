@@ -336,7 +336,8 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 	pool.reset(nil, chain.CurrentBlock().Header())
 	// TODO: Does this reordering cause a problem?
 	// priced list depends on the current ctx which is set in reset
-	pool.priced = newTxPricedList(pool.all, &pool.currentCtx)
+	// Use the global slots as the max amount of stale transactions in the priced heap before a re-heap.
+	pool.priced = newTxPricedList(pool.all, &pool.currentCtx, int64(pool.config.GlobalSlots))
 
 	// Start the reorg loop early so it can handle requests generated during journal loading.
 	pool.wg.Add(1)
