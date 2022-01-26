@@ -531,18 +531,16 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	blockHash := block.Hash()
 	for th := 0; th < threads; th++ {
 		pend.Add(1)
-		innerStatedb := statedb.Copy()
-		var sysCtx *core.SysContractCallCtx
-		if api.backend.ChainConfig().IsEspresso(block.Number()) {
-			sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), innerStatedb)
-			sysCtx = core.NewSysContractCallCtx(sysVmRunner)
-		}
 		go func() {
 			defer pend.Done()
 			// Fetch and execute the next transaction trace tasks
 			for task := range jobs {
+				var sysCtx *core.SysContractCallCtx
+				vmRunner := api.backend.VmRunnerAtHeader(block.Header(), task.statedb)
+				if api.backend.ChainConfig().IsEspresso(block.Number()) {
+					sysCtx = core.NewSysContractCallCtx(vmRunner)
+				}
 				msg, _ := txs[task.index].AsMessage(signer, nil)
-				vmRunner := api.backend.VmRunnerAtHeader(block.Header(), innerStatedb)
 				txctx := &Context{
 					BlockHash: blockHash,
 					TxIndex:   task.index,
@@ -558,9 +556,9 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		}()
 	}
 	var sysCtx *core.SysContractCallCtx
+	vmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
 	if api.backend.ChainConfig().IsEspresso(block.Number()) {
-		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
-		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
+		sysCtx = core.NewSysContractCallCtx(vmRunner)
 	}
 	// Feed the transactions into the tracers and return
 	var failed error
@@ -572,7 +570,6 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		msg, _ := tx.AsMessage(signer, nil)
 		statedb.Prepare(tx.Hash(), i)
 		vmenv := vm.NewEVM(blockCtx, core.NewEVMTxContext(msg), statedb, api.backend.ChainConfig(), vm.Config{})
-		vmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
 		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), vmRunner, sysCtx); err != nil {
 			failed = err
 			break
