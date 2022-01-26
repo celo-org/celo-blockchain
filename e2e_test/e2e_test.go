@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/node"
+	"github.com/celo-org/celo-blockchain/rpc"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -192,4 +195,57 @@ func TestStartStopValidators(t *testing.T) {
 	err = network.AwaitTransactions(ctx, txs...)
 	require.NoError(t, err)
 
+}
+
+// This test was created to reproduce the concurrent map access error in
+// https://github.com/celo-org/celo-blockchain/issues/1799
+//
+// It does this by calling debug_traceBlockByNumber a number of times since the
+// trace block code was the source of the concurrent map access.
+func TestBlockTracingConcurrentMapAccess(t *testing.T) {
+	ac := test.AccountConfig(1, 2)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
+	defer cancel()
+
+	n := network[0]
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	var txs []*types.Transaction
+	// Send one celo from external account 0 to 1 via node 0.
+	for i := 0; i < 10; i++ {
+		tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, n)
+		require.NoError(t, err)
+		txs = append(txs, tx)
+	}
+
+	// Wait for the whole network to process the transactions.
+	err = network.AwaitTransactions(ctx, txs...)
+	require.NoError(t, err)
+
+	lastTx := txs[len(txs)-1]
+
+	b := n.Tracker.GetProcessedBlockForTx(lastTx.Hash())
+
+	var wg sync.WaitGroup
+	for i := 1; i < +int(b.NumberU64()); i++ {
+		wg.Add(1)
+		num := i
+		go func() {
+			defer wg.Done()
+			c, err := rpc.DialContext(ctx, n.WSEndpoint())
+			require.NoError(t, err)
+
+			var result []interface{}
+			err = c.CallContext(ctx, &result, "debug_traceBlockByNumber", hexutil.EncodeUint64(uint64(num)))
+			require.NoError(t, err)
+		}()
+
+	}
+	wg.Wait()
 }
