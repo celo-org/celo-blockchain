@@ -1253,13 +1253,13 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		result.GasTipCap = (*hexutil.Big)(tx.GasTipCap())
 		// if the transaction has been mined, compute the effective gas price
 		if blockHash != (common.Hash{}) {
-			baseFee, _ := baseFeeFn(tx.FeeCurrency())
-			if baseFee != nil {
+			baseFee, err := baseFeeFn(tx.FeeCurrency())
+			if err != nil {
 				// price = min(tip, gasFeeCap - baseFee) + baseFee
 				price := math.BigMin(new(big.Int).Add(tx.GasTipCap(), baseFee), tx.GasFeeCap())
 				result.GasPrice = (*hexutil.Big)(price)
 			} else {
-				// baseFee nil for DinamicFees implies that there is no state to retrieve the baseFee for that block
+				// error != nil for DinamicFees implies that there is no state to retrieve the baseFee for that block
 				result.GasPrice = nil
 			}
 		} else {
@@ -1801,12 +1801,12 @@ func (s *PublicTransactionPoolAPI) PendingTransactions() ([]*RPCTransaction, err
 	}
 	curHeader := s.b.CurrentHeader()
 	transactions := make([]*RPCTransaction, 0, len(pending))
+	baseFeeFn := func(feeCurrency *common.Address) (*big.Int, error) {
+		return s.b.CurrentGasPriceMinimum(context.Background(), feeCurrency)
+	}
 	for _, tx := range pending {
 		from, _ := types.Sender(s.signer, tx)
 		if _, exists := accounts[from]; exists {
-			baseFeeFn := func(feeCurrency *common.Address) (*big.Int, error) {
-				return s.b.CurrentGasPriceMinimum(context.Background(), feeCurrency)
-			}
 			transactions = append(transactions, newRPCPendingTransaction(tx, curHeader, s.b.ChainConfig(), baseFeeFn))
 		}
 	}
