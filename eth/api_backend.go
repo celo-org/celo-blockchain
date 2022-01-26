@@ -309,10 +309,6 @@ func (b *EthAPIBackend) GasPriceMinimumForHeader(ctx context.Context, currencyAd
 		return nil, err
 	}
 	vmRunner := b.eth.BlockChain().NewEVMRunner(header, state)
-
-	if err != nil {
-		return nil, err
-	}
 	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
 }
 
