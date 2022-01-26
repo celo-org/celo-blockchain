@@ -332,9 +332,9 @@ func (api *PrivateDebugAPI) GetBadBlocks(ctx context.Context) ([]*BadBlockArgs, 
 		} else {
 			blockRlp = fmt.Sprintf("0x%x", rlpBytes)
 		}
-		baseFeeFn := func(fc *common.Address) *big.Int {
-			baseFee, _ := api.eth.APIBackend.CurrentGasPriceMinimum(context.Background(), fc)
-			return baseFee
+		baseFeeFn := func(tx *types.Transaction) (*big.Int, error) {
+			// We don't have information, so we return nil
+			return nil, nil
 		}
 		if blockJSON, err = ethapi.RPCMarshalBlock(block, true, true, baseFeeFn); err != nil {
 			blockJSON = map[string]interface{}{"error": err.Error()}
