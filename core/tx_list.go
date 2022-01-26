@@ -674,6 +674,7 @@ func (h *multiCurrencyPriceHeap) Pop() *types.Transaction {
 				txn := priceHeap.list[0]
 				if h.currencyCmpFn(txn.GasPrice(), txn.FeeCurrency(), cheapestTxn.GasPrice(), cheapestTxn.FeeCurrency()) < 0 {
 					cheapestHeap = priceHeap
+					cheapestTxn = txn
 				}
 			}
 		}
@@ -734,6 +735,7 @@ type txPricedList struct {
 	all              *txLookup              // Pointer to the map of all transactions
 	urgent, floating multiCurrencyPriceHeap // Heaps of prices of all the stored **remote** transactions
 	stales           int64                  // Number of stale price points to (re-heap trigger)
+	maxStales        int64                  // Maximum amount of stale price points allowed before a forced re-heap
 	reheapMu         sync.Mutex             // Mutex asserts that only one routine is reheaping the list
 }
 
@@ -744,11 +746,12 @@ const (
 )
 
 // newTxPricedList creates a new price-sorted transaction heap.
-func newTxPricedList(all *txLookup, ctx *atomic.Value) *txPricedList {
+func newTxPricedList(all *txLookup, ctx *atomic.Value, maxStales int64) *txPricedList {
 	txCtx := ctx.Load().(txPoolContext)
 	return &txPricedList{
-		ctx: ctx,
-		all: all,
+		ctx:       ctx,
+		all:       all,
+		maxStales: maxStales,
 		urgent: multiCurrencyPriceHeap{
 			currencyCmpFn:       txCtx.CmpValues,
 			nilCurrencyHeap:     &priceHeap{},
@@ -777,13 +780,19 @@ func (l *txPricedList) Put(tx *types.Transaction, local bool) {
 // from the pool. The list will just keep a counter of stale objects and update
 // the heap if a large enough ratio of transactions go stale.
 func (l *txPricedList) Removed(count int) {
-	// Bump the stale counter, but exit if still too low (< 25%)
+	// Bump the stale counter
 	stales := atomic.AddInt64(&l.stales, int64(count))
-	if int(stales) <= (l.urgent.Len()+l.floating.Len())/4 {
-		return
+	urgentSize := l.urgent.Len()
+	floatingSize := l.floating.Len()
+
+	// Reheap if the ratio of stales is more than 25% of the heaps sizes
+	overStalesRatio := int(stales) > (urgentSize+floatingSize)/4
+	// Reheap if stales exceed the max stales limit
+	overMaxStales := stales >= l.maxStales
+
+	if overStalesRatio || overMaxStales {
+		l.Reheap()
 	}
-	// Seems we've reached a critical number of stale transactions, reheap
-	l.Reheap()
 }
 
 // Underpriced checks whether a transaction is cheaper than (or as cheap as) the
