@@ -529,19 +529,20 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	}
 	blockCtx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 	blockHash := block.Hash()
-	var sysCtx *core.SysContractCallCtx
-	if api.backend.ChainConfig().IsEspresso(block.Number()) {
-		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
-		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
-	}
 	for th := 0; th < threads; th++ {
 		pend.Add(1)
+		innerStatedb := statedb.Copy()
+		var sysCtx *core.SysContractCallCtx
+		if api.backend.ChainConfig().IsEspresso(block.Number()) {
+			sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), innerStatedb)
+			sysCtx = core.NewSysContractCallCtx(sysVmRunner)
+		}
 		go func() {
 			defer pend.Done()
 			// Fetch and execute the next transaction trace tasks
 			for task := range jobs {
 				msg, _ := txs[task.index].AsMessage(signer, nil)
-				vmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
+				vmRunner := api.backend.VmRunnerAtHeader(block.Header(), innerStatedb)
 				txctx := &Context{
 					BlockHash: blockHash,
 					TxIndex:   task.index,
@@ -555,6 +556,11 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 				results[task.index] = &txTraceResult{Result: res}
 			}
 		}()
+	}
+	var sysCtx *core.SysContractCallCtx
+	if api.backend.ChainConfig().IsEspresso(block.Number()) {
+		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
+		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
 	}
 	// Feed the transactions into the tracers and return
 	var failed error
