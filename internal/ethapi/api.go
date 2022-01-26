@@ -1568,7 +1568,7 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 	if !s.b.ChainConfig().IsEspresso(bigblock) {
 		fields["effectiveGasPrice"] = hexutil.Uint64(tx.GasPrice().Uint64())
 	} else {
-		var gasPrice *big.Int = new(big.Int)
+		// var gasPrice *big.Int = new(big.Int)
 		if tx.Type() == types.DynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxType {
 			header, err := s.b.HeaderByHash(ctx, blockHash)
 			if err != nil {
@@ -1576,13 +1576,12 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 			}
 			gasPriceMinimum, err := s.b.GasPriceMinimumForHeader(ctx, tx.FeeCurrency(), header)
 			if err == nil {
-				gasPrice = new(big.Int).Add(gasPriceMinimum, tx.EffectiveGasTipValue(gasPriceMinimum))
+				fields["effectiveGasPrice"] = hexutil.Uint64(new(big.Int).Add(gasPriceMinimum, tx.EffectiveGasTipValue(gasPriceMinimum)).Uint64())
 			}
-			// if err != nil, it's due to a state prune. In this case, will return the effectiveGasPrice as Zero
+			// if err != nil, it's due to a state prune. In this case no effectiveGasPrice will be returned.
 		} else {
-			gasPrice = tx.GasPrice()
+			fields["effectiveGasPrice"] = hexutil.Uint64(tx.GasPrice().Uint64())
 		}
-		fields["effectiveGasPrice"] = hexutil.Uint64(gasPrice.Uint64())
 	}
 	return fields, nil
 }
