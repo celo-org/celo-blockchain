@@ -649,13 +649,13 @@ func newTxPricedList(all *txLookup, ctx *atomic.Value, maxStales int64) *txPrice
 			currencyCmpFn:       txCtx.CmpValues,
 			nilCurrencyHeap:     &priceHeap{},
 			nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
-			baseFeeFn:           txCtx.GetGasPriceMinimum,
+			gpm:                 txCtx.SysContractCallCtx.GetCurrentGasPriceMinimumMap(),
 		},
 		floating: multiCurrencyPriceHeap{
 			currencyCmpFn:       txCtx.CmpValues,
 			nilCurrencyHeap:     &priceHeap{},
 			nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
-			baseFeeFn:           txCtx.GetGasPriceMinimum,
+			gpm:                 txCtx.SysContractCallCtx.GetCurrentGasPriceMinimumMap(),
 		},
 	}
 }
@@ -804,6 +804,6 @@ func (l *txPricedList) Reheap() {
 // SetBaseFee updates the base fee and triggers a re-heap. Note that Removed is not
 // necessary to call right before SetBaseFee when processing a new block.
 func (l *txPricedList) SetBaseFee(txCtx *txPoolContext) {
-	l.urgent.SetBaseFee(txCtx)
+	l.urgent.UpdateFeesAndCurrencies(txCtx.CmpValues, txCtx.SysContractCallCtx.GetCurrentGasPriceMinimumMap())
 	l.Reheap()
 }

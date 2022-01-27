@@ -14,11 +14,13 @@ import (
 // effective tip based on the given base fee. If baseFee is nil then the sorting
 // is based on gasFeeCap.
 type multiCurrencyPriceHeap struct {
-	currencyCmpFn       func(*big.Int, *common.Address, *big.Int, *common.Address) int
-	baseFeeFn           func(*common.Address) *big.Int // heap should always be re-sorted after baseFee is changed
-	nonNilCurrencyHeaps map[common.Address]*priceHeap  // Heap of prices of all the stored non-nil currency transactions
-	nilCurrencyHeap     *priceHeap                     // Heap of prices of all the stored nil currency transactions
+	currencyCmpFn       CurrencyCmpFn
+	gpm                 GasPriceMinimums              // heap should always be re-sorted after gas price minimums (baseFees) is changed
+	nonNilCurrencyHeaps map[common.Address]*priceHeap // Heap of prices of all the stored non-nil currency transactions
+	nilCurrencyHeap     *priceHeap                    // Heap of prices of all the stored nil currency transactions
 }
+
+type CurrencyCmpFn func(*big.Int, *common.Address, *big.Int, *common.Address) int
 
 // getHeapFor returns the proper heap for the given transaction, and creates it
 // if it's not available in the nonNilCurrencyHeaps
@@ -29,7 +31,7 @@ func (h *multiCurrencyPriceHeap) getHeapFor(tx *types.Transaction) *priceHeap {
 	}
 	if _, ok := h.nonNilCurrencyHeaps[*fc]; !ok {
 		h.nonNilCurrencyHeaps[*fc] = &priceHeap{
-			baseFee: h.baseFeeFn(fc),
+			baseFee: h.gpm.GetGasPriceMinimum(fc),
 		}
 	}
 	return h.nonNilCurrencyHeaps[*fc]
@@ -106,12 +108,12 @@ func (h *multiCurrencyPriceHeap) Clear() {
 	}
 }
 
-func (h *multiCurrencyPriceHeap) SetBaseFee(txCtx *txPoolContext) {
-	h.currencyCmpFn = txCtx.CmpValues
-	h.baseFeeFn = txCtx.GetGasPriceMinimum
-	h.nilCurrencyHeap.baseFee = txCtx.GetGasPriceMinimum(nil)
+func (h *multiCurrencyPriceHeap) UpdateFeesAndCurrencies(currencyCmpFn CurrencyCmpFn, gpm GasPriceMinimums) {
+	h.currencyCmpFn = currencyCmpFn
+	h.gpm = gpm
+	h.nilCurrencyHeap.baseFee = gpm.GetNativeGPM()
 	for currencyAddr, heap := range h.nonNilCurrencyHeaps {
-		heap.baseFee = txCtx.GetGasPriceMinimum(&currencyAddr)
+		heap.baseFee = gpm.GetGasPriceMinimum(&currencyAddr)
 	}
 
 }
