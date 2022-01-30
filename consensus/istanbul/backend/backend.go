@@ -591,10 +591,9 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (*istanbulCore.StateProces
 		}
 	}
 
-	err := sb.VerifyHeader(sb.chain, block.Header(), false)
+	err := sb.verifyHeaderFromProposal(sb.chain, block.Header())
 
-	// ignore errEmptyAggregatedSeal error because we don't have the committed seals yet
-	if err != nil && err != errEmptyAggregatedSeal {
+	if err != nil {
 		if err == consensus.ErrFutureBlock {
 			return nil, time.Unix(int64(block.Header().Time), 0).Sub(now()), consensus.ErrFutureBlock
 		} else {
