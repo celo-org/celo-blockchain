@@ -76,7 +76,7 @@ func (um *Monitor) ComputeValidatorsUptime(epoch uint64, valSetSize int) ([]*big
 	accumulated := um.store.ReadAccumulatedEpochUptime(epoch)
 
 	if accumulated == nil {
-		err := errors.New("Accumulated uptimes not found, cannot update validator scores")
+		err := errors.New("accumulated uptimes not found, cannot update validator scores")
 		logger.Error(err.Error())
 		return nil, err
 	}
@@ -105,34 +105,36 @@ func (um *Monitor) ComputeValidatorsUptime(epoch uint64, valSetSize int) ([]*big
 	return uptimes, nil
 }
 
-// ProcessBlock uses the block's signature bitmap (which encodes who signed the parent block) to update the epoch's Uptime data
-func (um *Monitor) ProcessBlock(block *types.Block) error {
+// ProcessHeader uses the header's signature bitmap (which encodes who signed the parent block) to update the epoch's Uptime data
+func (um *Monitor) ProcessHeader(header *types.Header) error {
+	blockNumber := header.Number.Uint64()
+
 	// The epoch's first block's aggregated parent signatures is for the previous epoch's valset.
 	// We can ignore updating the tally for that block.
-	if istanbul.IsFirstBlockOfEpoch(block.NumberU64(), um.epochSize) {
+	if istanbul.IsFirstBlockOfEpoch(blockNumber, um.epochSize) {
 		return nil
 	}
 
 	// Get the bitmap from the previous block
-	extra, err := types.ExtractIstanbulExtra(block.Header())
+	extra, err := types.ExtractIstanbulExtra(header)
 	if err != nil {
-		um.logger.Error("Unable to extract istanbul extra", "func", "ProcessBlock", "blocknum", block.NumberU64())
+		um.logger.Error("Unable to extract istanbul extra", "func", "ProcessBlock", "blocknum", blockNumber)
 		return errors.New("could not extract block header extra")
 	}
 	signedValidatorsBitmap := extra.ParentAggregatedSeal.Bitmap
 
 	// Get the uptime scores
-	epochNum := istanbul.GetEpochNumber(block.NumberU64(), um.epochSize)
+	epochNum := istanbul.GetEpochNumber(blockNumber, um.epochSize)
 	uptime := um.store.ReadAccumulatedEpochUptime(epochNum)
 
 	// We only update the uptime for blocks which are greater than the last block we saw.
 	// This ensures that we do not count the same block twice for any reason.
-	if uptime == nil || uptime.LatestBlock < block.NumberU64() {
-		uptime = updateUptime(uptime, block.NumberU64()-1, signedValidatorsBitmap, um.lookbackWindow, um.MonitoringWindow(epochNum))
-		uptime.LatestBlock = block.NumberU64()
+	if uptime == nil || uptime.LatestBlock < blockNumber {
+		uptime = updateUptime(uptime, blockNumber-1, signedValidatorsBitmap, um.lookbackWindow, um.MonitoringWindow(epochNum))
+		uptime.LatestBlock = blockNumber
 		um.store.WriteAccumulatedEpochUptime(epochNum, uptime)
 	} else {
-		log.Trace("WritingBlockWithState with block number less than a block we previously wrote", "latestUptimeBlock", uptime.LatestBlock, "blockNumber", block.NumberU64())
+		log.Trace("WritingBlockWithState with block number less than a block we previously wrote", "latestUptimeBlock", uptime.LatestBlock, "blockNumber", blockNumber)
 	}
 
 	return nil
