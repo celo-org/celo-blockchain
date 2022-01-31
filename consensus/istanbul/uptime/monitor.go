@@ -105,6 +105,57 @@ func (um *Monitor) ComputeValidatorsUptime(epoch uint64, valSetSize int) ([]*big
 	return uptimes, nil
 }
 
+// ReprocessEpochUpTo
+func (um *Monitor) ReprocessEpochUpTo(headers []*types.Header) error {
+	if len(headers) == 0 {
+		return errors.New("empty headers array")
+	}
+
+	epochNum := istanbul.GetEpochNumber(headers[0].Number.Uint64(), um.epochSize)
+	monitoringWindow := um.MonitoringWindow(epochNum)
+
+	// Check that all headers must be of the same epoch
+	if lastEpochNum := istanbul.GetEpochNumber(headers[len(headers)-1].Number.Uint64(), um.epochSize); epochNum != lastEpochNum {
+		return errors.New("invalid arguments: headers in array are not from the same epoch")
+	}
+
+	// Check that we will compute all headers since monitoringWindow.Start (inclusive)
+	if monitoringWindow.Start < headers[0].Number.Uint64() {
+		return errors.New("invalid arguments: first header must be same or ancestor of monitoring window start")
+	}
+
+	var uptime *Uptime
+	prevBlockNumber := headers[0].Number.Uint64() - 1
+	for _, header := range headers {
+		blockNumber := header.Number.Uint64()
+
+		// Check that headers are consecutive
+		if prevBlockNumber+1 != header.Number.Uint64() {
+			return errors.New("invalid arguments: headers are not consecutive")
+		}
+
+		// skip blocks that are not part of the monitoring window
+		if !monitoringWindow.Contains(blockNumber) {
+			continue
+		}
+
+		// Get the bitmap from the previous block
+		extra, err := types.ExtractIstanbulExtra(header)
+		if err != nil {
+			um.logger.Error("Unable to extract istanbul extra", "func", "ProcessBlock", "blocknum", blockNumber)
+			return errors.New("could not extract block header extra")
+		}
+		signedValidatorsBitmap := extra.ParentAggregatedSeal.Bitmap
+
+		uptime = updateUptime(uptime, blockNumber, signedValidatorsBitmap, um.lookbackWindow, monitoringWindow)
+		uptime.LatestBlock = blockNumber
+	}
+
+	um.store.WriteAccumulatedEpochUptime(epochNum, uptime)
+
+	return nil
+}
+
 // ProcessHeader uses the header's signature bitmap (which encodes who signed the parent block) to update the epoch's Uptime data
 func (um *Monitor) ProcessHeader(header *types.Header) error {
 	blockNumber := header.Number.Uint64()
