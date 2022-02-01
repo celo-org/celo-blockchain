@@ -1531,7 +1531,7 @@ func (bc *BlockChain) insertPreprocessedBlock(block *types.Block, receipts []*ty
 		lookbackWindow := istEngine.LookbackWindow(block.Header(), state)
 
 		uptimeMonitor := uptime.NewMonitor(store.New(bc.db), bc.chainConfig.Istanbul.Epoch, lookbackWindow)
-		err = uptimeMonitor.ProcessBlock(block)
+		err = uptimeMonitor.ProcessHeader(block.Header())
 		if err != nil {
 			return NonStatTy, err
 		}
