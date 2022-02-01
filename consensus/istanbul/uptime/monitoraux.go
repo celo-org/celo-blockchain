@@ -33,11 +33,12 @@ import (
 
 // Monitor is responsible for monitoring uptime by processing blocks
 type Monitor2 struct {
-	epochSize      uint64
 	epoch          uint64
+	epochSize      uint64
 	lookbackWindow uint64
 	valSetSize     int
 	BitmapsBuffer  []*big.Int
+	window         Window
 
 	LatestBlock uint64
 	UpBlocks    []uint64
@@ -48,16 +49,18 @@ type Monitor2 struct {
 // NewMonitor creates a new uptime monitor
 func NewMonitoraux(epochSize, epoch, lookbackWindow uint64, valSetSize int) *Monitor2 {
 	window := MustMonitoringWindow(epoch, epochSize, lookbackWindow)
+	firstBlockOfEpoch, _ := istanbul.GetEpochFirstBlockNumber(epoch, epochSize)
 
 	return &Monitor2{
-		epochSize:      epochSize,
 		epoch:          epoch,
+		epochSize:      epochSize,
 		lookbackWindow: lookbackWindow,
 		valSetSize:     valSetSize,
 		BitmapsBuffer:  make([]*big.Int, 0),
+		window:         window,
 
 		// The epoch's first block's aggregated parent signatures is for the previous epoch's valset.
-		LatestBlock: window.Start,
+		LatestBlock: firstBlockOfEpoch,
 		UpBlocks:    make([]uint64, valSetSize),
 		logger:      log.New("module", "uptime-monitor"),
 	}
@@ -66,7 +69,7 @@ func NewMonitoraux(epochSize, epoch, lookbackWindow uint64, valSetSize int) *Mon
 // MonitoringWindow returns the monitoring window for the given epoch in the format
 // [firstBlock, lastBlock] both inclusive
 func (um *Monitor2) MonitoringWindow2() Window {
-	return MustMonitoringWindow(um.epoch, um.epochSize, um.lookbackWindow)
+	return um.window
 }
 
 // ComputeValidatorsUptime retrieves the uptime score for each validator for a given epoch
@@ -75,7 +78,7 @@ func (um *Monitor2) ComputeValidatorsUptime2() ([]*big.Int, error) {
 	logger.Trace("Updating validator scores")
 
 	// The totalMonitoredBlocks are the total number of block on which we monitor uptime for the epoch
-	totalMonitoredBlocks := um.epochSize
+	totalMonitoredBlocks := um.window.Size()
 
 	uptimes := make([]*big.Int, 0, um.valSetSize)
 	// accumulated := um.store.ReadAccumulatedEpochUptime(epoch)
@@ -134,7 +137,9 @@ func (um *Monitor2) ProcessHeader2(header *types.Header) error {
 	// We only update the uptime for blocks which are greater than the last block we saw.
 	// This ensures that we do not count the same block twice for any reason.
 	if um.LatestBlock < blockNumber {
-		um.updateUptime2(signedValidatorsBitmap)
+		if blockNumber-1 <= um.window.End {
+			um.updateUptime2(signedValidatorsBitmap)
+		}
 		um.LatestBlock = blockNumber
 		// um.store.WriteAccumulatedEpochUptime(epochNum, uptime)
 	} else {
@@ -156,41 +161,18 @@ func (um *Monitor2) updateUptime2(bitmap *big.Int) {
 		// We need at least lookbackWindows blocks from the beginning to start the score
 		return
 	}
-	bitmapAccum := um.BitmapsBuffer[0]
+	bitmapAccum := new(big.Int).Set(um.BitmapsBuffer[0])
 	for i := 1; i < int(um.lookbackWindow); i++ {
-		bitmapAccum.Or(bitmapAccum, um.BitmapsBuffer[i])
+		bitmapAccum = bitmapAccum.Or(bitmapAccum, um.BitmapsBuffer[i])
 	}
 
 	words := bitmapAccum.Bits()
 	for i := 0; i < len(um.UpBlocks); i++ {
-		bytePos := i / 64
-		if words[bytePos]&1 == 1 {
+		wordPos := i / 64
+		if words[wordPos]&1 == 1 {
 			// validator signature present => update their latest signed block
 			um.UpBlocks[i]++
 		}
-		words[bytePos] = words[bytePos] >> 1
+		words[wordPos] = words[wordPos] >> 1
 	}
 }
-
-// // https://stackoverflow.com/questions/19105791/is-there-a-big-bitcount/32702348#32702348
-// func bitCount(n *big.Int) int {
-// 	count := 0
-// 	for _, v := range n.Bits() {
-// 		count += popcount(uint64(v))
-// 	}
-// 	return count
-// }
-
-// // Straight and simple C to Go translation from https://en.wikipedia.org/wiki/Hamming_weight
-// func popcount(x uint64) int {
-// 	const (
-// 		m1  = 0x5555555555555555 //binary: 0101...
-// 		m2  = 0x3333333333333333 //binary: 00110011..
-// 		m4  = 0x0f0f0f0f0f0f0f0f //binary:  4 zeros,  4 ones ...
-// 		h01 = 0x0101010101010101 //the sum of 256 to the power of 0,1,2,3...
-// 	)
-// 	x -= (x >> 1) & m1             //put count of each 2 bits into those 2 bits
-// 	x = (x & m2) + ((x >> 2) & m2) //put count of each 4 bits into those 4 bits
-// 	x = (x + (x >> 4)) & m4        //put count of each 8 bits into those 8 bits
-// 	return int((x * h01) >> 56)    //returns left 8 bits of x + (x<<8) + (x<<16) + (x<<24) + ...
-// }
