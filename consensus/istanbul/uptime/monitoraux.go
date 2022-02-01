@@ -158,16 +158,17 @@ func (um *Monitor2) updateUptime2(bitmap *big.Int) {
 	}
 	bitmapAccum := um.BitmapsBuffer[0]
 	for i := 1; i < int(um.lookbackWindow); i++ {
-		bitmapAccum = bitmapAccum.Or(bitmapAccum, um.BitmapsBuffer[i])
+		bitmapAccum.Or(bitmapAccum, um.BitmapsBuffer[i])
 	}
 
-	one := big.NewInt(1)
+	words := bitmapAccum.Bits()
 	for i := 0; i < len(um.UpBlocks); i++ {
-		if one.Cmp(big.NewInt(0).And(bitmapAccum, one)) == 0 {
+		bytePos := i / 64
+		if words[bytePos]&1 == 1 {
 			// validator signature present => update their latest signed block
 			um.UpBlocks[i]++
 		}
-		bitmapAccum = bitmapAccum.Rsh(bitmapAccum, 1)
+		words[bytePos] = words[bytePos] >> 1
 	}
 }
 

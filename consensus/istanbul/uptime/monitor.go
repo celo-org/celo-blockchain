@@ -203,11 +203,15 @@ func updateUptime(uptime *Uptime, blockNumber uint64, bitmap *big.Int, lookbackW
 
 	// Obtain current lookback window
 	currentLookbackWindow := newWindowEndingAt(blockNumber, lookbackWindowSize)
+	bitmapClone := new(big.Int).Set(bitmap)
+	byteWords := bitmapClone.Bits()
 
 	for i := 0; i < len(uptime.Entries); i++ {
-		if bitmap.Bit(i) == 1 {
+		byteNumber := i / 64
+		if len(byteWords) > byteNumber && byteWords[byteNumber]&1 == 1 {
 			// validator signature present => update their latest signed block
 			uptime.Entries[i].LastSignedBlock = blockNumber
+			byteWords[byteNumber] = byteWords[byteNumber] >> 1
 		}
 
 		// If block number is to be monitored, then check if lastSignedBlock is within current lookback window
