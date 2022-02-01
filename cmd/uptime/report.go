@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/cmd/utils"
@@ -58,8 +59,17 @@ func reportUptime(ctx *cli.Context) error {
 
 	lastBlock := istanbul.GetEpochLastBlockNumber(epoch, epochSize)
 	headers := getHeaders(db, lastBlock, int(epochSize))
-	runReport(headers, 12, 100)
-	runReport2(headers, 12, 100)
+	r1 := runReport(headers, 12, 100)
+	r2 := runReport2(headers, 12, 100)
+	if len(r1) != len(r2) {
+		fmt.Println("Different length reports: ", len(r1), len(r2))
+		return nil
+	}
+	for i := range r1 {
+		if r1[i].Cmp(r2[i]) != 0 {
+			fmt.Println("Report difference in position ", i, " values: ", r1[i], r2[i])
+		}
+	}
 	return nil
 }
 
@@ -75,7 +85,7 @@ func getHeaders(db ethdb.Database, lastBlock uint64, amount int) []*types.Header
 	return headers
 }
 
-func runReport(headers []*types.Header, lookback uint64, valSetSize int) {
+func runReport(headers []*types.Header, lookback uint64, valSetSize int) []*big.Int {
 	epochSize := uint64(len(headers))
 	epoch := istanbul.GetEpochNumber(headers[0].Number.Uint64(), epochSize)
 	store := &singleEpochStore{}
@@ -84,11 +94,12 @@ func runReport(headers []*types.Header, lookback uint64, valSetSize int) {
 	for _, header := range headers {
 		monitor.ProcessHeader(header)
 	}
-	monitor.ComputeValidatorsUptime(epoch, valSetSize)
+	r, _ := monitor.ComputeValidatorsUptime(epoch, valSetSize)
 	fmt.Printf("Report done in %v\n", time.Since(start))
+	return r
 }
 
-func runReport2(headers []*types.Header, lookback uint64, valSetSize int) {
+func runReport2(headers []*types.Header, lookback uint64, valSetSize int) []*big.Int {
 	epochSize := uint64(len(headers))
 	epoch := istanbul.GetEpochNumber(headers[0].Number.Uint64(), epochSize)
 	monitor := uptime.NewMonitoraux(epochSize, epoch, lookback, valSetSize)
@@ -96,8 +107,9 @@ func runReport2(headers []*types.Header, lookback uint64, valSetSize int) {
 	for _, header := range headers {
 		monitor.ProcessHeader2(header)
 	}
-	monitor.ComputeValidatorsUptime2()
+	r, _ := monitor.ComputeValidatorsUptime2()
 	fmt.Printf("Report2 done in %v\n", time.Since(start))
+	return r
 }
 
 type singleEpochStore struct {
