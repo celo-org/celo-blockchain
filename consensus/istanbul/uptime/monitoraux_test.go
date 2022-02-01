@@ -31,8 +31,8 @@ func TestUptime2(t *testing.T) {
 	expected[2] = 5
 
 	if !reflect.DeepEqual(monitor.UpBlocks, expected) {
+		t.Fatalf("uptimes were not updated correctly, got %v, expected %v", monitor.UpBlocks, expected)
 	}
-	t.Fatalf("uptimes were not updated correctly, got %v, expected %v", monitor.UpBlocks, expected)
 }
 
 func TestUptime2Big(t *testing.T) {
@@ -40,7 +40,7 @@ func TestUptime2Big(t *testing.T) {
 	bitmaps := []*big.Int{
 		big.NewInt(7), // 111     // signature bitmap for block #1
 		big.NewInt(1), // 001
-		big.NewInt(3), // 010
+		big.NewInt(2), // 010
 		big.NewInt(0), // 000
 		big.NewInt(7), // 111
 		big.NewInt(5), // 101     // signature bitmap for block #6
