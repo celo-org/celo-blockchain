@@ -65,11 +65,14 @@ func reportUptime(ctx *cli.Context) error {
 		fmt.Println("Different length reports: ", len(r1), len(r2))
 		return nil
 	}
+	diffs := 0
 	for i := range r1 {
 		if r1[i].Cmp(r2[i]) != 0 {
 			fmt.Println("Report difference in position ", i, " values: ", r1[i], r2[i])
+			diffs++
 		}
 	}
+	fmt.Println("Diffs found: ", diffs)
 	return nil
 }
 
