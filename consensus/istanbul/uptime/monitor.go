@@ -208,9 +208,11 @@ func updateUptime(uptime *Uptime, blockNumber uint64, bitmap *big.Int, lookbackW
 
 	for i := 0; i < len(uptime.Entries); i++ {
 		byteNumber := i / 64
-		if len(byteWords) > byteNumber && byteWords[byteNumber]&1 == 1 {
+		if len(byteWords) > byteNumber {
 			// validator signature present => update their latest signed block
-			uptime.Entries[i].LastSignedBlock = blockNumber
+			if byteWords[byteNumber]&1 == 1 {
+				uptime.Entries[i].LastSignedBlock = blockNumber
+			}
 			byteWords[byteNumber] = byteWords[byteNumber] >> 1
 		}
 

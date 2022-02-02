@@ -59,8 +59,8 @@ func reportUptime(ctx *cli.Context) error {
 
 	lastBlock := istanbul.GetEpochLastBlockNumber(epoch, epochSize)
 	headers := getHeaders(db, lastBlock, int(epochSize))
-	r1 := runReport(headers, 12, 100)
-	r2 := runReport2(headers, 12, 100)
+	r1 := runReport(headers, epochSize, 12, 100)
+	r2 := runReport2(headers, epochSize, 12, 100)
 	if len(r1) != len(r2) {
 		fmt.Println("Different length reports: ", len(r1), len(r2))
 		return nil
@@ -84,12 +84,11 @@ func getHeaders(db ethdb.Database, lastBlock uint64, amount int) []*types.Header
 	for i := amount - 2; i >= 0; i-- {
 		headers[i] = rawdb.ReadHeader(db, headers[i+1].ParentHash, headers[i+1].Number.Uint64()-1)
 	}
-	fmt.Printf("Headers retrieved in %v\n", time.Since(start))
+	fmt.Printf("Headers[%d, %d] retrieved in %v\n", headers[0].Number.Int64(), headers[len(headers)-1].Number.Int64(), time.Since(start))
 	return headers
 }
 
-func runReport(headers []*types.Header, lookback uint64, valSetSize int) []*big.Int {
-	epochSize := uint64(len(headers))
+func runReport(headers []*types.Header, epochSize uint64, lookback uint64, valSetSize int) []*big.Int {
 	epoch := istanbul.GetEpochNumber(headers[0].Number.Uint64(), epochSize)
 	store := &singleEpochStore{}
 	monitor := uptime.NewMonitor(store, epochSize, lookback)
@@ -97,19 +96,20 @@ func runReport(headers []*types.Header, lookback uint64, valSetSize int) []*big.
 	for _, header := range headers {
 		monitor.ProcessHeader(header)
 	}
+	fmt.Printf("Headers added in %v\n", time.Since(start))
 	r, _ := monitor.ComputeValidatorsUptime(epoch, valSetSize)
 	fmt.Printf("Report done in %v\n", time.Since(start))
 	return r
 }
 
-func runReport2(headers []*types.Header, lookback uint64, valSetSize int) []*big.Int {
-	epochSize := uint64(len(headers))
+func runReport2(headers []*types.Header, epochSize uint64, lookback uint64, valSetSize int) []*big.Int {
 	epoch := istanbul.GetEpochNumber(headers[0].Number.Uint64(), epochSize)
 	monitor := uptime.NewMonitoraux(epochSize, epoch, lookback, valSetSize)
 	start := time.Now()
 	for _, header := range headers {
 		monitor.ProcessHeader2(header)
 	}
+	fmt.Printf("Headers added in %v\n", time.Since(start))
 	r, _ := monitor.ComputeValidatorsUptime2()
 	fmt.Printf("Report2 done in %v\n", time.Since(start))
 	return r
