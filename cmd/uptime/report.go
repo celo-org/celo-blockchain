@@ -90,14 +90,13 @@ func getHeaders(db ethdb.Database, lastBlock uint64, amount int) []*types.Header
 
 func runReport(headers []*types.Header, epochSize uint64, lookback uint64, valSetSize int) []*big.Int {
 	epoch := istanbul.GetEpochNumber(headers[0].Number.Uint64(), epochSize)
-	store := &singleEpochStore{}
-	monitor := uptime.NewMonitor(store, epochSize, lookback)
+	monitor := uptime.NewMonitor(epochSize, epoch, lookback, valSetSize)
 	start := time.Now()
 	for _, header := range headers {
 		monitor.ProcessHeader(header)
 	}
 	fmt.Printf("Headers added in %v\n", time.Since(start))
-	r, _ := monitor.ComputeValidatorsUptime(epoch, valSetSize)
+	r, _ := monitor.ComputeValidatorsUptime()
 	fmt.Printf("Report done in %v\n", time.Since(start))
 	return r
 }

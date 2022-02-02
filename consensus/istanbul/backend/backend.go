@@ -33,6 +33,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/replica"
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/uptime"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/election"
@@ -340,6 +341,8 @@ type Backend struct {
 	// RandomSeed (and it's mutex) used to generate the random beacon randomness
 	randomSeed   []byte
 	randomSeedMu sync.Mutex
+
+	uptimeMonitor *uptime.Monitor
 
 	// Test hooks
 	abortCommitHook func(result *istanbulCore.StateProcessResult) bool // Method to call upon committing a proposal
@@ -1003,6 +1006,17 @@ func (sb *Backend) RemoveProxy(node *enode.Node) error {
 	} else {
 		return proxy.ErrNodeNotProxiedValidator
 	}
+}
+
+func (sb *Backend) CreateNewUptimeMonitor(header *types.Header, epochSize, lookbackWindow uint64) {
+	epoch := sb.EpochNumber(header.Number.Uint64(), epochSize)
+	valSet := sb.GetValidators(header.Number, header.Hash())
+
+	sb.uptimeMonitor = uptime.NewMonitor(epochSize, epoch, lookbackWindow, len(valSet))
+}
+
+func (sb *Backend) GetUptimeMonitor() *uptime.Monitor {
+	return sb.uptimeMonitor
 }
 
 // VerifyPendingBlockValidatorSignature will verify that the message sender is a validator that is responsible

@@ -22,6 +22,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/uptime"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -109,6 +110,8 @@ type Engine interface {
 
 	// GetValidators returns the list of current validators.
 	GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator
+
+	EpochNumber(blockNumber, epochSize uint64) uint64
 
 	EpochSize() uint64
 
@@ -213,6 +216,13 @@ type Istanbul interface {
 
 	// IsLastBlockOfEpoch will check to see if the header is from the last block of an epoch
 	IsLastBlockOfEpoch(header *types.Header) bool
+
+	// IsLastBlockOfEpoch will check to see if the header is from the first block of an epoch
+	IsFirstBlockOfEpoch(header *types.Header) bool
+
+	CreateNewUptimeMonitor(header *types.Header, epochSize, lookbackWindow uint64)
+
+	GetUptimeMonitor() *uptime.Monitor
 
 	// LookbackWindow returns the size of the lookback window for calculating uptime (in blocks)
 	LookbackWindow(header *types.Header, state *state.StateDB) uint64

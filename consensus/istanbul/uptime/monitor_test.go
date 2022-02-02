@@ -7,7 +7,8 @@ import (
 )
 
 func TestUptime(t *testing.T) {
-	var uptimes *Uptime
+	var uptimes *Uptime = new(Uptime)
+	uptimes.Entries = make([]UptimeEntry, 3)
 	// (there can't be less than 2/3rds of validators sigs in a valid bitmap)
 	bitmaps := []*big.Int{
 		big.NewInt(7), // 111     // signature bitmap for block #1
@@ -24,7 +25,7 @@ func TestUptime(t *testing.T) {
 
 	for _, bitmap := range bitmaps {
 		// these tests to increase our confidence
-		uptimes = updateUptime(uptimes, block, bitmap, 2, monitoringWindow)
+		updateUptime(uptimes, block, bitmap, 2, monitoringWindow)
 		block++
 	}
 
@@ -63,9 +64,10 @@ func TestUptime(t *testing.T) {
 }
 
 func TestUptimeSingle(t *testing.T) {
-	var uptimes *Uptime
+	var uptimes *Uptime = new(Uptime)
+	uptimes.Entries = make([]UptimeEntry, 3)
 	monitoringWindow := MustMonitoringWindow(2, 211, 3)
-	uptimes = updateUptime(uptimes, 211, big.NewInt(7), 3, monitoringWindow)
+	updateUptime(uptimes, 211, big.NewInt(7), 3, monitoringWindow)
 	// the first 2 uptime updates do not get scored since they're within the
 	// first window after the epoch block
 	expected := &Uptime{
