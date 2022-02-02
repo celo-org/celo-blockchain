@@ -5,6 +5,7 @@ import (
 
 	"errors"
 
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/types"
 )
 
@@ -38,12 +39,17 @@ type Builder interface {
 	// Clear resets this builder
 	Clear()
 
+	GetLastProcessedHeader() *types.Header
+
+	GetEpoch() uint64
+	GetEpochSize() uint64
+
 	Computer // Not 100% sure Builder should include Computer or if they can be completely separated.
 }
 
 type EpochHeadersProvider interface {
 	// GetEpochHeadersUpTo returns all headers from the same epoch as the header provided (included) ordered.
-	GetEpochHeadersUpTo(upToHeader *types.Header) ([]*types.Header, error)
+	GetEpochHeadersUpTo(upToHeader *types.Header, from *types.Header) ([]*types.Header, error)
 }
 
 // AutoFixBuilder is an uptime Builder that will fix rewinds and missing headers.
@@ -53,55 +59,56 @@ type AutoFixBuilder struct {
 }
 
 func (af *AutoFixBuilder) ProcessHeader(header *types.Header) error {
-	err := af.builder.ProcessHeader(header)
-	if err != nil {
-		return nil
-	}
-	if errors.Is(err, ErrHeaderRewinded) {
-		// Chain rewinded ? rebuild
-		// log(uptime calc rewinded)
-	} else if errors.Is(err, ErrMissingPreviousHeaders) {
-		// Skip in the headers ? rebuild
-		// log(uptime calc missing headers)
+	lastHeader := af.builder.GetLastProcessedHeader()
+
+	if lastHeader == nil {
+		firstBlock, err := istanbul.GetEpochFirstBlockNumber(af.builder.GetEpoch(), af.builder.GetEpochSize())
+		if err != nil {
+			return err
+		}
+		if header.Number.Uint64() == firstBlock {
+			return af.builder.ProcessHeader(header)
+		}
 	} else {
-		// Unknown error, log
-		return err
+		if lastHeader.Number.Cmp(header.Number) < 0 {
+			if (lastHeader.Number.Uint64() + 1) == header.Number.Uint64() {
+				return af.builder.ProcessHeader(header)
+			}
+		} else {
+			// return error header lower
+		}
 	}
 
-	return af.RebuildUpTo(header)
+	return buildUpTo(af.provider, af.builder, header, lastHeader)
 }
 
 func (af *AutoFixBuilder) ComputeUptime(epochLastHeader *types.Header) ([]*big.Int, error) {
-	uptime, err := af.builder.ComputeUptime(epochLastHeader)
-	if err != nil {
-		return uptime, nil
+	lastBlock := istanbul.GetEpochLastBlockNumber(af.builder.GetEpoch(), af.builder.GetEpochSize())
+	if lastBlock != epochLastHeader.Number.Uint64() {
+		// return error
 	}
-	if errors.Is(err, ErrHeaderRewinded) {
-		// Chain rewinded ? rebuild
-		// log(uptime calc rewinded)
-	} else if errors.Is(err, ErrMissingPreviousHeaders) {
-		// Skip in the headers ? rebuild
-		// log(uptime calc missing headers)
-	} else {
-		// Unknown error, log
-		return nil, err
+	lastHeader := af.builder.GetLastProcessedHeader()
+	if lastHeader == nil || lastHeader.Number.Cmp(epochLastHeader.Number) < 0 {
+		if err := af.ProcessHeader(epochLastHeader); err != nil {
+			return nil, err
+		}
 	}
 
-	err2 := af.RebuildUpTo(epochLastHeader)
-	if err2 != nil {
-		return nil, err
-	}
 	return af.builder.ComputeUptime(epochLastHeader)
 }
 
 func (af *AutoFixBuilder) RebuildUpTo(header *types.Header) error {
 	af.builder.Clear()
-	headers, err := af.provider.GetEpochHeadersUpTo(header)
+	return buildUpTo(af.provider, af.builder, header, nil)
+}
+
+func buildUpTo(provider EpochHeadersProvider, builder Builder, header, from *types.Header) error {
+	headers, err := provider.GetEpochHeadersUpTo(header, from)
 	if err != nil {
 		return err
 	}
 	for _, h := range headers {
-		err2 := af.builder.ProcessHeader(h)
+		err2 := builder.ProcessHeader(h)
 		if err2 != nil {
 			return err2
 		}
