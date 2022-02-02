@@ -137,7 +137,7 @@ func (um *Monitor2) ProcessHeader2(header *types.Header) error {
 	// We only update the uptime for blocks which are greater than the last block we saw.
 	// This ensures that we do not count the same block twice for any reason.
 	if um.LatestBlock < blockNumber {
-		if blockNumber-1 <= um.window.End {
+		if blockNumber <= um.window.End+1 {
 			um.updateUptime2(signedValidatorsBitmap)
 		}
 		um.LatestBlock = blockNumber
@@ -169,7 +169,7 @@ func (um *Monitor2) updateUptime2(bitmap *big.Int) {
 	words := bitmapAccum.Bits()
 	for i := 0; i < len(um.UpBlocks); i++ {
 		wordPos := i / 64
-		if words[wordPos]&1 == 1 {
+		if wordPos < len(words) && words[wordPos]&1 == 1 {
 			// validator signature present => update their latest signed block
 			um.UpBlocks[i]++
 		}
