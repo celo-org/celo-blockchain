@@ -31,6 +31,7 @@ const (
 func TestTransferCELO(t *testing.T) {
 	ac := test.AccountConfig(1, 3)
 	gc, ec, err := test.BuildConfig(ac)
+	gc.Hardforks.EspressoBlock = big.NewInt(0)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
