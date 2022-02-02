@@ -70,10 +70,10 @@ func MonitoringWindow(epochNumber uint64, epochSize uint64, lookbackWindowSize u
 		return Window{}, errors.New("no monitoring window for epoch 0")
 	}
 	if epochSize < istanbul.MinEpochSize {
-		return Window{}, errors.New("Invalid epoch value")
+		return Window{}, errors.New("invalid epoch value")
 	}
 	if epochSize < lookbackWindowSize+BlocksToSkipAtEpochEnd {
-		return Window{}, fmt.Errorf("LookbackWindow (%d) too big for epochSize (%d)", lookbackWindowSize, epochSize)
+		return Window{}, fmt.Errorf("lookbackWindow (%d) too big for epochSize (%d)", lookbackWindowSize, epochSize)
 	}
 
 	epochFirstBlock, _ := istanbul.GetEpochFirstBlockNumber(epochNumber, epochSize)
@@ -88,4 +88,20 @@ func MonitoringWindow(epochNumber uint64, epochSize uint64, lookbackWindowSize u
 		Start: firstBlockToMonitor,
 		End:   epochLastBlock - BlocksToSkipAtEpochEnd,
 	}, nil
+}
+
+// MonitoringWindow retrieves the block window where uptime is to be monitored
+// for a given epoch.
+func MonitoringWindowUntil(epochNumber uint64, epochSize uint64, lookbackWindowSize uint64, untilBlockNumber uint64) (Window, error) {
+	w, err := MonitoringWindow(epochNumber, epochSize, lookbackWindowSize)
+	if err != nil {
+		return Window{}, err
+	}
+	if w.Start > untilBlockNumber {
+		return Window{}, errors.New("header older than epoch start")
+	}
+	if w.End > untilBlockNumber {
+		w.End = untilBlockNumber
+	}
+	return w, nil
 }

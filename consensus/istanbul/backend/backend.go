@@ -342,7 +342,7 @@ type Backend struct {
 	randomSeed   []byte
 	randomSeedMu sync.Mutex
 
-	uptimeMonitor *uptime.Monitor
+	uptimeMonitor uptime.Builder
 
 	// Test hooks
 	abortCommitHook func(result *istanbulCore.StateProcessResult) bool // Method to call upon committing a proposal
@@ -1008,14 +1008,15 @@ func (sb *Backend) RemoveProxy(node *enode.Node) error {
 	}
 }
 
-func (sb *Backend) CreateNewUptimeMonitor(header *types.Header, epochSize, lookbackWindow uint64) {
-	epoch := sb.EpochNumber(header.Number.Uint64(), epochSize)
-	valSet := sb.GetValidators(header.Number, header.Hash())
+func (sb *Backend) RetrieveUptimeScoreBuilder(header *types.Header, epochSize uint64, lookbackWindowFn func() uint64) uptime.Builder {
+	epoch := istanbul.GetEpochNumber(header.Number.Uint64(), epochSize)
 
-	sb.uptimeMonitor = uptime.NewMonitor(epochSize, epoch, lookbackWindow, len(valSet))
-}
-
-func (sb *Backend) GetUptimeMonitor() *uptime.Monitor {
+	if sb.uptimeMonitor == nil || sb.uptimeMonitor.GetEpoch() != epoch {
+		valSet := sb.GetValidators(header.Number, header.Hash())
+		builder := uptime.NewMonitor(epochSize, epoch, lookbackWindowFn(), len(valSet))
+		// TODO Add HEADER PROVIDER
+		sb.uptimeMonitor = uptime.NewAutoFixBuilder(builder, nil)
+	}
 	return sb.uptimeMonitor
 }
 

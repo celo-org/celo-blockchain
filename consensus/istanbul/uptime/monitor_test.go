@@ -30,7 +30,7 @@ func TestUptime(t *testing.T) {
 	}
 
 	expected := &Uptime{
-		LatestBlock: 0,
+		LatestHeader: nil,
 		Entries: []UptimeEntry{
 			{
 				UpBlocks:        5,
@@ -71,7 +71,7 @@ func TestUptimeSingle(t *testing.T) {
 	// the first 2 uptime updates do not get scored since they're within the
 	// first window after the epoch block
 	expected := &Uptime{
-		LatestBlock: 0,
+		LatestHeader: nil,
 		Entries: []UptimeEntry{
 			{
 				UpBlocks:        0,

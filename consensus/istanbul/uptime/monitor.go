@@ -16,8 +16,8 @@ import (
 // an array of Entries where the `i`th entry represents the uptime statistics of the `i`th validator
 // in the validator set for that epoch
 type Uptime struct {
-	LatestBlock uint64
-	Entries     []UptimeEntry
+	LatestHeader *types.Header
+	Entries      []UptimeEntry
 }
 
 // UptimeEntry contains the uptime score of a validator during an epoch as well as the
@@ -61,12 +61,16 @@ func NewMonitor(epochSize, epoch, lookbackWindow uint64, valSetSize int) *Monito
 }
 
 // ComputeValidatorsUptime retrieves the uptime score for each validator for a given epoch
-func (um *Monitor) ComputeValidatorsUptime() ([]*big.Int, error) {
-	logger := um.logger.New("func", "Backend.updateValidatorScores", "epoch", um.epoch, "until header number", um.accumulatedUptime.LatestBlock)
+func (um *Monitor) ComputeUptime(header *types.Header) ([]*big.Int, error) {
+	logger := um.logger.New("func", "Backend.updateValidatorScores", "epoch", um.epoch, "until header number", um.accumulatedUptime.LatestHeader.Number.Uint64())
 	logger.Trace("Updating validator scores")
 
-	// The totalMonitoredBlocks are the total number of block on which we monitor uptime for the epoch
-	totalMonitoredBlocks := um.window.Size()
+	// The totalMonitoredBlocks are the total number of block on which we monitor uptime until the header.Number
+	window, err := MonitoringWindowUntil(um.epoch, um.epochSize, um.lookbackWindow, header.Number.Uint64())
+	totalMonitoredBlocks := window.Size()
+	if err != nil {
+		return nil, err
+	}
 
 	uptimes := make([]*big.Int, 0, um.valSetSize)
 
@@ -110,14 +114,31 @@ func (um *Monitor) ProcessHeader(header *types.Header) error {
 
 	// We only update the uptime for blocks which are greater than the last block we saw.
 	// This ensures that we do not count the same block twice for any reason.
-	if um.accumulatedUptime.LatestBlock == 0 || um.accumulatedUptime.LatestBlock < blockNumber {
+	if um.accumulatedUptime.LatestHeader == nil || um.accumulatedUptime.LatestHeader.Number.Uint64() < blockNumber {
 		updateUptime(um.accumulatedUptime, blockNumber-1, signedValidatorsBitmap, um.lookbackWindow, um.window)
-		um.accumulatedUptime.LatestBlock = blockNumber
+		um.accumulatedUptime.LatestHeader = header
 	} else {
-		log.Trace("WritingBlockWithState with block number less than a block we previously wrote", "latestUptimeBlock", um.accumulatedUptime.LatestBlock, "blockNumber", blockNumber)
+		log.Trace("WritingBlockWithState with block number less than a block we previously wrote", "latestUptimeBlock", um.accumulatedUptime.LatestHeader.Number.Uint64(), "blockNumber", blockNumber)
 	}
 
 	return nil
+}
+
+func (um *Monitor) Clear() {
+	um.accumulatedUptime = new(Uptime)
+	um.accumulatedUptime.Entries = make([]UptimeEntry, um.valSetSize)
+}
+
+func (um *Monitor) GetLastProcessedHeader() *types.Header {
+	return um.accumulatedUptime.LatestHeader
+}
+
+func (um *Monitor) GetEpochSize() uint64 {
+	return um.epochSize
+}
+
+func (um *Monitor) GetEpoch() uint64 {
+	return um.epoch
 }
 
 // updateUptime updates the accumulated uptime given a block and its validator's signatures bitmap

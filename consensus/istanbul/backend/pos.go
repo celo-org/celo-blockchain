@@ -146,13 +146,16 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 	// sb.LookbackWindow(header, state) => value at the end of epoch
 	// It doesn't matter which was the value at the beginning but how it ends.
 	// Notice that exposed metrics compute based on current block (not last of epoch) so if lookback window changed during the epoch, metric uptime score might differ
-	// lookbackWindow := sb.LookbackWindow(header, state)
+	lookbackWindowFn := func() uint64 {
+		return sb.LookbackWindow(header, state)
+	}
 
 	// logger = logger.New("window", lookbackWindow)
 
 	// monitor := uptime.NewMonitor(sb.EpochSize(), epoch, lookbackWindow, len(valSet))
 	logger.Trace("Updating validator scores")
-	uptimes, err := sb.uptimeMonitor.ComputeValidatorsUptime()
+	monitor := sb.RetrieveUptimeScoreBuilder(header, sb.EpochSize(), lookbackWindowFn)
+	uptimes, err := monitor.ComputeUptime(header)
 	if err != nil {
 		return nil, err
 	}

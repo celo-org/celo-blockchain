@@ -111,8 +111,6 @@ type Engine interface {
 	// GetValidators returns the list of current validators.
 	GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator
 
-	EpochNumber(blockNumber, epochSize uint64) uint64
-
 	EpochSize() uint64
 
 	// APIs returns the RPC APIs this consensus engine provides.
@@ -217,12 +215,8 @@ type Istanbul interface {
 	// IsLastBlockOfEpoch will check to see if the header is from the last block of an epoch
 	IsLastBlockOfEpoch(header *types.Header) bool
 
-	// IsLastBlockOfEpoch will check to see if the header is from the first block of an epoch
-	IsFirstBlockOfEpoch(header *types.Header) bool
-
-	CreateNewUptimeMonitor(header *types.Header, epochSize, lookbackWindow uint64)
-
-	GetUptimeMonitor() *uptime.Monitor
+	// RetrieveUptimeScoreBuilder retrieves the uptime score accumulator
+	RetrieveUptimeScoreBuilder(header *types.Header, epochSize uint64, lookbackWindowFn func() uint64) uptime.Builder
 
 	// LookbackWindow returns the size of the lookback window for calculating uptime (in blocks)
 	LookbackWindow(header *types.Header, state *state.StateDB) uint64
