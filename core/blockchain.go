@@ -32,6 +32,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/mclock"
 	"github.com/celo-org/celo-blockchain/common/prque"
 	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/uptime"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/state/snapshot"
@@ -1526,7 +1527,7 @@ func (bc *BlockChain) insertPreprocessedBlock(block *types.Block, receipts []*ty
 			log.Error("Found two blocks with same height", "old", hash, "new", block.Hash())
 		}
 
-		if istEngine.IsFirstBlockOfEpoch(block.Header()) {
+		if istEngine.IsFirstBlockOfEpoch(block.Header()) || istEngine.GetUptimeMonitor() == (&uptime.Monitor{}) {
 			lookbackWindow := istEngine.LookbackWindow(block.Header(), state)
 			istEngine.CreateNewUptimeMonitor(block.Header(), bc.chainConfig.Istanbul.Epoch, lookbackWindow)
 		}
