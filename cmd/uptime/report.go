@@ -59,20 +59,7 @@ func reportUptime(ctx *cli.Context) error {
 
 	lastBlock := istanbul.GetEpochLastBlockNumber(epoch, epochSize)
 	headers := getHeaders(db, lastBlock, int(epochSize))
-	r1 := runReport(headers, epochSize, 12, 100)
-	r2 := runReport2(headers, epochSize, 12, 100)
-	if len(r1) != len(r2) {
-		fmt.Println("Different length reports: ", len(r1), len(r2))
-		return nil
-	}
-	diffs := 0
-	for i := range r1 {
-		if r1[i].Cmp(r2[i]) != 0 {
-			fmt.Println("Report difference in position ", i, " values: ", r1[i], r2[i])
-			diffs++
-		}
-	}
-	fmt.Println("Diffs found: ", diffs)
+	runReport(headers, epochSize, 12, 100)
 	return nil
 }
 
@@ -99,19 +86,6 @@ func runReport(headers []*types.Header, epochSize uint64, lookback uint64, valSe
 	fmt.Printf("Headers added in %v\n", time.Since(start))
 	r, _ := monitor.ComputeUptime(header)
 	fmt.Printf("Report done in %v\n", time.Since(start))
-	return r
-}
-
-func runReport2(headers []*types.Header, epochSize uint64, lookback uint64, valSetSize int) []*big.Int {
-	epoch := istanbul.GetEpochNumber(headers[0].Number.Uint64(), epochSize)
-	monitor := uptime.NewMonitoraux(epochSize, epoch, lookback, valSetSize)
-	start := time.Now()
-	for _, header := range headers {
-		monitor.ProcessHeader2(header)
-	}
-	fmt.Printf("Headers added in %v\n", time.Since(start))
-	r, _ := monitor.ComputeValidatorsUptime2()
-	fmt.Printf("Report2 done in %v\n", time.Since(start))
 	return r
 }
 
