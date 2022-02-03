@@ -54,8 +54,10 @@ For messages containing a value, only messages with valid values are considered.
 
 Participants are able to broadcast messages to all other participants. In the
 case that a participant is off-line or somehow inaccessible they will not
-receive broadcast messages and there is no mechanism for these messages to be
-re-sent.
+receive broadcast messages and except for round change messages there is no
+mechanism for these messages to be re-sent.
+
+In the case of round change messages they are priodically re-broadcast.
 
 We refer to a consensus instance to mean consensus for a specific height.
 
@@ -97,6 +99,7 @@ upon: <FinalCommittedEvent> = PendingEvent
   Sc ← AcceptRequest
   Vc ← nil
   schedule onRoundChangeTimeout(Hc, 0) after roundChangeTimeout(0)
+  scheduleResendRoundChange(0)
 
 // A request event is a request to reach agreement on the provided value, the
 // request event is sent by the application, if this parcicipant is the proposer
@@ -175,6 +178,31 @@ onRoundChangeTimeout(H, R) {
     broadcast(<RoundChange, Hc, Rd, PCc>)
   }
 }
+
+// As long as the round and height have not changed since it was scheduled
+// onResendRoundChangeTimeout broadcasts a round change message and re-schedules
+// the resend round change timeout.
+onResendRoundChangeTimeout(H, R) {
+  if H = Hc && R = Rd {
+	if Sc = WaitingForNewRound {
+      broadcast(<RoundChange, Hc, Rd, PCc>)
+	}
+    scheduleResendRoundChange(Rd)
+  }
+}
+
+// Schedules a resend of the round change message unless the round change
+// timeout is sufficiently small. 
+scheduleResendRoundChange(R) {
+  t ← roundChangeTimeout(R) / 2
+  if Sc = WaitingForNewRound && t >= MIN_RESEND_ROUNDCHANGE_TIMEOUT {
+    if t > MAX_RESEND_ROUNDCHANGE_TIMEOUT {
+	  t ← MAX_RESEND_ROUNDCHANGE_TIMEOUT
+    }
+    schedule onResendRoundChangeTimeout(Hc, R) after t
+  }
+}
+
 ```
 
 ### Supporting Functions
@@ -324,6 +352,10 @@ important then `*` is used in the place of that variable.
 `Prepared`\
 `Committed`\
 `WaitingForNewRound`
+
+### Application defined values
+`MIN_RESEND_ROUNDCHANGE_TIMEOUT`\
+`MAX_RESEND_ROUNDCHANGE_TIMEOUT`
 
 ### Variable names
 `S - participant state`\
