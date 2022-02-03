@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/cmd/utils"
@@ -22,12 +21,22 @@ var epochFlag = cli.Int64Flag{
 	Usage: "Epoch number to report on",
 }
 
+var lookbackFlag = cli.Int64Flag{
+	Name:  "lookback",
+	Usage: "Lookback window to use for the uptime calculation",
+}
+
+var valSetSizeFlag = cli.Int64Flag{
+	Name:  "valset",
+	Usage: "Validator set size to use in the calculation",
+}
+
 var reportUptimeCommand = cli.Command{
 	Name:      "report",
 	Usage:     "Reports uptime for all validators",
 	Action:    reportUptime,
 	ArgsUsage: "",
-	Flags:     []cli.Flag{epochFlag},
+	Flags:     []cli.Flag{epochFlag, lookbackFlag, valSetSizeFlag},
 }
 
 // getHeaderByNumber retrieves a block header from the database by number,
@@ -41,14 +50,25 @@ func getHeaderByNumber(db ethdb.Database, number uint64) *types.Header {
 }
 
 func reportUptime(ctx *cli.Context) error {
-	// if len(ctx.Args()) < 1 {
-	// 	utils.Fatalf("This command requires an argument.")
-	// }
 	epochSize := params.MainnetChainConfig.Istanbul.Epoch
 	if !ctx.IsSet(epochFlag.Name) {
 		utils.Fatalf("This command requires an epoch argument")
 	}
 	epoch := ctx.Uint64(epochFlag.Name)
+
+	// lookback and valset size could actually be calculated
+	// but we need a whole instantiated blockchain to be able
+	// to execute the contract calls.
+	if !ctx.IsSet(lookbackFlag.Name) {
+		utils.Fatalf("This command requires a lookback argument")
+	}
+	lookback := ctx.Uint64(lookbackFlag.Name)
+
+	if !ctx.IsSet(valSetSizeFlag.Name) {
+		utils.Fatalf("This command requires a valset argument")
+	}
+	valSetSize := ctx.Uint64(valSetSizeFlag.Name)
+
 	cfg := defaultNodeConfig()
 	cfg.DataDir = utils.MakeDataDir(ctx)
 	nod, _ := node.New(&cfg)
@@ -59,8 +79,7 @@ func reportUptime(ctx *cli.Context) error {
 
 	lastBlock := istanbul.GetEpochLastBlockNumber(epoch, epochSize)
 	headers := getHeaders(db, lastBlock, int(epochSize))
-	runReport(headers, epochSize, 12, 100)
-	return nil
+	return runReport(headers, epochSize, lookback, int(valSetSize))
 }
 
 func getHeaders(db ethdb.Database, lastBlock uint64, amount int) []*types.Header {
@@ -75,7 +94,7 @@ func getHeaders(db ethdb.Database, lastBlock uint64, amount int) []*types.Header
 	return headers
 }
 
-func runReport(headers []*types.Header, epochSize uint64, lookback uint64, valSetSize int) []*big.Int {
+func runReport(headers []*types.Header, epochSize uint64, lookback uint64, valSetSize int) error {
 	epoch := istanbul.GetEpochNumber(headers[0].Number.Uint64(), epochSize)
 	monitor := uptime.NewMonitor(epochSize, epoch, lookback, valSetSize)
 	start := time.Now()
@@ -84,9 +103,15 @@ func runReport(headers []*types.Header, epochSize uint64, lookback uint64, valSe
 		monitor.ProcessHeader(header)
 	}
 	fmt.Printf("Headers added in %v\n", time.Since(start))
-	r, _ := monitor.ComputeUptime(header)
+	r, err := monitor.ComputeUptime(header)
+	if err != nil {
+		return err
+	}
 	fmt.Printf("Report done in %v\n", time.Since(start))
-	return r
+	for i, v := range r {
+		fmt.Println("Validator", i, "uptime", v)
+	}
+	return nil
 }
 
 type singleEpochStore struct {
