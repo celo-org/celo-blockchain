@@ -57,7 +57,7 @@ case that a participant is off-line or somehow inaccessible they will not
 receive broadcast messages and except for round change messages there is no
 mechanism for these messages to be re-sent.
 
-In the case of round change messages they are priodically re-broadcast.
+In the case of round change messages they are periodically re-broadcast.
 
 We refer to a consensus instance to mean consensus for a specific height.
 
@@ -450,58 +450,3 @@ function call to occur after the given duration.
 // to Hc and value equal to V is greater than 1 and less than 10.
 1 < |{ m<Prepare, Hc, Rm, Vm> ∈ M : Rm = Hc && Vm = V }| < 10
 ```
-
-## Strange things
-
-This is from check message but it doesn't check the message
-it just compares current round to desired
-
-consensus/istanbul/core/backlog.go:64
-  if c.current.Round().Cmp(c.current.DesiredRound()) > 0 {
-
-## Thoughts
-
-The future preprepare timer seems unnecessary, shouldn't the future preprepare
-message simply be handled when moving to the future sequence? Actually I think
-the future prepare timer is there to ensure that the network doesn't race ahead
-of the proposed block times, but it would be better if nodes simply waited some
-amount of time from the last block rather than making a calculation based on
-the time value set by the proposer.
-
-It seems the resetResendRoundChangeTimer functions are there to ensure round
-changes get resent, we need to represent that here because we don't assume
-reliable broadcast.
-
-When a round change timeout occurs it starts the timer for the next round
-change, which will result in another round change message being broadcast for
-the newer round, so why do we need the resendRoundChangeMessage functionality?
-
-I think nodes can get stuck:
-
-Say all nodes are at round 0 they all time out and send round changes for round 1 so they all move to round one.
-
-Now f+1 nodes timeout and send round changes for round 2 they have desired round 2 current round 1. The remaining 2f
-nodes receive the f+1 round changes and set desired round to 2 and schedule
-roundChangeTimeout with a target round of 2.
-
-Now if those 2f nodes have their scheduled roundChangeTimeout execute before
-they have updated their current round to 2 roundChangeTimeout will be a no-op.
-if the round changes sent by these 2f nodes are lost then they will never
-schedule any further round changes without outside intervention.
-
-The other nodes will have their round changes for round expire and their
-current round will be 1 meaning that their roundChangeTimeouts will also be
-no-ops. 
-
-And then the network is stuck
-
-I think nodes can get stuck2:
-
-Everyone times out and Sends a round change for round 1. All the round change
-messages are lost.  So all nodes have Rc 0 and Rd 1 state WaitingForNewRound.
-And their next round change timeout is looking for Rc to be equal to 1 because
-Rd was set to 1. But Rc is only ever set when receiving a preprepare or
-receiving a quorum of round changes.  So the next roundChangeTimeout will be a
-no op and then no more will be scheduled.
-
-This is why we need the resend round change timer.
