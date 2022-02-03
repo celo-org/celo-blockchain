@@ -2,7 +2,7 @@
 
 ## Celo IBFT specification
 
-This document is an attempt to specify at a conceptual level, the consensus
+This document is an attempt to specify at a conceptual level the consensus
 algorithm currently used by the Celo blockchain. It attempts to distill
 everything that is pertinent to consensus and eschew all that is not. Where
 consensus is the problem of agreeing on a sequence of values in a decentralized
@@ -11,8 +11,8 @@ manner.
 It is not trying to specify everything that lives under `consensus/istanbul`.
 
 By doing this we allow for a clean and clear specification of the consensus,
-conversely this specification does not resemble the code and mapping this to
-the code and vice versa, requires considerable effort.
+as a consequence this specification does not closely resemble the code and
+mapping this to the code and vice versa, requires considerable effort.
 
 ### High level overview
 
@@ -50,7 +50,7 @@ apply to Msgs) only messages from distinct participants are considered, I.E
 sets denoted by `M` or `N` cannot contain more than one message from any
 participant.
 
-For messages containing a value only messages with valid values are considered.
+For messages containing a value, only messages with valid values are considered.
 
 Participants are able to broadcast messages to all other participants. In the
 case that a participant is off-line or somehow inaccessible they will not
@@ -70,7 +70,7 @@ function that determines the validity of a value.
 See supporting [functions](#Functions) and [notation](#Appendix-1-Notation).
 
 Note all state modifications are contained in the following code block,
-supporting functions cannot modify state, they all operate without side
+supporting functions do not modify state, they all operate without side
 effects.
 
 Variable names                  |Instance state                          
