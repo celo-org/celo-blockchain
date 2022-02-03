@@ -11,18 +11,23 @@ parameters:
   system-contracts-path:
     type: string
     default: "compiled-system-contracts"
+  system-contracts-executor-image:
+    type: string
+      # The system contracts executor needs node 10 to function, this should
+      # only be changed when system-contracts-monorepo-version is changed.
+    default: "celohq/node10-gcloud:v3"
 executors:
   golang:
     docker:
       - image: circleci/golang:1.16
     working_directory: ~/repos/geth
-  node-v10:
+  system-contracts-executor:
     docker:
-      - image: celohq/node10-gcloud:v3
+      - image: <<pipeline.parameters.system-contracts-executor-image>>
     working_directory: ~/repos/geth
   e2e:
     docker:
-      - image: celohq/node10-gcloud:v3
+      - image: us.gcr.io/celo-testnet/circleci-node12:1.0.0
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
       GO_VERSION: "1.16.4"
@@ -39,7 +44,6 @@ executors:
       # b16a2d472a7cf24858f9d8b33a7185c8b81a261a is the current commit on master as of August 25, 2021, and
       # includes contracts release 5 (core-contracts.v5)
       CELO_MONOREPO_COMMIT_OR_BRANCH: b16a2d472a7cf24858f9d8b33a7185c8b81a261a
-
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 # Unfortunately we cannot use anchors to represent a set of standard steps and
 # then add or override one or more of those steps when referencing the anchor.
@@ -77,8 +81,8 @@ jobs:
     parameters:
       cache-key:
         type: string
-        default: system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>-<<pipeline.parameters.system-contracts-path>>-v<<pipeline.parameters.system-contracts-cache-version>>
-    executor: node-v10
+        default: system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>-<<pipeline.parameters.system-contracts-path>>-v<<pipeline.parameters.system-contracts-cache-version>>-<<pipeline.parameters.system-contracts-executor-image>>
+    executor: system-contracts-executor
     resource_class: medium+
     steps:
       - checkout
@@ -108,27 +112,6 @@ jobs:
           paths:
             - geth/<<pipeline.parameters.system-contracts-path>>
 
-  unit-tests:
-    <<: *unit-tests-defaults
-    steps:
-      - attach_workspace:
-          at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-      - run: go get github.com/jstemmer/go-junit-report
-      - run:
-          name: Run Tests
-          command: |
-            mkdir -p /tmp/test-results
-            trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
-            go test -p 1 -v ./... | tee /tmp/test-results/go-test.out
-      - store_artifacts:
-          path: /tmp/test-results
-          destination: raw-test-output
-      - store_test_results:
-          path: /tmp/test-results
-
   race:
     <<: *unit-tests-defaults
     steps:
@@ -139,7 +122,7 @@ jobs:
             - go-mod-v1-{{ checksum "go.sum" }}
       - run: go get github.com/jstemmer/go-junit-report
       - run:
-          name: Run Tests
+          name: Run tests
           command: |
             mkdir -p /tmp/test-results
             trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
@@ -150,7 +133,7 @@ jobs:
       - store_test_results:
           path: /tmp/test-results
 
-  coverage:
+  unit-tests:
     <<: *unit-tests-defaults
     steps:
       - attach_workspace:
@@ -158,8 +141,19 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-      - run: go test -p 1 -v -covermode=atomic -cover -coverprofile=coverage.out ./...
-      - run: bash <(curl -s https://codecov.io/bash)
+      - run: go get github.com/jstemmer/go-junit-report
+      - run:
+          name: Run tests
+          command: |
+            mkdir -p /tmp/test-results
+            trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
+            go test -p 1 -v -covermode=atomic -cover -coverprofile=coverage.out ./... | tee /tmp/test-results/go-test.out
+            bash <(curl -s https://codecov.io/bash)
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results:
+          path: /tmp/test-results
 
   istanbul-e2e-coverage:
     <<: *unit-tests-defaults
@@ -238,9 +232,27 @@ jobs:
             # need to double the backslashes in the awk command.
             curl -u piersy:${PR_COMMENT_TOKEN} -X ${CURL_VERB} $URL -d "{\"body\":\"`awk -v ORS='\\\\n' '1' comment`\"}" ;
 
+  e2e-benchmarks:
+    executor: golang
+    resource_class: medium+
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run:
+          name: Run benchmarks
+          command: |
+            mkdir -p /tmp/bench-results
+            trap "grep -E 'goos: |^goarch: |^pkg: |^cpu: |^Benchmark' /tmp/bench-results/go-bench.out > /tmp/bench-results/go-bench-results.txt" EXIT
+            go test ./e2e_test -run Bench -bench . | tee /tmp/bench-results/go-bench.out
+      - store_artifacts:
+          path: /tmp/bench-results
 
   lint:
     executor: golang
+    resource_class: medium+
     steps:
       - attach_workspace:
           at: ~/repos
@@ -250,7 +262,7 @@ jobs:
           command: |
             mkdir -p /tmp/test-results
             go run build/ci.go ensure-linter
-            ./build/cache/golangci-lint-1.25.0-linux-amd64/golangci-lint run --config .golangci.yml --out-format junit-xml ./... | tee /tmp/test-results/go-lint-report.xml
+            ./build/cache/golangci-lint-1.39.0-linux-amd64/golangci-lint run --config .golangci.yml --out-format junit-xml ./... | tee /tmp/test-results/go-lint-report.xml
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
@@ -267,7 +279,7 @@ jobs:
 
   android:
     docker:
-      - image: celohq/circleci:android-v2
+      - image: us.gcr.io/celo-testnet/android:v3
     working_directory: ~/repos/geth
     steps:
       - checkout
@@ -281,7 +293,7 @@ jobs:
 
   ios:
     macos:
-      xcode: "11.3.1"
+      xcode: "12.5.1"
     working_directory: ~/repos/geth
     steps:
       - checkout
@@ -334,6 +346,10 @@ jobs:
             cd celo-monorepo
             git fetch --depth 1 origin ${CELO_MONOREPO_COMMIT_OR_BRANCH}
             git checkout ${CELO_MONOREPO_COMMIT_OR_BRANCH}
+
+            # Github is phasing out the git protocol so we ensure that we use
+            # https for all git operations that yarn may perform.
+            git config --global url."https://github.com".insteadOf git://github.com
             yarn install || yarn install
             yarn build --scope @celo/celotool --include-filtered-dependencies
       - run:
@@ -426,6 +442,32 @@ jobs:
             export PATH=${PATH}:~/repos/golang/go/bin
             ./ci_test_validator_order.sh local ~/repos/geth
 
+  end-to-end-cip35-eth-compatibility-test:
+    executor: e2e
+    resource_class: xlarge
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: End-to-end test of CIP 35
+          no_output_timeout: 15m
+          command: |
+            export PATH=${PATH}:~/repos/golang/go/bin
+            ./ci_test_cip35.sh local ~/repos/geth
+
+  end-to-end-replica-test:
+    executor: e2e
+    resource_class: xlarge
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: End-to-end test of hotswap functionality
+          no_output_timeout: 15m
+          command: |
+            export PATH=${PATH}:~/repos/golang/go/bin
+            ./ci_test_replicas.sh local ~/repos/geth
+
 workflows:
   version: 2
   build:
@@ -445,11 +487,11 @@ workflows:
           requires:
             - build-geth
             - prepare-system-contracts
-      - coverage:
+      - istanbul-e2e-coverage:
           requires:
             - build-geth
             - prepare-system-contracts
-      - istanbul-e2e-coverage:
+      - e2e-benchmarks:
           requires:
             - build-geth
             - prepare-system-contracts
@@ -497,6 +539,14 @@ workflows:
             - checkout-monorepo
             - build-geth
       - end-to-end-validator-order-test:
+          requires:
+            - checkout-monorepo
+            - build-geth
+      - end-to-end-cip35-eth-compatibility-test:
+          requires:
+            - checkout-monorepo
+            - build-geth
+      - end-to-end-replica-test:
           requires:
             - checkout-monorepo
             - build-geth

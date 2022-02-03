@@ -39,6 +39,7 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/celo-org/celo-blockchain/trie"
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/crypto/sha3"
 )
@@ -81,9 +82,6 @@ var (
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
 	// errInvalidValidatorSetDiff is returned if the header contains invalid validator set diff
 	errInvalidValidatorSetDiff = errors.New("invalid validator set diff")
-	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
-	// an unregistered validator
-	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
 	// errNotAValidator is returned when the node is not configured as a validator
 	errNotAValidator = errors.New("Not configured as a validator")
 )
@@ -385,12 +383,16 @@ func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 		header.Time = nowTime
 	}
 
-	// Record what the delay should be, but sleep in the miner, not the consensus engine.
+	// Record what the delay should be and sleep if greater than 0.
+	// TODO(victor): Sleep here was previously removed and added to the miner instead, that change
+	// has been temporarily reverted until it can be reimplemented without causing fewer signatures
+	// to be included by the block producer.
 	delay := time.Until(time.Unix(int64(header.Time), 0))
 	if delay < 0 {
 		sb.sleepGauge.Update(0)
 	} else {
 		sb.sleepGauge.Update(delay.Nanoseconds())
+		time.Sleep(delay)
 	}
 
 	if err := writeEmptyIstanbulExtra(header); err != nil {
@@ -472,7 +474,7 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 	// They are looked up using the zero hash instead of a transaction hash, and so we need to first call
 	// `state.Prepare()` so that they get filed under the zero hash. Otherwise, they would get filed under
 	// the hash of the last transaction in the block (if there were any).
-	state.Prepare(common.Hash{}, header.Hash(), len(txs))
+	state.Prepare(common.Hash{}, len(txs))
 
 	snapshot := state.Snapshot()
 	vmRunner := sb.chain.NewEVMRunner(header, state)
@@ -514,7 +516,7 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 	receipts = core.AddBlockReceipt(receipts, state, header.Hash())
 
 	// Assemble and return the final block for sealing
-	block := types.NewBlock(header, txs, receipts, randomness)
+	block := types.NewBlock(header, txs, receipts, randomness, new(trie.Trie))
 	return block, nil
 }
 
@@ -595,50 +597,44 @@ func (sb *Backend) SetChain(chain consensus.ChainContext, currentBlock func() *t
 	sb.stateAt = stateAt
 
 	if bc, ok := chain.(*ethCore.BlockChain); ok {
-		go sb.newChainHeadLoop(bc)
-		go sb.updateReplicaStateLoop(bc)
-	}
+		// Batched. For stats & announce
+		chainHeadCh := make(chan ethCore.ChainHeadEvent, 10)
+		chainHeadSub := bc.SubscribeChainHeadEvent(chainHeadCh)
 
-}
-
-// Loop to run on new chain head events. Chain head events may be batched.
-func (sb *Backend) newChainHeadLoop(bc *ethCore.BlockChain) {
-	// Batched. For stats & announce
-	chainHeadCh := make(chan ethCore.ChainHeadEvent, 10)
-	chainHeadSub := bc.SubscribeChainHeadEvent(chainHeadCh)
-	defer chainHeadSub.Unsubscribe()
-
-	for {
-		select {
-		case chainHeadEvent := <-chainHeadCh:
-			sb.newChainHead(chainHeadEvent.Block)
-		case err := <-chainHeadSub.Err():
-			log.Error("Error in istanbul's subscription to the blockchain's chainhead event", "err", err)
-			return
-		}
-	}
-}
-
-// Loop to update replica state. Listens to chain events to avoid batching.
-func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
-	// Unbatched event listener
-	chainEventCh := make(chan ethCore.ChainEvent, 10)
-	chainEventSub := bc.SubscribeChainEvent(chainEventCh)
-	defer chainEventSub.Unsubscribe()
-
-	for {
-		select {
-		case chainEvent := <-chainEventCh:
-			sb.coreMu.RLock()
-			if !sb.isCoreStarted() && sb.replicaState != nil {
-				consensusBlock := new(big.Int).Add(chainEvent.Block.Number(), common.Big1)
-				sb.replicaState.NewChainHead(consensusBlock)
+		go func() {
+			defer chainHeadSub.Unsubscribe()
+			// Loop to run on new chain head events. Chain head events may be batched.
+			for {
+				select {
+				case chainHeadEvent := <-chainHeadCh:
+					sb.newChainHead(chainHeadEvent.Block)
+				case err := <-chainHeadSub.Err():
+					log.Error("Error in istanbul's subscription to the blockchain's chainhead event", "err", err)
+					return
+				}
 			}
-			sb.coreMu.RUnlock()
-		case err := <-chainEventSub.Err():
-			log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
-			return
-		}
+		}()
+
+		// Unbatched event listener
+		chainEventCh := make(chan ethCore.ChainEvent, 10)
+		chainEventSub := bc.SubscribeChainEvent(chainEventCh)
+
+		go func() {
+			defer chainEventSub.Unsubscribe()
+			// Loop to update replica state. Listens to chain events to avoid batching.
+			for {
+				select {
+				case chainEvent := <-chainEventCh:
+					if !sb.isCoreStarted() && sb.replicaState != nil {
+						consensusBlock := new(big.Int).Add(chainEvent.Block.Number(), common.Big1)
+						sb.replicaState.NewChainHead(consensusBlock)
+					}
+				case err := <-chainEventSub.Err():
+					log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
+					return
+				}
+			}
+		}()
 	}
 }
 
@@ -710,45 +706,6 @@ func (sb *Backend) StopValidating() error {
 	sb.coreStarted.Store(false)
 
 	return nil
-}
-
-// StartAnnouncing implements consensus.Istanbul.StartAnnouncing
-func (sb *Backend) StartAnnouncing() error {
-	sb.announceMu.Lock()
-	defer sb.announceMu.Unlock()
-	if sb.announceRunning {
-		return istanbul.ErrStartedAnnounce
-	}
-
-	sb.announceThreadQuit = make(chan struct{})
-	sb.announceRunning = true
-
-	sb.announceThreadWg.Add(1)
-	go sb.announceThread()
-
-	if err := sb.vph.startThread(); err != nil {
-		sb.StopAnnouncing()
-		return err
-	}
-
-	return nil
-}
-
-// StopAnnouncing implements consensus.Istanbul.StopAnnouncing
-func (sb *Backend) StopAnnouncing() error {
-	sb.announceMu.Lock()
-	defer sb.announceMu.Unlock()
-
-	if !sb.announceRunning {
-		return istanbul.ErrStoppedAnnounce
-	}
-
-	close(sb.announceThreadQuit)
-	sb.announceThreadWg.Wait()
-
-	sb.announceRunning = false
-
-	return sb.vph.stopThread()
 }
 
 // StartProxiedValidatorEngine implements consensus.Istanbul.StartProxiedValidatorEngine

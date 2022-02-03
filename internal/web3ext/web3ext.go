@@ -18,53 +18,18 @@
 package web3ext
 
 var Modules = map[string]string{
-	"accounting": AccountingJs,
-	"admin":      AdminJs,
-	"chequebook": ChequebookJs,
-	"debug":      DebugJs,
-	"eth":        EthJs,
-	"istanbul":   Istanbul_JS,
-	"miner":      MinerJs,
-	"net":        NetJs,
-	"personal":   PersonalJs,
-	"rpc":        RpcJs,
-	"shh":        ShhJs,
-	"swarmfs":    SwarmfsJs,
-	"txpool":     TxpoolJs,
-	"les":        LESJs,
-	"lespay":     LESPayJs,
+	"admin":    AdminJs,
+	"debug":    DebugJs,
+	"eth":      EthJs,
+	"istanbul": Istanbul_JS,
+	"miner":    MinerJs,
+	"net":      NetJs,
+	"personal": PersonalJs,
+	"rpc":      RpcJs,
+	"txpool":   TxpoolJs,
+	"les":      LESJs,
+	"vflux":    VfluxJs,
 }
-
-const ChequebookJs = `
-web3._extend({
-	property: 'chequebook',
-	methods: [
-		new web3._extend.Method({
-			name: 'deposit',
-			call: 'chequebook_deposit',
-			params: 1,
-			inputFormatter: [null]
-		}),
-		new web3._extend.Property({
-			name: 'balance',
-			getter: 'chequebook_balance',
-			outputFormatter: web3._extend.utils.toDecimal
-		}),
-		new web3._extend.Method({
-			name: 'cash',
-			call: 'chequebook_cash',
-			params: 1,
-			inputFormatter: [null]
-		}),
-		new web3._extend.Method({
-			name: 'issue',
-			call: 'chequebook_issue',
-			params: 2,
-			inputFormatter: [null, null]
-		}),
-	]
-});
-`
 
 const AdminJs = `
 web3._extend({
@@ -107,11 +72,23 @@ web3._extend({
 			params: 2
 		}),
 		new web3._extend.Method({
+			name: 'startHTTP',
+			call: 'admin_startHTTP',
+			params: 5,
+			inputFormatter: [null, null, null, null, null]
+		}),
+		new web3._extend.Method({
+			name: 'stopHTTP',
+			call: 'admin_stopHTTP'
+		}),
+		// This method is deprecated.
+		new web3._extend.Method({
 			name: 'startRPC',
 			call: 'admin_startRPC',
-			params: 4,
-			inputFormatter: [null, null, null, null]
+			params: 5,
+			inputFormatter: [null, null, null, null, null]
 		}),
+		// This method is deprecated.
 		new web3._extend.Method({
 			name: 'stopRPC',
 			call: 'admin_stopRPC'
@@ -161,7 +138,8 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'printBlock',
 			call: 'debug_printBlock',
-			params: 1
+			params: 1,
+			outputFormatter: console.log
 		}),
 		new web3._extend.Method({
 			name: 'getBlockRlp',
@@ -181,7 +159,8 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'dumpBlock',
 			call: 'debug_dumpBlock',
-			params: 1
+			params: 1,
+			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter]
 		}),
 		new web3._extend.Method({
 			name: 'chaindbProperty',
@@ -333,7 +312,7 @@ web3._extend({
 			name: 'traceBlockByNumber',
 			call: 'debug_traceBlockByNumber',
 			params: 2,
-			inputFormatter: [null, null]
+			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter, null]
 		}),
 		new web3._extend.Method({
 			name: 'traceBlockByHash',
@@ -346,6 +325,12 @@ web3._extend({
 			call: 'debug_traceTransaction',
 			params: 2,
 			inputFormatter: [null, null]
+		}),
+		new web3._extend.Method({
+			name: 'traceCall',
+			call: 'debug_traceCall',
+			params: 3,
+			inputFormatter: [null, null, null]
 		}),
 		new web3._extend.Method({
 			name: 'preimage',
@@ -413,6 +398,13 @@ web3._extend({
 			inputFormatter: [web3._extend.formatters.inputTransactionFormatter]
 		}),
 		new web3._extend.Method({
+			name: 'estimateGas',
+			call: 'eth_estimateGas',
+			params: 2,
+			inputFormatter: [web3._extend.formatters.inputCallFormatter, web3._extend.formatters.inputBlockNumberFormatter],
+			outputFormatter: web3._extend.utils.toDecimal
+		}),
+		new web3._extend.Method({
 			name: 'submitTransaction',
 			call: 'eth_submitTransaction',
 			params: 1,
@@ -427,7 +419,8 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'getHeaderByNumber',
 			call: 'eth_getHeaderByNumber',
-			params: 1
+			params: 1,
+			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter]
 		}),
 		new web3._extend.Method({
 			name: 'getHeaderByHash',
@@ -437,12 +430,14 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'getBlockByNumber',
 			call: 'eth_getBlockByNumber',
-			params: 2
+			params: 2,
+			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter, function (val) { return !!val; }]
 		}),
 		new web3._extend.Method({
 			name: 'getBlockByHash',
 			call: 'eth_getBlockByHash',
-			params: 2
+			params: 2,
+			inputFormatter: [null, function (val) { return !!val; }]
 		}),
 		new web3._extend.Method({
 			name: 'getBlockReceipt',
@@ -479,6 +474,12 @@ web3._extend({
 			call: 'eth_txFeeRecipient',
 			params: 0
 		}),
+		new web3._extend.Method({
+			name: 'createAccessList',
+			call: 'eth_createAccessList',
+			params: 2,
+			inputFormatter: [null, web3._extend.formatters.inputBlockNumberFormatter],
+		}),
 	],
 	properties: [
 		new web3._extend.Property({
@@ -492,6 +493,11 @@ web3._extend({
 				}
 				return formatted;
 			}
+		}),
+		new web3._extend.Property({
+			name: 'maxPriorityFeePerGas',
+			getter: 'eth_maxPriorityFeePerGas',
+			outputFormatter: web3._extend.utils.toBigNumber
 		}),
 	]
 });
@@ -623,50 +629,6 @@ web3._extend({
 });
 `
 
-const ShhJs = `
-web3._extend({
-	property: 'shh',
-	methods: [
-	],
-	properties:
-	[
-		new web3._extend.Property({
-			name: 'version',
-			getter: 'shh_version',
-			outputFormatter: web3._extend.utils.toDecimal
-		}),
-		new web3._extend.Property({
-			name: 'info',
-			getter: 'shh_info'
-		}),
-	]
-});
-`
-
-const SwarmfsJs = `
-web3._extend({
-	property: 'swarmfs',
-	methods:
-	[
-		new web3._extend.Method({
-			name: 'mount',
-			call: 'swarmfs_mount',
-			params: 2
-		}),
-		new web3._extend.Method({
-			name: 'unmount',
-			call: 'swarmfs_unmount',
-			params: 1
-		}),
-		new web3._extend.Method({
-			name: 'listmounts',
-			call: 'swarmfs_listmounts',
-			params: 0
-		}),
-	]
-});
-`
-
 const TxpoolJs = `
 web3._extend({
 	property: 'txpool',
@@ -690,49 +652,10 @@ web3._extend({
 				return status;
 			}
 		}),
-	]
-});
-`
-
-const AccountingJs = `
-web3._extend({
-	property: 'accounting',
-	methods: [
-		new web3._extend.Property({
-			name: 'balance',
-			getter: 'account_balance'
-		}),
-		new web3._extend.Property({
-			name: 'balanceCredit',
-			getter: 'account_balanceCredit'
-		}),
-		new web3._extend.Property({
-			name: 'balanceDebit',
-			getter: 'account_balanceDebit'
-		}),
-		new web3._extend.Property({
-			name: 'bytesCredit',
-			getter: 'account_bytesCredit'
-		}),
-		new web3._extend.Property({
-			name: 'bytesDebit',
-			getter: 'account_bytesDebit'
-		}),
-		new web3._extend.Property({
-			name: 'msgCredit',
-			getter: 'account_msgCredit'
-		}),
-		new web3._extend.Property({
-			name: 'msgDebit',
-			getter: 'account_msgDebit'
-		}),
-		new web3._extend.Property({
-			name: 'peerDrops',
-			getter: 'account_peerDrops'
-		}),
-		new web3._extend.Property({
-			name: 'selfDrops',
-			getter: 'account_selfDrops'
+		new web3._extend.Method({
+			name: 'contentFrom',
+			call: 'txpool_contentFrom',
+			params: 1,
 		}),
 		]
 	});
@@ -871,7 +794,7 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'addBalance',
 			call: 'les_addBalance',
-			params: 3
+			params: 2
 		}),
 		new web3._extend.Method({
 			name: 'setGatewayFeeRecipient',
@@ -924,24 +847,24 @@ web3._extend({
 });
 `
 
-const LESPayJs = `
+const VfluxJs = `
 web3._extend({
-	property: 'lespay',
+	property: 'vflux',
 	methods:
 	[
 		new web3._extend.Method({
 			name: 'distribution',
-			call: 'lespay_distribution',
+			call: 'vflux_distribution',
 			params: 2
 		}),
 		new web3._extend.Method({
 			name: 'timeout',
-			call: 'lespay_timeout',
+			call: 'vflux_timeout',
 			params: 2
 		}),
 		new web3._extend.Method({
 			name: 'value',
-			call: 'lespay_value',
+			call: 'vflux_value',
 			params: 2
 		}),
 	],
@@ -949,7 +872,7 @@ web3._extend({
 	[
 		new web3._extend.Property({
 			name: 'requestStats',
-			getter: 'lespay_requestStats'
+			getter: 'vflux_requestStats'
 		}),
 	]
 });

@@ -132,6 +132,9 @@ func (rs *replicaStateImpl) Close() error {
 
 // NewChainHead updates replica state and starts/stops the core if needed
 func (rs *replicaStateImpl) NewChainHead(blockNumber *big.Int) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
 	logger := log.New("func", "NewChainHead", "seq", blockNumber)
 	switch rs.state {
 	case primaryInRange:
@@ -397,6 +400,10 @@ type replicaStateRLP struct {
 // not verified at the moment, but a future version might. It is
 // recommended to write only a single value but writing multiple
 // values or no value at all is also permitted.
+//
+// Note: This is called when StoreReplicaState is called so
+// mu should be held by functions that call StoreReplicaState
+// but mu should not be locked in this function.
 func (rs *replicaStateImpl) EncodeRLP(w io.Writer) error {
 	entry := replicaStateRLP{
 		State:                rs.state,

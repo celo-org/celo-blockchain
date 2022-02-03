@@ -18,6 +18,7 @@ package light
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"testing"
 
@@ -319,8 +320,8 @@ func TestBadHeaderHashes(t *testing.T) {
 	headers := makeHeaderChainWithDiff(bc.genesisBlock, []int{1, 2, 4}, 10)
 	core.BadHashes[headers[2].Hash()] = true
 	defer func() { delete(core.BadHashes, headers[2].Hash()) }()
-	if _, err = bc.InsertHeaderChain(headers, 1, true); err != core.ErrBlacklistedHash {
-		t.Errorf("error mismatch: have: %v, want %v", err, core.ErrBlacklistedHash)
+	if _, err = bc.InsertHeaderChain(headers, 1, true); !errors.Is(err, core.ErrBannedHash) {
+		t.Errorf("error mismatch: have: %v, want %v", err, core.ErrBannedHash)
 	}
 }
 

@@ -19,7 +19,6 @@ package consensustest
 import (
 	"crypto/ecdsa"
 	"errors"
-	"fmt"
 	"math/big"
 	"net"
 	"runtime"
@@ -35,6 +34,7 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/celo-org/celo-blockchain/trie"
 )
 
 var (
@@ -104,7 +104,7 @@ func (mp *MockPeer) Node() *enode.Node {
 	return mp.node
 }
 
-func (mp *MockPeer) Version() int {
+func (mp *MockPeer) Version() uint {
 	return 0
 }
 
@@ -201,7 +201,7 @@ func (e *MockEngine) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	header.Root = statedb.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 
 	// Header seems complete, assemble into a block and return
-	return types.NewBlock(header, txs, receipts, randomness), nil
+	return types.NewBlock(header, txs, receipts, randomness, new(trie.Trie)), nil
 }
 
 func (e *MockEngine) Author(header *types.Header) (common.Address, error) {
@@ -227,9 +227,9 @@ func (e *MockEngine) VerifyHeader(chain consensus.ChainHeaderReader, header *typ
 
 // verifyHeader checks whether a header conforms to the consensus rules
 func (e *MockEngine) verifyHeader(chain consensus.ChainHeaderReader, header, parent *types.Header, seal bool) error {
-	// Ensure that the header's extra-data section is of a reasonable size
-	if uint64(len(header.Extra)) > params.MaximumExtraDataSize {
-		return fmt.Errorf("extra-data too long: %d > %d", len(header.Extra), params.MaximumExtraDataSize)
+	// Ensure that the extra data format is satisfied
+	if _, err := types.ExtractIstanbulExtra(header); err != nil {
+		return errors.New("invalid extra data format")
 	}
 	// Verify the header's timestamp
 	if header.Time > uint64(time.Now().Add(allowedFutureBlockTime).Unix()) {
@@ -350,6 +350,13 @@ func (e *MockEngine) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
+
+	// Matches delay in consensus/istanbul/backend/engine.go:386 in (*Backend).Prepare
+	delay := time.Until(time.Unix(int64(header.Time), 0))
+	if delay > 0 {
+		time.Sleep(delay)
+	}
+
 	return nil
 }
 

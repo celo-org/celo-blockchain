@@ -42,6 +42,8 @@ var (
 	miscInTxStatusTrafficMeter   = metrics.NewRegisteredMeter("les/misc/in/traffic/txStatus", nil)
 	miscInEtherbasePacketsMeter  = metrics.NewRegisteredMeter("les/misc/in/packets/etherbase", nil)
 	miscInEtherbaseTrafficMeter  = metrics.NewRegisteredMeter("les/misc/in/traffic/etherbase", nil)
+	miscInGatewayFeePacketsMeter = metrics.NewRegisteredMeter("les/misc/in/packets/gatewayFee", nil)
+	miscInGatewayFeeTrafficMeter = metrics.NewRegisteredMeter("les/misc/in/traffic/gatewayFee", nil)
 
 	miscOutPacketsMeter           = metrics.NewRegisteredMeter("les/misc/out/packets/total", nil)
 	miscOutTrafficMeter           = metrics.NewRegisteredMeter("les/misc/out/traffic/total", nil)
@@ -63,6 +65,8 @@ var (
 	miscOutTxStatusTrafficMeter   = metrics.NewRegisteredMeter("les/misc/out/traffic/txStatus", nil)
 	miscOutEtherbasePacketsMeter  = metrics.NewRegisteredMeter("les/misc/out/packets/etherbase", nil)
 	miscOutEtherbaseTrafficMeter  = metrics.NewRegisteredMeter("les/misc/out/traffic/etherbase", nil)
+	miscOutGatewayFeePacketsMeter = metrics.NewRegisteredMeter("les/misc/out/packets/gatewayFee", nil)
+	miscOutGatewayFeeTrafficMeter = metrics.NewRegisteredMeter("les/misc/out/traffic/gatewayFee", nil)
 
 	miscServingTimeHeaderTimer     = metrics.NewRegisteredTimer("les/misc/serve/header", nil)
 	miscServingTimeBodyTimer       = metrics.NewRegisteredTimer("les/misc/serve/body", nil)
@@ -73,14 +77,13 @@ var (
 	miscServingTimeTxTimer         = metrics.NewRegisteredTimer("les/misc/serve/txs", nil)
 	miscServingTimeTxStatusTimer   = metrics.NewRegisteredTimer("les/misc/serve/txStatus", nil)
 	miscServingTimeEtherbaseTimer  = metrics.NewRegisteredTimer("les/misc/serve/etherbase", nil)
+	miscServingTimeGatewayFeeTimer = metrics.NewRegisteredTimer("les/misc/serve/gatewayFee", nil)
 
 	connectionTimer       = metrics.NewRegisteredTimer("les/connection/duration", nil)
 	serverConnectionGauge = metrics.NewRegisteredGauge("les/connection/server", nil)
-	clientConnectionGauge = metrics.NewRegisteredGauge("les/connection/client", nil)
 
 	totalCapacityGauge   = metrics.NewRegisteredGauge("les/server/totalCapacity", nil)
 	totalRechargeGauge   = metrics.NewRegisteredGauge("les/server/totalRecharge", nil)
-	totalConnectedGauge  = metrics.NewRegisteredGauge("les/server/totalConnected", nil)
 	blockProcessingTimer = metrics.NewRegisteredTimer("les/server/blockProcessingTime", nil)
 
 	requestServedMeter               = metrics.NewRegisteredMeter("les/server/req/avgServedTime", nil)
@@ -103,12 +106,8 @@ var (
 	sqServedGauge        = metrics.NewRegisteredGauge("les/server/servingQueue/served", nil)
 	sqQueuedGauge        = metrics.NewRegisteredGauge("les/server/servingQueue/queued", nil)
 
-	clientConnectedMeter    = metrics.NewRegisteredMeter("les/server/clientEvent/connected", nil)
-	clientRejectedMeter     = metrics.NewRegisteredMeter("les/server/clientEvent/rejected", nil)
-	clientKickedMeter       = metrics.NewRegisteredMeter("les/server/clientEvent/kicked", nil)
-	clientDisconnectedMeter = metrics.NewRegisteredMeter("les/server/clientEvent/disconnected", nil)
-	clientFreezeMeter       = metrics.NewRegisteredMeter("les/server/clientEvent/freeze", nil)
-	clientErrorMeter        = metrics.NewRegisteredMeter("les/server/clientEvent/error", nil)
+	clientFreezeMeter = metrics.NewRegisteredMeter("les/server/clientEvent/freeze", nil)
+	clientErrorMeter  = metrics.NewRegisteredMeter("les/server/clientEvent/error", nil)
 
 	requestRTT       = metrics.NewRegisteredTimer("les/client/req/rtt", nil)
 	requestSendDelay = metrics.NewRegisteredTimer("les/client/req/sendDelay", nil)

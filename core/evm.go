@@ -17,6 +17,8 @@
 package core
 
 import (
+	"math/big"
+
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -42,7 +44,15 @@ type ChainContext interface {
 	Config() *params.ChainConfig
 }
 
-// New creates a new context for use in the EVM.
-func NewEVMContext(msg Message, header *types.Header, chain ChainContext, txFeeRecipient *common.Address) vm.Context {
-	return vmcontext.New(msg.From(), msg.GasPrice(), header, chain, txFeeRecipient)
+// NewEVMBlockContext creates a new context for use in the EVM.
+func NewEVMBlockContext(header *types.Header, chain ChainContext, txFeeRecipient *common.Address) vm.BlockContext {
+	return vmcontext.NewBlockContext(header, chain, txFeeRecipient)
+}
+
+// NewEVMTxContext creates a new transaction context for a single transaction.
+func NewEVMTxContext(msg Message) vm.TxContext {
+	return vm.TxContext{
+		Origin:   msg.From(),
+		GasPrice: new(big.Int).Set(msg.GasPrice()),
+	}
 }

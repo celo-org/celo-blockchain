@@ -32,7 +32,7 @@ type chainContext interface {
 }
 
 // New creates a new context for use in the EVM.
-func New(from common.Address, gasPrice *big.Int, header *types.Header, chain chainContext, txFeeRecipient *common.Address) vm.Context {
+func NewBlockContext(header *types.Header, chain chainContext, txFeeRecipient *common.Address) vm.BlockContext {
 	// If we don't have an explicit txFeeRecipient (i.e. not mining), extract from the header
 	// The only call that fills the txFeeRecipient, is the ApplyTransaction from the state processor
 	// All the other calls, assume that will be retrieved from the header
@@ -43,16 +43,14 @@ func New(from common.Address, gasPrice *big.Int, header *types.Header, chain cha
 		beneficiary = *txFeeRecipient
 	}
 
-	ctx := vm.Context{
+	ctx := vm.BlockContext{
 		CanTransfer: CanTransfer,
 		Transfer:    TobinTransfer,
 		GetHash:     GetHashFn(header, chain),
 		VerifySeal:  VerifySealFn(header, chain),
-		Origin:      from,
 		Coinbase:    beneficiary,
 		BlockNumber: new(big.Int).Set(header.Number),
 		Time:        new(big.Int).SetUint64(header.Time),
-		GasPrice:    new(big.Int).Set(gasPrice),
 
 		GetRegisteredAddress: GetRegisteredAddress,
 	}
