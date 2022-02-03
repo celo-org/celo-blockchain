@@ -98,10 +98,25 @@ func (um *Monitor) ComputeUptime(header *types.Header) ([]*big.Int, error) {
 func (um *Monitor) ProcessHeader(header *types.Header) error {
 	blockNumber := header.Number.Uint64()
 
+	if istanbul.GetEpochNumber(header.Number.Uint64(), um.epochSize) != um.epoch {
+		return ErrWrongEpoch
+	}
 	// The epoch's first block's aggregated parent signatures is for the previous epoch's valset.
 	// We can ignore updating the tally for that block.
 	if istanbul.IsFirstBlockOfEpoch(blockNumber, um.epochSize) {
-		return nil
+		if um.accumulatedUptime.LatestHeader == nil {
+			um.accumulatedUptime.LatestHeader = header
+			return nil
+		}
+		return ErrMissingPreviousHeaders
+	}
+
+	if um.accumulatedUptime.LatestHeader.Number.Uint64() <= blockNumber {
+		return ErrHeaderNumberAlreadyUsed
+	}
+
+	if um.accumulatedUptime.LatestHeader.Hash() != header.ParentHash {
+		return ErrMissingPreviousHeaders
 	}
 
 	// Get the bitmap from the previous block

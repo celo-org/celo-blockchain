@@ -13,6 +13,10 @@ var (
 	// to the missing headers from the epoch.
 	ErrMissingPreviousHeaders = errors.New("missing previous headers to compute uptime")
 
+	// ErrHeaderNumberAlreadyUsed is returned when the builder receives a header number
+	// that was alredy processed
+	ErrHeaderNumberAlreadyUsed = errors.New("header number already processed")
+
 	// ErrHeaderRewinded is returned when the builder cannot continue due to the uptime chain.
 	// being rewinded.
 	ErrHeaderRewinded = errors.New("header provided is behind current tip in uptime builder")
