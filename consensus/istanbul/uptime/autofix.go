@@ -1,0 +1,130 @@
+package uptime
+
+import (
+	"math/big"
+
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/core/types"
+)
+
+// autoFixBuilder is an uptime Builder that will fix rewinds and missing headers from a
+// decorated builder.
+type autoFixBuilder struct {
+	builder  Builder
+	provider istanbul.EpochHeadersProvider
+}
+
+func NewAutoFixBuilder(builder Builder, provider istanbul.EpochHeadersProvider) Builder {
+	return &autoFixBuilder{
+		builder:  builder,
+		provider: provider,
+	}
+}
+
+func (af *autoFixBuilder) ProcessHeader(header *types.Header) error {
+	number := header.Number.Uint64()
+	epoch := istanbul.GetEpochNumber(number, af.builder.GetEpochSize())
+	if af.builder.GetEpoch() != epoch {
+		// Provided header from the wrong epoch
+		return ErrWrongEpoch
+	}
+
+	lastHeader := af.builder.GetLastProcessedHeader()
+
+	if lastHeader == nil {
+		// It's from the same epoch and the builder is empty.
+		// Build up to the new header.
+		return af.cleanBuild(header)
+	}
+
+	lastHeaderNumber := lastHeader.Number.Uint64()
+
+	// If it's a rewind, rebuild
+	if number < lastHeaderNumber {
+		return af.cleanBuild(header)
+	}
+
+	if number > lastHeaderNumber {
+		// Normal advance. Try to advance the builder
+		return af.advance(lastHeader, header)
+	}
+
+	// number == lastHeaderNumber
+	// check if it's an idempotent call or if
+	// there' a fork
+	if lastHeader.Hash() == header.Hash() {
+		// Nothing to do.
+		return nil
+	}
+
+	// fork, rebuild
+	return af.cleanBuild(header)
+}
+
+// cleanBuild does a clean build up to the header given.
+func (af *autoFixBuilder) cleanBuild(upTo *types.Header) error {
+	af.builder.Clear()
+	epochSize := af.builder.GetEpochSize()
+	numberWithinEpoch := istanbul.GetNumberWithinEpoch(upTo.Number.Uint64(), epochSize)
+	headers, err := af.provider.GetEpochHeadersUpToLimit(epochSize, upTo, numberWithinEpoch)
+	if err != nil {
+		return err
+	}
+	return af.addAll(headers)
+}
+
+// advance advances the computation from the header given to the upTo header given.
+// This method requests to the provider the missing headers in between and adds them.
+// The only caveat is if the 'from' header is not in the same chain as the 'upTo' header.
+// In that case, a rebuild is made.
+func (af *autoFixBuilder) advance(from, upTo *types.Header) error {
+	upNumber := upTo.Number.Uint64()
+	fromNumber := from.Number.Uint64()
+	limit := upNumber - fromNumber + 1
+	headers, err := af.provider.GetEpochHeadersUpToLimit(af.builder.GetEpochSize(), upTo, limit)
+	if err != nil {
+		return err
+	}
+	// Verify that this is not a fork
+	if headers[0].Hash() != from.Hash() {
+		// Fork!
+		// Rebuild
+		return af.cleanBuild(upTo)
+	}
+	return af.addAll(headers)
+}
+
+// addAll adds all the headers to the decorated builder.
+func (af *autoFixBuilder) addAll(headers []*types.Header) error {
+	for _, h := range headers {
+		err := af.builder.ProcessHeader(h)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (af *autoFixBuilder) ComputeUptime(epochLastHeader *types.Header) ([]*big.Int, error) {
+	err := af.ProcessHeader(epochLastHeader)
+	if err != nil {
+		return nil, err
+	}
+	return af.builder.ComputeUptime(epochLastHeader)
+}
+
+func (af *autoFixBuilder) GetEpochSize() uint64 {
+	return af.builder.GetEpochSize()
+}
+
+func (af *autoFixBuilder) GetEpoch() uint64 {
+	return af.builder.GetEpoch()
+}
+
+func (af *autoFixBuilder) Clear() {
+	af.builder.Clear()
+}
+
+func (af *autoFixBuilder) GetLastProcessedHeader() *types.Header {
+	return af.builder.GetLastProcessedHeader()
+}

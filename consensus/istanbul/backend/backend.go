@@ -1014,8 +1014,8 @@ func (sb *Backend) RetrieveUptimeScoreBuilder(header *types.Header, epochSize ui
 	if sb.uptimeMonitor == nil || sb.uptimeMonitor.GetEpoch() != epoch {
 		valSet := sb.GetValidators(header.Number, header.Hash())
 		builder := uptime.NewMonitor(epochSize, epoch, lookbackWindowFn(), len(valSet))
-		// TODO Add HEADER PROVIDER
-		sb.uptimeMonitor = uptime.NewAutoFixBuilder(builder, nil)
+		headersProvider := istanbul.NewHeadersProvider(sb.chain)
+		sb.uptimeMonitor = uptime.NewAutoFixBuilder(builder, headersProvider)
 	}
 	return sb.uptimeMonitor
 }
