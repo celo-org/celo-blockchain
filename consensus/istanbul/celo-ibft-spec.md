@@ -160,17 +160,16 @@ upon: m<RoundChange, Hc , R, PC> ∈ Msgs && (PC = nil || validPC(PC))
 // Functions that modify instance state.
 
 // As long as the round and height have not changed since it was scheduled
-// onRoundChangeTimeout sets the desired round to be one greater than the Current
-// round, sets the current state to be WaitingForNewRound and broadcasts a round
-// change message.
+// onRoundChangeTimeout increments desired round, sets the current state to be
+// WaitingForNewRound and broadcasts a round change message.
 // 
 // Note: This function is referred to in the code as
 // `handleTimeoutAndMoveToNextRound`, which is misleading because it does not move
 // to the next round, it only updates the desired round and sends a round change
 // message. Hence why it has been renamed here to avoid confusion.
 onRoundChangeTimeout(H, R) {
-  if H = Hc && R = Rc {
-    Rd ← Rc+1
+  if H = Hc && R = Rd {
+    Rd ← Rd+1
     Sc ← WaitingForNewRound
     schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
     broadcast(<RoundChange, Hc, Rd, PCc>)
