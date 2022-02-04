@@ -1,6 +1,7 @@
 package uptime
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -21,7 +22,7 @@ func TestFwdFields(t *testing.T) {
 		epochSize:    1234,
 		headersAdded: []*types.Header{header(0), header(1)},
 	}
-	af := NewAutoFixBuilder(b, nil)
+	af := NewAutoFixBuilder(b, &headers{epochSize: 1234})
 	assert.Equal(t, uint64(7), af.GetEpoch())
 	assert.Equal(t, uint64(1234), af.GetEpochSize())
 	assert.Equal(t, header(1), af.GetLastProcessedHeader())
@@ -30,6 +31,23 @@ func TestFwdFields(t *testing.T) {
 	assert.Nil(t, af.GetLastProcessedHeader())
 }
 
+func TestFailOnWrongEpoch(t *testing.T) {
+	b := &builder{
+		epoch:     2,
+		epochSize: 100,
+	}
+	af := NewAutoFixBuilder(b, &headers{t: t, epochSize: 100, reqs: []headersReq{}})
+	// Test the borders
+	err := af.ProcessHeader(header(100))
+	assert.ErrorIs(t, err, ErrWrongEpoch)
+	err2 := af.ProcessHeader(header(201))
+	assert.ErrorIs(t, err2, ErrWrongEpoch)
+	// Now a random header in a far away epoch
+	err3 := af.ProcessHeader(header(5555))
+	assert.ErrorIs(t, err3, ErrWrongEpoch)
+}
+
+// builder is a mock builder for testing
 type builder struct {
 	epoch        uint64
 	epochSize    uint64
@@ -67,4 +85,29 @@ func (b *builder) GetEpoch() uint64 {
 
 func (b *builder) ComputeUptime(epochLastHeader *types.Header) ([]*big.Int, error) {
 	return b.computeV, b.computeE
+}
+
+// headers is a mock headers provider for testing
+type headers struct {
+	t         *testing.T
+	epochSize uint64
+	reqs      []headersReq
+}
+
+type headersReq struct {
+	upToHeader *types.Header
+	limit      uint64
+	retV       []*types.Header
+	retE       error
+}
+
+func (h *headers) GetEpochHeadersUpToLimit(epochSize uint64, upToHeader *types.Header, limit uint64) ([]*types.Header, error) {
+	assert.Equal(h.t, h.epochSize, epochSize)
+	for _, r := range h.reqs {
+		if r.upToHeader == upToHeader && r.limit == limit {
+			return r.retV, r.retE
+		}
+	}
+	assert.FailNow(h.t, fmt.Sprintf("autoFixBuilder made a non-expected call to the headersProvider: %v %v", upToHeader, limit))
+	return nil, nil
 }
