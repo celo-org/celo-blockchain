@@ -108,6 +108,25 @@ func TestContinueSequentialAdd(t *testing.T) {
 	assert.Equal(t, b.headersAdded[2], h)
 }
 
+func TestRewind(t *testing.T) {
+	b := &builder{
+		epoch:        2,
+		epochSize:    100,
+		headersAdded: []*types.Header{header(101), header(102), header(103)},
+	}
+	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
+	last := header(102)
+	providerResult := []*types.Header{header(101), header(102)}
+	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{
+		req(last, 2, providerResult, nil),
+	}}
+	af := NewAutoFixBuilder(b, provider)
+	err := af.ProcessHeader(last)
+	assert.NoError(t, err)
+	assert.Len(t, b.headersAdded, 2)
+	assert.Equal(t, b.headersAdded, providerResult)
+}
+
 // builder is a mock builder for testing
 type builder struct {
 	epoch        uint64
