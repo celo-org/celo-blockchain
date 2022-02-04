@@ -11,6 +11,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func copy(b *builder) *builder {
+	h := make([]*types.Header, len(b.headersAdded))
+	for i, hd := range b.headersAdded {
+		h[i] = hd
+	}
+	return &builder{
+		epoch:        b.epoch,
+		epochSize:    b.epochSize,
+		headersAdded: h,
+		computeV:     b.computeV,
+		computeE:     b.computeE,
+	}
+}
+
 func header(i int64) *types.Header {
 	return &types.Header{
 		Number: big.NewInt(i),
@@ -63,8 +77,10 @@ func TestAddOnFirstOfEpoch(t *testing.T) {
 		computeV:  computeV,
 		computeE:  computeE,
 	}
+	b2 := copy(b) // copy of builder, for the compute test
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
-	af := NewAutoFixBuilder(b, &headers{t: t, epochSize: 100, reqs: []headersReq{}})
+	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{}}
+	af := NewAutoFixBuilder(b, provider)
 	// First block from epoch
 	err := af.ProcessHeader(header(101))
 	assert.NoError(t, err)
@@ -72,7 +88,8 @@ func TestAddOnFirstOfEpoch(t *testing.T) {
 	assert.Equal(t, b.headersAdded[0], header(101))
 
 	// Ensure the forward of compute uptime
-	cV, cE := af.ComputeUptime(header(101))
+	af2 := NewAutoFixBuilder(b2, provider)
+	cV, cE := af2.ComputeUptime(header(101))
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
 }
@@ -93,6 +110,7 @@ func TestAddManyFirstOfEpoch(t *testing.T) {
 		computeV:  computeV,
 		computeE:  computeE,
 	}
+	b2 := copy(b) // copy of builder, for the compute test
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	last := header(105)
 	providerResult := []*types.Header{header(101), header(102), header(103), header(104), header(105)}
@@ -106,7 +124,8 @@ func TestAddManyFirstOfEpoch(t *testing.T) {
 	assert.Equal(t, providerResult, b.headersAdded)
 
 	// Ensure the forward of compute uptime
-	cV, cE := af.ComputeUptime(last)
+	af2 := NewAutoFixBuilder(b2, provider)
+	cV, cE := af2.ComputeUptime(last)
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
 }
@@ -119,8 +138,10 @@ func TestContinueSequentialAdd(t *testing.T) {
 		computeV:     computeV,
 		computeE:     computeE,
 	}
+	b2 := copy(b) // copy of builder, for the compute test
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
-	af := NewAutoFixBuilder(b, &headers{t: t, epochSize: 100, reqs: []headersReq{}})
+	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{}}
+	af := NewAutoFixBuilder(b, provider)
 
 	// Ensure proper parent hash
 	h := header(103)
@@ -132,7 +153,8 @@ func TestContinueSequentialAdd(t *testing.T) {
 	assert.Equal(t, h, b.headersAdded[2])
 
 	// Ensure the forward of compute uptime
-	cV, cE := af.ComputeUptime(h)
+	af2 := NewAutoFixBuilder(b2, provider)
+	cV, cE := af2.ComputeUptime(h)
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
 }
@@ -145,6 +167,7 @@ func TestSequentialAddFork(t *testing.T) {
 		computeV:     computeV,
 		computeE:     computeE,
 	}
+	b2 := copy(b) // copy of builder, for the compute test
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	last := header(103)
 	providerResult := []*types.Header{header(101), header(102), last}
@@ -162,7 +185,8 @@ func TestSequentialAddFork(t *testing.T) {
 	assert.Equal(t, providerResult, b.headersAdded)
 
 	// Ensure the forward of compute uptime
-	cV, cE := af.ComputeUptime(last)
+	af2 := NewAutoFixBuilder(b2, provider)
+	cV, cE := af2.ComputeUptime(last)
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
 }
@@ -175,6 +199,7 @@ func TestRewind(t *testing.T) {
 		computeV:     computeV,
 		computeE:     computeE,
 	}
+	b2 := copy(b) // copy of builder, for the compute test
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	last := header(102)
 	providerResult := []*types.Header{header(101), header(102)}
@@ -187,7 +212,8 @@ func TestRewind(t *testing.T) {
 	assert.Equal(t, providerResult, b.headersAdded)
 
 	// Ensure the forward of compute uptime
-	cV, cE := af.ComputeUptime(last)
+	af2 := NewAutoFixBuilder(b2, provider)
+	cV, cE := af2.ComputeUptime(last)
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
 }
@@ -205,6 +231,7 @@ func TestDoNothing(t *testing.T) {
 		computeV:     computeV,
 		computeE:     computeE,
 	}
+	b2 := copy(b) // copy of builder, for the compute test
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{}}
 	af := NewAutoFixBuilder(b, provider)
@@ -213,7 +240,8 @@ func TestDoNothing(t *testing.T) {
 	assert.Equal(t, initial, b.headersAdded)
 
 	// Ensure the forward of compute uptime
-	cV, cE := af.ComputeUptime(h)
+	af2 := NewAutoFixBuilder(b2, provider)
+	cV, cE := af2.ComputeUptime(h)
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
 }
@@ -231,6 +259,7 @@ func TestSameHeightRebuild(t *testing.T) {
 		computeV:     computeV,
 		computeE:     computeE,
 	}
+	b2 := copy(b) // copy of builder, for the compute test
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	providerResult := []*types.Header{header(101), header(102), last}
 	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{
@@ -242,7 +271,8 @@ func TestSameHeightRebuild(t *testing.T) {
 	assert.Equal(t, providerResult, b.headersAdded)
 
 	// Ensure the forward of compute uptime
-	cV, cE := af.ComputeUptime(h)
+	af2 := NewAutoFixBuilder(b2, provider)
+	cV, cE := af2.ComputeUptime(h)
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
 }
