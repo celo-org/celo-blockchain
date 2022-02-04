@@ -21,6 +21,14 @@ func NewAutoFixBuilder(builder Builder, provider istanbul.EpochHeadersProvider) 
 	}
 }
 
+// ProcessHeader ensures the underlying builder is properly build up to the header given.
+// There are a few different cases to manage:
+// 1) Underlying builder is empty. Add all the epoch headers up to the one given
+// 2) New header is behind the builder. Rebuild.
+// 3) New header is the following header, just add.
+// 4) New header is a few headers ahead. Bring missing ones and either add or rebuild if there's a fork
+// 5) New header is the same height as the last one from the builder. Do nothing if it's the same
+// or rebuild if it's a different hash.
 func (af *autoFixBuilder) ProcessHeader(header *types.Header) error {
 	number := header.Number.Uint64()
 	epoch := istanbul.GetEpochNumber(number, af.builder.GetEpochSize())
@@ -45,8 +53,19 @@ func (af *autoFixBuilder) ProcessHeader(header *types.Header) error {
 		return af.cleanBuild(header)
 	}
 
-	if number > lastHeaderNumber {
-		// Normal advance. Try to advance the builder
+	// Normal sequential case
+	if number == lastHeaderNumber+1 {
+		if header.ParentHash == lastHeader.Hash() {
+			// Valid chain, add the header
+			return af.builder.ProcessHeader(header)
+		}
+		// Fork! Rebuild
+		af.builder.Clear()
+		return af.cleanBuild(header)
+	}
+
+	if number > lastHeaderNumber+1 {
+		// Normal advance (1 or more headers missing). Try to advance the builder
 		return af.advance(lastHeader, header)
 	}
 

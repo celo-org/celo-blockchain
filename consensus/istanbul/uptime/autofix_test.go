@@ -55,11 +55,57 @@ func TestAddOnFirstOfEpoch(t *testing.T) {
 	}
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	af := NewAutoFixBuilder(b, &headers{t: t, epochSize: 100, reqs: []headersReq{}})
-	// Test the borders
+	// First block from epoch
 	err := af.ProcessHeader(header(101))
 	assert.NoError(t, err)
 	assert.Len(t, b.headersAdded, 1)
 	assert.Equal(t, b.headersAdded[0], header(101))
+}
+
+func req(upTo *types.Header, limit uint64, retV []*types.Header, retE error) headersReq {
+	return headersReq{
+		upToHeader: upTo,
+		limit:      limit,
+		retV:       retV,
+		retE:       retE,
+	}
+}
+
+func TestAddManyFirstOfEpoch(t *testing.T) {
+	b := &builder{
+		epoch:     2,
+		epochSize: 100,
+	}
+	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
+	last := header(105)
+	providerResult := []*types.Header{header(101), header(102), header(103), header(104), header(105)}
+	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{
+		req(last, 5, providerResult, nil),
+	}}
+	af := NewAutoFixBuilder(b, provider)
+	err := af.ProcessHeader(last)
+	assert.NoError(t, err)
+	assert.Len(t, b.headersAdded, 5)
+	assert.Equal(t, b.headersAdded, providerResult)
+}
+
+func TestContinueSequentialAdd(t *testing.T) {
+	b := &builder{
+		epoch:        2,
+		epochSize:    100,
+		headersAdded: []*types.Header{header(101), header(102)},
+	}
+	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
+	af := NewAutoFixBuilder(b, &headers{t: t, epochSize: 100, reqs: []headersReq{}})
+
+	// Ensure proper parent hash
+	h := header(103)
+	h.ParentHash = header(102).Hash()
+
+	err := af.ProcessHeader(h)
+	assert.NoError(t, err)
+	assert.Len(t, b.headersAdded, 3)
+	assert.Equal(t, b.headersAdded[2], h)
 }
 
 // builder is a mock builder for testing
