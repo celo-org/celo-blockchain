@@ -44,18 +44,6 @@ func TestUptime(t *testing.T) {
 				UpBlocks:        5,
 				LastSignedBlock: 6,
 			},
-			{
-				UpBlocks:        0,
-				LastSignedBlock: 0,
-			},
-			{
-				UpBlocks:        0,
-				LastSignedBlock: 0,
-			},
-			{
-				UpBlocks:        0,
-				LastSignedBlock: 0,
-			},
 		},
 	}
 	if !reflect.DeepEqual(uptimes, expected) {
@@ -84,19 +72,6 @@ func TestUptimeSingle(t *testing.T) {
 			{
 				UpBlocks:        0,
 				LastSignedBlock: 211,
-			},
-			// plus 2 dummies due to the *2
-			{
-				UpBlocks:        0,
-				LastSignedBlock: 0,
-			},
-			{
-				UpBlocks:        0,
-				LastSignedBlock: 0,
-			},
-			{
-				UpBlocks:        0,
-				LastSignedBlock: 0,
 			},
 		},
 	}
