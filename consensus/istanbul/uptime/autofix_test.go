@@ -92,6 +92,9 @@ func TestAddOnFirstOfEpoch(t *testing.T) {
 	cV, cE := af2.ComputeUptime(header(101))
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
+
+	assert.Len(t, b2.headersAdded, 1)
+	assert.Equal(t, b2.headersAdded[0], header(101))
 }
 
 func req(upTo *types.Header, limit uint64, retV []*types.Header, retE error) headersReq {
@@ -120,7 +123,6 @@ func TestAddManyFirstOfEpoch(t *testing.T) {
 	af := NewAutoFixBuilder(b, provider)
 	err := af.ProcessHeader(last)
 	assert.NoError(t, err)
-	assert.Len(t, b.headersAdded, 5)
 	assert.Equal(t, providerResult, b.headersAdded)
 
 	// Ensure the forward of compute uptime
@@ -128,6 +130,8 @@ func TestAddManyFirstOfEpoch(t *testing.T) {
 	cV, cE := af2.ComputeUptime(last)
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
+
+	assert.Equal(t, providerResult, b2.headersAdded)
 }
 
 func TestContinueSequentialAdd(t *testing.T) {
@@ -157,6 +161,9 @@ func TestContinueSequentialAdd(t *testing.T) {
 	cV, cE := af2.ComputeUptime(h)
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
+
+	assert.Len(t, b2.headersAdded, 3)
+	assert.Equal(t, h, b2.headersAdded[2])
 }
 
 func TestSequentialAddFork(t *testing.T) {
@@ -189,6 +196,8 @@ func TestSequentialAddFork(t *testing.T) {
 	cV, cE := af2.ComputeUptime(last)
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
+
+	assert.Equal(t, providerResult, b2.headersAdded)
 }
 
 func TestRewind(t *testing.T) {
@@ -216,6 +225,8 @@ func TestRewind(t *testing.T) {
 	cV, cE := af2.ComputeUptime(last)
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
+
+	assert.Equal(t, providerResult, b2.headersAdded)
 }
 
 func TestDoNothing(t *testing.T) {
@@ -244,6 +255,8 @@ func TestDoNothing(t *testing.T) {
 	cV, cE := af2.ComputeUptime(h)
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
+
+	assert.Equal(t, initial, b2.headersAdded)
 }
 
 func TestSameHeightRebuild(t *testing.T) {
@@ -275,6 +288,8 @@ func TestSameHeightRebuild(t *testing.T) {
 	cV, cE := af2.ComputeUptime(h)
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
+
+	assert.Equal(t, providerResult, b2.headersAdded)
 }
 
 func TestAdvance(t *testing.T) {
@@ -288,6 +303,7 @@ func TestAdvance(t *testing.T) {
 		computeV:     computeV,
 		computeE:     computeE,
 	}
+	b2 := copy(b)
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	last := header(106)
 	providerResult := []*types.Header{pivot, header(104), header(105), header(106)}
@@ -297,12 +313,16 @@ func TestAdvance(t *testing.T) {
 	af := NewAutoFixBuilder(b, provider)
 	err := af.ProcessHeader(last)
 	assert.NoError(t, err)
-	assert.Equal(t, []*types.Header{header(101), header(102), pivot, header(104), header(105), header(106)}, b.headersAdded)
+	endResult := []*types.Header{header(101), header(102), pivot, header(104), header(105), header(106)}
+	assert.Equal(t, endResult, b.headersAdded)
 
 	// Ensure the forward of compute uptime
-	cV, cE := af.ComputeUptime(last)
+	af2 := NewAutoFixBuilder(b2, provider)
+	cV, cE := af2.ComputeUptime(last)
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
+
+	assert.Equal(t, endResult, b2.headersAdded)
 }
 
 func TestAdvanceFork(t *testing.T) {
@@ -318,6 +338,7 @@ func TestAdvanceFork(t *testing.T) {
 		computeV:     computeV,
 		computeE:     computeE,
 	}
+	b2 := copy(b)
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	last := header(106)
 	providerResult1 := []*types.Header{forkPivot, header(104), header(105), header(106)}
@@ -332,9 +353,12 @@ func TestAdvanceFork(t *testing.T) {
 	assert.Equal(t, providerResult2, b.headersAdded)
 
 	// Ensure the forward of compute uptime
-	cV, cE := af.ComputeUptime(last)
+	af2 := NewAutoFixBuilder(b2, provider)
+	cV, cE := af2.ComputeUptime(last)
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
+
+	assert.Equal(t, providerResult2, b2.headersAdded)
 }
 
 // builder is a mock builder for testing
