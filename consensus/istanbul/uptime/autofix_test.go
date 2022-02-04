@@ -191,6 +191,27 @@ func TestSameHeightRebuild(t *testing.T) {
 }
 
 func TestAdvance(t *testing.T) {
+	pivot := header(103)
+	pivot.GasUsed = 12345 // enforce non trivial hash
+	initial := []*types.Header{header(101), header(102), pivot}
+	b := &builder{
+		epoch:        2,
+		epochSize:    100,
+		headersAdded: initial,
+	}
+	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
+	last := header(106)
+	providerResult := []*types.Header{pivot, header(104), header(105), header(106)}
+	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{
+		req(last, 4, providerResult, nil),
+	}}
+	af := NewAutoFixBuilder(b, provider)
+	err := af.ProcessHeader(last)
+	assert.NoError(t, err)
+	assert.Equal(t, []*types.Header{header(101), header(102), pivot, header(104), header(105), header(106)}, b.headersAdded)
+}
+
+func TestAdvanceFork(t *testing.T) {
 	last := header(103)
 	last.GasUsed = 1234
 	initial := []*types.Header{header(101), header(102), last}

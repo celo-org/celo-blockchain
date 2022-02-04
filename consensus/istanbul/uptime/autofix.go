@@ -120,7 +120,7 @@ func (af *autoFixBuilder) advance(from, upTo *types.Header) error {
 		// Rebuild
 		return af.cleanBuild(upTo)
 	}
-	return af.addAll(headers)
+	return af.addAll(headers[1:])
 }
 
 // addAll adds all the headers to the decorated builder.
