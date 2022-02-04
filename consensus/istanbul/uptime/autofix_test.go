@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/stretchr/testify/assert"
 )
@@ -47,6 +48,20 @@ func TestFailOnWrongEpoch(t *testing.T) {
 	assert.ErrorIs(t, err3, ErrWrongEpoch)
 }
 
+func TestAddOnFirstOfEpoch(t *testing.T) {
+	b := &builder{
+		epoch:     2,
+		epochSize: 100,
+	}
+	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
+	af := NewAutoFixBuilder(b, &headers{t: t, epochSize: 100, reqs: []headersReq{}})
+	// Test the borders
+	err := af.ProcessHeader(header(101))
+	assert.NoError(t, err)
+	assert.Len(t, b.headersAdded, 1)
+	assert.Equal(t, b.headersAdded[0], header(101))
+}
+
 // builder is a mock builder for testing
 type builder struct {
 	epoch        uint64
@@ -57,6 +72,7 @@ type builder struct {
 }
 
 func (b *builder) ProcessHeader(header *types.Header) error {
+	b.headersAdded = append(b.headersAdded, header)
 	return nil
 }
 

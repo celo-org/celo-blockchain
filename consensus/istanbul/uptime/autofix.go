@@ -41,6 +41,7 @@ func (af *autoFixBuilder) ProcessHeader(header *types.Header) error {
 
 	// If it's a rewind, rebuild
 	if number < lastHeaderNumber {
+		af.builder.Clear()
 		return af.cleanBuild(header)
 	}
 
@@ -58,14 +59,19 @@ func (af *autoFixBuilder) ProcessHeader(header *types.Header) error {
 	}
 
 	// fork, rebuild
+	af.builder.Clear()
 	return af.cleanBuild(header)
 }
 
-// cleanBuild does a clean build up to the header given.
+// cleanBuild does a clean build up to the header given, assuming the decorated builder is empty.
 func (af *autoFixBuilder) cleanBuild(upTo *types.Header) error {
-	af.builder.Clear()
 	epochSize := af.builder.GetEpochSize()
 	numberWithinEpoch := istanbul.GetNumberWithinEpoch(upTo.Number.Uint64(), epochSize)
+	// If this is the first header in the epoch, no need to call the provider
+	if numberWithinEpoch == 1 {
+		return af.builder.ProcessHeader(upTo)
+	}
+	// Else, load all the previous headers from the db.
 	headers, err := af.provider.GetEpochHeadersUpToLimit(epochSize, upTo, numberWithinEpoch)
 	if err != nil {
 		return err
