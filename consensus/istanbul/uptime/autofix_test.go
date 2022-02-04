@@ -152,6 +152,8 @@ func TestRewind(t *testing.T) {
 func TestDoNothing(t *testing.T) {
 	last := header(103)
 	last.GasUsed = 1234
+	h := header(103)
+	h.GasUsed = 1234 // ensure same hash as last
 	initial := []*types.Header{header(101), header(102), last}
 	b := &builder{
 		epoch:        2,
@@ -161,8 +163,6 @@ func TestDoNothing(t *testing.T) {
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{}}
 	af := NewAutoFixBuilder(b, provider)
-	h := header(103)
-	h.GasUsed = 1234 // ensure same hash as last
 	err := af.ProcessHeader(h)
 	assert.NoError(t, err)
 	assert.Equal(t, initial, b.headersAdded)
@@ -171,6 +171,8 @@ func TestDoNothing(t *testing.T) {
 func TestSameHeightRebuild(t *testing.T) {
 	last := header(103)
 	last.GasUsed = 1234
+	h := header(103)
+	h.GasUsed = 1237 // difference in hash
 	initial := []*types.Header{header(101), header(102), last}
 	b := &builder{
 		epoch:        2,
@@ -179,8 +181,6 @@ func TestSameHeightRebuild(t *testing.T) {
 	}
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	providerResult := []*types.Header{header(101), header(102), last}
-	h := header(103)
-	h.GasUsed = 1237 // difference in hash
 	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{
 		req(h, 3, providerResult, nil),
 	}}
@@ -212,25 +212,28 @@ func TestAdvance(t *testing.T) {
 }
 
 func TestAdvanceFork(t *testing.T) {
-	last := header(103)
-	last.GasUsed = 1234
-	initial := []*types.Header{header(101), header(102), last}
+	pivot := header(103)
+	pivot.GasUsed = 12345 // enforce non trivial hash
+	forkPivot := header(103)
+	forkPivot.GasUsed = 99999
+	initial := []*types.Header{header(101), header(102), pivot}
 	b := &builder{
 		epoch:        2,
 		epochSize:    100,
 		headersAdded: initial,
 	}
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
-	providerResult := []*types.Header{header(101), header(102), last}
-	h := header(103)
-	h.GasUsed = 1237 // difference in hash
+	last := header(106)
+	providerResult1 := []*types.Header{forkPivot, header(104), header(105), header(106)}
+	providerResult2 := []*types.Header{header(101), header(102), forkPivot, header(104), header(105), header(106)}
 	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{
-		req(h, 3, providerResult, nil),
+		req(last, 4, providerResult1, nil),
+		req(last, 6, providerResult2, nil),
 	}}
 	af := NewAutoFixBuilder(b, provider)
-	err := af.ProcessHeader(h)
+	err := af.ProcessHeader(last)
 	assert.NoError(t, err)
-	assert.Equal(t, providerResult, b.headersAdded)
+	assert.Equal(t, providerResult2, b.headersAdded)
 }
 
 // builder is a mock builder for testing

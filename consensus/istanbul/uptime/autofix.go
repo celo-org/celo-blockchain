@@ -118,6 +118,7 @@ func (af *autoFixBuilder) advance(from, upTo *types.Header) error {
 	if headers[0].Hash() != from.Hash() {
 		// Fork!
 		// Rebuild
+		af.builder.Clear()
 		return af.cleanBuild(upTo)
 	}
 	return af.addAll(headers[1:])
