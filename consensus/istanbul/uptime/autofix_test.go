@@ -190,6 +190,28 @@ func TestSameHeightRebuild(t *testing.T) {
 	assert.Equal(t, providerResult, b.headersAdded)
 }
 
+func TestAdvance(t *testing.T) {
+	last := header(103)
+	last.GasUsed = 1234
+	initial := []*types.Header{header(101), header(102), last}
+	b := &builder{
+		epoch:        2,
+		epochSize:    100,
+		headersAdded: initial,
+	}
+	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
+	providerResult := []*types.Header{header(101), header(102), last}
+	h := header(103)
+	h.GasUsed = 1237 // difference in hash
+	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{
+		req(h, 3, providerResult, nil),
+	}}
+	af := NewAutoFixBuilder(b, provider)
+	err := af.ProcessHeader(h)
+	assert.NoError(t, err)
+	assert.Equal(t, providerResult, b.headersAdded)
+}
+
 // builder is a mock builder for testing
 type builder struct {
 	epoch        uint64

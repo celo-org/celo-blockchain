@@ -29,6 +29,10 @@ func NewAutoFixBuilder(builder Builder, provider istanbul.EpochHeadersProvider) 
 // 4) New header is a few headers ahead. Bring missing ones and either add or rebuild if there's a fork
 // 5) New header is the same height as the last one from the builder. Do nothing if it's the same
 // or rebuild if it's a different hash.
+//
+// Note: A big assumption of the autofix is that when given a header, it will be the header returned
+// by the EpochHeadersProvider when calling for epoch headers up to that one. That is, it assumes
+// that it was a valid header stored in the chain.
 func (af *autoFixBuilder) ProcessHeader(header *types.Header) error {
 	number := header.Number.Uint64()
 	epoch := istanbul.GetEpochNumber(number, af.builder.GetEpochSize())
