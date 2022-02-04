@@ -108,6 +108,29 @@ func TestContinueSequentialAdd(t *testing.T) {
 	assert.Equal(t, b.headersAdded[2], h)
 }
 
+func TestSequentialAddFork(t *testing.T) {
+	b := &builder{
+		epoch:        2,
+		epochSize:    100,
+		headersAdded: []*types.Header{header(101), header(102)},
+	}
+	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
+	last := header(103)
+	providerResult := []*types.Header{header(101), header(102), last}
+	providerResult[0].GasUsed = 1477 // ensure difference from initial headersAdded
+	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{
+		req(last, 3, providerResult, nil),
+	}}
+	af := NewAutoFixBuilder(b, provider)
+
+	// Wrong hash to provoke a fork
+	last.ParentHash = header(9999).Hash()
+
+	err := af.ProcessHeader(last)
+	assert.NoError(t, err)
+	assert.Equal(t, b.headersAdded, providerResult)
+}
+
 func TestRewind(t *testing.T) {
 	b := &builder{
 		epoch:        2,
