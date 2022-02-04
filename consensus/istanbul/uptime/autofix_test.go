@@ -86,7 +86,7 @@ func TestAddManyFirstOfEpoch(t *testing.T) {
 	err := af.ProcessHeader(last)
 	assert.NoError(t, err)
 	assert.Len(t, b.headersAdded, 5)
-	assert.Equal(t, b.headersAdded, providerResult)
+	assert.Equal(t, providerResult, b.headersAdded)
 }
 
 func TestContinueSequentialAdd(t *testing.T) {
@@ -105,7 +105,7 @@ func TestContinueSequentialAdd(t *testing.T) {
 	err := af.ProcessHeader(h)
 	assert.NoError(t, err)
 	assert.Len(t, b.headersAdded, 3)
-	assert.Equal(t, b.headersAdded[2], h)
+	assert.Equal(t, h, b.headersAdded[2])
 }
 
 func TestSequentialAddFork(t *testing.T) {
@@ -128,7 +128,7 @@ func TestSequentialAddFork(t *testing.T) {
 
 	err := af.ProcessHeader(last)
 	assert.NoError(t, err)
-	assert.Equal(t, b.headersAdded, providerResult)
+	assert.Equal(t, providerResult, b.headersAdded)
 }
 
 func TestRewind(t *testing.T) {
@@ -146,8 +146,48 @@ func TestRewind(t *testing.T) {
 	af := NewAutoFixBuilder(b, provider)
 	err := af.ProcessHeader(last)
 	assert.NoError(t, err)
-	assert.Len(t, b.headersAdded, 2)
-	assert.Equal(t, b.headersAdded, providerResult)
+	assert.Equal(t, providerResult, b.headersAdded)
+}
+
+func TestDoNothing(t *testing.T) {
+	last := header(103)
+	last.GasUsed = 1234
+	initial := []*types.Header{header(101), header(102), last}
+	b := &builder{
+		epoch:        2,
+		epochSize:    100,
+		headersAdded: initial,
+	}
+	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
+	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{}}
+	af := NewAutoFixBuilder(b, provider)
+	h := header(103)
+	h.GasUsed = 1234 // ensure same hash as last
+	err := af.ProcessHeader(h)
+	assert.NoError(t, err)
+	assert.Equal(t, initial, b.headersAdded)
+}
+
+func TestSameHeightRebuild(t *testing.T) {
+	last := header(103)
+	last.GasUsed = 1234
+	initial := []*types.Header{header(101), header(102), last}
+	b := &builder{
+		epoch:        2,
+		epochSize:    100,
+		headersAdded: initial,
+	}
+	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
+	providerResult := []*types.Header{header(101), header(102), last}
+	h := header(103)
+	h.GasUsed = 1237 // difference in hash
+	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{
+		req(h, 3, providerResult, nil),
+	}}
+	af := NewAutoFixBuilder(b, provider)
+	err := af.ProcessHeader(h)
+	assert.NoError(t, err)
+	assert.Equal(t, providerResult, b.headersAdded)
 }
 
 // builder is a mock builder for testing
