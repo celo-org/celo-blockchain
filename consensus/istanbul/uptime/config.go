@@ -101,7 +101,7 @@ func MonitoringWindowUntil(epochNumber uint64, epochSize uint64, lookbackWindowS
 		return Window{}, errors.New("header older than epoch start")
 	}
 	if w.End > untilBlockNumber {
-		w.End = untilBlockNumber
+		w.End = untilBlockNumber - 1
 	}
 	return w, nil
 }

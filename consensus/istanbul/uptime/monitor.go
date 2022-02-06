@@ -65,12 +65,26 @@ func (um *Monitor) ComputeUptime(header *types.Header) ([]*big.Int, error) {
 	logger := um.logger.New("func", "Backend.updateValidatorScores", "epoch", um.epoch, "until header number", um.accumulatedUptime.LatestHeader.Number.Uint64())
 	logger.Trace("Updating validator scores")
 
-	// The totalMonitoredBlocks are the total number of block on which we monitor uptime until the header.Number
-	window, err := MonitoringWindowUntil(um.epoch, um.epochSize, um.lookbackWindow, header.Number.Uint64())
-	totalMonitoredBlocks := window.Size()
+	if istanbul.GetEpochNumber(header.Number.Uint64(), um.epochSize) != um.epoch {
+		return nil, ErrWrongEpoch
+	}
+
+	firstEpochBlock, err := istanbul.GetEpochFirstBlockNumber(um.epoch, um.epochSize)
 	if err != nil {
 		return nil, err
 	}
+	// first block of the epoch has the parentSeal of the last epoch, and it requires
+	// at least lookbackWindow headers, to calculate the first score
+	if header.Number.Uint64() < firstEpochBlock+um.lookbackWindow {
+		return nil, ErrUnpreparedCompute
+	}
+
+	// The totalMonitoredBlocks are the total number of block on which we monitor uptime until the header.Number
+	window, err := MonitoringWindowUntil(um.epoch, um.epochSize, um.lookbackWindow, header.Number.Uint64())
+	if err != nil {
+		return nil, err
+	}
+	totalMonitoredBlocks := window.Size()
 
 	uptimes := make([]*big.Int, 0, um.valSetSize)
 
@@ -108,10 +122,13 @@ func (um *Monitor) ProcessHeader(header *types.Header) error {
 			um.accumulatedUptime.LatestHeader = header
 			return nil
 		}
+	}
+	// Monitor was never initialized with the first block of the epoch
+	if um.accumulatedUptime.LatestHeader == nil {
 		return ErrMissingPreviousHeaders
 	}
 
-	if um.accumulatedUptime.LatestHeader.Number.Uint64() <= blockNumber {
+	if um.accumulatedUptime.LatestHeader.Number.Uint64() >= blockNumber {
 		return ErrHeaderNumberAlreadyUsed
 	}
 
@@ -127,14 +144,8 @@ func (um *Monitor) ProcessHeader(header *types.Header) error {
 	}
 	signedValidatorsBitmap := extra.ParentAggregatedSeal.Bitmap
 
-	// We only update the uptime for blocks which are greater than the last block we saw.
-	// This ensures that we do not count the same block twice for any reason.
-	if um.accumulatedUptime.LatestHeader == nil || um.accumulatedUptime.LatestHeader.Number.Uint64() < blockNumber {
-		updateUptime(um.accumulatedUptime, blockNumber-1, signedValidatorsBitmap, um.lookbackWindow, um.window)
-		um.accumulatedUptime.LatestHeader = header
-	} else {
-		log.Trace("WritingBlockWithState with block number less than a block we previously wrote", "latestUptimeBlock", um.accumulatedUptime.LatestHeader.Number.Uint64(), "blockNumber", blockNumber)
-	}
+	updateUptime(um.accumulatedUptime, blockNumber-1, signedValidatorsBitmap, um.lookbackWindow, um.window)
+	um.accumulatedUptime.LatestHeader = header
 
 	return nil
 }
