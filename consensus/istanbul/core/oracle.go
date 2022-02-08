@@ -90,43 +90,19 @@ func (o *RoundStateOracle) SetRoundChangeCertificate(preprepare *istanbul.Prepre
 	o.roundChangeCertId = nil
 	o.preprepare = nil
 
-	// No round change for round 0
-	if preprepare.View.Round.Uint64() == 0 {
-		return nil, nil
-	}
-
 	var id algorithm.Value
 	_, err := rand.Read(id[:])
 	if err != nil {
 		return nil, err
 	}
-	subject := istanbul.Subject{
-		View:   preprepare.View,
-		Digest: preprepare.Proposal.Hash(),
-	}
-	logger := o.c.newLogger().New("func", "SetRoundChangeCertificate", "tag", "handlePreprepare",
-		"msg_hash", subject.Digest, "msg_seq", subject.View.Sequence, "msg_round", subject.View.Round)
-
-	if preprepare.View.Round.Uint64() > 0 {
-		if preprepare.RoundChangeCertificate.IsEmpty() {
-			logger.Error("Preprepare for non-zero round did not contain a round change certificate.")
-			return nil, errMissingRoundChangeCertificate
-		}
-		err = o.c.handleRoundChangeCertificate(o.c.roundChangeSet, o.rs, subject, preprepare.RoundChangeCertificate)
-		if err != nil {
-			logger.Warn("Invalid round change certificate with preprepare.", "err", err)
-			return nil, err
-		}
-	} else if !preprepare.RoundChangeCertificate.IsEmpty() {
-		logger.Error("Preprepare for round 0 has a round change certificate.")
-		return nil, errInvalidProposal
-	}
 	o.roundChangeCertId = &id
 	o.preprepare = preprepare
-	return &id, nil
+
+	return o.roundChangeCertId, nil
 }
 
 func (o *RoundStateOracle) ValidRoundChangeCert(height, round uint64, val algorithm.Value, rcc *algorithm.Value) bool {
+	// Check that the request is for the previously set round change cert.
 	if rcc == nil {
 		return false
 	}
@@ -134,6 +110,7 @@ func (o *RoundStateOracle) ValidRoundChangeCert(height, round uint64, val algori
 		return false
 	}
 
+	// Check that the request values match the stored preprepare subject
 	subject := istanbul.Subject{
 		View: &istanbul.View{
 			Sequence: new(big.Int).SetUint64(height),
@@ -145,5 +122,27 @@ func (o *RoundStateOracle) ValidRoundChangeCert(height, round uint64, val algori
 		View:   o.preprepare.View,
 		Digest: o.preprepare.Proposal.Hash(),
 	}
-	return reflect.DeepEqual(preprepareSubject, subject)
+	if !reflect.DeepEqual(preprepareSubject, subject) {
+		return false
+	}
+
+	// Check that the round change cert is valid
+	logger := o.c.newLogger().New("func", "ValidRoundChangeCert", "tag", "handlePreprepare",
+		"msg_hash", subject.Digest, "msg_seq", subject.View.Sequence, "msg_round", subject.View.Round)
+
+	if o.preprepare.View.Round.Uint64() > 0 {
+		if o.preprepare.RoundChangeCertificate.IsEmpty() {
+			logger.Error("Preprepare for non-zero round did not contain a round change certificate.")
+			return false
+		}
+		err := o.c.handleRoundChangeCertificate(o.c.roundChangeSet, o.rs, subject, o.preprepare.RoundChangeCertificate)
+		if err != nil {
+			logger.Warn("Invalid round change certificate with preprepare.", "err", err)
+			return false
+		}
+	} else if !o.preprepare.RoundChangeCertificate.IsEmpty() {
+		logger.Error("Preprepare for round 0 has a round change certificate.")
+		return false
+	}
+	return true
 }
