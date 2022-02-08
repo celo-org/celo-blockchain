@@ -7,8 +7,9 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
 
-// DecryptEnodeURL decrypts an encrypted enodeURL with the given ecdsa key pair.
-func DecryptEnodeURL(ecdsa *istanbul.EcdsaInfo, encEnodeURL []byte) (*enode.Node, error) {
+// DecryptAndParseEnodeURL decrypts an encrypted enodeURL with the given ecdsa key pair, and parses the
+// resulting Node.
+func DecryptAndParseEnodeURL(ecdsa *istanbul.EcdsaInfo, encEnodeURL []byte) (*enode.Node, error) {
 	enodeBytes, err := ecdsa.Decrypt(encEnodeURL)
 	if err != nil {
 		return nil, fmt.Errorf("Error decrypting endpoint. err=%v. encEnodeURL: '%v'", err, encEnodeURL)

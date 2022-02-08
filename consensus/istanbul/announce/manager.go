@@ -201,7 +201,7 @@ func (m *Manager) HandleQueryEnodeMsg(addr common.Address, peer consensus.Peer, 
 			if encEnodeURL.DestAddress != w.Ecdsa.Address {
 				continue
 			}
-			node, err := DecryptEnodeURL(&w.Ecdsa, encEnodeURL.EncryptedEnodeURL)
+			node, err := DecryptAndParseEnodeURL(&w.Ecdsa, encEnodeURL.EncryptedEnodeURL)
 			if err != nil {
 				logger.Error("Can't process encEnodeURL. err", err, "encEnodeURL.EncryptedEnodeURL", encEnodeURL.EncryptedEnodeURL)
 				return err
