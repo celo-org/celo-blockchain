@@ -1254,11 +1254,13 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		// if the transaction has been mined, compute the effective gas price
 		if blockHash != (common.Hash{}) {
 			baseFee, err := baseFeeFn(tx.FeeCurrency())
+			baseFeeFn(tx.FeeCurrency())
 			if err == nil {
 				// price = min(tip, gasFeeCap - baseFee) + baseFee
 				price := math.BigMin(new(big.Int).Add(tx.GasTipCap(), baseFee), tx.GasFeeCap())
 				result.GasPrice = (*hexutil.Big)(price)
 			} else {
+				log.Warn("error retrieving baseFee for tx", "hash", tx.Hash().Hex(), "error", err)
 				// error != nil for DynamicFees implies that there is no state to retrieve the baseFee for that block
 				result.GasPrice = nil
 			}
