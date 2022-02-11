@@ -159,6 +159,78 @@ func TestMultiPushPop(t *testing.T) {
 	assert.Nil(t, tm3.FeeCurrency())
 }
 
+func TestMultiAddInit(t *testing.T) {
+	c1 := curr(1)
+	c2 := curr(2)
+
+	gpm := map[common.Address]*big.Int{
+		*c1: big.NewInt(10),
+		*c2: big.NewInt(20),
+	}
+	var cmp CurrencyCmpFn = func(p1 *big.Int, cc1 *common.Address, p2 *big.Int, cc2 *common.Address) int {
+		var val1 int = int(p1.Int64())
+		var val2 int = int(p2.Int64())
+		if cc1 == c1 {
+			val1 *= 10
+		}
+		if cc2 == c1 {
+			val2 *= 10
+		}
+		if cc1 == c2 {
+			val1 *= 100
+		}
+		if cc2 == c2 {
+			val2 *= 100
+		}
+		return val1 - val2
+	}
+	m := newMultiCurrencyPriceHeap(cmp, gpm)
+	m.Add(txC(100, c1)) // 1000
+	m.Add(txC(250, c1)) // 2500
+	m.Add(txC(50, c1))  // 500
+	m.Add(txC(200, c1)) // 2000
+	m.Add(txC(75, c1))  // 750
+
+	m.Add(txC(9, c2))  // 900
+	m.Add(txC(26, c2)) // 2600
+	m.Add(txC(4, c2))  // 400
+	m.Add(txC(21, c2)) // 2100
+	m.Add(txC(7, c2))  // 700
+
+	m.Add(tx(1100)) // 1100
+	m.Add(tx(2700)) // 2700
+	m.Add(tx(560))  // 560
+	m.Add(tx(2150)) // 2150
+	m.Add(tx(750))  // 750
+
+	// no init yet, returns the cheapest of the first of every currency
+	assert.Equal(t, 15, m.Len())
+	odd := m.Pop()
+	assert.Equal(t, 14, m.Len())
+	assert.Equal(t, big.NewInt(9), odd.GasPrice())
+	assert.Equal(t, c2, odd.FeeCurrency())
+
+	m.Init()
+
+	tm := m.Pop()
+	assert.Equal(t, 13, m.Len())
+	// 400
+	assert.Equal(t, big.NewInt(4), tm.GasPrice())
+	assert.Equal(t, c2, tm.FeeCurrency())
+
+	tm2 := m.Pop()
+	assert.Equal(t, 12, m.Len())
+	// 500
+	assert.Equal(t, big.NewInt(50), tm2.GasPrice())
+	assert.Equal(t, c1, tm2.FeeCurrency())
+
+	tm3 := m.Pop()
+	assert.Equal(t, 11, m.Len())
+	// 560
+	assert.Equal(t, big.NewInt(560), tm3.GasPrice())
+	assert.Nil(t, tm3.FeeCurrency())
+}
+
 func TestClear(t *testing.T) {
 	c := curr(1)
 	gpm := map[common.Address]*big.Int{
