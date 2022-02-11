@@ -239,7 +239,7 @@ func TestRPCDynamicTxGasPriceWithoutState(t *testing.T) {
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
 	defer shutdown()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*300)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
 	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
@@ -261,9 +261,11 @@ func TestRPCDynamicTxGasPriceWithoutState(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, json.BlockNumber)
 
-	// Wait until the state is prunned
-	err = network.AwaitBlock(ctx, json.BlockNumber.ToInt().Uint64()+3000)
-	require.NoError(t, err)
+	// Wait until the state is prunned. For this we create blocks with at least 1 tx
+	for i := 0; i < 200; i++ {
+		_, err := accounts[0].SendCeloTracked(ctx, accounts[1].Address, 1, network[0])
+		require.NoError(t, err)
+	}
 
 	var json2 *rpcCustomTransaction
 	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &json2, "eth_getTransactionByHash", tx.Hash())
