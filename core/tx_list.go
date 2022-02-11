@@ -645,18 +645,8 @@ func newTxPricedList(all *txLookup, ctx *atomic.Value, maxStales int64) *txPrice
 		ctx:       ctx,
 		all:       all,
 		maxStales: maxStales,
-		urgent: multiCurrencyPriceHeap{
-			currencyCmpFn:       txCtx.CmpValues,
-			nilCurrencyHeap:     &priceHeap{},
-			nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
-			gpm:                 txCtx.SysContractCallCtx.GetCurrentGasPriceMinimumMap(),
-		},
-		floating: multiCurrencyPriceHeap{
-			currencyCmpFn:       txCtx.CmpValues,
-			nilCurrencyHeap:     &priceHeap{},
-			nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
-			gpm:                 txCtx.SysContractCallCtx.GetCurrentGasPriceMinimumMap(),
-		},
+		urgent:    newMultiCurrencyPriceHeap(txCtx.CmpValues, txCtx.SysContractCallCtx.GetCurrentGasPriceMinimumMap()),
+		floating:  newMultiCurrencyPriceHeap(txCtx.CmpValues, txCtx.SysContractCallCtx.GetCurrentGasPriceMinimumMap()),
 	}
 }
 

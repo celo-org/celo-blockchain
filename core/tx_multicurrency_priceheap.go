@@ -14,13 +14,30 @@ import (
 // effective tip based on the given base fee. If baseFee is nil then the sorting
 // is based on gasFeeCap.
 type multiCurrencyPriceHeap struct {
-	currencyCmpFn       CurrencyCmpFn
+	currencyCmp         CurrencyCmpFn
 	gpm                 GasPriceMinimums              // heap should always be re-sorted after gas price minimums (baseFees) is changed
 	nonNilCurrencyHeaps map[common.Address]*priceHeap // Heap of prices of all the stored non-nil currency transactions
 	nilCurrencyHeap     *priceHeap                    // Heap of prices of all the stored nil currency transactions
 }
 
+func newMultiCurrencyPriceHeap(currencyCmp CurrencyCmpFn, gpm GasPriceMinimums) multiCurrencyPriceHeap {
+	return multiCurrencyPriceHeap{
+		currencyCmp: currencyCmp,
+		gpm:         gpm,
+
+		// inner state
+
+		nilCurrencyHeap:     &priceHeap{},
+		nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
+	}
+}
+
 type CurrencyCmpFn func(*big.Int, *common.Address, *big.Int, *common.Address) int
+
+// IsCheaper returns true if tx1 is cheaper than tx2 (GasPrice with currency comparison)
+func (cc CurrencyCmpFn) IsCheaper(tx1, tx2 *types.Transaction) bool {
+	return cc(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency()) < 0
+}
 
 // getHeapFor returns the proper heap for the given transaction, and creates it
 // if it's not available in the nonNilCurrencyHeaps
@@ -46,7 +63,7 @@ func (h *multiCurrencyPriceHeap) Add(tx *types.Transaction) {
 // Push to the heap, maintains heap invariants.
 func (h *multiCurrencyPriceHeap) Push(tx *types.Transaction) {
 	ph := h.getHeapFor(tx)
-	ph.Push(tx)
+	heap.Push(ph, tx)
 }
 
 func (h *multiCurrencyPriceHeap) cheapestTxs() []*types.Transaction {
@@ -62,15 +79,11 @@ func (h *multiCurrencyPriceHeap) cheapestTxs() []*types.Transaction {
 	return txs
 }
 
-func (h *multiCurrencyPriceHeap) isCheaper(tx1, tx2 *types.Transaction) bool {
-	return h.currencyCmpFn(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency()) < 0
-}
-
 func (h *multiCurrencyPriceHeap) cheapestTx() *types.Transaction {
 	txs := h.cheapestTxs()
 	var cheapestTx *types.Transaction
 	for _, tx := range txs {
-		if cheapestTx == nil || h.isCheaper(tx, cheapestTx) {
+		if cheapestTx == nil || h.currencyCmp.IsCheaper(tx, cheapestTx) {
 			cheapestTx = tx
 		}
 	}
@@ -109,7 +122,7 @@ func (h *multiCurrencyPriceHeap) Clear() {
 }
 
 func (h *multiCurrencyPriceHeap) UpdateFeesAndCurrencies(currencyCmpFn CurrencyCmpFn, gpm GasPriceMinimums) {
-	h.currencyCmpFn = currencyCmpFn
+	h.currencyCmp = currencyCmpFn
 	h.gpm = gpm
 	h.nilCurrencyHeap.baseFee = gpm.GetNativeGPM()
 	for currencyAddr, heap := range h.nonNilCurrencyHeaps {
