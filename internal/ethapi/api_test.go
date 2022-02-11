@@ -18,37 +18,86 @@ func TestNewRPCTransactionCeloDynamic(t *testing.T) {
 	blockHash := common.BigToHash(big.NewInt(123456))
 	blockNumber := uint64(123456)
 	index := uint64(7)
+	chainId := big.NewInt(1234567)
+	gasTipCap := big.NewInt(888400)
+	bigFeeCap := big.NewInt(1999001)
+	smallFeeCap := big.NewInt(111222)
 	baseFeeFn := func(curr *common.Address) (*big.Int, error) {
 		if *curr == currency {
 			return baseFee, nil
 		}
 		return nil, errors.New("unexpected")
 	}
+
 	// Test GasPrice == GasFeeCap
 	rpcTx := newRPCTransaction(types.NewTx(&types.CeloDynamicFeeTx{
 		FeeCurrency: &currency,
-		ChainID:     big.NewInt(1234567),
+		ChainID:     chainId,
 
-		GasFeeCap: big.NewInt(111222),
-		GasTipCap: big.NewInt(888400),
+		GasFeeCap: smallFeeCap,
+		GasTipCap: gasTipCap,
 	}), blockHash, blockNumber, index, baseFeeFn)
-	assert.Equal(t, (*hexutil.Big)(big.NewInt(111222)), rpcTx.GasPrice)
+	assert.Equal(t, (*hexutil.Big)(smallFeeCap), rpcTx.GasPrice)
+
 	// Test GasPrice == GasTipCap + baseFee
 	rpcTx2 := newRPCTransaction(types.NewTx(&types.CeloDynamicFeeTx{
 		FeeCurrency: &currency,
-		ChainID:     big.NewInt(1234567),
+		ChainID:     chainId,
 
-		GasFeeCap: big.NewInt(1999001),
-		GasTipCap: big.NewInt(888400),
+		GasFeeCap: bigFeeCap,
+		GasTipCap: gasTipCap,
 	}), blockHash, blockNumber, index, baseFeeFn)
-	assert.Equal(t, (*hexutil.Big)(big.NewInt(889000)), rpcTx2.GasPrice)
+	assert.Equal(t, (*hexutil.Big)(big.NewInt(0).Add(gasTipCap, baseFee)), rpcTx2.GasPrice)
+
 	// Test unminned transaction. GasPrice == GasFeeCap
 	rpcTx3 := newRPCTransaction(types.NewTx(&types.CeloDynamicFeeTx{
 		FeeCurrency: &currency,
-		ChainID:     big.NewInt(1234567),
+		ChainID:     chainId,
 
-		GasFeeCap: big.NewInt(1999001),
-		GasTipCap: big.NewInt(888400),
+		GasFeeCap: bigFeeCap,
+		GasTipCap: gasTipCap,
 	}), common.Hash{}, 0, 0, baseFeeFn)
-	assert.Equal(t, (*hexutil.Big)(big.NewInt(1999001)), rpcTx3.GasPrice)
+	assert.Equal(t, (*hexutil.Big)(bigFeeCap), rpcTx3.GasPrice)
+}
+
+// TestNewRPCTransactionCeloDynamic tests the newRPCTransaction method with a celo dynamic fee tx type.
+func TestNewRPCTransactionDynamic(t *testing.T) {
+	baseFee := big.NewInt(600)
+	blockHash := common.BigToHash(big.NewInt(123456))
+	blockNumber := uint64(123456)
+	index := uint64(7)
+	chainId := big.NewInt(1234567)
+	gasTipCap := big.NewInt(888400)
+	bigFeeCap := big.NewInt(1999001)
+	smallFeeCap := big.NewInt(111222)
+	baseFeeFn := func(curr *common.Address) (*big.Int, error) {
+		return baseFee, nil
+	}
+
+	// Test GasPrice == GasFeeCap
+	rpcTx := newRPCTransaction(types.NewTx(&types.DynamicFeeTx{
+		ChainID: chainId,
+
+		GasFeeCap: smallFeeCap,
+		GasTipCap: gasTipCap,
+	}), blockHash, blockNumber, index, baseFeeFn)
+	assert.Equal(t, (*hexutil.Big)(smallFeeCap), rpcTx.GasPrice)
+
+	// Test GasPrice == GasTipCap + baseFee
+	rpcTx2 := newRPCTransaction(types.NewTx(&types.DynamicFeeTx{
+		ChainID: chainId,
+
+		GasFeeCap: bigFeeCap,
+		GasTipCap: gasTipCap,
+	}), blockHash, blockNumber, index, baseFeeFn)
+	assert.Equal(t, (*hexutil.Big)(big.NewInt(0).Add(gasTipCap, baseFee)), rpcTx2.GasPrice)
+
+	// Test unminned transaction. GasPrice == GasFeeCap
+	rpcTx3 := newRPCTransaction(types.NewTx(&types.DynamicFeeTx{
+		ChainID: chainId,
+
+		GasFeeCap: bigFeeCap,
+		GasTipCap: gasTipCap,
+	}), common.Hash{}, 0, 0, baseFeeFn)
+	assert.Equal(t, (*hexutil.Big)(bigFeeCap), rpcTx3.GasPrice)
 }
