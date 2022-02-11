@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"math/big"
 	"net"
 	"os"
@@ -33,6 +34,7 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/celo-org/celo-blockchain/rpc"
 )
 
 var (
@@ -51,6 +53,12 @@ var (
 		HTTPHost:             "0.0.0.0",
 		WSHost:               "0.0.0.0",
 		UsePlaintextKeystore: true,
+		HTTPTimeouts: rpc.HTTPTimeouts{
+			ReadTimeout:  math.MaxInt64,
+			IdleTimeout:  math.MaxInt64,
+			WriteTimeout: math.MaxInt64,
+		},
+		HTTPPort: 8081,
 	}
 
 	baseEthConfig = &eth.Config{
@@ -315,10 +323,10 @@ type Network []*Node
 
 func Accounts(numValidators int) *env.AccountsConfig {
 	return &env.AccountsConfig{
-		Mnemonic:             env.MustNewMnemonic(),
+		Mnemonic:             "test test test test test test test test test test test junk",
 		NumValidators:        numValidators,
 		ValidatorsPerGroup:   1,
-		NumDeveloperAccounts: numValidators,
+		NumDeveloperAccounts: 3,
 	}
 }
 
