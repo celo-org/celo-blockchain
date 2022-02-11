@@ -27,7 +27,9 @@ func newMultiCurrencyPriceHeap(currencyCmp CurrencyCmpFn, gpm GasPriceMinimums) 
 
 		// inner state
 
-		nilCurrencyHeap:     &priceHeap{},
+		nilCurrencyHeap: &priceHeap{
+			baseFee: gpm.GetNativeGPM(),
+		},
 		nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
 	}
 }
