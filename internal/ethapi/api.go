@@ -1252,7 +1252,6 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		// if the transaction has been mined, compute the effective gas price
 		if blockHash != (common.Hash{}) {
 			baseFee, err := baseFeeFn(tx.FeeCurrency())
-			baseFeeFn(tx.FeeCurrency())
 			if err == nil {
 				// price = min(tip, gasFeeCap - baseFee) + baseFee
 				price := math.BigMin(new(big.Int).Add(tx.GasTipCap(), baseFee), tx.GasFeeCap())

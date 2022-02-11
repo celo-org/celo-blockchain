@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"testing"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/test"
@@ -188,4 +190,85 @@ func TestStartStopValidators(t *testing.T) {
 	err = network.AwaitTransactions(ctx, txs...)
 	require.NoError(t, err)
 
+}
+
+type rpcCustomTransaction struct {
+	BlockNumber *hexutil.Big `json:"blockNumber"`
+	GasPrice    *hexutil.Big `json:"gasPrice"`
+}
+
+func TestRPCDynamicTxGasPriceWithState(t *testing.T) {
+	ac := test.AccountConfig(3, 2)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	suggestedGasPrice, err := network[0].WsClient.SuggestGasPrice(ctx)
+	require.NoError(t, err)
+	gasFeeCap := big.NewInt(0).Mul(suggestedGasPrice, big.NewInt(90))
+	gasTipCap := big.NewInt(0).Mul(suggestedGasPrice, big.NewInt(2))
+
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCeloWithDynamicFee(ctx, accounts[1].Address, 1, gasFeeCap, gasTipCap, network[0])
+	require.NoError(t, err)
+
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+
+	var json *rpcCustomTransaction
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &json, "eth_getTransactionByHash", tx.Hash())
+	require.NoError(t, err)
+	require.NotNil(t, json.BlockNumber)
+	gasPrice := json.GasPrice.ToInt()
+	require.NotNil(t, json.GasPrice)
+	require.Greater(t, gasPrice.Int64(), gasTipCap.Int64())
+	require.Less(t, gasPrice.Int64(), gasFeeCap.Int64())
+}
+
+func TestRPCDynamicTxGasPriceWithoutState(t *testing.T) {
+	ac := test.AccountConfig(3, 2)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*300)
+	defer cancel()
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	suggestedGasPrice, err := network[0].WsClient.SuggestGasPrice(ctx)
+	require.NoError(t, err)
+	gasFeeCap := big.NewInt(0).Mul(suggestedGasPrice, big.NewInt(90))
+	gasTipCap := big.NewInt(0).Mul(suggestedGasPrice, big.NewInt(2))
+
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCeloWithDynamicFee(ctx, accounts[1].Address, 1, gasFeeCap, gasTipCap, network[0])
+	require.NoError(t, err)
+
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+	var json *rpcCustomTransaction
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &json, "eth_getTransactionByHash", tx.Hash())
+	require.NoError(t, err)
+	require.NotNil(t, json.BlockNumber)
+
+	// Wait until the state is prunned
+	err = network.AwaitBlock(ctx, json.BlockNumber.ToInt().Uint64()+3000)
+	require.NoError(t, err)
+
+	var json2 *rpcCustomTransaction
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &json2, "eth_getTransactionByHash", tx.Hash())
+	require.NoError(t, err)
+	require.NotNil(t, json2.BlockNumber)
+
+	require.Nil(t, json2.GasPrice)
 }

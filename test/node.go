@@ -498,6 +498,43 @@ func ValueTransferTransaction(
 	return signed, nil
 }
 
+// ValueTransferTransactionWithDynamicFee builds a signed value transfer transaction
+// from the sender to the recipient with the given value, nonce, gasFeeCap and gasTipCap.
+func ValueTransferTransactionWithDynamicFee(
+	client *ethclient.Client,
+	senderKey *ecdsa.PrivateKey,
+	sender,
+	recipient common.Address,
+	nonce uint64,
+	value *big.Int,
+	gasFeeCap *big.Int,
+	gasTipCap *big.Int,
+	signer types.Signer,
+) (*types.Transaction, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+
+	msg := ethereum.CallMsg{From: sender, To: &recipient, Value: value}
+	gasLimit, err := client.EstimateGas(ctx, msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to estimate gas needed: %v", err)
+	}
+	// Create the transaction and sign it
+	rawTx := types.NewTx(&types.CeloDynamicFeeTx{
+		Nonce:     nonce,
+		To:        &recipient,
+		Value:     value,
+		Gas:       gasLimit,
+		GasFeeCap: gasFeeCap,
+		GasTipCap: gasTipCap,
+	})
+	signed, err := types.SignTx(rawTx, signer, senderKey)
+	if err != nil {
+		return nil, err
+	}
+	return signed, nil
+}
+
 // Since the node config is not marshalable by default we construct a
 // marshalable struct which we marshal and unmarshal and then unpack into the
 // original struct type.
