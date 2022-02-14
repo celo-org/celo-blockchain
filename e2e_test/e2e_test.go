@@ -200,6 +200,7 @@ type rpcCustomTransaction struct {
 func TestRPCDynamicTxGasPriceWithState(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
 	gc, ec, err := test.BuildConfig(ac)
+	ec.TrieDirtyCache = 5
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -233,8 +234,9 @@ func TestRPCDynamicTxGasPriceWithState(t *testing.T) {
 }
 
 func TestRPCDynamicTxGasPriceWithoutState(t *testing.T) {
-	ac := test.AccountConfig(3, 2)
+	ac := test.AccountConfig(3, 3)
 	gc, ec, err := test.BuildConfig(ac)
+	ec.TrieDirtyCache = 5
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -270,6 +272,7 @@ func TestRPCDynamicTxGasPriceWithoutState(t *testing.T) {
 	var json2 *rpcCustomTransaction
 	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &json2, "eth_getTransactionByHash", tx.Hash())
 	require.NoError(t, err)
+	require.NotNil(t, json2)
 	require.NotNil(t, json2.BlockNumber)
 
 	require.Nil(t, json2.GasPrice)
