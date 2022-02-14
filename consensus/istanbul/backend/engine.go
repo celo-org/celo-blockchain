@@ -409,12 +409,16 @@ func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 		header.Time = nowTime
 	}
 
-	// Record what the delay should be, but sleep in the miner, not the consensus engine.
+	// Record what the delay should be and sleep if greater than 0.
+	// TODO(victor): Sleep here was previously removed and added to the miner instead, that change
+	// has been temporarily reverted until it can be reimplemented without causing fewer signatures
+	// to be included by the block producer.
 	delay := time.Until(time.Unix(int64(header.Time), 0))
 	if delay < 0 {
 		sb.sleepGauge.Update(0)
 	} else {
 		sb.sleepGauge.Update(delay.Nanoseconds())
+		time.Sleep(delay)
 	}
 
 	if err := writeEmptyIstanbulExtra(header); err != nil {
