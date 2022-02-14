@@ -128,12 +128,12 @@ func prepareBlock(w *worker) (*blockState, error) {
 		if (lastCommitment != common.Hash{}) {
 			lastRandomnessParentHash := rawdb.ReadRandomCommitmentCache(w.db, lastCommitment)
 			if (lastRandomnessParentHash == common.Hash{}) {
-				log.Warn("Randomness cache miss while building a block. Attempting to recover.")
+				log.Warn("Randomness cache miss while building a block. Attempting to recover.", "number", header.Number.Uint64())
 
 				// We missed on the cache which should have been populated, attempt to repopulate the cache.
 				err := w.chain.RecoverRandomnessCache(lastCommitment, b.header.ParentHash)
 				if err != nil {
-					log.Error("Error in recovering randomness cache", "error", err)
+					log.Error("Error in recovering randomness cache", "error", err, "number", header.Number.Uint64())
 					return b, errors.New("Failed to to recover the randomness cache after miss")
 				}
 				lastRandomnessParentHash = rawdb.ReadRandomCommitmentCache(w.db, lastCommitment)
