@@ -29,35 +29,38 @@ func TestNewRPCTransactionCeloDynamic(t *testing.T) {
 		return nil, errors.New("unexpected")
 	}
 
-	// Test GasPrice == GasFeeCap
-	rpcTx := newRPCTransaction(types.NewTx(&types.CeloDynamicFeeTx{
-		FeeCurrency: &currency,
-		ChainID:     chainId,
+	t.Run("GasPrice == GasFeeCap", func(*testing.T) {
+		rpcTx := newRPCTransaction(types.NewTx(&types.CeloDynamicFeeTx{
+			FeeCurrency: &currency,
+			ChainID:     chainId,
 
-		GasFeeCap: smallFeeCap,
-		GasTipCap: gasTipCap,
-	}), blockHash, blockNumber, index, baseFeeFn)
-	assert.Equal(t, (*hexutil.Big)(smallFeeCap), rpcTx.GasPrice)
+			GasFeeCap: smallFeeCap,
+			GasTipCap: gasTipCap,
+		}), blockHash, blockNumber, index, baseFeeFn)
+		assert.Equal(t, (*hexutil.Big)(smallFeeCap), rpcTx.GasPrice)
+	})
 
-	// Test GasPrice == GasTipCap + baseFee
-	rpcTx2 := newRPCTransaction(types.NewTx(&types.CeloDynamicFeeTx{
-		FeeCurrency: &currency,
-		ChainID:     chainId,
+	t.Run("GasPrice == GasTipCap + baseFee", func(*testing.T) {
+		rpcTx := newRPCTransaction(types.NewTx(&types.CeloDynamicFeeTx{
+			FeeCurrency: &currency,
+			ChainID:     chainId,
 
-		GasFeeCap: bigFeeCap,
-		GasTipCap: gasTipCap,
-	}), blockHash, blockNumber, index, baseFeeFn)
-	assert.Equal(t, (*hexutil.Big)(big.NewInt(0).Add(gasTipCap, baseFee)), rpcTx2.GasPrice)
+			GasFeeCap: bigFeeCap,
+			GasTipCap: gasTipCap,
+		}), blockHash, blockNumber, index, baseFeeFn)
+		assert.Equal(t, (*hexutil.Big)(big.NewInt(0).Add(gasTipCap, baseFee)), rpcTx.GasPrice)
+	})
 
-	// Test unminned transaction. GasPrice == GasFeeCap
-	rpcTx3 := newRPCTransaction(types.NewTx(&types.CeloDynamicFeeTx{
-		FeeCurrency: &currency,
-		ChainID:     chainId,
+	t.Run("Unminned transaction. GasPrice == GasFeeCap", func(t *testing.T) {
+		rpcTx := newRPCTransaction(types.NewTx(&types.CeloDynamicFeeTx{
+			FeeCurrency: &currency,
+			ChainID:     chainId,
 
-		GasFeeCap: bigFeeCap,
-		GasTipCap: gasTipCap,
-	}), common.Hash{}, 0, 0, baseFeeFn)
-	assert.Equal(t, (*hexutil.Big)(bigFeeCap), rpcTx3.GasPrice)
+			GasFeeCap: bigFeeCap,
+			GasTipCap: gasTipCap,
+		}), common.Hash{}, 0, 0, baseFeeFn)
+		assert.Equal(t, (*hexutil.Big)(bigFeeCap), rpcTx.GasPrice)
+	})
 }
 
 // TestNewRPCTransactionCeloDynamic tests the newRPCTransaction method with a celo dynamic fee tx type.
@@ -74,30 +77,33 @@ func TestNewRPCTransactionDynamic(t *testing.T) {
 		return baseFee, nil
 	}
 
-	// Test GasPrice == GasFeeCap
-	rpcTx := newRPCTransaction(types.NewTx(&types.DynamicFeeTx{
-		ChainID: chainId,
+	t.Run("GasPrice == GasFeeCap", func(*testing.T) {
+		rpcTx := newRPCTransaction(types.NewTx(&types.DynamicFeeTx{
+			ChainID: chainId,
 
-		GasFeeCap: smallFeeCap,
-		GasTipCap: gasTipCap,
-	}), blockHash, blockNumber, index, baseFeeFn)
-	assert.Equal(t, (*hexutil.Big)(smallFeeCap), rpcTx.GasPrice)
+			GasFeeCap: smallFeeCap,
+			GasTipCap: gasTipCap,
+		}), blockHash, blockNumber, index, baseFeeFn)
+		assert.Equal(t, (*hexutil.Big)(smallFeeCap), rpcTx.GasPrice)
+	})
 
-	// Test GasPrice == GasTipCap + baseFee
-	rpcTx2 := newRPCTransaction(types.NewTx(&types.DynamicFeeTx{
-		ChainID: chainId,
+	t.Run("GasPrice == GasTipCap + baseFee", func(*testing.T) {
+		rpcTx2 := newRPCTransaction(types.NewTx(&types.DynamicFeeTx{
+			ChainID: chainId,
 
-		GasFeeCap: bigFeeCap,
-		GasTipCap: gasTipCap,
-	}), blockHash, blockNumber, index, baseFeeFn)
-	assert.Equal(t, (*hexutil.Big)(big.NewInt(0).Add(gasTipCap, baseFee)), rpcTx2.GasPrice)
+			GasFeeCap: bigFeeCap,
+			GasTipCap: gasTipCap,
+		}), blockHash, blockNumber, index, baseFeeFn)
+		assert.Equal(t, (*hexutil.Big)(big.NewInt(0).Add(gasTipCap, baseFee)), rpcTx2.GasPrice)
+	})
 
-	// Test unminned transaction. GasPrice == GasFeeCap
-	rpcTx3 := newRPCTransaction(types.NewTx(&types.DynamicFeeTx{
-		ChainID: chainId,
+	t.Run("Unminned transaction. GasPrice == GasFeeCap", func(t *testing.T) {
+		rpcTx := newRPCTransaction(types.NewTx(&types.DynamicFeeTx{
+			ChainID: chainId,
 
-		GasFeeCap: bigFeeCap,
-		GasTipCap: gasTipCap,
-	}), common.Hash{}, 0, 0, baseFeeFn)
-	assert.Equal(t, (*hexutil.Big)(bigFeeCap), rpcTx3.GasPrice)
+			GasFeeCap: bigFeeCap,
+			GasTipCap: gasTipCap,
+		}), common.Hash{}, 0, 0, baseFeeFn)
+		assert.Equal(t, (*hexutil.Big)(bigFeeCap), rpcTx.GasPrice)
+	})
 }
