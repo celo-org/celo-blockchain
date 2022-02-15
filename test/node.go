@@ -333,6 +333,8 @@ func BuildConfig(accounts *env.AccountsConfig) (*genesis.Config, *eth.Config, er
 		accounts.AdminAccount().Address,
 		params.IstanbulConfig{},
 	)
+	gc.Hardforks.EspressoBlock = common.Big0
+
 	genesis.FundAccounts(gc, accounts.DeveloperAccounts())
 
 	// copy the base eth config, so we can modify it without damaging the
