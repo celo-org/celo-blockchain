@@ -477,6 +477,9 @@ workflows:
             - build-geth
             - prepare-system-contracts
       - race:
+          filters:
+            branches:
+              only: /master|release.*/
           requires:
             - build-geth
             - prepare-system-contracts
