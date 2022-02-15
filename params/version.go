@@ -25,10 +25,10 @@ import (
 // On release branches, it should be a beta or stable.  For example:
 // "1.3.0-beta", "1.3.0-beta.2", etc. and then "1.3.0-stable", "1.3.1-stable", etc.
 const (
-	VersionMajor = 1          // Major version component of the current release
-	VersionMinor = 5          // Minor version component of the current release
-	VersionPatch = 3          // Patch version component of the current release
-	VersionMeta  = "unstable" // Version metadata to append to the version string
+	VersionMajor = 1        // Major version component of the current release
+	VersionMinor = 5        // Minor version component of the current release
+	VersionPatch = 3        // Patch version component of the current release
+	VersionMeta  = "stable" // Version metadata to append to the version string
 )
 
 type VersionInfo struct {
