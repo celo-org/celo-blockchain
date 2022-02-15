@@ -770,15 +770,16 @@ func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *
 // top of the provided block and returns them as a JSON object.
 // You can provide -2 as a block number to trace on top of the pending block.
 func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, blockNrOrHash rpc.BlockNumberOrHash, config *TraceCallConfig) (interface{}, error) {
-	// Try to retrieve the specified block
+	// Try to retrieve the specified Block
 	var (
 		err   error
-		block *types.Block
+		Block *types.Block
 	)
+	println("---------------------------------------------------tracing call", blockNrOrHash.BlockNumber)
 	if hash, ok := blockNrOrHash.Hash(); ok {
-		block, err = api.blockByHash(ctx, hash)
+		Block, err = api.blockByHash(ctx, hash)
 	} else if number, ok := blockNrOrHash.Number(); ok {
-		block, err = api.blockByNumber(ctx, number)
+		Block, err = api.blockByNumber(ctx, number)
 	} else {
 		return nil, errors.New("invalid arguments; neither block nor hash specified")
 	}
@@ -790,7 +791,7 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 	if config != nil && config.Reexec != nil {
 		reexec = *config.Reexec
 	}
-	statedb, err := api.backend.StateAtBlock(ctx, block, reexec, nil, true)
+	statedb, err := api.backend.StateAtBlock(ctx, Block, reexec, nil, true)
 	if err != nil {
 		return nil, err
 	}
@@ -805,11 +806,11 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 	if err != nil {
 		return nil, err
 	}
-	vmctx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
-	vmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
+	vmctx := core.NewEVMBlockContext(Block.Header(), api.chainContext(ctx), nil)
+	vmRunner := api.backend.VmRunnerAtHeader(Block.Header(), statedb)
 	var sysCtx *core.SysContractCallCtx
-	if api.backend.ChainConfig().IsEspresso(block.Number()) {
-		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
+	if api.backend.ChainConfig().IsEspresso(Block.Number()) {
+		sysVmRunner := api.backend.VmRunnerAtHeader(Block.Header(), statedb)
 		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
 	}
 	var traceConfig *TraceConfig

@@ -833,7 +833,7 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 	if state == nil || err != nil {
 		return nil, err
 	}
-	fmt.Println("blocknum", header.Number.String())
+	// fmt.Println("blocknum", header.Number.String())
 	if err := overrides.Apply(state); err != nil {
 		return nil, err
 	}
@@ -941,8 +941,8 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args TransactionArgs, bl
 }
 
 func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash rpc.BlockNumberOrHash, gasCap uint64) (hexutil.Uint64, error) {
-	fmt.Printf("Backend pointer addr %p\n", b)
-	spew.Dump(blockNrOrHash, gasCap, args)
+	// fmt.Printf("Backend pointer addr %p\n", b)
+	// spew.Dump(blockNrOrHash, gasCap, args)
 
 	// Binary search the gas requirement, as it may be higher than the amount used
 	var (

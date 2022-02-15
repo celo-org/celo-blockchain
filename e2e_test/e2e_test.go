@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/big"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/test"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,6 +78,8 @@ func TestEpochBlockMarshaling(t *testing.T) {
 func TestRunNode(t *testing.T) {
 	accounts := test.Accounts(1)
 	gc, ec, err := test.BuildConfig(accounts)
+	gc.Hardforks.EspressoBlock = big.NewInt(0)
+	spew.Dump(gc.Hardforks)
 	ec.Istanbul.BlockPeriod = 5
 	require.NoError(t, err)
 	network, err := test.NewNetwork(accounts, gc, ec)
