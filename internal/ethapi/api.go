@@ -942,7 +942,7 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args TransactionArgs, bl
 
 func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash rpc.BlockNumberOrHash, gasCap uint64) (hexutil.Uint64, error) {
 	// fmt.Printf("Backend pointer addr %p\n", b)
-	// spew.Dump(blockNrOrHash, gasCap, args)
+	spew.Dump("do estimate gas", blockNrOrHash, gasCap, args)
 
 	// Binary search the gas requirement, as it may be higher than the amount used
 	var (
@@ -1029,6 +1029,7 @@ func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args TransactionA
 	if blockNrOrHash != nil {
 		bNrOrHash = *blockNrOrHash
 	}
+	println("estimating with", spew.Sdump(blockNrOrHash))
 	return DoEstimateGas(ctx, s.b, args, bNrOrHash, s.b.RPCGasCap())
 }
 

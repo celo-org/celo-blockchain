@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/log"
+	"github.com/davecgh/go-spew/spew"
 )
 
 // handler handles JSON-RPC messages. There is one handler per connection. Note that
@@ -338,7 +339,7 @@ func (h *handler) handleCall(cp *callProc, msg *jsonrpcMessage) *jsonrpcMessage 
 		return msg.errorResponse(&invalidParamsError{err.Error()})
 	}
 	start := time.Now()
-	println("handling call", msg.Method)
+	spew.Dump("hanling call", msg.Method, string(msg.Params))
 	answer := h.runMethod(cp.ctx, msg, callb, args)
 
 	// Collect the statistics for RPC calls if metrics is enabled.

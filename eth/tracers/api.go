@@ -775,7 +775,8 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 		err   error
 		Block *types.Block
 	)
-	println("---------------------------------------------------tracing call", blockNrOrHash.BlockNumber)
+
+	println("---------------------------------------------------tracing call", blockNrOrHash.BlockNumber.Int64())
 	if hash, ok := blockNrOrHash.Hash(); ok {
 		Block, err = api.blockByHash(ctx, hash)
 	} else if number, ok := blockNrOrHash.Number(); ok {
