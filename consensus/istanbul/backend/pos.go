@@ -150,9 +150,6 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 		return sb.LookbackWindow(header, state)
 	}
 
-	// logger = logger.New("window", lookbackWindow)
-
-	// monitor := uptime.NewMonitor(sb.EpochSize(), epoch, lookbackWindow, len(valSet))
 	logger.Trace("Updating validator scores")
 	monitor := sb.RetrieveUptimeScoreBuilder(header, sb.EpochSize(), lookbackWindowFn)
 	uptimes, err := monitor.ComputeUptime(header)
