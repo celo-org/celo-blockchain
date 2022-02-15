@@ -22,7 +22,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/uptime"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -212,11 +211,11 @@ type Istanbul interface {
 	// The changes are executed inline.
 	UpdateValSetDiff(chain ChainHeaderReader, header *types.Header, state *state.StateDB) error
 
+	// OnBlockInsertion is a hook method called when system is inserting a block to the chain
+	OnBlockInsertion(header *types.Header, state *state.StateDB) error
+
 	// IsLastBlockOfEpoch will check to see if the header is from the last block of an epoch
 	IsLastBlockOfEpoch(header *types.Header) bool
-
-	// RetrieveUptimeScoreBuilder retrieves the uptime score accumulator
-	RetrieveUptimeScoreBuilder(header *types.Header, epochSize uint64, lookbackWindowFn func() uint64) uptime.Builder
 
 	// LookbackWindow returns the size of the lookback window for calculating uptime (in blocks)
 	LookbackWindow(header *types.Header, state *state.StateDB) uint64

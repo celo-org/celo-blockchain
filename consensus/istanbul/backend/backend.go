@@ -1008,12 +1008,17 @@ func (sb *Backend) RemoveProxy(node *enode.Node) error {
 	}
 }
 
-func (sb *Backend) RetrieveUptimeScoreBuilder(header *types.Header, epochSize uint64, lookbackWindowFn func() uint64) uptime.Builder {
-	epoch := istanbul.GetEpochNumber(header.Number.Uint64(), epochSize)
+func (sb *Backend) OnBlockInsertion(header *types.Header, state *state.StateDB) error {
+	return sb.retrieveUptimeScoreBuilder(header, state).ProcessHeader(header)
+}
+
+func (sb *Backend) retrieveUptimeScoreBuilder(header *types.Header, state *state.StateDB) uptime.Builder {
+	epoch := istanbul.GetEpochNumber(header.Number.Uint64(), sb.EpochSize())
 
 	if sb.uptimeMonitor == nil || sb.uptimeMonitor.GetEpoch() != epoch {
 		valSet := sb.GetValidators(header.Number, header.Hash())
-		builder := uptime.NewMonitor(epochSize, epoch, lookbackWindowFn(), len(valSet))
+		lookbackWindow := sb.LookbackWindow(header, state)
+		builder := uptime.NewMonitor(sb.EpochSize(), epoch, lookbackWindow, len(valSet))
 		headersProvider := istanbul.NewHeadersProvider(sb.chain)
 		sb.uptimeMonitor = uptime.NewAutoFixBuilder(builder, headersProvider)
 	}

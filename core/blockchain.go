@@ -1525,13 +1525,7 @@ func (bc *BlockChain) insertPreprocessedBlock(block *types.Block, receipts []*ty
 		if hash := bc.GetCanonicalHash(block.NumberU64()); (hash != common.Hash{} && hash != block.Hash()) {
 			log.Error("Found two blocks with same height", "old", hash, "new", block.Hash())
 		}
-
-		lookbackWindowFn := func() uint64 {
-			return istEngine.LookbackWindow(block.Header(), state)
-		}
-		uptimeMonitor := istEngine.RetrieveUptimeScoreBuilder(block.Header(), bc.chainConfig.Istanbul.Epoch, lookbackWindowFn)
-
-		err := uptimeMonitor.ProcessHeader(block.Header())
+		err := istEngine.OnBlockInsertion(block.Header(), state)
 		if err != nil {
 			return NonStatTy, err
 		}
