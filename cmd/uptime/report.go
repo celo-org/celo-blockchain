@@ -12,7 +12,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/node"
-	"github.com/celo-org/celo-blockchain/params"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -50,7 +49,6 @@ func getHeaderByNumber(db ethdb.Database, number uint64) *types.Header {
 }
 
 func reportUptime(ctx *cli.Context) error {
-	epochSize := params.MainnetChainConfig.Istanbul.Epoch
 	if !ctx.IsSet(epochFlag.Name) {
 		utils.Fatalf("This command requires an epoch argument")
 	}
@@ -77,6 +75,9 @@ func reportUptime(ctx *cli.Context) error {
 	db := utils.MakeChainDatabase(ctx, nod, true)
 	defer db.Close()
 
+	genesisHash := rawdb.ReadCanonicalHash(db, 0)
+	genConfig := rawdb.ReadChainConfig(db, genesisHash)
+	epochSize := genConfig.Istanbul.Epoch
 	lastBlock := istanbul.GetEpochLastBlockNumber(epoch, epochSize)
 	headers := getHeaders(db, lastBlock, int(epochSize))
 	return runReport(headers, epochSize, lookback, int(valSetSize))
