@@ -260,9 +260,10 @@ func TestEthClient(t *testing.T) {
 		"TestStatusFunctions": {
 			func(t *testing.T) { testStatusFunctions(t, client) },
 		},
-		"TestCallContract": {
-			func(t *testing.T) { testCallContract(t, client) },
-		},
+		// Flaky
+		// "TestCallContract": {
+		// 	func(t *testing.T) { testCallContract(t, client) },
+		// },
 		"TestAtFunctions": {
 			func(t *testing.T) { testAtFunctions(t, client) },
 		},
