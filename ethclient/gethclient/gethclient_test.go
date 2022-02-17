@@ -131,6 +131,7 @@ func TestGethClient(t *testing.T) {
 	}
 }
 
+// nolint:deadcode
 func testAccessList(t *testing.T, client *rpc.Client) {
 	ec := New(client)
 	// Test transfer

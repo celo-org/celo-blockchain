@@ -477,6 +477,7 @@ func testStatusFunctions(t *testing.T, client *rpc.Client) {
 	}
 }
 
+// nolint:deadcode
 func testCallContract(t *testing.T, client *rpc.Client) {
 	ec := NewClient(client)
 
