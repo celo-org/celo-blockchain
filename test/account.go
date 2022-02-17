@@ -64,6 +64,46 @@ func (a *Account) SendCelo(ctx context.Context, recipient common.Address, value 
 	return tx, nil
 }
 
+// SendCelo submits a value transfer transaction via the provided Node to send
+// celo to the recipient. The submitted transaction is returned.
+func (a *Account) SendCeloWithDynamicFee(ctx context.Context, recipient common.Address, value int64, gasFeeCap *big.Int, gasTipCap *big.Int, node *Node) (*types.Transaction, error) {
+	var err error
+	// Lazy set nonce
+	if a.Nonce == nil {
+		a.Nonce = new(uint64)
+		*a.Nonce, err = node.WsClient.PendingNonceAt(ctx, a.Address)
+		if err != nil {
+			return nil, err
+		}
+	}
+	num, err := node.WsClient.BlockNumber(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	signer := types.MakeSigner(a.ChainConfig, new(big.Int).SetUint64(num))
+	tx, err := ValueTransferTransactionWithDynamicFee(
+		node.WsClient,
+		a.Key,
+		a.Address,
+		recipient,
+		*a.Nonce,
+		big.NewInt(value),
+		gasFeeCap,
+		gasTipCap,
+		signer)
+
+	if err != nil {
+		return nil, err
+	}
+	err = node.WsClient.SendTransaction(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	*a.Nonce++
+	return tx, nil
+}
+
 // SendCeloTracked functions like SendCelo but also waits for the transaction
 // to be processed by the sending node.
 func (a *Account) SendCeloTracked(ctx context.Context, recipient common.Address, value int64, node *Node) (*types.Transaction, error) {
