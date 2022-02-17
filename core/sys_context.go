@@ -63,17 +63,18 @@ func (sc *SysContractCallCtx) IsWhitelisted(feeCurrency *common.Address) bool {
 }
 
 // GetGasPriceMinimum retrieves gas price minimum for given fee currency address.
+// Note that the CELO currency is keyed by the Zero address.
 func (sc *SysContractCallCtx) GetGasPriceMinimum(feeCurrency *common.Address) *big.Int {
 	return sc.gasPriceMinimums.GetGasPriceMinimum(feeCurrency)
 }
-
-type GasPriceMinimums map[common.Address]*big.Int
 
 // GetCurrentGasPriceMinimumMap returns the gas price minimum map for all whitelisted currencies.
 // Note that the CELO currency is keyed by the Zero address.
 func (sc *SysContractCallCtx) GetCurrentGasPriceMinimumMap() GasPriceMinimums {
 	return sc.gasPriceMinimums
 }
+
+type GasPriceMinimums map[common.Address]*big.Int
 
 func (gpm GasPriceMinimums) valOrDefault(key common.Address) *big.Int {
 	val, ok := gpm[key]
@@ -88,7 +89,7 @@ func (gpm GasPriceMinimums) GetNativeGPM() *big.Int {
 	return gpm.valOrDefault(common.ZeroAddress)
 }
 
-// GetGasPriceMinimum retrieves gas price minimum for given fee currency address, it returns gasprice_minimum.FallbackGasPriceMinimum when there is an error 
+// GetGasPriceMinimum retrieves gas price minimum for given fee currency address, it returns gasprice_minimum.FallbackGasPriceMinimum when there is an error
 func (gpm GasPriceMinimums) GetGasPriceMinimum(feeCurrency *common.Address) *big.Int {
 	// feeCurrency for native token(CELO) is nil, so we bind common.ZeroAddress as key
 	var key common.Address

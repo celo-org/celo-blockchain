@@ -157,6 +157,23 @@ func TestMultiPushPop(t *testing.T) {
 	// 560
 	assert.Equal(t, big.NewInt(560), tm3.GasPrice())
 	assert.Nil(t, tm3.FeeCurrency())
+
+	// A few more re-pushes
+	m.Push(tx(585))    // 585
+	m.Push(txC(3, c2)) // 300
+	assert.Equal(t, 14, m.Len())
+
+	tm4 := m.Pop()
+	assert.Equal(t, 13, m.Len())
+	// 300
+	assert.Equal(t, big.NewInt(3), tm4.GasPrice())
+	assert.Equal(t, c2, tm4.FeeCurrency())
+
+	tm5 := m.Pop()
+	assert.Equal(t, 12, m.Len())
+	// 585
+	assert.Equal(t, big.NewInt(585), tm5.GasPrice())
+	assert.Nil(t, tm5.FeeCurrency())
 }
 
 func TestMultiAddInit(t *testing.T) {
@@ -229,6 +246,24 @@ func TestMultiAddInit(t *testing.T) {
 	// 560
 	assert.Equal(t, big.NewInt(560), tm3.GasPrice())
 	assert.Nil(t, tm3.FeeCurrency())
+
+	// Re add and break it
+	m.Add(tx(585))    // 585
+	m.Add(txC(3, c2)) // 300
+	assert.Equal(t, 13, m.Len())
+
+	tm4 := m.Pop()
+	assert.Equal(t, 12, m.Len())
+	// No Init, next in line should be the 700 tx
+	assert.Equal(t, big.NewInt(7), tm4.GasPrice())
+	assert.Equal(t, c2, tm4.FeeCurrency())
+
+	m.Init()
+	tm5 := m.Pop()
+	assert.Equal(t, 11, m.Len())
+	// Init called, new 300 one should be popped first
+	assert.Equal(t, big.NewInt(3), tm5.GasPrice())
+	assert.Equal(t, c2, tm5.FeeCurrency())
 }
 
 func TestClear(t *testing.T) {

@@ -691,8 +691,8 @@ func (l *txPricedList) Underpriced(tx *types.Transaction) bool {
 }
 
 func (l *txPricedList) underpricedForMulti(h *multiCurrencyPriceHeap, tx *types.Transaction) bool {
-	underpriced := l.underpricedFor(h.nilCurrencyHeap, tx)
-	for _, sh := range h.nonNilCurrencyHeaps {
+	underpriced := l.underpricedFor(h.nativeCurrencyHeap, tx)
+	for _, sh := range h.currencyHeaps {
 		if l.underpricedFor(sh, tx) {
 			underpriced = true
 		}
