@@ -442,19 +442,18 @@ jobs:
             export PATH=${PATH}:~/repos/golang/go/bin
             ./ci_test_validator_order.sh local ~/repos/geth
 
-# Flaky!
-#  end-to-end-cip35-eth-compatibility-test:
-#    executor: e2e
-#    resource_class: xlarge
-#    steps:
-#      - attach_workspace:
-#          at: ~/repos
-#      - run:
-#          name: End-to-end test of CIP 35
-#          no_output_timeout: 15m
-#          command: |
-#            export PATH=${PATH}:~/repos/golang/go/bin
-#            ./ci_test_cip35.sh local ~/repos/geth
+  end-to-end-cip35-eth-compatibility-test:
+    executor: e2e
+    resource_class: xlarge
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: End-to-end test of CIP 35
+          no_output_timeout: 15m
+          command: |
+            export PATH=${PATH}:~/repos/golang/go/bin
+            ./ci_test_cip35.sh local ~/repos/geth
 
   end-to-end-replica-test:
     executor: e2e
@@ -546,10 +545,11 @@ workflows:
           requires:
             - checkout-monorepo
             - build-geth
-      - end-to-end-cip35-eth-compatibility-test:
-          requires:
-            - checkout-monorepo
-            - build-geth
+# Flaky!
+#      - end-to-end-cip35-eth-compatibility-test:
+#          requires:
+#            - checkout-monorepo
+#            - build-geth
       - end-to-end-replica-test:
           requires:
             - checkout-monorepo
