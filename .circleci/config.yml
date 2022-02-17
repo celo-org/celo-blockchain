@@ -112,27 +112,6 @@ jobs:
           paths:
             - geth/<<pipeline.parameters.system-contracts-path>>
 
-  unit-tests:
-    <<: *unit-tests-defaults
-    steps:
-      - attach_workspace:
-          at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-      - run: go get github.com/jstemmer/go-junit-report
-      - run:
-          name: Run Tests
-          command: |
-            mkdir -p /tmp/test-results
-            trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
-            go test -p 1 -v ./... | tee /tmp/test-results/go-test.out
-      - store_artifacts:
-          path: /tmp/test-results
-          destination: raw-test-output
-      - store_test_results:
-          path: /tmp/test-results
-
   race:
     <<: *unit-tests-defaults
     steps:
@@ -143,7 +122,7 @@ jobs:
             - go-mod-v1-{{ checksum "go.sum" }}
       - run: go get github.com/jstemmer/go-junit-report
       - run:
-          name: Run Tests
+          name: Run tests
           command: |
             mkdir -p /tmp/test-results
             trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
@@ -154,7 +133,7 @@ jobs:
       - store_test_results:
           path: /tmp/test-results
 
-  coverage:
+  unit-tests:
     <<: *unit-tests-defaults
     steps:
       - attach_workspace:
@@ -162,8 +141,19 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-      - run: go test -p 1 -v -covermode=atomic -cover -coverprofile=coverage.out ./...
-      - run: bash <(curl -s https://codecov.io/bash)
+      - run: go get github.com/jstemmer/go-junit-report
+      - run:
+          name: Run tests
+          command: |
+            mkdir -p /tmp/test-results
+            trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
+            go test -p 1 -v -covermode=atomic -cover -coverprofile=coverage.out ./... | tee /tmp/test-results/go-test.out
+            bash <(curl -s https://codecov.io/bash)
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results:
+          path: /tmp/test-results
 
   istanbul-e2e-coverage:
     <<: *unit-tests-defaults
@@ -242,6 +232,23 @@ jobs:
             # need to double the backslashes in the awk command.
             curl -u piersy:${PR_COMMENT_TOKEN} -X ${CURL_VERB} $URL -d "{\"body\":\"`awk -v ORS='\\\\n' '1' comment`\"}" ;
 
+  e2e-benchmarks:
+    executor: golang
+    resource_class: medium+
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run:
+          name: Run benchmarks
+          command: |
+            mkdir -p /tmp/bench-results
+            trap "grep -E 'goos: |^goarch: |^pkg: |^cpu: |^Benchmark' /tmp/bench-results/go-bench.out > /tmp/bench-results/go-bench-results.txt" EXIT
+            go test ./e2e_test -run Bench -bench . | tee /tmp/bench-results/go-bench.out
+      - store_artifacts:
+          path: /tmp/bench-results
 
   lint:
     executor: golang
@@ -339,6 +346,10 @@ jobs:
             cd celo-monorepo
             git fetch --depth 1 origin ${CELO_MONOREPO_COMMIT_OR_BRANCH}
             git checkout ${CELO_MONOREPO_COMMIT_OR_BRANCH}
+
+            # Github is phasing out the git protocol so we ensure that we use
+            # https for all git operations that yarn may perform.
+            git config --global url."https://github.com".insteadOf git://github.com
             yarn install || yarn install
             yarn build --scope @celo/celotool --include-filtered-dependencies
       - run:
@@ -473,14 +484,17 @@ workflows:
             - build-geth
             - prepare-system-contracts
       - race:
-          requires:
-            - build-geth
-            - prepare-system-contracts
-      - coverage:
+          filters:
+            branches:
+              only: /master|release.*/
           requires:
             - build-geth
             - prepare-system-contracts
       - istanbul-e2e-coverage:
+          requires:
+            - build-geth
+            - prepare-system-contracts
+      - e2e-benchmarks:
           requires:
             - build-geth
             - prepare-system-contracts

@@ -5,10 +5,12 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/big"
 	"os"
+	"path/filepath"
 	"time"
 
 	ethereum "github.com/celo-org/celo-blockchain"
@@ -331,6 +333,8 @@ func BuildConfig(accounts *env.AccountsConfig) (*genesis.Config, *eth.Config, er
 		accounts.AdminAccount().Address,
 		params.IstanbulConfig{},
 	)
+	gc.Hardforks.EspressoBlock = common.Big0
+
 	genesis.FundAccounts(gc, accounts.DeveloperAccounts())
 
 	// copy the base eth config, so we can modify it without damaging the
@@ -338,6 +342,21 @@ func BuildConfig(accounts *env.AccountsConfig) (*genesis.Config, *eth.Config, er
 	ec := &eth.Config{}
 	err := copyObject(baseEthConfig, ec)
 	return gc, ec, err
+}
+
+// GenerateGenesis checks that the contractsBuildPath exists and if so proceeds to generate the genesis.
+func GenerateGenesis(accounts *env.AccountsConfig, gc *genesis.Config, contractsBuildPath string) (*core.Genesis, error) {
+	// Check for the existence of the compiled-system-contracts dir
+	_, err := os.Stat(contractsBuildPath)
+	if errors.Is(err, os.ErrNotExist) {
+		abs, err := filepath.Abs(contractsBuildPath)
+		if err != nil {
+			panic(fmt.Sprintf("failed to get abs path for %s, error: %v", contractsBuildPath, err))
+		}
+		return nil, fmt.Errorf("Could not find dir %s, try running 'make compiled-system-contracts' and then re-running the test", abs)
+
+	}
+	return genesis.GenerateGenesis(accounts, gc, contractsBuildPath)
 }
 
 // NewNetwork generates a network of nodes that are running and mining. For
@@ -360,7 +379,7 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 		RequestTimeout: ec.Istanbul.RequestTimeout,
 	}
 
-	genesis, err := genesis.GenerateGenesis(accounts, gc, "../compiled-system-contracts")
+	genesis, err := GenerateGenesis(accounts, gc, "../compiled-system-contracts")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate genesis: %v", err)
 	}
@@ -474,6 +493,43 @@ func ValueTransferTransaction(
 
 	// Create the transaction and sign it
 	rawTx := types.NewTransactionEthCompatible(nonce, recipient, value, gasLimit, gasPrice, nil)
+	signed, err := types.SignTx(rawTx, signer, senderKey)
+	if err != nil {
+		return nil, err
+	}
+	return signed, nil
+}
+
+// ValueTransferTransactionWithDynamicFee builds a signed value transfer transaction
+// from the sender to the recipient with the given value, nonce, gasFeeCap and gasTipCap.
+func ValueTransferTransactionWithDynamicFee(
+	client *ethclient.Client,
+	senderKey *ecdsa.PrivateKey,
+	sender,
+	recipient common.Address,
+	nonce uint64,
+	value *big.Int,
+	gasFeeCap *big.Int,
+	gasTipCap *big.Int,
+	signer types.Signer,
+) (*types.Transaction, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+
+	msg := ethereum.CallMsg{From: sender, To: &recipient, Value: value}
+	gasLimit, err := client.EstimateGas(ctx, msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to estimate gas needed: %v", err)
+	}
+	// Create the transaction and sign it
+	rawTx := types.NewTx(&types.CeloDynamicFeeTx{
+		Nonce:     nonce,
+		To:        &recipient,
+		Value:     value,
+		Gas:       gasLimit,
+		GasFeeCap: gasFeeCap,
+		GasTipCap: gasTipCap,
+	})
 	signed, err := types.SignTx(rawTx, signer, senderKey)
 	if err != nil {
 		return nil, err

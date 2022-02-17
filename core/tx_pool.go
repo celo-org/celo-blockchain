@@ -295,6 +295,7 @@ type TxPool struct {
 	reorgDoneCh     chan chan struct{}
 	reorgShutdownCh chan struct{}  // requests shutdown of scheduleReorgLoop
 	wg              sync.WaitGroup // tracks loop, scheduleReorgLoop
+	initDoneCh      chan struct{}  // is closed once the pool is initialized (for tests)
 }
 
 type txpoolResetRequest struct {
@@ -323,6 +324,7 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		queueTxEventCh:  make(chan *types.Transaction),
 		reorgDoneCh:     make(chan chan struct{}),
 		reorgShutdownCh: make(chan struct{}),
+		initDoneCh:      make(chan struct{}),
 		gasPrice:        new(big.Int).SetUint64(config.PriceLimit),
 	}
 	pool.locals = newAccountSet(pool.signer)
@@ -334,7 +336,8 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 	pool.reset(nil, chain.CurrentBlock().Header())
 	// TODO: Does this reordering cause a problem?
 	// priced list depends on the current ctx which is set in reset
-	pool.priced = newTxPricedList(pool.all, &pool.currentCtx)
+	// Use the global slots as the max amount of stale transactions in the priced heap before a re-heap.
+	pool.priced = newTxPricedList(pool.all, &pool.currentCtx, int64(pool.config.GlobalSlots))
 
 	// Start the reorg loop early so it can handle requests generated during journal loading.
 	pool.wg.Add(1)
@@ -379,6 +382,8 @@ func (pool *TxPool) loop() {
 	defer evict.Stop()
 	defer journal.Stop()
 
+	// Notify tests that the init phase is done
+	close(pool.initDoneCh)
 	for {
 		select {
 		// Handle ChainHeadEvent
@@ -397,8 +402,8 @@ func (pool *TxPool) loop() {
 		case <-report.C:
 			pool.mu.RLock()
 			pending, queued := pool.stats()
-			stales := pool.priced.stales
 			pool.mu.RUnlock()
+			stales := int(atomic.LoadInt64(&pool.priced.stales))
 
 			if pending != prevPending || queued != prevQueued || stales != prevStales {
 				log.Debug("Transaction pool status report", "executable", pending, "queued", queued, "stales", stales)
@@ -1251,6 +1256,9 @@ func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirt
 		pool.demoteUnexecutables()
 		if reset.newHead != nil && pool.chainconfig.IsEspresso(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
 			pool.priced.SetBaseFee(pool.ctx())
+		} else {
+			// Prevent the price heap from growing indefinitely
+			pool.priced.Reheap()
 		}
 	}
 	// Ensure pool.queue and pool.pending sizes stay within the configured limits.
