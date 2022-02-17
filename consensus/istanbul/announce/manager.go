@@ -43,6 +43,8 @@ type ProxyContext interface {
 	GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine
 }
 
+// Manager is the facade and entry point for the implementation of the announce protocol. It exposes methods to
+// start and stop the announce Worker, and to handle announce messages.
 type Manager struct {
 	logger log.Logger
 
@@ -139,7 +141,7 @@ func (m *Manager) announceThread() {
 	m.worker.Run()
 }
 
-// This function will handle a queryEnode message.
+// HandleQueryEnodeMsg handles a queryEnodeMsg received by the p2p network, according to the announce protocol spec.
 func (m *Manager) HandleQueryEnodeMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
 	logger := m.logger.New("func", "HandleQueryEnodeMsg")
 
@@ -176,7 +178,11 @@ func (m *Manager) HandleQueryEnodeMsg(addr common.Address, peer consensus.Peer, 
 	logger = logger.New("msgAddress", msg.Address, "msgVersion", qeData.Version)
 
 	// Do some validation checks on the istanbul.QueryEnodeData
-	if isValid, err := m.validateQueryEnode(msg.Address, msg.QueryEnodeMsg()); !isValid || err != nil {
+
+	// Check if the number of rows in the queryEnodePayload is at most 2 times the size of the current validator connection set.
+	// Note that this is a heuristic of the actual size of validator connection set at the time the validator constructed the announce message.
+	maxQueries := len(validatorConnSet) * 2
+	if isValid, err := validateQueryEnode(m.logger, msg.Address, msg.QueryEnodeMsg(), maxQueries); !isValid || err != nil {
 		logger.Warn("Validation of queryEnode message failed", "isValid", isValid, "err", err)
 		return err
 	}
@@ -195,15 +201,9 @@ func (m *Manager) HandleQueryEnodeMsg(addr common.Address, peer consensus.Peer, 
 			if encEnodeURL.DestAddress != w.Ecdsa.Address {
 				continue
 			}
-			enodeBytes, err := w.Ecdsa.Decrypt(encEnodeURL.EncryptedEnodeURL)
+			node, err := DecryptAndParseEnodeURL(&w.Ecdsa, encEnodeURL.EncryptedEnodeURL)
 			if err != nil {
-				m.logger.Warn("Error decrypting endpoint", "err", err, "encEnodeURL.EncryptedEnodeURL", encEnodeURL.EncryptedEnodeURL)
-				return err
-			}
-			enodeURL := string(enodeBytes)
-			node, err := enode.ParseV4(enodeURL)
-			if err != nil {
-				logger.Warn("Error parsing enodeURL", "enodeUrl", enodeURL)
+				logger.Error("Can't process encEnodeURL. err", err, "encEnodeURL.EncryptedEnodeURL", encEnodeURL.EncryptedEnodeURL)
 				return err
 			}
 
@@ -271,30 +271,17 @@ func (m *Manager) answerQueryEnodeMsg(address common.Address, node *enode.Node, 
 // message. This is to force all validators that send a queryEnode message to
 // create as succint message as possible, and prevent any possible network DOS attacks
 // via extremely large queryEnode message.
-func (m *Manager) validateQueryEnode(msgAddress common.Address, qeData *istanbul.QueryEnodeData) (bool, error) {
-	logger := m.logger.New("func", "validateQueryEnode", "msg address", msgAddress)
+func validateQueryEnode(lg log.Logger, msgAddress common.Address, qeData *istanbul.QueryEnodeData, maxQueries int) (bool, error) {
+	logger := lg.New("func", "validateQueryEnode", "msg address", msgAddress)
 
 	// Check if there are any duplicates in the queryEnode message
-	var encounteredAddresses = make(map[common.Address]bool)
-	for _, encEnodeURL := range qeData.EncryptedEnodeURLs {
-		if encounteredAddresses[encEnodeURL.DestAddress] {
-			logger.Info("QueryEnode message has duplicate entries", "address", encEnodeURL.DestAddress)
-			return false, nil
-		}
-
-		encounteredAddresses[encEnodeURL.DestAddress] = true
+	if has, dupAddress := qeData.HasDuplicates(); has {
+		logger.Info("QueryEnode message has duplicate entries", "address", dupAddress)
+		return false, nil
 	}
-
-	// Check if the number of rows in the queryEnodePayload is at most 2 times the size of the current validator connection set.
-	// Note that this is a heuristic of the actual size of validator connection set at the time the validator constructed the announce message.
-	validatorConnSet, err := m.network.RetrieveValidatorConnSet()
-	if err != nil {
-		return false, err
-	}
-
-	if len(qeData.EncryptedEnodeURLs) > 2*len(validatorConnSet) {
-		logger.Info("Number of queryEnode message encrypted enodes is more than two times the size of the current validator connection set", "num queryEnode enodes", len(qeData.EncryptedEnodeURLs), "reg/elected val set size", len(validatorConnSet))
-		return false, err
+	if len(qeData.EncryptedEnodeURLs) > maxQueries {
+		logger.Info("Number of queryEnode message encrypted enodes is more max allowed", "num queryEnode enodes", len(qeData.EncryptedEnodeURLs), "max", maxQueries)
+		return false, nil
 	}
 
 	return true, nil
@@ -339,6 +326,7 @@ func (m *Manager) SendVersionCertificateTable(peer consensus.Peer) error {
 	return m.vcGossiper.SendAllFrom(m.state.VersionCertificateTable, peer)
 }
 
+// HandleVersionCertificatesMsg handles a versionCertificates received by the p2p network, according to the announce protocol spec.
 func (m *Manager) HandleVersionCertificatesMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
 	logger := m.logger.New("func", "HandleVersionCertificatesMsg")
 	logger.Trace("Handling version certificates msg")
@@ -479,7 +467,7 @@ func (m *Manager) StartAnnouncing(onStart func() error) error {
 	go m.announceThread()
 
 	if err := onStart(); err != nil {
-		m.StopAnnouncing(func() error { return nil })
+		m.unlockedStopAnnouncing(func() error { return nil })
 		return err
 	}
 
@@ -494,6 +482,10 @@ func (m *Manager) StopAnnouncing(onStop func() error) error {
 		return istanbul.ErrStoppedAnnounce
 	}
 
+	return m.unlockedStopAnnouncing(onStop)
+}
+
+func (m *Manager) unlockedStopAnnouncing(onStop func() error) error {
 	m.worker.Stop()
 	m.announceThreadWg.Wait()
 
