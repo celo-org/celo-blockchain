@@ -88,7 +88,7 @@ func (gpm GasPriceMinimums) GetNativeGPM() *big.Int {
 	return gpm.valOrDefault(common.ZeroAddress)
 }
 
-// GetGasPriceMinimum retrieves gas price minimum for given fee currency address.
+// GetGasPriceMinimum retrieves gas price minimum for given fee currency address, it returns gasprice_minimum.FallbackGasPriceMinimum when there is an error 
 func (gpm GasPriceMinimums) GetGasPriceMinimum(feeCurrency *common.Address) *big.Int {
 	// feeCurrency for native token(CELO) is nil, so we bind common.ZeroAddress as key
 	var key common.Address
