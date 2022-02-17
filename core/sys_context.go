@@ -17,7 +17,7 @@ type SysContractCallCtx struct {
 	gasForAlternativeCurrency uint64
 	// gasPriceMinimums stores values for whitelisted currencies keyed by their contract address
 	// Note that native token(CELO) is keyed by common.ZeroAddress
-	gasPriceMinimums map[common.Address]*big.Int
+	gasPriceMinimums GasPriceMinimums
 }
 
 // NewSysContractCallCtx creates the SysContractCallCtx object and makes the contract calls.
@@ -63,7 +63,34 @@ func (sc *SysContractCallCtx) IsWhitelisted(feeCurrency *common.Address) bool {
 }
 
 // GetGasPriceMinimum retrieves gas price minimum for given fee currency address.
+// Note that the CELO currency is keyed by the Zero address.
 func (sc *SysContractCallCtx) GetGasPriceMinimum(feeCurrency *common.Address) *big.Int {
+	return sc.gasPriceMinimums.GetGasPriceMinimum(feeCurrency)
+}
+
+// GetCurrentGasPriceMinimumMap returns the gas price minimum map for all whitelisted currencies.
+// Note that the CELO currency is keyed by the Zero address.
+func (sc *SysContractCallCtx) GetCurrentGasPriceMinimumMap() GasPriceMinimums {
+	return sc.gasPriceMinimums
+}
+
+type GasPriceMinimums map[common.Address]*big.Int
+
+func (gpm GasPriceMinimums) valOrDefault(key common.Address) *big.Int {
+	val, ok := gpm[key]
+	if !ok {
+		return gasprice_minimum.FallbackGasPriceMinimum
+	}
+	return val
+}
+
+// GetNativeGPM retrieves the gas price minimum for the native currency.
+func (gpm GasPriceMinimums) GetNativeGPM() *big.Int {
+	return gpm.valOrDefault(common.ZeroAddress)
+}
+
+// GetGasPriceMinimum retrieves gas price minimum for given fee currency address, it returns gasprice_minimum.FallbackGasPriceMinimum when there is an error
+func (gpm GasPriceMinimums) GetGasPriceMinimum(feeCurrency *common.Address) *big.Int {
 	// feeCurrency for native token(CELO) is nil, so we bind common.ZeroAddress as key
 	var key common.Address
 	if feeCurrency == nil {
@@ -72,9 +99,5 @@ func (sc *SysContractCallCtx) GetGasPriceMinimum(feeCurrency *common.Address) *b
 		key = *feeCurrency
 	}
 
-	gasPriceMinimum, ok := sc.gasPriceMinimums[key]
-	if !ok {
-		return gasprice_minimum.FallbackGasPriceMinimum
-	}
-	return gasPriceMinimum
+	return gpm.valOrDefault(key)
 }
