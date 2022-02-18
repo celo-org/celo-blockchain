@@ -76,8 +76,10 @@ var (
 	errInvalidVotingChain = errors.New("invalid voting chain")
 	// errInvalidAggregatedSeal is returned if the aggregated seal is invalid.
 	errInvalidAggregatedSeal = errors.New("invalid aggregated seal")
-	// errInvalidAggregatedSeal is returned if the aggregated seal is missing.
+	// errEmptyAggregatedSeal is returned if the aggregated seal is missing.
 	errEmptyAggregatedSeal = errors.New("empty aggregated seal")
+	// errNonEmptyAggregatedSeal is returned if the aggregated seal is not empty during preprepase proposal phase.
+	errNonEmptyAggregatedSeal = errors.New("Non empty aggregated seal during preprepare")
 	// errMismatchTxhashes is returned if the TxHash in header is mismatch.
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
 	// errInvalidValidatorSetDiff is returned if the header contains invalid validator set diff
@@ -103,14 +105,22 @@ func (sb *Backend) Author(header *types.Header) (common.Address, error) {
 // VerifyHeader checks whether a header conforms to the consensus rules of a
 // given engine. Verifies the seal regardless of given "seal" argument.
 func (sb *Backend) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
-	return sb.verifyHeader(chain, header, nil)
+	return sb.verifyHeader(chain, header, false, nil)
+}
+
+// verifyHeaderFromProposal checks whether a header conforms to the consensus rules from the
+// preprepare istanbul phase.
+func (sb *Backend) verifyHeaderFromProposal(chain consensus.ChainHeaderReader, header *types.Header) error {
+	return sb.verifyHeader(chain, header, true, nil)
 }
 
 // verifyHeader checks whether a header conforms to the consensus rules.The
 // caller may optionally pass in a batch of parents (ascending order) to avoid
 // looking those up from the database. This is useful for concurrently verifying
 // a batch of new headers.
-func (sb *Backend) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+// If emptyAggregatedSeal is set, the aggregatedSeal will be checked to be completely empty. Otherwise
+// it will be checked as a normal aggregated seal.
+func (sb *Backend) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, emptyAggregatedSeal bool, parents []*types.Header) error {
 	if header.Number == nil {
 		return errUnknownBlock
 	}
@@ -132,7 +142,7 @@ func (sb *Backend) verifyHeader(chain consensus.ChainHeaderReader, header *types
 		return errInvalidExtraDataFormat
 	}
 
-	return sb.verifyCascadingFields(chain, header, parents)
+	return sb.verifyCascadingFields(chain, header, emptyAggregatedSeal, parents)
 }
 
 // A sanity check for lightest mode. Checks that the correct epoch block exists for this header
@@ -160,7 +170,9 @@ func (sb *Backend) checkEpochBlockExists(chain consensus.ChainHeaderReader, head
 // rather depend on a batch of previous headers. The caller may optionally pass
 // in a batch of parents (ascending order) to avoid looking those up from the
 // database. This is useful for concurrently verifying a batch of new headers.
-func (sb *Backend) verifyCascadingFields(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+// If emptyAggregatedSeal is set, the aggregatedSeal will be checked to be completely empty. Otherwise
+// it will be checked as a normal aggregated seal.
+func (sb *Backend) verifyCascadingFields(chain consensus.ChainHeaderReader, header *types.Header, emptyAggregatedSeal bool, parents []*types.Header) error {
 	// The genesis block is the always valid dead-end
 	number := header.Number.Uint64()
 	if number == 0 {
@@ -189,7 +201,7 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainHeaderReader, head
 		return err
 	}
 
-	return sb.verifyAggregatedSeals(chain, header, parents)
+	return sb.verifyAggregatedSeals(chain, header, emptyAggregatedSeal, parents)
 }
 
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
@@ -206,7 +218,7 @@ func (sb *Backend) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*t
 			if errored {
 				err = consensus.ErrUnknownAncestor
 			} else {
-				err = sb.verifyHeader(chain, header, headers[:i])
+				err = sb.verifyHeader(chain, header, false, headers[:i])
 			}
 
 			if err != nil {
@@ -252,7 +264,9 @@ func (sb *Backend) verifySigner(chain consensus.ChainHeaderReader, header *types
 
 // verifyAggregatedSeals checks whether the aggregated seal and parent seal in the header is
 // signed on by the block's validators and the parent block's validators respectively
-func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+// If emptyAggregatedSeal is set, the aggregatedSeal will be checked to be completely empty. Otherwise
+// it will be checked as a normal aggregated seal.
+func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainHeaderReader, header *types.Header, emptyAggregatedseal bool, parents []*types.Header) error {
 	number := header.Number.Uint64()
 	// We don't need to verify committed seals in the genesis block
 	if number == 0 {
@@ -264,20 +278,29 @@ func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainHeaderReader, head
 		return err
 	}
 
-	// The length of Committed seals should be larger than 0
-	if len(extra.AggregatedSeal.Signature) == 0 {
-		return errEmptyAggregatedSeal
-	}
-
 	// Check the signatures on the current header
 	snap, err := sb.snapshot(chain, number-1, header.ParentHash, parents)
 	if err != nil {
 		return err
 	}
 	validators := snap.ValSet.Copy()
-	err = sb.verifyAggregatedSeal(header.Hash(), validators, extra.AggregatedSeal)
-	if err != nil {
-		return err
+
+	if emptyAggregatedseal {
+		// The length of Committed seals should be exactly 0 (preprepare proposal check)
+		if len(extra.AggregatedSeal.Signature) != 0 {
+			return errNonEmptyAggregatedSeal
+		}
+		// Should we also verify that the bitmap and round are nil?
+	} else {
+		// The length of Committed seals should be larger than 0
+		if len(extra.AggregatedSeal.Signature) == 0 {
+			return errEmptyAggregatedSeal
+		}
+
+		err = sb.verifyAggregatedSeal(header.Hash(), validators, extra.AggregatedSeal)
+		if err != nil {
+			return err
+		}
 	}
 
 	// The genesis block is skipped since it has no parents.
