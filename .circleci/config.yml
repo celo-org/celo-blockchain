@@ -484,6 +484,9 @@ workflows:
             - build-geth
             - prepare-system-contracts
       - race:
+          filters:
+            branches:
+              only: /master|release.*/
           requires:
             - build-geth
             - prepare-system-contracts
@@ -542,10 +545,11 @@ workflows:
           requires:
             - checkout-monorepo
             - build-geth
-      - end-to-end-cip35-eth-compatibility-test:
-          requires:
-            - checkout-monorepo
-            - build-geth
+# Flaky!
+#      - end-to-end-cip35-eth-compatibility-test:
+#          requires:
+#            - checkout-monorepo
+#            - build-geth
       - end-to-end-replica-test:
           requires:
             - checkout-monorepo
