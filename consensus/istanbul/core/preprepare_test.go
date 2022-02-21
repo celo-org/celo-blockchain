@@ -22,6 +22,10 @@ import (
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/stretchr/testify/require"
+
+	"github.com/celo-org/celo-blockchain/core/types"
 )
 
 func newTestPreprepare(v *istanbul.View) *istanbul.Preprepare {
@@ -62,6 +66,43 @@ func TestHandlePreprepare(t *testing.T) {
 			},
 			newTestProposal(),
 			nil,
+			false,
+		},
+		{
+			"proposal doesn't contain parent aggregatedSeal",
+			func() *testSystem {
+				sys := NewTestSystemWithBackend(N, F)
+
+				for i, backend := range sys.backends {
+					backend.engine.(*core).Start()
+					c := backend.engine.(*core)
+					if i != 0 {
+						// getRoundState(c).state = StatePreprepared
+						getRoundState(c).sequence = big.NewInt(10)
+						// getRoundState(c).round = big.NewInt(10)
+						// getRoundState(c).desiredRound = getRoundState(c).round
+					}
+				}
+				return sys
+			},
+			func(_ *testSystem) istanbul.RoundChangeCertificate {
+				return istanbul.RoundChangeCertificate{}
+			},
+			func() *types.Block {
+				b := makeBlock(10)
+				e := types.IstanbulExtra{}
+				h := b.Header()
+				println(len(h.Extra))
+				err := rlp.DecodeBytes(h.Extra, &e)
+				require.NoError(t, err)
+				// nullify parent aggregated seal
+				e.ParentAggregatedSeal = types.IstanbulAggregatedSeal{}
+				bytes, err := rlp.EncodeToBytes(&e)
+				require.NoError(t, err)
+				h.Extra = bytes
+				return types.NewBlockWithHeader(h)
+			}(),
+			errInvalidProposal,
 			false,
 		},
 		{

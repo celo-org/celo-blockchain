@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/davecgh/go-spew/spew"
@@ -90,7 +92,47 @@ func TestRunNode(t *testing.T) {
 	for _, a := range accounts.DeveloperAccounts() {
 		fmt.Printf("%q,\n", a.PrivateKeyHex())
 	}
+
 	fmt.Printf("],\n")
+
+	go func() {
+
+		time.Sleep(time.Second * 10)
+
+		d := accounts.DeveloperAccounts()[1]
+
+		for {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*4)
+
+			n := network[0]
+			signer := types.MakeSigner(n.EthConfig.Genesis.Config, common.Big0)
+			tx, err := test.ValueTransferTransaction(
+				n.WsClient,
+				d.PrivateKey,
+				d.Address,
+				d.Address,
+				n.Nonce,
+				big.NewInt(1),
+				signer)
+
+			if err != nil {
+				panic(err)
+			}
+			err = n.WsClient.SendTransaction(ctx, tx)
+			if err != nil {
+				panic(err)
+			}
+			n.Nonce++
+			n.SentTxs = append(n.SentTxs, tx)
+
+			// _, err := network[0].SendCelo(ctx, network[0].DevAddress, 1)
+			// if err != nil {
+			// 	panic(err)
+			// }
+			cancel()
+			time.Sleep(time.Millisecond * 10)
+		}
+	}()
 
 	time.Sleep(math.MaxInt64)
 }

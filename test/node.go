@@ -87,6 +87,8 @@ var (
 			DefaultLookbackWindow: 3,
 			BlockPeriod:           0,
 		},
+		NoPruning:     true,
+		TxLookupLimit: 0,
 	}
 )
 
