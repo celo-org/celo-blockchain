@@ -826,15 +826,18 @@ func (diff *StateOverride) Apply(state *state.StateDB) error {
 	return nil
 }
 
-func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash rpc.BlockNumberOrHash, overrides *StateOverride, timeout time.Duration, globalGasCap uint64) (*core.ExecutionResult, error) {
+func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash rpc.BlockNumberOrHash, overrides *StateOverride, timeout time.Duration, globalGasCap uint64, entry *logEntry) (*core.ExecutionResult, error) {
 	defer func(start time.Time) { log.Debug("Executing EVM call finished", "runtime", time.Since(start)) }(time.Now())
 
 	state, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
 	if state == nil || err != nil {
 		return nil, err
 	}
-	if err := overrides.Apply(state); err != nil {
-		return nil, err
+	if entry != nil {
+		entry.Block = header.Number
+		if err := overrides.Apply(state); err != nil {
+			return nil, err
+		}
 	}
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.
@@ -928,7 +931,7 @@ func (e *revertError) ErrorData() interface{} {
 // Note, this function doesn't make and changes in the state/blockchain and is
 // useful to execute and retrieve values.
 func (s *PublicBlockChainAPI) Call(ctx context.Context, args TransactionArgs, blockNrOrHash rpc.BlockNumberOrHash, overrides *StateOverride) (hexutil.Bytes, error) {
-	result, err := DoCall(ctx, s.b, args, blockNrOrHash, overrides, 50*time.Second, s.b.RPCGasCap())
+	result, err := DoCall(ctx, s.b, args, blockNrOrHash, overrides, 50*time.Second, s.b.RPCGasCap(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -937,6 +940,13 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args TransactionArgs, bl
 		return nil, newRevertError(result)
 	}
 	return result.Return(), result.Err
+}
+
+type logEntry struct {
+	Block    *big.Int
+	result   uint64
+	midpoint uint64
+	failed   bool
 }
 
 func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash rpc.BlockNumberOrHash, gasCap uint64) (hexutil.Uint64, error) {
@@ -962,6 +972,9 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 	if args.From == nil {
 		args.From = new(common.Address)
 	}
+
+	var estimatelog []*logEntry
+
 	// Set gas price to nil (which will lead to it being zero), because the binary search
 	// assumes that if the transaction fails with gas limit A, and B < A, then it would
 	// also fail with gas limit B, which may not be the case if the gas price is non-zero,
@@ -971,13 +984,20 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 	executable := func(gas uint64) (bool, *core.ExecutionResult, error) {
 		args.Gas = (*hexutil.Uint64)(&gas)
 
-		result, err := DoCall(ctx, b, args, blockNrOrHash, nil, 0, gasCap)
+		entry := &logEntry{
+			midpoint: gas,
+		}
+		estimatelog = append(estimatelog, entry)
+		result, err := DoCall(ctx, b, args, blockNrOrHash, nil, 0, gasCap, entry)
 		if err != nil {
 			if errors.Is(err, core.ErrIntrinsicGas) {
+				entry.result = 0
 				return true, nil, nil // Special case, raise gas limit
 			}
 			return true, nil, err // Bail out
 		}
+		entry.result = result.UsedGas
+		entry.failed = result.Failed()
 		return result.Failed(), result, nil
 	}
 	// Execute the binary search and hone in on an executable gas limit
@@ -997,6 +1017,15 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 			hi = mid
 		}
 	}
+
+	logString := &strings.Builder{}
+	for _, entry := range estimatelog {
+		logString.WriteString(fmt.Sprintf("Block: %d, midpoint: %d, result: %d, failed: %t", entry.Block.Uint64(), entry.midpoint, entry.result, entry.failed))
+		logString.WriteString(" -> ")
+	}
+
+	log.Error("Gas estimate details", "msg", logString.String())
+
 	// Reject the transaction as invalid if it still fails at the highest allowance
 	if hi == cap {
 		failed, result, err := executable(hi)
