@@ -207,3 +207,63 @@ func TestMonitorClear(t *testing.T) {
 	err = monitor.ProcessHeader(header101)
 	assert.NoError(t, err)
 }
+
+func TestMonitorReturnValSetResultsUsingBiggerBitmaps(t *testing.T) {
+	// 3 validators
+	monitor := NewMonitor(100, 2, 5, 3)
+	headerLast := mockHeader(int64(100), big.NewInt(0), common.Hash{})
+	for i := 1; i <= 20; i++ {
+		// 111100 => 60
+		actualHeader := mockHeader(int64(100+i), big.NewInt(60), headerLast.Hash())
+		err := monitor.ProcessHeader(actualHeader)
+		assert.NoError(t, err)
+		headerLast = actualHeader
+	}
+	score, err := monitor.ComputeUptime(headerLast)
+	assert.NoError(t, err)
+	assert.Len(t, score, 3)
+	assert.Equal(t, score[0], big.NewInt(0))
+	assert.Equal(t, score[1], big.NewInt(0))
+	assert.Equal(t, score[2], params.Fixidity1)
+}
+
+func TestMonitorReturnValSetResultsUsingSmallerBitmaps(t *testing.T) {
+	// 3 validators
+	monitor := NewMonitor(100, 2, 5, 3)
+	headerLast := mockHeader(int64(100), big.NewInt(0), common.Hash{})
+	for i := 1; i <= 20; i++ {
+		actualHeader := mockHeader(int64(100+i), big.NewInt(0), headerLast.Hash())
+		err := monitor.ProcessHeader(actualHeader)
+		assert.NoError(t, err)
+		headerLast = actualHeader
+	}
+	score, err := monitor.ComputeUptime(headerLast)
+	assert.NoError(t, err)
+	assert.Len(t, score, 3)
+	assert.Equal(t, score[0], big.NewInt(0))
+	assert.Equal(t, score[1], big.NewInt(0))
+	assert.Equal(t, score[2], big.NewInt(0))
+}
+
+func TestMonitorPerfectScoreEqualToOne(t *testing.T) {
+	// 3 validators
+	monitor := NewMonitor(100, 2, 5, 3)
+	headerLast := mockHeader(int64(100), big.NewInt(0), common.Hash{})
+	for i := 1; i <= 100; i++ {
+		actualHeader := mockHeader(int64(100+i), big.NewInt(7), headerLast.Hash())
+		err := monitor.ProcessHeader(actualHeader)
+		assert.NoError(t, err)
+		headerLast = actualHeader
+	}
+	outOfEpocHeader := mockHeader(headerLast.Number.Int64()+1, big.NewInt(7), headerLast.Hash())
+	// One more header should be part of the next epoch
+	err := monitor.ProcessHeader(outOfEpocHeader)
+	assert.ErrorIs(t, err, ErrWrongEpoch)
+
+	score, err := monitor.ComputeUptime(headerLast)
+	assert.NoError(t, err)
+	assert.Len(t, score, 3)
+	assert.Equal(t, score[0], params.Fixidity1)
+	assert.Equal(t, score[1], params.Fixidity1)
+	assert.Equal(t, score[2], params.Fixidity1)
+}
