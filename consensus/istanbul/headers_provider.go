@@ -1,7 +1,6 @@
 package istanbul
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -42,7 +41,7 @@ func (d *dbHeadersProvider) GetEpochHeadersUpToLimit(epochSize uint64, upToHeade
 	headers := getHeaders(d.chr, number-1, amountToLoad)
 	if headers == nil {
 		// Error retrieving headers
-		return nil, errors.New(fmt.Sprintf("Error attempting to retrieve headers: ", epochSize, upToHeader.Hash()))
+		return nil, fmt.Errorf("error attempting to retrieve headers: epochSize %d, headerHash %v", epochSize, upToHeader.Hash())
 	}
 	return append(headers, upToHeader), nil
 }
