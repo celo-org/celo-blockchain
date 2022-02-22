@@ -48,10 +48,12 @@ func (eth *Ethereum) stateAtBlock(block *types.Block, reexec uint64, base *state
 	if checkLive {
 		statedb, err = eth.blockchain.StateAt(block.Root())
 		if err == nil {
+			log.Error("returning live block state", "number", block.Number().Uint64())
 			return statedb, nil
 		}
 	}
 	if base != nil {
+		log.Error("getting state at block base is not nil")
 		// The optional base statedb is given, mark the start point as parent block
 		statedb, database, report = base, base.Database(), false
 		current = eth.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1)
@@ -103,6 +105,8 @@ func (eth *Ethereum) stateAtBlock(block *types.Block, reexec uint64, base *state
 		logged time.Time
 		parent common.Hash
 	)
+
+	log.Error("getting state at block current and origin", "current", current.NumberU64(), "origin", origin)
 	for current.NumberU64() < origin {
 
 		// Print progress logs if long enough time elapsed
