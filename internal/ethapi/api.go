@@ -1243,9 +1243,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		al := tx.AccessList()
 		result.Accesses = &al
 		result.ChainID = (*hexutil.Big)(tx.ChainId())
-	case types.DynamicFeeTxType:
-		fallthrough
-	case types.CeloDynamicFeeTxType:
+	case types.DynamicFeeTxType, types.CeloDynamicFeeTxType:
 		al := tx.AccessList()
 		result.Accesses = &al
 		result.ChainID = (*hexutil.Big)(tx.ChainId())
@@ -1254,12 +1252,13 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		// if the transaction has been mined, compute the effective gas price
 		if blockHash != (common.Hash{}) {
 			baseFee, err := baseFeeFn(tx.FeeCurrency())
-			if err != nil {
+			if err == nil {
 				// price = min(tip, gasFeeCap - baseFee) + baseFee
 				price := math.BigMin(new(big.Int).Add(tx.GasTipCap(), baseFee), tx.GasFeeCap())
 				result.GasPrice = (*hexutil.Big)(price)
 			} else {
-				// error != nil for DinamicFees implies that there is no state to retrieve the baseFee for that block
+				log.Warn("error retrieving baseFee for tx", "hash", tx.Hash().Hex(), "error", err)
+				// error != nil for DynamicFees implies that there is no state to retrieve the baseFee for that block
 				result.GasPrice = nil
 			}
 		} else {
