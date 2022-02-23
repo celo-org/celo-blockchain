@@ -45,11 +45,6 @@ func TestFwdFields(t *testing.T) {
 	}
 	af := NewAutoFixBuilder(b, &headers{epochSize: 1234})
 	assert.Equal(t, uint64(7), af.GetEpoch())
-	assert.Equal(t, uint64(1234), af.GetEpochSize())
-	assert.Equal(t, header(1), af.GetLastProcessedHeader())
-	af.Clear()
-	assert.Empty(t, b.headersAdded)
-	assert.Nil(t, af.GetLastProcessedHeader())
 }
 
 func TestFailOnWrongEpoch(t *testing.T) {

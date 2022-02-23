@@ -28,13 +28,6 @@ var (
 	ErrUnpreparedCompute = errors.New("compute uptime is not ready due to missing preparation")
 )
 
-type Computer interface {
-	// ComputeUptime computes the validators uptime score and returns it as an array.
-	// The last header of the epoch must be provided, to ensure that the score is calculated from the
-	// correct subchain.
-	ComputeUptime(epochLastHeader *types.Header) ([]*big.Int, error)
-}
-
 type Builder interface {
 	// ProcessHeader adds a header to the Builder. Headers must be provided in order.
 	// Some implementations may return ErrHeaderRewinded if a header is given that
@@ -43,17 +36,11 @@ type Builder interface {
 	// required additional setup before calling Compute
 	ProcessHeader(header *types.Header) error
 
-	// Clear resets this builder
-	Clear()
-
-	// GetLastProcessedHeader returns the last processed header by this Builder.
-	GetLastProcessedHeader() *types.Header
-
-	// GetEpochSize returns the epoch size for the current epoch in this Builder.
-	GetEpochSize() uint64
+	// ComputeUptime computes the validators uptime score and returns it as an array.
+	// The last header of the epoch must be provided, to ensure that the score is calculated from the
+	// correct subchain.
+	ComputeUptime(epochLastHeader *types.Header) ([]*big.Int, error)
 
 	// GetEpoch returns the epoch for this uptime Builder.
 	GetEpoch() uint64
-
-	Computer // Not 100% sure Builder should include Computer or if they can be completely separated.
 }

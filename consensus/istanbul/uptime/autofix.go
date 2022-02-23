@@ -7,14 +7,27 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 )
 
+type FixableBuilder interface {
+	Builder
+
+	// Clear resets this builder
+	Clear()
+
+	// GetLastProcessedHeader returns the last processed header by this Builder.
+	GetLastProcessedHeader() *types.Header
+
+	// GetEpochSize returns the epoch size for the current epoch in this Builder.
+	GetEpochSize() uint64
+}
+
 // autoFixBuilder is an uptime Builder that will fix rewinds and missing headers from a
 // decorated builder.
 type autoFixBuilder struct {
-	builder  Builder
+	builder  FixableBuilder
 	provider istanbul.EpochHeadersProvider
 }
 
-func NewAutoFixBuilder(builder Builder, provider istanbul.EpochHeadersProvider) Builder {
+func NewAutoFixBuilder(builder FixableBuilder, provider istanbul.EpochHeadersProvider) Builder {
 	return &autoFixBuilder{
 		builder:  builder,
 		provider: provider,
@@ -143,18 +156,6 @@ func (af *autoFixBuilder) ComputeUptime(epochLastHeader *types.Header) ([]*big.I
 	return af.builder.ComputeUptime(epochLastHeader)
 }
 
-func (af *autoFixBuilder) GetEpochSize() uint64 {
-	return af.builder.GetEpochSize()
-}
-
 func (af *autoFixBuilder) GetEpoch() uint64 {
 	return af.builder.GetEpoch()
-}
-
-func (af *autoFixBuilder) Clear() {
-	af.builder.Clear()
-}
-
-func (af *autoFixBuilder) GetLastProcessedHeader() *types.Header {
-	return af.builder.GetLastProcessedHeader()
 }
