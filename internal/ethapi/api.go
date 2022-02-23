@@ -834,8 +834,7 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 		return nil, err
 	}
 	if entry != nil {
-		entry.Block = header.Number
-		entry.BlockRoot = header.Root
+		entry.Header = header
 		entry.stateRoot = state.IntermediateRoot(true)
 		if err := overrides.Apply(state); err != nil {
 			return nil, err
@@ -945,7 +944,7 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args TransactionArgs, bl
 }
 
 type logEntry struct {
-	Block     *big.Int
+	Header    *types.Header
 	BlockRoot common.Hash
 	result    uint64
 	midpoint  uint64
@@ -1024,16 +1023,16 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 
 	e := estimatelog[0]
 
-	log.Error("DoEstimateGas %d args: %v, blockNrOrHash: %v, blockNumber: %d, blockRoot: %v, stateroot: %v", hi, spew.Sdump(args), spew.Sdump(blockNrOrHash), e.Block.Uint64(), e.BlockRoot, e.stateRoot)
-	logString := &strings.Builder{}
-	for i := 0; i < 1; i++ {
-		// for _, entry := range estimatelog {
-		entry := estimatelog[i]
-		logString.WriteString(fmt.Sprintf("Block: %d, stateRoot: %s, blockRoot: %s, midpoint: %d, result: %d, failed: %t", entry.Block.Uint64(), entry.stateRoot.String(), entry.BlockRoot.String(), entry.midpoint, entry.result, entry.failed))
-		logString.WriteString(" | ")
-	}
+	log.Error(fmt.Sprintf("DoEstimateGas %d args: %v, blockNrOrHash: %v, block: %v, stateroot: %v", hi, spew.Sdump(args), spew.Sdump(blockNrOrHash), spew.Sdump(e.Header), e.stateRoot))
+	// logString := &strings.Builder{}
+	// for i := 0; i < 1; i++ {
+	// 	// for _, entry := range estimatelog {
+	// 	entry := estimatelog[i]
+	// 	logString.WriteString(fmt.Sprintf("Block: %d, stateRoot: %s, blockRoot: %s, midpoint: %d, result: %d, failed: %t", entry.Header.Uint64(), entry.stateRoot.String(), entry.BlockRoot.String(), entry.midpoint, entry.result, entry.failed))
+	// 	logString.WriteString(" | ")
+	// }
 
-	log.Error("Gas estimate details", "msg", logString.String())
+	// log.Error("Gas estimate details", "msg", logString.String())
 
 	// Reject the transaction as invalid if it still fails at the highest allowance
 	if hi == cap {
