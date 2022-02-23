@@ -813,7 +813,7 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 		return nil, err
 	}
 
-	log.Error("tracing a call", "number", header.Number.Uint64(), "statedb root", statedb.IntermediateRoot(false), "block root", header.Root)
+	log.Error("tracing a call", "number", header.Number.Uint64(), "statedb root", statedb.IntermediateRoot(true), "block root", header.Root)
 	vmctx := core.NewEVMBlockContext(header, api.chainContext(ctx), nil)
 	vmRunner := api.backend.VmRunnerAtHeader(header, statedb)
 	var sysCtx *core.SysContractCallCtx
