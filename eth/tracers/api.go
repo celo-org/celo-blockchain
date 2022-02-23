@@ -42,6 +42,7 @@ import (
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/davecgh/go-spew/spew"
 )
 
 const (
@@ -813,7 +814,6 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 		return nil, err
 	}
 
-	log.Error("tracing a call", "number", header.Number.Uint64(), "statedb root", statedb.IntermediateRoot(true), "block root", header.Root)
 	vmctx := core.NewEVMBlockContext(header, api.chainContext(ctx), nil)
 	vmRunner := api.backend.VmRunnerAtHeader(header, statedb)
 	var sysCtx *core.SysContractCallCtx
@@ -830,7 +830,14 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 			Reexec:    config.Reexec,
 		}
 	}
-	return api.traceTx(ctx, msg, new(Context), vmctx, vmRunner, statedb, sysCtx, traceConfig)
+	result, err := api.traceTx(ctx, msg, new(Context), vmctx, vmRunner, statedb, sysCtx, traceConfig)
+	if err != nil {
+		r, ok := result.(*ethapi.ExecutionResult)
+		if ok {
+			log.Error("tracing a call", "gas", r.Gas, "header", spew.Sdump(header), "statedb root", statedb.IntermediateRoot(true), "block root", header.Root)
+		}
+	}
+	return result, err
 }
 
 // traceTx configures a new tracer according to the provided configuration, and

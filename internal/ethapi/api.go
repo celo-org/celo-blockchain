@@ -1023,7 +1023,7 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 
 	e := estimatelog[0]
 
-	log.Error(fmt.Sprintf("DoEstimateGas %d args: %v, blockNrOrHash: %v, block: %v, stateroot: %v", hi, spew.Sdump(args), spew.Sdump(blockNrOrHash), spew.Sdump(e.Header), e.stateRoot))
+	log.Error(fmt.Sprintf("DoEstimateGas %d args: %v, blockNrOrHash: %v, header: %v, stateroot: %v", hi, spew.Sdump(args), spew.Sdump(blockNrOrHash), spew.Sdump(e.Header), e.stateRoot))
 	// logString := &strings.Builder{}
 	// for i := 0; i < 1; i++ {
 	// 	// for _, entry := range estimatelog {
