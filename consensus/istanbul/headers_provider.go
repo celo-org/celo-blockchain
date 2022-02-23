@@ -31,9 +31,15 @@ type dbHeadersProvider struct {
 }
 
 func (d *dbHeadersProvider) GetEpochHeadersUpToLimit(epochSize uint64, upToHeader *types.Header, limit uint64) ([]*types.Header, error) {
+	if limit == 0 {
+		return []*types.Header{}, nil
+	}
 	number := upToHeader.Number.Uint64()
 	numberWithinEpoch := GetNumberWithinEpoch(number, epochSize)
-	amountToLoad := numberWithinEpoch - 1
+	var amountToLoad uint64 = numberWithinEpoch - 1
+	if amountToLoad > limit-1 {
+		amountToLoad = limit - 1
+	}
 	if amountToLoad == 0 {
 		// Nothing to do
 		return []*types.Header{upToHeader}, nil
