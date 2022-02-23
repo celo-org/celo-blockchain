@@ -48,15 +48,19 @@ func (d *dbHeadersProvider) GetEpochHeadersUpToLimit(epochSize uint64, upToHeade
 
 func getHeaders(chr ChainHeaderReader, lastBlock uint64, amount uint64) []*types.Header {
 	headers := make([]*types.Header, amount)
+	if amount == 0 {
+		// Nothing to do
+		return headers
+	}
 	lastHeader := chr.GetHeaderByNumber(lastBlock)
 	if lastHeader == nil {
 		// Error retrieving header
 		return nil
 	}
 	headers[amount-1] = lastHeader
-	for i := amount - 2; i >= 0; i-- {
-		headers[i] = chr.GetHeader(headers[i+1].ParentHash, headers[i+1].Number.Uint64()-1)
-		if headers[i] == nil {
+	for i := amount - 1; i > 0; i-- {
+		headers[i-1] = chr.GetHeader(headers[i].ParentHash, headers[i].Number.Uint64()-1)
+		if headers[i-1] == nil {
 			// Error retrieving header
 			return nil
 		}
