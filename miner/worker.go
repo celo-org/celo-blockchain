@@ -323,6 +323,12 @@ func (w *worker) constructPendingStateBlock(ctx context.Context, txsCh chan core
 	}
 	w.mu.RUnlock()
 
+	_, err = b.finalizeAndAssemble(w)
+	if err != nil {
+		log.Error("Failed to finalize and assemble the block", "err", err)
+		return
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -347,6 +353,11 @@ func (w *worker) constructPendingStateBlock(ctx context.Context, txsCh chan core
 				// Only update the snapshot if any new transactons were added
 				// to the pending block
 				if tcount != b.tcount {
+					_, err = b.finalizeAndAssemble(w)
+					if err != nil {
+						log.Error("Failed to finalize and assemble the block", "err", err)
+						return
+					}
 					w.updatePendingBlock(b)
 				}
 			}
