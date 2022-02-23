@@ -835,7 +835,8 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 	}
 	if entry != nil {
 		entry.Block = header.Number
-		entry.stateRoot = state.IntermediateRoot(false)
+		entry.BlockRoot = header.Root
+		entry.stateRoot = state.IntermediateRoot(true)
 		if err := overrides.Apply(state); err != nil {
 			return nil, err
 		}
@@ -945,6 +946,7 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args TransactionArgs, bl
 
 type logEntry struct {
 	Block     *big.Int
+	BlockRoot common.Hash
 	result    uint64
 	midpoint  uint64
 	stateRoot common.Hash
@@ -1021,8 +1023,10 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 	}
 
 	logString := &strings.Builder{}
-	for _, entry := range estimatelog {
-		logString.WriteString(fmt.Sprintf("Block: %d, root: %s, midpoint: %d, result: %d, failed: %t", entry.Block.Uint64(), entry.stateRoot.String(), entry.midpoint, entry.result, entry.failed))
+	for i := 0; i < 1; i++ {
+		// for _, entry := range estimatelog {
+		entry := estimatelog[i]
+		logString.WriteString(fmt.Sprintf("Block: %d, stateRoot: %s, blockRoot: %s, midpoint: %d, result: %d, failed: %t", entry.Block.Uint64(), entry.stateRoot.String(), entry.BlockRoot.String(), entry.midpoint, entry.result, entry.failed))
 		logString.WriteString(" | ")
 	}
 

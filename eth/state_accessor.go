@@ -48,7 +48,7 @@ func (eth *Ethereum) stateAtBlock(block *types.Block, reexec uint64, base *state
 	if checkLive {
 		statedb, err = eth.blockchain.StateAt(block.Root())
 		if err == nil {
-			log.Error("returning live block state", "number", block.Number().Uint64(), "block root", block.Root().String())
+			log.Error("returning live block state", "number", block.Number().Uint64(), "block root", block.Root().String(), "state root", statedb.IntermediateRoot(true))
 			return statedb, nil
 		}
 	}
