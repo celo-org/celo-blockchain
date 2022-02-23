@@ -37,7 +37,6 @@ import (
 // base layer statedb can be passed then it's regarded as the statedb of the
 // parent block.
 func (eth *Ethereum) stateAtBlock(block *types.Block, reexec uint64, base *state.StateDB, checkLive bool) (statedb *state.StateDB, err error) {
-	log.Info("getting state at block", "number", block.Number().Uint64())
 	var (
 		current  *types.Block
 		database state.Database
@@ -53,7 +52,6 @@ func (eth *Ethereum) stateAtBlock(block *types.Block, reexec uint64, base *state
 		}
 	}
 	if base != nil {
-		log.Error("getting state at block base is not nil")
 		// The optional base statedb is given, mark the start point as parent block
 		statedb, database, report = base, base.Database(), false
 		current = eth.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1)
@@ -106,7 +104,6 @@ func (eth *Ethereum) stateAtBlock(block *types.Block, reexec uint64, base *state
 		parent common.Hash
 	)
 
-	log.Error("getting state at block current and origin", "current", current.NumberU64(), "origin", origin)
 	for current.NumberU64() < origin {
 
 		// Print progress logs if long enough time elapsed
@@ -116,11 +113,9 @@ func (eth *Ethereum) stateAtBlock(block *types.Block, reexec uint64, base *state
 		}
 		// Retrieve the next block to regenerate and process it
 		next := current.NumberU64() + 1
-		log.Info("getting state at block, reapplying block", "number", next)
 		if current = eth.blockchain.GetBlockByNumber(next); current == nil {
 			return nil, fmt.Errorf("block #%d not found", next)
 		}
-		log.Info("getting state at block, reapplying block", "number", next, "block root", current.Root().String())
 		_, _, _, err := eth.blockchain.Processor().Process(current, statedb, vm.Config{})
 		if err != nil {
 			return nil, fmt.Errorf("processing block %d failed: %v", current.NumberU64(), err)
