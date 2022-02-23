@@ -33,6 +33,7 @@ import (
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/davecgh/go-spew/spew"
 )
 
 // Backend wraps all methods required for mining.
@@ -213,7 +214,9 @@ func (miner *Miner) Pending() (*types.Block, *state.StateDB) {
 // simultaneously, please use Pending(), as the pending state can
 // change between multiple method calls
 func (miner *Miner) PendingBlock() *types.Block {
-	return miner.worker.pendingBlock()
+	b := miner.worker.pendingBlock()
+	log.Error("Getting pending block", "block", spew.Sdump(b))
+	return b
 }
 
 // SetValidator sets the miner and worker's address for message and block signing

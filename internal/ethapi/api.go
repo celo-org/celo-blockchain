@@ -1022,6 +1022,9 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 		}
 	}
 
+	e := estimatelog[0]
+
+	log.Error("DoEstimateGas %d args: %v, blockNrOrHash: %v, blockNumber: %d, blockRoot: %v, stateroot: %v", hi, spew.Sdump(args), spew.Sdump(blockNrOrHash), e.Block.Uint64(), e.BlockRoot, e.stateRoot)
 	logString := &strings.Builder{}
 	for i := 0; i < 1; i++ {
 		// for _, entry := range estimatelog {
