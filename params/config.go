@@ -33,7 +33,7 @@ var (
 )
 
 var (
-	MainnetNetworkId   = uint64(42220)
+	MainnetNetworkId   = uint64(9099000)
 	BaklavaNetworkId   = uint64(62320)
 	AlfajoresNetworkId = uint64(44787)
 )
