@@ -413,12 +413,24 @@ func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 	// TODO(victor): Sleep here was previously removed and added to the miner instead, that change
 	// has been temporarily reverted until it can be reimplemented without causing fewer signatures
 	// to be included by the block producer.
-	delay := time.Until(time.Unix(int64(header.Time), 0))
-	if delay < 0 {
-		sb.sleepGauge.Update(0)
-	} else {
-		sb.sleepGauge.Update(delay.Nanoseconds())
-		time.Sleep(delay)
+	// (piers): Victor's re-addition of the sleep here caused the problem that
+	// the miner's pending block is always one block old (I.E the pending block
+	// has the same number as the most recent block). This occurs because when
+	// a new block is inserted a request is made to update the pending block
+	// and that request calls Prepare wich waits here till the next block is
+	// due before returning. The hacky fix for now is to only wait here if the
+	// node is validating this should allow the pending block to be kept more
+	// up to date in non validating nodes, whilst still ensuring that
+	// validators wait to collect parent seals.
+	// See https://github.com/celo-org/celo-blockchain/issues/1856
+	if sb.IsValidating() {
+		delay := time.Until(time.Unix(int64(header.Time), 0))
+		if delay < 0 {
+			sb.sleepGauge.Update(0)
+		} else {
+			sb.sleepGauge.Update(delay.Nanoseconds())
+			time.Sleep(delay)
+		}
 	}
 
 	if err := writeEmptyIstanbulExtra(header); err != nil {
