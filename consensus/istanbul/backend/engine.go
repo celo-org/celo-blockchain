@@ -417,7 +417,7 @@ func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 	// the miner's pending block is always one block old (I.E the pending block
 	// has the same number as the most recent block). This occurs because when
 	// a new block is inserted a request is made to update the pending block
-	// and that request calls Prepare wich waits here till the next block is
+	// and that request calls Prepare which waits here till the next block is
 	// due before returning. The hacky fix for now is to only wait here if the
 	// node is validating this should allow the pending block to be kept more
 	// up to date in non validating nodes, whilst still ensuring that
