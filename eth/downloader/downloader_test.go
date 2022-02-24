@@ -1640,7 +1640,7 @@ func testCheckpointEnforcement(t *testing.T, protocol uint, mode SyncMode) {
 	tester := newTester()
 	defer tester.terminate()
 
-	tester.downloader.checkpoint = fsMinFullBlocks + 256
+	tester.downloader.checkpoint = uint64(fsMinFullBlocks) + 256
 	chain := testChainBase.shorten(int(tester.downloader.checkpoint) - 1)
 
 	// Attempt to sync with the peer and validate the result
@@ -1657,26 +1657,5 @@ func testCheckpointEnforcement(t *testing.T, protocol uint, mode SyncMode) {
 		assertOwnChain(t, tester, 1)
 	} else {
 		assertOwnChain(t, tester, chain.len())
-	}
-}
-
-func TestPivot(t *testing.T) {
-	testCases := []struct {
-		height   uint64
-		epoch    uint64
-		expected uint64
-	}{
-		{0, 0, 0},
-		{172, 17280, 0},
-		{17280, 17280, 0},
-		{17280*10 + 1000, 17280, 17280*10 + 1},
-		{17280*10 + 10, 17280, 17280*9 + 1},
-		{17280 * 10, 17280, 17280*9 + 1},
-		{17280*10 - 1000, 17280, 17280*9 + 1},
-	}
-	for _, tt := range testCases {
-		if res := computePivot(tt.height, tt.epoch); res != tt.expected {
-			t.Errorf("Got %v expected %v for value %v", res, tt.expected, tt.height)
-		}
 	}
 }
