@@ -18,6 +18,9 @@ type FixableBuilder interface {
 
 	// GetEpochSize returns the epoch size for the current epoch in this Builder.
 	GetEpochSize() uint64
+
+	// Copy returns a deepCopy of the builder
+	Copy() FixableBuilder
 }
 
 // autoFixBuilder is an uptime Builder that will fix rewinds and missing headers from a
@@ -148,12 +151,22 @@ func (af *autoFixBuilder) addAll(headers []*types.Header) error {
 	return nil
 }
 
+func (af *autoFixBuilder) copy() *autoFixBuilder {
+	return &autoFixBuilder{
+		builder:  af.builder.Copy(),
+		provider: af.provider,
+	}
+}
+
 func (af *autoFixBuilder) ComputeUptime(epochLastHeader *types.Header) ([]*big.Int, error) {
-	err := af.ProcessHeader(epochLastHeader)
+	// We use a deep copy for ComputeUptime, to maintain the postcondition
+	// of ComputeUptime (the builder will not be modified).
+	b := af.copy()
+	err := b.ProcessHeader(epochLastHeader)
 	if err != nil {
 		return nil, err
 	}
-	return af.builder.ComputeUptime(epochLastHeader)
+	return b.builder.ComputeUptime(epochLastHeader)
 }
 
 func (af *autoFixBuilder) GetEpoch() uint64 {

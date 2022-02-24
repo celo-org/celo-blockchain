@@ -88,8 +88,7 @@ func TestAddOnFirstOfEpoch(t *testing.T) {
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
 
-	assert.Len(t, b2.headersAdded, 1)
-	assert.Equal(t, b2.headersAdded[0], header(101))
+	assert.Equal(t, []*types.Header{}, b2.headersAdded)
 }
 
 func req(upTo *types.Header, limit uint64, retV []*types.Header, retE error) headersReq {
@@ -126,14 +125,15 @@ func TestAddManyFirstOfEpoch(t *testing.T) {
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
 
-	assert.Equal(t, providerResult, b2.headersAdded)
+	assert.Equal(t, []*types.Header{}, b2.headersAdded)
 }
 
 func TestContinueSequentialAdd(t *testing.T) {
+	initial := []*types.Header{header(101), header(102)}
 	b := &builder{
 		epoch:        2,
 		epochSize:    100,
-		headersAdded: []*types.Header{header(101), header(102)},
+		headersAdded: initial,
 		computeV:     computeV,
 		computeE:     computeE,
 	}
@@ -157,15 +157,15 @@ func TestContinueSequentialAdd(t *testing.T) {
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
 
-	assert.Len(t, b2.headersAdded, 3)
-	assert.Equal(t, h, b2.headersAdded[2])
+	assert.Equal(t, initial, b2.headersAdded)
 }
 
 func TestSequentialAddFork(t *testing.T) {
+	initial := []*types.Header{header(101), header(102)}
 	b := &builder{
 		epoch:        2,
 		epochSize:    100,
-		headersAdded: []*types.Header{header(101), header(102)},
+		headersAdded: initial,
 		computeV:     computeV,
 		computeE:     computeE,
 	}
@@ -192,14 +192,15 @@ func TestSequentialAddFork(t *testing.T) {
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
 
-	assert.Equal(t, providerResult, b2.headersAdded)
+	assert.Equal(t, initial, b2.headersAdded)
 }
 
 func TestRewind(t *testing.T) {
+	initial := []*types.Header{header(101), header(102), header(103)}
 	b := &builder{
 		epoch:        2,
 		epochSize:    100,
-		headersAdded: []*types.Header{header(101), header(102), header(103)},
+		headersAdded: initial,
 		computeV:     computeV,
 		computeE:     computeE,
 	}
@@ -221,7 +222,7 @@ func TestRewind(t *testing.T) {
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
 
-	assert.Equal(t, providerResult, b2.headersAdded)
+	assert.Equal(t, initial, b2.headersAdded)
 }
 
 func TestDoNothing(t *testing.T) {
@@ -284,7 +285,7 @@ func TestSameHeightRebuild(t *testing.T) {
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
 
-	assert.Equal(t, providerResult, b2.headersAdded)
+	assert.Equal(t, initial, b2.headersAdded)
 }
 
 func TestAdvance(t *testing.T) {
@@ -317,7 +318,7 @@ func TestAdvance(t *testing.T) {
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
 
-	assert.Equal(t, endResult, b2.headersAdded)
+	assert.Equal(t, initial, b2.headersAdded)
 }
 
 func TestAdvanceFork(t *testing.T) {
@@ -353,7 +354,7 @@ func TestAdvanceFork(t *testing.T) {
 	assert.Equal(t, computeV, cV)
 	assert.Equal(t, computeE, cE)
 
-	assert.Equal(t, providerResult2, b2.headersAdded)
+	assert.Equal(t, initial, b2.headersAdded)
 }
 
 // builder is a mock builder for testing
@@ -395,6 +396,16 @@ func (b *builder) GetEpoch() uint64 {
 
 func (b *builder) ComputeUptime(epochLastHeader *types.Header) ([]*big.Int, error) {
 	return b.computeV, b.computeE
+}
+
+func (b *builder) Copy() FixableBuilder {
+	return &builder{
+		epoch:        b.epoch,
+		epochSize:    b.epochSize,
+		headersAdded: b.headersAdded,
+		computeV:     b.computeV,
+		computeE:     b.computeE,
+	}
 }
 
 // headers is a mock headers provider for testing

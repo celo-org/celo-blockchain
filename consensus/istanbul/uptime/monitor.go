@@ -20,6 +20,20 @@ type Uptime struct {
 	Entries      []UptimeEntry
 }
 
+func (u *Uptime) Copy() *Uptime {
+	entriesCopy := make([]UptimeEntry, len(u.Entries))
+	for i := 0; i < len(u.Entries); i++ {
+		// UptimeEntry is not a pointer, copy.
+		entriesCopy[i] = u.Entries[i]
+	}
+	return &Uptime{
+		// No need to copy the header
+		LatestHeader: u.LatestHeader,
+
+		Entries: entriesCopy,
+	}
+}
+
 // UptimeEntry contains the uptime score of a validator during an epoch as well as the
 // last block they signed on
 type UptimeEntry struct {
@@ -164,6 +178,22 @@ func (um *Monitor) GetEpochSize() uint64 {
 
 func (um *Monitor) GetEpoch() uint64 {
 	return um.epoch
+}
+
+func (um *Monitor) Copy() FixableBuilder {
+	return &Monitor{
+		epoch:             um.epoch,
+		epochSize:         um.epochSize,
+		firstEpochBlock:   um.firstEpochBlock,
+		lastEpochBlock:    um.lastEpochBlock,
+		lookbackWindow:    um.lookbackWindow,
+		valSetSize:        um.valSetSize,
+		window:            um.window, // Window is not a pointer, copy.
+		accumulatedUptime: um.accumulatedUptime.Copy(),
+
+		// No need to copy the logger.
+		logger: um.logger,
+	}
 }
 
 // updateUptime updates the accumulated uptime given a block and its validator's signatures bitmap
