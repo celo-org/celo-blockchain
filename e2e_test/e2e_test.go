@@ -277,7 +277,7 @@ func TestRPCDynamicTxGasPriceWithState(t *testing.T) {
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
 	defer shutdown()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*90)
 	defer cancel()
 
 	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
@@ -334,7 +334,7 @@ func TestRPCDynamicTxGasPriceWithoutState(t *testing.T) {
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
 	defer shutdown()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*90)
 	defer cancel()
 
 	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())

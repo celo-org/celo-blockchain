@@ -33,6 +33,7 @@ func BenchmarkNet100EmptyBlocks(b *testing.B) {
 }
 
 func BenchmarkNet1000Txs(b *testing.B) {
+	b.Skip() // Flaky
 	// Seed the random number generator so that the generated numbers are
 	// different on each run.
 	rand.Seed(time.Now().UnixNano())
