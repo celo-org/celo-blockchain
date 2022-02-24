@@ -830,12 +830,12 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 			Reexec:    config.Reexec,
 		}
 	}
+
+	// log.Error(fmt.Sprintf("tracing a call, number: %d, header: %v, statedb root: %v, block root: %v", header.Number.Uint64(), spew.Sdump(header), statedb.IntermediateRoot(true), header.Root))
+	// log.Error(fmt.Sprintf("tracing a call, number: %d, header: %v, statedb root: %v, block root: %v, statedb: %+v", header.Number.Uint64(), spew.Sdump(header), statedb.IntermediateRoot(true), header.Root, statedb))
 	result, err := api.traceTx(ctx, msg, new(Context), vmctx, vmRunner, statedb, sysCtx, traceConfig)
-	if err != nil {
-		r, ok := result.(*ethapi.ExecutionResult)
-		if ok {
-			log.Error("tracing a call", "gas", r.Gas, "header", spew.Sdump(header), "statedb root", statedb.IntermediateRoot(true), "block root", header.Root)
-		}
+	if err == nil {
+		log.Error("traced call gas usage", "gas", spew.Sdump(result))
 	}
 	return result, err
 }
@@ -859,6 +859,7 @@ func (api *API) traceTx(ctx context.Context, message core.Message, txctx *Contex
 				return nil, err
 			}
 		}
+		log.Error(fmt.Sprintf("tracerjs: %v", *config.Tracer))
 		// Constuct the JavaScript tracer to execute with
 		if tracer, err = New(*config.Tracer, txctx); err != nil {
 			return nil, err
@@ -885,7 +886,8 @@ func (api *API) traceTx(ctx context.Context, message core.Message, txctx *Contex
 	// Call Prepare to clear out the statedb access list
 	statedb.Prepare(txctx.TxHash, txctx.TxIndex)
 
-	result, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()), vmRunner, sysCtx)
+	// Log.Error(fmt.Sprintf("Tracing tx vmctx: %v, txContext: %v, chainConfig: %v, vmConfig: %v,  message %v, sysCtx: %v", spew.Sdump(vmctx), spew.Sdump(txContext), spew.Sdump(vmenv.ChainConfig()), spew.Sdump(vmenv.Config), spew.Sdump(message), spew.Sdump(sysCtx)))
+	result, err := core.ApplyMessageWithoutGasPriceMinimum(vmenv, message, new(core.GasPool).AddGas(message.Gas()), vmRunner, sysCtx)
 	if err != nil {
 		return nil, fmt.Errorf("tracing failed: %w", err)
 	}

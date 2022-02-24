@@ -539,6 +539,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		return nil, fmt.Errorf("%w: have %d, want %d", ErrIntrinsicGas, st.msg.Gas(), gas)
 	}
 	// Check clauses 3-4, pay the fees (which buys gas), and subtract the intrinsic gas
+	// err = st.payFees(espresso)
 	err = st.payFees(espresso)
 	if err != nil {
 		log.Error("Transaction failed to buy gas", "err", err, "gas", gas)

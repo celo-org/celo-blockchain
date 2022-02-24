@@ -27,6 +27,7 @@ func CreateCommonGenesisConfig(chainID *big.Int, adminAccountAddress common.Addr
 	genesisConfig.Hardforks = HardforkConfig{
 		ChurritoBlock: common.Big0,
 		DonutBlock:    common.Big0,
+		EspressoBlock: common.Big0,
 	}
 
 	// Make admin account manager of Governance & Reserve

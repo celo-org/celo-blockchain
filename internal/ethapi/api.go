@@ -36,6 +36,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/eth/tracers"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/params"
@@ -826,6 +827,23 @@ func (diff *StateOverride) Apply(state *state.StateDB) error {
 	return nil
 }
 
+var countOpsTracer = `{
+  // a simple tracer
+  data: [],
+  count: 0,
+  fault: function (log) {},
+  step: function (log) {
+    this.count++;
+    // if (this.count > 4376598 - 1000) {
+    //   str = log.getDepth() + " " + log.op.toString();
+    //   this.data.push(str);
+    // }
+  },
+  result: function () {
+    return this.count;
+  },
+}`
+
 func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash rpc.BlockNumberOrHash, overrides *StateOverride, timeout time.Duration, globalGasCap uint64, entry *logEntry) (*core.ExecutionResult, error) {
 	defer func(start time.Time) { log.Debug("Executing EVM call finished", "runtime", time.Since(start)) }(time.Now())
 
@@ -835,10 +853,10 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 	}
 	if entry != nil {
 		entry.Header = header
-		entry.stateRoot = state.IntermediateRoot(true)
-		if err := overrides.Apply(state); err != nil {
-			return nil, err
-		}
+		entry.state = state
+	}
+	if err := overrides.Apply(state); err != nil {
+		return nil, err
 	}
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.
@@ -867,7 +885,12 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 	if err != nil {
 		return nil, err
 	}
-	evm, vmError, err := b.GetEVM(ctx, msg, state, header, &vm.Config{NoBaseFee: true})
+
+	if tracer, err = tracers.New(countOpsTracer, new(tracers.Context)); err != nil {
+		return nil, err
+	}
+
+	evm, vmError, err := b.GetEVM(ctx, msg, state, header, &vm.Config{NoBaseFee: true, Debug: true, Tracer: tracer})
 	if err != nil {
 		return nil, err
 	}
@@ -880,11 +903,14 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 
 	// Execute the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
+
+	// log.Error(fmt.Sprintf("Estimating tx vmctx: %v, txContext: %v, chainConfig: %v, vmConfig: %v,  message %v, sysCtx: %v", spew.Sdump(evm.Context), spew.Sdump(core.NewEVMTxContext(msg)), spew.Sdump(evm.ChainConfig()), spew.Sdump(&vm.Config{NoBaseFee: true}), spew.Sdump(msg), spew.Sdump(sysCtx)))
 	result, err := core.ApplyMessageWithoutGasPriceMinimum(evm, msg, gp, b.NewEVMRunner(header, state), sysCtx)
 	if err := vmError(); err != nil {
 		return nil, err
 	}
 
+	log.Error("trace do call", "result", tracer.GetResult())
 	// If the timer caused an abort, return an appropriate error message
 	if evm.Cancelled() {
 		return nil, fmt.Errorf("execution aborted (timeout = %v)", timeout)
@@ -948,14 +974,14 @@ type logEntry struct {
 	BlockRoot common.Hash
 	result    uint64
 	midpoint  uint64
-	stateRoot common.Hash
+	state     *state.StateDB
 	failed    bool
 }
 
 func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash rpc.BlockNumberOrHash, gasCap uint64) (hexutil.Uint64, error) {
 	// Binary search the gas requirement, as it may be higher than the amount used
 	var (
-		lo  uint64 = params.TxGas - 1
+		// lo  uint64 = params.TxGas - 1
 		hi  uint64
 		cap uint64
 	)
@@ -1003,27 +1029,33 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 		entry.failed = result.Failed()
 		return result.Failed(), result, nil
 	}
-	// Execute the binary search and hone in on an executable gas limit
-	for lo+1 < hi {
-		mid := (hi + lo) / 2
-		failed, _, err := executable(mid)
-
-		// If the error is not nil(consensus error), it means the provided message
-		// call or transaction will never be accepted no matter how much gas it is
-		// assigned. Return the error directly, don't struggle any more.
-		if err != nil {
-			return 0, err
-		}
-		if failed {
-			lo = mid
-		} else {
-			hi = mid
-		}
+	_, result, err := executable(hi)
+	if err != nil {
+		return 0, err
 	}
+	// Execute the binary search and hone in on an executable gas limit
+	// for lo+1 < hi {
+	// 	mid := (hi + lo) / 2
+	// 	failed, _, err := executable(mid)
+
+	// 	// If the error is not nil(consensus error), it means the provided message
+	// 	// call or transaction will never be accepted no matter how much gas it is
+	// 	// assigned. Return the error directly, don't struggle any more.
+	// 	if err != nil {
+	// 		return 0, err
+	// 	}
+	// 	if failed {
+	// 		lo = mid
+	// 	} else {
+	// 		hi = mid
+	// 	}
+	// }
 
 	e := estimatelog[0]
+	hi = result.UsedGas
 
-	log.Error(fmt.Sprintf("DoEstimateGas %d args: %v, blockNrOrHash: %v, header: %v, stateroot: %v", hi, spew.Sdump(args), spew.Sdump(blockNrOrHash), spew.Sdump(e.Header), e.stateRoot))
+	// log.Error(fmt.Sprintf("DoEstimateGas %d args: %v, blockNrOrHash: %v, header: %v, stateroot: %v, statedb: %+v", hi, spew.Sdump(args), spew.Sdump(blockNrOrHash), spew.Sdump(e.Header), e.state.IntermediateRoot(true), e.state))
+	log.Error(fmt.Sprintf("DoEstimateGas %d args: %v, blockNrOrHash: %v, header: %v, stateroot: %v", hi, spew.Sdump(args), spew.Sdump(blockNrOrHash), spew.Sdump(e.Header), e.state.IntermediateRoot(true)))
 	// logString := &strings.Builder{}
 	// for i := 0; i < 1; i++ {
 	// 	// for _, entry := range estimatelog {
