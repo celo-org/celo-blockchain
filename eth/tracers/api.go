@@ -70,6 +70,7 @@ type Backend interface {
 	StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, checkLive bool) (*state.StateDB, error)
 	StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, vm.EVMRunner, *state.StateDB, error)
 	VmRunnerAtHeader(header *types.Header, state *state.StateDB) vm.EVMRunner
+	StateAndHeaderByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*state.StateDB, *types.Header, error)
 }
 
 // API is the collection of tracing APIs exposed over the private debugging endpoint.
@@ -772,27 +773,37 @@ func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *
 func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, blockNrOrHash rpc.BlockNumberOrHash, config *TraceCallConfig) (interface{}, error) {
 	// Try to retrieve the specified block
 	var (
-		err   error
-		block *types.Block
+		err     error
+		header  *types.Header
+		statedb *state.StateDB
 	)
-	if hash, ok := blockNrOrHash.Hash(); ok {
-		block, err = api.blockByHash(ctx, hash)
-	} else if number, ok := blockNrOrHash.Number(); ok {
-		block, err = api.blockByNumber(ctx, number)
+	if num, ok := blockNrOrHash.Number(); ok && num == rpc.PendingBlockNumber {
+		statedb, header, err = api.backend.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
+		if statedb == nil || err != nil {
+			return nil, err
+		}
 	} else {
-		return nil, errors.New("invalid arguments; neither block nor hash specified")
-	}
-	if err != nil {
-		return nil, err
-	}
-	// try to recompute the state
-	reexec := defaultTraceReexec
-	if config != nil && config.Reexec != nil {
-		reexec = *config.Reexec
-	}
-	statedb, err := api.backend.StateAtBlock(ctx, block, reexec, nil, true)
-	if err != nil {
-		return nil, err
+		var block *types.Block
+		if hash, ok := blockNrOrHash.Hash(); ok {
+			block, err = api.blockByHash(ctx, hash)
+		} else if number, ok := blockNrOrHash.Number(); ok {
+			block, err = api.blockByNumber(ctx, number)
+		} else {
+			return nil, errors.New("invalid arguments; neither block nor hash specified")
+		}
+		if err != nil {
+			return nil, err
+		}
+		// try to recompute the state
+		reexec := defaultTraceReexec
+		if config != nil && config.Reexec != nil {
+			reexec = *config.Reexec
+		}
+		statedb, err = api.backend.StateAtBlock(ctx, block, reexec, nil, true)
+		if err != nil {
+			return nil, err
+		}
+		header = block.Header()
 	}
 	// Apply the customized state rules if required.
 	if config != nil {
@@ -805,11 +816,11 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 	if err != nil {
 		return nil, err
 	}
-	vmctx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
-	vmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
+	vmctx := core.NewEVMBlockContext(header, api.chainContext(ctx), nil)
+	vmRunner := api.backend.VmRunnerAtHeader(header, statedb)
 	var sysCtx *core.SysContractCallCtx
-	if api.backend.ChainConfig().IsEspresso(block.Number()) {
-		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
+	if api.backend.ChainConfig().IsEspresso(header.Number) {
+		sysVmRunner := api.backend.VmRunnerAtHeader(header, statedb)
 		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
 	}
 	var traceConfig *TraceConfig

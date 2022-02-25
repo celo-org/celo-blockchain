@@ -114,6 +114,21 @@ func (b *testBackend) BlockByNumber(ctx context.Context, number rpc.BlockNumber)
 	return b.chain.GetBlockByNumber(uint64(number)), nil
 }
 
+func (b *testBackend) StateAndHeaderByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*state.StateDB, *types.Header, error) {
+	var block *types.Block
+	if number, ok := blockNrOrHash.Number(); ok {
+		if number == rpc.PendingBlockNumber || number == rpc.LatestBlockNumber {
+			block = b.chain.CurrentBlock()
+		} else {
+			block = b.chain.GetBlockByNumber(uint64(number))
+		}
+	} else {
+		block = b.chain.GetBlockByHash(*blockNrOrHash.BlockHash)
+	}
+	state, err := b.chain.StateAt(block.Root())
+	return state, block.Header(), err
+}
+
 func (b *testBackend) GetTransaction(ctx context.Context, txHash common.Hash) (*types.Transaction, common.Hash, uint64, uint64, error) {
 	tx, hash, blockNumber, index := rawdb.ReadTransaction(b.chaindb, txHash)
 	if tx == nil {
