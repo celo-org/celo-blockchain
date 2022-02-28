@@ -611,3 +611,8 @@ func toCallArg(msg ethereum.CallMsg) interface{} {
 	}
 	return arg
 }
+
+// getRPCClient returns the rpc.Client. Just for testing purpose
+func (ec *Client) GetRPCClient() *rpc.Client {
+	return ec.c
+}
