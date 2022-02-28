@@ -171,7 +171,19 @@ func (w *worker) pending() (*types.Block, *state.StateDB) {
 	stateCopy := w.snapshotState.Copy()
 	// Call Prepare to ensure that any access logs from the last executed
 	// transaction have been erased.
-	// See https://github.com/celo-org/celo-blockchain/pull/1858#issuecomment-1054159493
+	//
+	// Prior to the upstream PR
+	// https://github.com/ethereum/go-ethereum/pull/21509 the state returned
+	// from pending was ready to use for transaction execution, that PR
+	// essentially changed the contract of the pendng method, in that the
+	// returned state was not ready for transaction execution and required
+	// Prepare to be called on it first, but notably the PR did not update any
+	// of the callers of pending to ensure that Prepare was called. I think
+	// this broke some of the eth rpc apis.  Calling Prepare here essentially
+	// restores the previous contract for this method which was that the
+	// returned state is ready to use for transaction execution.
+	//
+	// See https://github.com/celo-org/celo-blockchain/pull/1858#issuecomment-1054159493 for more details.
 	stateCopy.Prepare(common.Hash{}, 0)
 	return w.snapshotBlock, stateCopy
 }
