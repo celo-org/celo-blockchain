@@ -168,7 +168,12 @@ func (w *worker) pending() (*types.Block, *state.StateDB) {
 	if w.snapshotState == nil {
 		return nil, nil
 	}
-	return w.snapshotBlock, w.snapshotState.Copy()
+	stateCopy := w.snapshotState.Copy()
+	// Call Prepare to ensure that any access logs from the last executed
+	// transaction have been erased.
+	// See https://github.com/celo-org/celo-blockchain/pull/1858#issuecomment-1054159493
+	stateCopy.Prepare(common.Hash{}, 0)
+	return w.snapshotBlock, stateCopy
 }
 
 // pendingBlock returns pending block.
