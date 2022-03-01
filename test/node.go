@@ -25,6 +25,7 @@ import (
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/eth/tracers"
 	"github.com/celo-org/celo-blockchain/ethclient"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"github.com/celo-org/celo-blockchain/mycelo/genesis"
@@ -36,6 +37,7 @@ import (
 )
 
 var (
+	allModules                  = []string{"admin", "debug", "web3", "eth", "txpool", "personal", "istanbul", "miner", "net"}
 	baseNodeConfig *node.Config = &node.Config{
 		Name:    "celo",
 		Version: params.Version,
@@ -53,6 +55,8 @@ var (
 		HTTPHost:             "0.0.0.0",
 		WSHost:               "0.0.0.0",
 		UsePlaintextKeystore: true,
+		WSModules:            allModules,
+		HTTPModules:          allModules,
 	}
 
 	baseEthConfig = &eth.Config{
@@ -180,6 +184,9 @@ func (n *Node) Start() error {
 	if err != nil {
 		return err
 	}
+	// This manual step is required to enable tracing, it's messy but this is the
+	// approach taken by geth in cmd/utils.RegisterEthService.
+	n.Node.RegisterAPIs(tracers.APIs(n.Eth.APIBackend))
 
 	err = n.Node.Start()
 	if err != nil {
