@@ -78,7 +78,7 @@ effects.
 Variable names                  |Instance state                          
 --------------------------------|----------------------------------------
 `H - height`                    |`Hc - current height`                                      
-`R - round          `           |`Rc - current round`                    
+`R - round`                     |`Rc - current round`                    
 `V - value`                     |`Rd - desired round`                    
 `T - Message type`              |`Vc - currently proposed value`         
 `RCC - round change certificate`|`PCc - current prepared certificate`    
@@ -110,7 +110,7 @@ upon: <RequestEvent, Hc, V> = PendingEvent && Sc = AcceptRequest
     broadcast(<Preprepare, Hc, 0, V, nil>)
   }
 
-// When receiving a preprepare from a proposer participants will vote for the
+// When we see a preprepare from a proposer participants will vote for the
 // value (if valid) by sending a prepare message.
 upon: m ← <Preprepare, Hc, Rd, V, RCC> ∈ Msgs && m from proposer(Hc, Rd) && Sc = AcceptRequest
   if (Rd > 0 && validRCC(V, RCC)) || (Rd = 0 && RCC = nil)  {
