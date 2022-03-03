@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/log"
@@ -50,6 +51,33 @@ func TestSendCelo(t *testing.T) {
 	// Wait for the whole network to process the transaction.
 	err = network.AwaitTransactions(ctx, tx)
 	require.NoError(t, err)
+}
+
+// This test verifies correct behavior in a network of size one, in the case that
+// this fails we know that the problem does not lie with our network code.
+func TestSingleNodeNetworkManyTxs(t *testing.T) {
+	iterations := 5
+	txsPerIteration := 5
+	ac := test.AccountConfig(1, 1)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	gc.Istanbul.Epoch = uint64(iterations) * 50 // avoid the epoch for this test
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+	for r := 0; r < iterations; r++ {
+		txs := make([]*types.Transaction, 0, txsPerIteration)
+		for j := 0; j < txsPerIteration; j++ {
+			tx, err := accounts[0].SendCelo(ctx, common.Address{}, 1, network[0])
+			require.NoError(t, err)
+			require.NotNil(t, tx)
+		}
+		err = network.AwaitTransactions(ctx, txs...)
+		require.NoError(t, err)
+	}
 }
 
 // This test is intended to ensure that epoch blocks can be correctly marshalled.
