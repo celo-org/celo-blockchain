@@ -22,13 +22,6 @@ import (
 
 // Constants to match up protocol versions and messages
 const (
-	// No longer supported, can be removed.
-	// The corresponding version upstream (eth/65) is removed in upstream PR #22636.
-	Celo64 = 64 // eth/63 + the istanbul messages
-	Celo65 = 65 // incorporates changes from eth/64 (EIP)
-
-	// Supported versions
-	Celo66 = 66 // incorporates changes from eth/65 (EIP-2464)
 	Celo67 = 67 // incorporates changes from eth/66 (EIP-2481)
 )
 
@@ -37,10 +30,10 @@ const ProtocolName = "istanbul"
 
 // ProtocolVersions are the supported versions of the istanbul protocol (first is primary).
 // (First is primary in the sense that it's the most current one supported)
-var ProtocolVersions = []uint{Celo67, Celo66}
+var ProtocolVersions = []uint{Celo67}
 
 // protocolLengths are the number of implemented message corresponding to different protocol versions.
-var ProtocolLengths = map[uint]uint64{Celo64: 22, Celo65: 27, Celo66: 27, Celo67: 25}
+var ProtocolLengths = map[uint]uint64{Celo67: 25}
 
 // NOTICE:
 // celo/67, uses as the last message the 0x18, so it has 25 messages (including the 0x00)

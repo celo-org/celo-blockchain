@@ -29,7 +29,6 @@ import (
 )
 
 // Tests that fast sync is disabled after a successful sync cycle.
-func TestFastSyncDisabling66(t *testing.T) { testFastSyncDisabling(t, istanbul.Celo66) }
 func TestFastSyncDisabling67(t *testing.T) { testFastSyncDisabling(t, istanbul.Celo67) }
 
 // Tests that fast sync gets disabled as soon as a real block is successfully
