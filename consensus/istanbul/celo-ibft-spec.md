@@ -410,8 +410,6 @@ if C {
 upon: UponCondition - Pseudocode directly following upon statements is executed
 when the associated UponCondition evaluates to true
 
-Upon statements are triggered upon receipt of messages or events when the
-associated upon condition evaluates to true.
 Upon conditions are structured thus:
 
 <composite object, set of objects or event to match against> <additional qualifications>
