@@ -364,6 +364,10 @@ func (b *EthAPIBackend) UnprotectedAllowed() bool {
 	return b.allowUnprotectedTxs
 }
 
+func (b *EthAPIBackend) RPCGasInflationRate() float64 {
+	return b.eth.config.RPCGasInflationRate
+}
+
 func (b *EthAPIBackend) RPCGasCap() uint64 {
 	return b.eth.config.RPCGasCap
 }
