@@ -444,6 +444,11 @@ var (
 		Name:  "allow-insecure-unlock",
 		Usage: "Allow insecure account unlocking when account-related RPCs are exposed by http",
 	}
+	RPCGlobalGasInflationRateFlag = cli.Float64Flag{
+		Name:  "rpc.gasinflationrate",
+		Usage: "Multiplier applied to the gasEstimation rpc call (1 = gasEstimation, 1.3 = gasEstimation + 30%, etc. Defaults to 1.3)",
+		Value: ethconfig.Defaults.RPCGasInflationRate,
+	}
 	RPCGlobalGasCapFlag = cli.Uint64Flag{
 		Name:  "rpc.gascap",
 		Usage: "Sets a cap on gas that can be used in eth_call/estimateGas (0=infinite)",
@@ -1741,6 +1746,14 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		// TODO(fjl): force-enable this in --dev mode
 		cfg.EnablePreimageRecording = ctx.GlobalBool(VMEnableDebugFlag.Name)
 	}
+
+	if ctx.GlobalIsSet(RPCGlobalGasInflationRateFlag.Name) {
+		cfg.RPCGasInflationRate = ctx.GlobalFloat64(RPCGlobalGasInflationRateFlag.Name)
+	}
+	if cfg.RPCGasInflationRate < 1 {
+		Fatalf("The inflation rate shouldn't be less than 1: %f", cfg.RPCGasInflationRate)
+	}
+	log.Info("Set global gas inflation rate", "rate", cfg.RPCGasInflationRate)
 
 	if ctx.GlobalIsSet(RPCGlobalGasCapFlag.Name) {
 		cfg.RPCGasCap = ctx.GlobalUint64(RPCGlobalGasCapFlag.Name)
