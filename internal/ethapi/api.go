@@ -1014,7 +1014,8 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 			return 0, fmt.Errorf("gas required exceeds allowance (%d)", cap)
 		}
 	}
-	return hexutil.Uint64(hi), nil
+	inflatedGas := hexutil.Uint64(uint64(float64(hi) * b.RPCGasInflationRate()))
+	return inflatedGas, nil
 }
 
 // EstimateGas returns an estimate of the amount of gas needed to execute the

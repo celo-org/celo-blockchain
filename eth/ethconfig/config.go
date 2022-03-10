@@ -53,9 +53,10 @@ var Defaults = Config{
 	SnapshotCache:           102,
 	GatewayFee:              big.NewInt(0),
 
-	TxPool:      core.DefaultTxPoolConfig,
-	RPCGasCap:   25000000,
-	RPCTxFeeCap: 500, // 500 celo
+	TxPool:              core.DefaultTxPoolConfig,
+	RPCGasInflationRate: 1.3,
+	RPCGasCap:           25000000,
+	RPCTxFeeCap:         500, // 500 celo
 
 	Istanbul: *istanbul.DefaultConfig,
 }
@@ -134,6 +135,9 @@ type Config struct {
 
 	// Miscellaneous options
 	DocRoot string `toml:"-"`
+
+	// RPCGasInflationRate is a global multiplier applied to the gas estimations
+	RPCGasInflationRate float64
 
 	// RPCGasCap is the global gas cap for eth-call variants.
 	RPCGasCap uint64
