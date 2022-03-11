@@ -673,13 +673,13 @@ type Message struct {
 	data                []byte
 	accessList          AccessList
 	ethCompatible       bool
-	checkNonce          bool
+	isFake              bool
 }
 
 func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int,
 	gasLimit uint64, gasPrice, gasFeeCap, gasTipCap *big.Int,
 	feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int,
-	data []byte, accessList AccessList, ethCompatible, checkNonce bool) Message {
+	data []byte, accessList AccessList, ethCompatible, isFake bool) Message {
 	m := Message{
 		from:                from,
 		to:                  to,
@@ -695,7 +695,7 @@ func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *b
 		data:                data,
 		accessList:          accessList,
 		ethCompatible:       ethCompatible,
-		checkNonce:          checkNonce,
+		isFake:              isFake,
 	}
 	if m.gatewayFee == nil {
 		m.gatewayFee = new(big.Int)
@@ -718,7 +718,7 @@ func (tx *Transaction) AsMessage(s Signer, baseFee *big.Int) (Message, error) {
 		amount:              tx.Value(),
 		data:                tx.Data(),
 		accessList:          tx.AccessList(),
-		checkNonce:          true,
+		isFake:              false,
 		ethCompatible:       tx.EthCompatible(),
 	}
 	// If baseFee provided, set gasPrice to effectiveGasPrice.
@@ -747,7 +747,7 @@ func (m Message) Gas() uint64                          { return m.gasLimit }
 func (m Message) Nonce() uint64                        { return m.nonce }
 func (m Message) Data() []byte                         { return m.data }
 func (m Message) AccessList() AccessList               { return m.accessList }
-func (m Message) CheckNonce() bool                     { return m.checkNonce }
+func (m Message) IsFake() bool                         { return m.isFake }
 
 func (m Message) Fee() *big.Int {
 	gasFee := new(big.Int).Mul(m.gasPrice, big.NewInt(int64(m.gasLimit)))
