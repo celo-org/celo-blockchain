@@ -142,6 +142,9 @@ func (b *EthAPIBackend) StateAndHeaderByNumber(ctx context.Context, number rpc.B
 	// Pending state is only known by the miner
 	if number == rpc.PendingBlockNumber {
 		block, state := b.eth.miner.Pending()
+		if block == nil && state == nil {
+			return nil, nil, errors.New("no pending block")
+		}
 		return state, block.Header(), nil
 	}
 	// Otherwise resolve the block number and return its state
@@ -306,10 +309,6 @@ func (b *EthAPIBackend) GasPriceMinimumForHeader(ctx context.Context, currencyAd
 		return nil, err
 	}
 	vmRunner := b.eth.BlockChain().NewEVMRunner(header, state)
-
-	if err != nil {
-		return nil, err
-	}
 	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
 }
 
@@ -363,6 +362,10 @@ func (b *EthAPIBackend) ExtRPCEnabled() bool {
 
 func (b *EthAPIBackend) UnprotectedAllowed() bool {
 	return b.allowUnprotectedTxs
+}
+
+func (b *EthAPIBackend) RPCGasInflationRate() float64 {
+	return b.eth.config.RPCGasInflationRate
 }
 
 func (b *EthAPIBackend) RPCGasCap() uint64 {

@@ -76,8 +76,10 @@ var (
 	errInvalidVotingChain = errors.New("invalid voting chain")
 	// errInvalidAggregatedSeal is returned if the aggregated seal is invalid.
 	errInvalidAggregatedSeal = errors.New("invalid aggregated seal")
-	// errInvalidAggregatedSeal is returned if the aggregated seal is missing.
+	// errEmptyAggregatedSeal is returned if the aggregated seal is missing.
 	errEmptyAggregatedSeal = errors.New("empty aggregated seal")
+	// errNonEmptyAggregatedSeal is returned if the aggregated seal is not empty during preprepase proposal phase.
+	errNonEmptyAggregatedSeal = errors.New("Non empty aggregated seal during preprepare")
 	// errMismatchTxhashes is returned if the TxHash in header is mismatch.
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
 	// errInvalidValidatorSetDiff is returned if the header contains invalid validator set diff
@@ -103,14 +105,22 @@ func (sb *Backend) Author(header *types.Header) (common.Address, error) {
 // VerifyHeader checks whether a header conforms to the consensus rules of a
 // given engine. Verifies the seal regardless of given "seal" argument.
 func (sb *Backend) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
-	return sb.verifyHeader(chain, header, nil)
+	return sb.verifyHeader(chain, header, false, nil)
+}
+
+// verifyHeaderFromProposal checks whether a header conforms to the consensus rules from the
+// preprepare istanbul phase.
+func (sb *Backend) verifyHeaderFromProposal(chain consensus.ChainHeaderReader, header *types.Header) error {
+	return sb.verifyHeader(chain, header, true, nil)
 }
 
 // verifyHeader checks whether a header conforms to the consensus rules.The
 // caller may optionally pass in a batch of parents (ascending order) to avoid
 // looking those up from the database. This is useful for concurrently verifying
 // a batch of new headers.
-func (sb *Backend) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+// If emptyAggregatedSeal is set, the aggregatedSeal will be checked to be completely empty. Otherwise
+// it will be checked as a normal aggregated seal.
+func (sb *Backend) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, emptyAggregatedSeal bool, parents []*types.Header) error {
 	if header.Number == nil {
 		return errUnknownBlock
 	}
@@ -132,7 +142,7 @@ func (sb *Backend) verifyHeader(chain consensus.ChainHeaderReader, header *types
 		return errInvalidExtraDataFormat
 	}
 
-	return sb.verifyCascadingFields(chain, header, parents)
+	return sb.verifyCascadingFields(chain, header, emptyAggregatedSeal, parents)
 }
 
 // A sanity check for lightest mode. Checks that the correct epoch block exists for this header
@@ -160,7 +170,9 @@ func (sb *Backend) checkEpochBlockExists(chain consensus.ChainHeaderReader, head
 // rather depend on a batch of previous headers. The caller may optionally pass
 // in a batch of parents (ascending order) to avoid looking those up from the
 // database. This is useful for concurrently verifying a batch of new headers.
-func (sb *Backend) verifyCascadingFields(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+// If emptyAggregatedSeal is set, the aggregatedSeal will be checked to be completely empty. Otherwise
+// it will be checked as a normal aggregated seal.
+func (sb *Backend) verifyCascadingFields(chain consensus.ChainHeaderReader, header *types.Header, emptyAggregatedSeal bool, parents []*types.Header) error {
 	// The genesis block is the always valid dead-end
 	number := header.Number.Uint64()
 	if number == 0 {
@@ -189,7 +201,7 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainHeaderReader, head
 		return err
 	}
 
-	return sb.verifyAggregatedSeals(chain, header, parents)
+	return sb.verifyAggregatedSeals(chain, header, emptyAggregatedSeal, parents)
 }
 
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
@@ -206,7 +218,7 @@ func (sb *Backend) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*t
 			if errored {
 				err = consensus.ErrUnknownAncestor
 			} else {
-				err = sb.verifyHeader(chain, header, headers[:i])
+				err = sb.verifyHeader(chain, header, false, headers[:i])
 			}
 
 			if err != nil {
@@ -252,7 +264,9 @@ func (sb *Backend) verifySigner(chain consensus.ChainHeaderReader, header *types
 
 // verifyAggregatedSeals checks whether the aggregated seal and parent seal in the header is
 // signed on by the block's validators and the parent block's validators respectively
-func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+// If emptyAggregatedSeal is set, the aggregatedSeal will be checked to be completely empty. Otherwise
+// it will be checked as a normal aggregated seal.
+func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainHeaderReader, header *types.Header, emptyAggregatedseal bool, parents []*types.Header) error {
 	number := header.Number.Uint64()
 	// We don't need to verify committed seals in the genesis block
 	if number == 0 {
@@ -264,20 +278,29 @@ func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainHeaderReader, head
 		return err
 	}
 
-	// The length of Committed seals should be larger than 0
-	if len(extra.AggregatedSeal.Signature) == 0 {
-		return errEmptyAggregatedSeal
-	}
-
 	// Check the signatures on the current header
 	snap, err := sb.snapshot(chain, number-1, header.ParentHash, parents)
 	if err != nil {
 		return err
 	}
 	validators := snap.ValSet.Copy()
-	err = sb.verifyAggregatedSeal(header.Hash(), validators, extra.AggregatedSeal)
-	if err != nil {
-		return err
+
+	if emptyAggregatedseal {
+		// The length of Committed seals should be exactly 0 (preprepare proposal check)
+		if len(extra.AggregatedSeal.Signature) != 0 {
+			return errNonEmptyAggregatedSeal
+		}
+		// Should we also verify that the bitmap and round are nil?
+	} else {
+		// The length of Committed seals should be larger than 0
+		if len(extra.AggregatedSeal.Signature) == 0 {
+			return errEmptyAggregatedSeal
+		}
+
+		err = sb.verifyAggregatedSeal(header.Hash(), validators, extra.AggregatedSeal)
+		if err != nil {
+			return err
+		}
 	}
 
 	// The genesis block is skipped since it has no parents.
@@ -383,12 +406,16 @@ func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 		header.Time = nowTime
 	}
 
-	// Record what the delay should be, but sleep in the miner, not the consensus engine.
+	// Record what the delay should be and sleep if greater than 0.
+	// TODO(victor): Sleep here was previously removed and added to the miner instead, that change
+	// has been temporarily reverted until it can be reimplemented without causing fewer signatures
+	// to be included by the block producer.
 	delay := time.Until(time.Unix(int64(header.Time), 0))
 	if delay < 0 {
 		sb.sleepGauge.Update(0)
 	} else {
 		sb.sleepGauge.Update(delay.Nanoseconds())
+		time.Sleep(delay)
 	}
 
 	if err := writeEmptyIstanbulExtra(header); err != nil {
@@ -593,48 +620,44 @@ func (sb *Backend) SetChain(chain consensus.ChainContext, currentBlock func() *t
 	sb.stateAt = stateAt
 
 	if bc, ok := chain.(*ethCore.BlockChain); ok {
-		go sb.newChainHeadLoop(bc)
-		go sb.updateReplicaStateLoop(bc)
-	}
+		// Batched. For stats & announce
+		chainHeadCh := make(chan ethCore.ChainHeadEvent, 10)
+		chainHeadSub := bc.SubscribeChainHeadEvent(chainHeadCh)
 
-}
-
-// Loop to run on new chain head events. Chain head events may be batched.
-func (sb *Backend) newChainHeadLoop(bc *ethCore.BlockChain) {
-	// Batched. For stats & announce
-	chainHeadCh := make(chan ethCore.ChainHeadEvent, 10)
-	chainHeadSub := bc.SubscribeChainHeadEvent(chainHeadCh)
-	defer chainHeadSub.Unsubscribe()
-
-	for {
-		select {
-		case chainHeadEvent := <-chainHeadCh:
-			sb.newChainHead(chainHeadEvent.Block)
-		case err := <-chainHeadSub.Err():
-			log.Error("Error in istanbul's subscription to the blockchain's chainhead event", "err", err)
-			return
-		}
-	}
-}
-
-// Loop to update replica state. Listens to chain events to avoid batching.
-func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
-	// Unbatched event listener
-	chainEventCh := make(chan ethCore.ChainEvent, 10)
-	chainEventSub := bc.SubscribeChainEvent(chainEventCh)
-	defer chainEventSub.Unsubscribe()
-
-	for {
-		select {
-		case chainEvent := <-chainEventCh:
-			if !sb.isCoreStarted() && sb.replicaState != nil {
-				consensusBlock := new(big.Int).Add(chainEvent.Block.Number(), common.Big1)
-				sb.replicaState.NewChainHead(consensusBlock)
+		go func() {
+			defer chainHeadSub.Unsubscribe()
+			// Loop to run on new chain head events. Chain head events may be batched.
+			for {
+				select {
+				case chainHeadEvent := <-chainHeadCh:
+					sb.newChainHead(chainHeadEvent.Block)
+				case err := <-chainHeadSub.Err():
+					log.Error("Error in istanbul's subscription to the blockchain's chainhead event", "err", err)
+					return
+				}
 			}
-		case err := <-chainEventSub.Err():
-			log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
-			return
-		}
+		}()
+
+		// Unbatched event listener
+		chainEventCh := make(chan ethCore.ChainEvent, 10)
+		chainEventSub := bc.SubscribeChainEvent(chainEventCh)
+
+		go func() {
+			defer chainEventSub.Unsubscribe()
+			// Loop to update replica state. Listens to chain events to avoid batching.
+			for {
+				select {
+				case chainEvent := <-chainEventCh:
+					if !sb.isCoreStarted() && sb.replicaState != nil {
+						consensusBlock := new(big.Int).Add(chainEvent.Block.Number(), common.Big1)
+						sb.replicaState.NewChainHead(consensusBlock)
+					}
+				case err := <-chainEventSub.Err():
+					log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
+					return
+				}
+			}
+		}()
 	}
 }
 

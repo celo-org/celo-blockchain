@@ -433,6 +433,20 @@ func (qed *QueryEnodeData) String() string {
 	return fmt.Sprintf("{Version: %v, Timestamp: %v, EncryptedEnodeURLs: %v}", qed.Version, qed.Timestamp, qed.EncryptedEnodeURLs)
 }
 
+// HasDuplicates returns true if there are duplicate destination addresses in the query, and the first
+// duplicate's destination address.
+func (qed *QueryEnodeData) HasDuplicates() (bool, common.Address) {
+	var encounteredAddresses = make(map[common.Address]bool)
+	for _, encEnodeURL := range qed.EncryptedEnodeURLs {
+		if encounteredAddresses[encEnodeURL.DestAddress] {
+			return true, encEnodeURL.DestAddress
+		}
+
+		encounteredAddresses[encEnodeURL.DestAddress] = true
+	}
+	return false, common.Address{}
+}
+
 // ==============================================
 //
 // define the functions that needs to be provided for rlp Encoder/Decoder.

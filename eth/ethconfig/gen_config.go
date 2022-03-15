@@ -56,6 +56,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		EnablePreimageRecording bool
 		Istanbul                istanbul.Config
 		DocRoot                 string `toml:"-"`
+		RPCGasInflationRate     float64
 		RPCGasCap               uint64
 		RPCTxFeeCap             float64
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
@@ -102,6 +103,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.EnablePreimageRecording = c.EnablePreimageRecording
 	enc.Istanbul = c.Istanbul
 	enc.DocRoot = c.DocRoot
+	enc.RPCGasInflationRate = c.RPCGasInflationRate
 	enc.RPCGasCap = c.RPCGasCap
 	enc.RPCTxFeeCap = c.RPCTxFeeCap
 	enc.Checkpoint = c.Checkpoint
@@ -152,6 +154,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		EnablePreimageRecording *bool
 		Istanbul                *istanbul.Config
 		DocRoot                 *string `toml:"-"`
+		RPCGasInflationRate     *float64
 		RPCGasCap               *uint64
 		RPCTxFeeCap             *float64
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
@@ -278,6 +281,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.DocRoot != nil {
 		c.DocRoot = *dec.DocRoot
+	}
+	if dec.RPCGasInflationRate != nil {
+		c.RPCGasInflationRate = *dec.RPCGasInflationRate
 	}
 	if dec.RPCGasCap != nil {
 		c.RPCGasCap = *dec.RPCGasCap

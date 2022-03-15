@@ -111,7 +111,6 @@ func (b *testBackend) Handle(*Peer, Packet) error {
 }
 
 // Tests that block headers can be retrieved from a remote chain based on user queries.
-func TestGetBlockHeaders66(t *testing.T) { testGetBlockHeaders(t, istanbul.Celo66) }
 func TestGetBlockHeaders67(t *testing.T) { testGetBlockHeaders(t, istanbul.Celo67) }
 
 func testGetBlockHeaders(t *testing.T, protocol uint) {
@@ -255,52 +254,37 @@ func testGetBlockHeaders(t *testing.T, protocol uint) {
 			headers = append(headers, backend.chain.GetBlockByHash(hash).Header())
 		}
 		// Send the hash request and verify the response
-		if protocol <= istanbul.Celo66 {
-			p2p.Send(peer.app, GetBlockHeadersMsg, tt.query)
-			if err := p2p.ExpectMsg(peer.app, BlockHeadersMsg, headers); err != nil {
-				t.Errorf("test %d: headers mismatch: %v", i, err)
-			}
-		} else {
-			p2p.Send(peer.app, GetBlockHeadersMsg, GetBlockHeadersPacket67{
-				RequestId:             123,
-				GetBlockHeadersPacket: tt.query,
-			})
-			if err := p2p.ExpectMsg(peer.app, BlockHeadersMsg, BlockHeadersPacket67{
-				RequestId:          123,
-				BlockHeadersPacket: headers,
-			}); err != nil {
-				t.Errorf("test %d: headers mismatch: %v", i, err)
-			}
+		p2p.Send(peer.app, GetBlockHeadersMsg, GetBlockHeadersPacket67{
+			RequestId:             123,
+			GetBlockHeadersPacket: tt.query,
+		})
+		if err := p2p.ExpectMsg(peer.app, BlockHeadersMsg, BlockHeadersPacket67{
+			RequestId:          123,
+			BlockHeadersPacket: headers,
+		}); err != nil {
+			t.Errorf("test %d: headers mismatch: %v", i, err)
 		}
 		// If the test used number origins, repeat with hashes as the too
 		if tt.query.Origin.Hash == (common.Hash{}) {
 			if origin := backend.chain.GetBlockByNumber(tt.query.Origin.Number); origin != nil {
 				tt.query.Origin.Hash, tt.query.Origin.Number = origin.Hash(), 0
-
-				if protocol <= istanbul.Celo66 {
-					p2p.Send(peer.app, GetBlockHeadersMsg, tt.query)
-					if err := p2p.ExpectMsg(peer.app, BlockHeadersMsg, headers); err != nil {
-						t.Errorf("test %d: headers mismatch: %v", i, err)
-					}
-				} else {
-					p2p.Send(peer.app, GetBlockHeadersMsg, GetBlockHeadersPacket67{
-						RequestId:             456,
-						GetBlockHeadersPacket: tt.query,
-					})
-					if err := p2p.ExpectMsg(peer.app, BlockHeadersMsg, BlockHeadersPacket67{
-						RequestId:          456,
-						BlockHeadersPacket: headers,
-					}); err != nil {
-						t.Errorf("test %d: headers mismatch: %v", i, err)
-					}
+				p2p.Send(peer.app, GetBlockHeadersMsg, GetBlockHeadersPacket67{
+					RequestId:             456,
+					GetBlockHeadersPacket: tt.query,
+				})
+				if err := p2p.ExpectMsg(peer.app, BlockHeadersMsg, BlockHeadersPacket67{
+					RequestId:          456,
+					BlockHeadersPacket: headers,
+				}); err != nil {
+					t.Errorf("test %d: headers mismatch: %v", i, err)
 				}
+
 			}
 		}
 	}
 }
 
 // Tests that block contents can be retrieved from a remote chain based on their hashes.
-func TestGetBlockBodies66(t *testing.T) { testGetBlockBodies(t, istanbul.Celo66) }
 func TestGetBlockBodies67(t *testing.T) { testGetBlockBodies(t, istanbul.Celo67) }
 
 func testGetBlockBodies(t *testing.T, protocol uint) {
@@ -378,28 +362,20 @@ func testGetBlockBodies(t *testing.T, protocol uint) {
 			}
 		}
 		// Send the hash request and verify the response
-		if protocol <= istanbul.Celo66 {
-			p2p.Send(peer.app, GetBlockBodiesMsg, hashes)
-			if err := p2p.ExpectMsg(peer.app, BlockBodiesMsg, bodiesAndBlockHashes); err != nil {
-				t.Errorf("test %d: bodies mismatch: %v", i, err)
-			}
-		} else {
-			p2p.Send(peer.app, GetBlockBodiesMsg, GetBlockBodiesPacket67{
-				RequestId:            123,
-				GetBlockBodiesPacket: hashes,
-			})
-			if err := p2p.ExpectMsg(peer.app, BlockBodiesMsg, BlockBodiesPacket67{
-				RequestId:         123,
-				BlockBodiesPacket: bodiesAndBlockHashes,
-			}); err != nil {
-				t.Errorf("test %d: bodies mismatch: %v", i, err)
-			}
+		p2p.Send(peer.app, GetBlockBodiesMsg, GetBlockBodiesPacket67{
+			RequestId:            123,
+			GetBlockBodiesPacket: hashes,
+		})
+		if err := p2p.ExpectMsg(peer.app, BlockBodiesMsg, BlockBodiesPacket67{
+			RequestId:         123,
+			BlockBodiesPacket: bodiesAndBlockHashes,
+		}); err != nil {
+			t.Errorf("test %d: bodies mismatch: %v", i, err)
 		}
 	}
 }
 
 // Tests that the state trie nodes can be retrieved based on hashes.
-func TestGetNodeData66(t *testing.T) { testGetNodeData(t, istanbul.Celo66) }
 func TestGetNodeData67(t *testing.T) { testGetNodeData(t, istanbul.Celo67) }
 
 func testGetNodeData(t *testing.T, protocol uint) {
@@ -449,15 +425,10 @@ func testGetNodeData(t *testing.T, protocol uint) {
 		}
 	}
 	it.Release()
-
-	if protocol <= istanbul.Celo66 {
-		p2p.Send(peer.app, GetNodeDataMsg, hashes)
-	} else {
-		p2p.Send(peer.app, GetNodeDataMsg, GetNodeDataPacket67{
-			RequestId:         123,
-			GetNodeDataPacket: hashes,
-		})
-	}
+	p2p.Send(peer.app, GetNodeDataMsg, GetNodeDataPacket67{
+		RequestId:         123,
+		GetNodeDataPacket: hashes,
+	})
 	msg, err := peer.app.ReadMsg()
 	if err != nil {
 		t.Fatalf("failed to read node data response: %v", err)
@@ -465,18 +436,14 @@ func testGetNodeData(t *testing.T, protocol uint) {
 	if msg.Code != NodeDataMsg {
 		t.Fatalf("response packet code mismatch: have %x, want %x", msg.Code, NodeDataMsg)
 	}
-	var data [][]byte
-	if protocol <= istanbul.Celo66 {
-		if err := msg.Decode(&data); err != nil {
-			t.Fatalf("failed to decode response node data: %v", err)
-		}
-	} else {
-		var res NodeDataPacket67
-		if err := msg.Decode(&res); err != nil {
-			t.Fatalf("failed to decode response node data: %v", err)
-		}
-		data = res.NodeDataPacket
+	var (
+		data [][]byte
+		res  NodeDataPacket67
+	)
+	if err := msg.Decode(&res); err != nil {
+		t.Fatalf("failed to decode response node data: %v", err)
 	}
+	data = res.NodeDataPacket
 	// Verify that all hashes correspond to the requested data, and reconstruct a state tree
 	for i, want := range hashes {
 		if hash := crypto.Keccak256Hash(data[i]); hash != want {
@@ -507,7 +474,6 @@ func testGetNodeData(t *testing.T, protocol uint) {
 }
 
 // Tests that the transaction receipts can be retrieved based on hashes.
-func TestGetBlockReceipts66(t *testing.T) { testGetBlockReceipts(t, istanbul.Celo66) }
 func TestGetBlockReceipts67(t *testing.T) { testGetBlockReceipts(t, istanbul.Celo67) }
 
 func testGetBlockReceipts(t *testing.T, protocol uint) {
@@ -559,21 +525,14 @@ func testGetBlockReceipts(t *testing.T, protocol uint) {
 		receipts = append(receipts, backend.chain.GetReceiptsByHash(block.Hash()))
 	}
 	// Send the hash request and verify the response
-	if protocol <= istanbul.Celo66 {
-		p2p.Send(peer.app, GetReceiptsMsg, hashes)
-		if err := p2p.ExpectMsg(peer.app, ReceiptsMsg, receipts); err != nil {
-			t.Errorf("receipts mismatch: %v", err)
-		}
-	} else {
-		p2p.Send(peer.app, GetReceiptsMsg, GetReceiptsPacket67{
-			RequestId:         123,
-			GetReceiptsPacket: hashes,
-		})
-		if err := p2p.ExpectMsg(peer.app, ReceiptsMsg, ReceiptsPacket67{
-			RequestId:      123,
-			ReceiptsPacket: receipts,
-		}); err != nil {
-			t.Errorf("receipts mismatch: %v", err)
-		}
+	p2p.Send(peer.app, GetReceiptsMsg, GetReceiptsPacket67{
+		RequestId:         123,
+		GetReceiptsPacket: hashes,
+	})
+	if err := p2p.ExpectMsg(peer.app, ReceiptsMsg, ReceiptsPacket67{
+		RequestId:      123,
+		ReceiptsPacket: receipts,
+	}); err != nil {
+		t.Errorf("receipts mismatch: %v", err)
 	}
 }

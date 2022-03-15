@@ -168,7 +168,24 @@ func (w *worker) pending() (*types.Block, *state.StateDB) {
 	if w.snapshotState == nil {
 		return nil, nil
 	}
-	return w.snapshotBlock, w.snapshotState.Copy()
+	stateCopy := w.snapshotState.Copy()
+	// Call Prepare to ensure that any access logs from the last executed
+	// transaction have been erased.
+	//
+	// Prior to the upstream PR
+	// https://github.com/ethereum/go-ethereum/pull/21509 the state returned
+	// from pending was ready to use for transaction execution, that PR
+	// essentially changed the contract of the pendng method, in that the
+	// returned state was not ready for transaction execution and required
+	// Prepare to be called on it first, but notably the PR did not update any
+	// of the callers of pending to ensure that Prepare was called. I think
+	// this broke some of the eth rpc apis.  Calling Prepare here essentially
+	// restores the previous contract for this method which was that the
+	// returned state is ready to use for transaction execution.
+	//
+	// See https://github.com/celo-org/celo-blockchain/pull/1858#issuecomment-1054159493 for more details.
+	stateCopy.Prepare(common.Hash{}, 0)
+	return w.snapshotBlock, stateCopy
 }
 
 // pendingBlock returns pending block.
@@ -246,6 +263,7 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 	start := time.Now()
 
 	// Initialize the block.
+	// Note: In the current implementation, this will sleep until the time of the next block.
 	b, err := prepareBlock(w)
 	defer func() {
 		if b != nil {
@@ -258,15 +276,7 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 	}
 	w.updatePendingBlock(b)
 
-	// TODO: worker based adaptive sleep with this delay
-	// wait for the timestamp of header, use this to adjust the block period
-	delay := time.Until(time.Unix(int64(b.header.Time), 0))
-	select {
-	case <-time.After(delay):
-	case <-ctx.Done():
-		return
-	}
-
+	startConstruction := time.Now()
 	err = b.selectAndApplyTransactions(ctx, w)
 	if err != nil {
 		log.Error("Failed to apply transactions to the block", "err", err)
@@ -286,7 +296,7 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 	// the proposer and the engine has already gotten and is verifying the proposal).  See
 	// https://github.com/celo-org/celo-blockchain/issues/1639#issuecomment-888611039
 	// And we subtract the time we spent sleeping, since we want the time spent actually building the block.
-	w.blockConstructGauge.Update(time.Since(start).Nanoseconds() - delay.Nanoseconds())
+	w.blockConstructGauge.Update(time.Since(startConstruction).Nanoseconds())
 
 	if w.isRunning() {
 		if w.fullTaskHook != nil {

@@ -28,7 +28,6 @@ import (
 )
 
 // Tests that handshake failures are detected and reported correctly.
-func TestHandshake66(t *testing.T) { testHandshake(t, istanbul.Celo66) }
 func TestHandshake67(t *testing.T) { testHandshake(t, istanbul.Celo67) }
 
 func testHandshake(t *testing.T, protocol uint) {
