@@ -64,7 +64,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		ChurritoBlock:       big.NewInt(6774000),
 		DonutBlock:          big.NewInt(6774000),
-		EspressoBlock:       big.NewInt(11354500),
+		EspressoBlock:       nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -89,7 +89,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		ChurritoBlock:       big.NewInt(2719099),
 		DonutBlock:          big.NewInt(5002000),
-		EspressoBlock:       big.NewInt(9195000),
+		EspressoBlock:       nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -114,7 +114,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		ChurritoBlock:       big.NewInt(4960000),
 		DonutBlock:          big.NewInt(4960000),
-		EspressoBlock:       big.NewInt(9472000),
+		EspressoBlock:       nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
