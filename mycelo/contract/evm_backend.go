@@ -94,6 +94,7 @@ func (ecb *EVMBackend) call(opts CallOpts, method string, args ...interface{}) (
 
 // Query makes an evm call, populates the result into returnValue and returns error and gasLeft
 func (ecb *EVMBackend) Query(returnValue interface{}, method string, args ...interface{}) (uint64, error) {
+	println(fmt.Sprintf("querying %v to %v args %+v", method, ecb.Address, args))
 	calldata, err := ecb.abi.Pack(method, args...)
 	if err != nil {
 		return 0, err
@@ -102,7 +103,6 @@ func (ecb *EVMBackend) Query(returnValue interface{}, method string, args ...int
 	runtimeCfg := *ecb.runtimeConfigTemplate
 	log.Debug("method query", "method", method, "to", ecb.Address, "data", common.Bytes2Hex(calldata))
 	ret, gasLeft, err := runtime.Call(ecb.Address, calldata, &runtimeCfg)
-
 	if err != nil {
 		// try unpacking the revert (if it is one)
 		revertReason, err2 := abi.UnpackRevert(ret)

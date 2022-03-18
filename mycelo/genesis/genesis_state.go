@@ -997,8 +997,10 @@ func (ctx *deployContext) proxyContract(contractName string) *contract.EVMBacken
 }
 
 func (ctx *deployContext) verifyState() error {
-	snapshotVersion := ctx.statedb.Snapshot()
-	defer ctx.statedb.RevertToSnapshot(snapshotVersion)
+	println("verify state")
+	// take a copy of the state so that we can restore the original pristine state after verification is complete.
+	stateCopy := ctx.statedb.Copy()
+	defer func() { ctx.statedb = stateCopy }()
 
 	var reserveSpenders []common.Address
 	if _, err := ctx.contract("Reserve").Query(&reserveSpenders, "getExchangeSpenders"); err != nil {
