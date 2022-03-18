@@ -997,7 +997,6 @@ func (ctx *deployContext) proxyContract(contractName string) *contract.EVMBacken
 }
 
 func (ctx *deployContext) verifyState() error {
-	println("verify state")
 	// take a copy of the state so that we can restore the original pristine state after verification is complete.
 	stateCopy := ctx.statedb.Copy()
 	defer func() { ctx.statedb = stateCopy }()

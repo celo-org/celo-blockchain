@@ -17,8 +17,6 @@
 package state
 
 import (
-	"fmt"
-
 	"github.com/celo-org/celo-blockchain/common"
 )
 
@@ -113,7 +111,6 @@ func (al *accessList) AddSlot(address common.Address, slot common.Hash) (addrCha
 // This method is meant to be used  by the journal, which maintains ordering of
 // operations.
 func (al *accessList) DeleteSlot(address common.Address, slot common.Hash) {
-	println("deleting", address.String())
 	idx, addrOk := al.addresses[address]
 	// There are two ways this can fail
 	if !addrOk {
