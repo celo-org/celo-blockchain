@@ -23,7 +23,7 @@ ADD . /go-ethereum
 RUN cd /go-ethereum && make geth-musl
 
 # Pull Geth into a second stage deploy alpine container
-FROM alpine:latest
+FROM alpine:3.15
 ARG COMMIT_SHA
 
 RUN apk add --no-cache ca-certificates
