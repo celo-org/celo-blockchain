@@ -17,6 +17,8 @@
 package state
 
 import (
+	"fmt"
+
 	"github.com/celo-org/celo-blockchain/common"
 )
 
