@@ -7,7 +7,7 @@ parameters:
   # Use this git tag or commit of the monorepo to build the system contracts.
   system-contracts-monorepo-version:
     type: string
-    default: "celo-core-contracts-v3.rc0"
+    default: "core-contracts.v6"
   system-contracts-path:
     type: string
     default: "compiled-system-contracts"

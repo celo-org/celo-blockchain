@@ -22,7 +22,7 @@ else
 	OS = linux
 endif
 
-MONOREPO_COMMIT=celo-core-contracts-v3.rc0
+MONOREPO_COMMIT=core-contracts.v6
 
 # We checkout the monorepo as a sibling to the celo-blockchain dir because the
 # huge amount of files in the monorepo interferes with tooling such as gopls,
