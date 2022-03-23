@@ -95,7 +95,6 @@ func (h *testEthHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 
 // Tests that peers are correctly accepted (or rejected) based on the advertised
 // fork IDs in the protocol handshake.
-func TestForkIDSplit66(t *testing.T) { testForkIDSplit(t, istanbul.Celo66) }
 func TestForkIDSplit67(t *testing.T) { testForkIDSplit(t, istanbul.Celo67) }
 
 func testForkIDSplit(t *testing.T, protocol uint) {
@@ -259,7 +258,6 @@ func testForkIDSplit(t *testing.T, protocol uint) {
 }
 
 // Tests that received transactions are added to the local pool.
-func TestRecvTransactions66(t *testing.T) { testRecvTransactions(t, istanbul.Celo66) }
 func TestRecvTransactions67(t *testing.T) { testRecvTransactions(t, istanbul.Celo67) }
 
 func testRecvTransactions(t *testing.T, protocol uint) {
@@ -317,7 +315,6 @@ func testRecvTransactions(t *testing.T, protocol uint) {
 }
 
 // This test checks that pending transactions are sent.
-func TestSendTransactions66(t *testing.T) { testSendTransactions(t, istanbul.Celo66) }
 func TestSendTransactions67(t *testing.T) { testSendTransactions(t, istanbul.Celo67) }
 
 func testSendTransactions(t *testing.T, protocol uint) {
@@ -329,7 +326,7 @@ func testSendTransactions(t *testing.T, protocol uint) {
 
 	insert := make([]*types.Transaction, 100)
 	for nonce := range insert {
-		tx := types.NewTransaction(uint64(nonce), common.Address{}, big.NewInt(0), 100000, big.NewInt(0), nil, nil, nil, make([]byte, txsyncPackSize/10))
+		tx := types.NewTransaction(uint64(nonce), common.Address{}, big.NewInt(0), 100000, big.NewInt(0), nil, nil, nil, make([]byte, 10240))
 		tx, _ = types.SignTx(tx, types.HomesteadSigner{}, testKey)
 
 		insert[nonce] = tx
@@ -404,7 +401,6 @@ func testSendTransactions(t *testing.T, protocol uint) {
 
 // Tests that transactions get propagated to all attached peers, either via direct
 // broadcasts or via announcements/retrievals.
-func TestTransactionPropagation66(t *testing.T) { testTransactionPropagation(t, istanbul.Celo66) }
 func TestTransactionPropagation67(t *testing.T) { testTransactionPropagation(t, istanbul.Celo67) }
 
 func testTransactionPropagation(t *testing.T, protocol uint) {
@@ -545,8 +541,8 @@ func testCheckpointChallenge(t *testing.T, syncmode downloader.SyncMode, checkpo
 	defer p2pLocal.Close()
 	defer p2pRemote.Close()
 
-	local := eth.NewPeer(istanbul.Celo66, p2p.NewPeerPipe(enode.ID{1}, "", nil, p2pLocal), p2pLocal, handler.txpool)
-	remote := eth.NewPeer(istanbul.Celo66, p2p.NewPeerPipe(enode.ID{2}, "", nil, p2pRemote), p2pRemote, handler.txpool)
+	local := eth.NewPeer(istanbul.Celo67, p2p.NewPeerPipe(enode.ID{1}, "", nil, p2pLocal), p2pLocal, handler.txpool)
+	remote := eth.NewPeer(istanbul.Celo67, p2p.NewPeerPipe(enode.ID{2}, "", nil, p2pRemote), p2pRemote, handler.txpool)
 	defer local.Close()
 	defer remote.Close()
 
@@ -567,30 +563,39 @@ func testCheckpointChallenge(t *testing.T, syncmode downloader.SyncMode, checkpo
 	if err := remote.Handshake(1, td, head.Hash(), genesis.Hash(), forkid.NewIDWithChain(handler.chain), forkid.NewFilter(handler.chain)); err != nil {
 		t.Fatalf("failed to run protocol handshake")
 	}
-
 	// Connect a new peer and check that we receive the checkpoint challenge.
 	if checkpoint {
-		if err := remote.ExpectRequestHeadersByNumber(response.Number.Uint64(), 1, 0, false); err != nil {
-			t.Fatalf("challenge mismatch: %v", err)
+		msg, err := p2pRemote.ReadMsg()
+		if err != nil {
+			t.Fatalf("failed to read checkpoint challenge: %v", err)
+		}
+		request := new(eth.GetBlockHeadersPacket67)
+		if err := msg.Decode(request); err != nil {
+			t.Fatalf("failed to decode checkpoint challenge: %v", err)
+		}
+		query := request.GetBlockHeadersPacket
+		if query.Origin.Number != response.Number.Uint64() || query.Amount != 1 || query.Skip != 0 || query.Reverse {
+			t.Fatalf("challenge mismatch: have [%d, %d, %d, %v] want [%d, %d, %d, %v]",
+				query.Origin.Number, query.Amount, query.Skip, query.Reverse,
+				response.Number.Uint64(), 1, 0, false)
 		}
 		// Create a block to reply to the challenge if no timeout is simulated.
 		if !timeout {
 			if empty {
-				if err := remote.SendBlockHeaders([]*types.Header{}); err != nil {
+				if err := remote.ReplyBlockHeaders(request.RequestId, []*types.Header{}); err != nil {
 					t.Fatalf("failed to answer challenge: %v", err)
 				}
 			} else if match {
-				if err := remote.SendBlockHeaders([]*types.Header{response}); err != nil {
+				if err := remote.ReplyBlockHeaders(request.RequestId, []*types.Header{response}); err != nil {
 					t.Fatalf("failed to answer challenge: %v", err)
 				}
 			} else {
-				if err := remote.SendBlockHeaders([]*types.Header{{Number: response.Number}}); err != nil {
+				if err := remote.ReplyBlockHeaders(request.RequestId, []*types.Header{{Number: response.Number}}); err != nil {
 					t.Fatalf("failed to answer challenge: %v", err)
 				}
 			}
 		}
 	}
-
 	// Wait until the test timeout passes to ensure proper cleanup
 	time.Sleep(syncChallengeTimeout + 300*time.Millisecond)
 
@@ -644,8 +649,8 @@ func testBroadcastBlock(t *testing.T, peers, bcasts int) {
 		defer sourcePipe.Close()
 		defer sinkPipe.Close()
 
-		sourcePeer := eth.NewPeer(istanbul.Celo66, p2p.NewPeerPipe(enode.ID{byte(i)}, "", nil, sourcePipe), sourcePipe, nil)
-		sinkPeer := eth.NewPeer(istanbul.Celo66, p2p.NewPeerPipe(enode.ID{0}, "", nil, sinkPipe), sinkPipe, nil)
+		sourcePeer := eth.NewPeer(istanbul.Celo67, p2p.NewPeerPipe(enode.ID{byte(i)}, "", nil, sourcePipe), sourcePipe, nil)
+		sinkPeer := eth.NewPeer(istanbul.Celo67, p2p.NewPeerPipe(enode.ID{0}, "", nil, sinkPipe), sinkPipe, nil)
 		defer sourcePeer.Close()
 		defer sinkPeer.Close()
 
@@ -696,7 +701,6 @@ func testBroadcastBlock(t *testing.T, peers, bcasts int) {
 
 // Tests that a propagated malformed block (uncles or transactions don't match
 // with the hashes in the header) gets discarded and not broadcast forward.
-func TestBroadcastMalformedBlock66(t *testing.T) { testBroadcastMalformedBlock(t, istanbul.Celo66) }
 func TestBroadcastMalformedBlock67(t *testing.T) { testBroadcastMalformedBlock(t, istanbul.Celo67) }
 
 func testBroadcastMalformedBlock(t *testing.T, protocol uint) {

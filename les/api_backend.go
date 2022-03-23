@@ -338,6 +338,10 @@ func (b *LesApiBackend) UnprotectedAllowed() bool {
 	return b.allowUnprotectedTxs
 }
 
+func (b *LesApiBackend) RPCGasInflationRate() float64 {
+	return b.eth.config.RPCGasInflationRate
+}
+
 func (b *LesApiBackend) RPCGasCap() uint64 {
 	return b.eth.config.RPCGasCap
 }
