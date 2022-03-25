@@ -39,7 +39,7 @@ var (
 	allModules                  = []string{"admin", "debug", "web3", "eth", "txpool", "personal", "istanbul", "miner", "net"}
 	baseNodeConfig *node.Config = &node.Config{
 		Name:    "celo",
-		Version: params.Version,
+		Version: params.Version(),
 		P2P: p2p.Config{
 			MaxPeers:              100,
 			NoDiscovery:           true,

@@ -195,7 +195,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 	// Create the empty networking stack
 	nodeConf := &node.Config{
 		Name:              clientIdentifier,
-		Version:           params.VersionWithMeta,
+		Version:           params.VersionWithMeta(),
 		DataDir:           datadir,
 		KeyStoreDir:       filepath.Join(datadir, "keystore"), // Mobile should never use internal keystores!
 		UseLightweightKDF: config.UseLightweightKDF,

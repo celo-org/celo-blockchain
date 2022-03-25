@@ -18,18 +18,34 @@ package params
 
 import (
 	"fmt"
+	"strconv"
 )
 
 // On master, the version should be the UPCOMING one and "unstable"
 // e.g. if the latest release was v1.3.2, master should be 1.4.0-unstable
 // On release branches, it should be a beta or stable.  For example:
 // "1.3.0-beta", "1.3.0-beta.2", etc. and then "1.3.0-stable", "1.3.1-stable", etc.
-const (
-	VersionMajor = 1        // Major version component of the current release
-	VersionMinor = 5        // Minor version component of the current release
-	VersionPatch = 5        // Patch version component of the current release
-	VersionMeta  = "stable" // Version metadata to append to the version string
+var (
+	VersionMajorString string
+	VersionMajor       uint64
+	VersionMinor       uint64
+	VersionPatch       uint64
+	VersionMeta        = "stable" // Version metadata to append to the version string
 )
+
+func init() {
+	println("initiing")
+	if VersionMajorString != "" {
+		println("setting")
+		val, err := strconv.Atoi(VersionMajorString)
+		println("val", val)
+		if val < 0 || err != nil {
+			panic("invalid version string")
+		}
+		VersionMajor = uint64(val)
+	}
+	println("vstring", Version())
+}
 
 type VersionInfo struct {
 	Major uint64
@@ -64,28 +80,28 @@ func (v *VersionInfo) Cmp(version *VersionInfo) int {
 }
 
 // Version holds the textual version string.
-var Version = func() string {
+func Version() string {
 	return fmt.Sprintf("%d.%d.%d", VersionMajor, VersionMinor, VersionPatch)
-}()
+}
 
 var CurrentVersionInfo = func() *VersionInfo {
 	return &VersionInfo{VersionMajor, VersionMinor, VersionPatch}
 }()
 
 // VersionWithMeta holds the textual version string including the metadata.
-var VersionWithMeta = func() string {
-	v := Version
+func VersionWithMeta() string {
+	v := Version()
 	if VersionMeta != "" {
 		v += "-" + VersionMeta
 	}
 	return v
-}()
+}
 
 // ArchiveVersion holds the textual version string used for Geth archives.
 // e.g. "1.8.11-dea1ce05" for stable releases, or
 //      "1.8.13-unstable-21c059b6" for unstable releases
 func ArchiveVersion(gitCommit string) string {
-	vsn := Version
+	vsn := Version()
 	if VersionMeta != "stable" {
 		vsn += "-" + VersionMeta
 	}
@@ -96,7 +112,7 @@ func ArchiveVersion(gitCommit string) string {
 }
 
 func VersionWithCommit(gitCommit, gitDate string) string {
-	vsn := VersionWithMeta
+	vsn := VersionWithMeta()
 	if len(gitCommit) >= 8 {
 		vsn += "-" + gitCommit[:8]
 	}
