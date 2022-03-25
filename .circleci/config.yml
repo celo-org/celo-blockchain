@@ -95,6 +95,11 @@ jobs:
           command: |
             set -e
             if [ ! -d <<pipeline.parameters.system-contracts-path>> ]; then
+              # Github is phasing out the git protocol so we ensure that we use
+              # https for all git operations that yarn may perform. Yarn is used by
+              # the prepare-system-contracts make rule since it partially builds celo-monorepo.
+              git config --global url."https://github.com".insteadOf git://github.com
+
               mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
               make prepare-system-contracts MONOREPO_COMMIT=<<pipeline.parameters.system-contracts-monorepo-version>>
             fi
