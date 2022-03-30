@@ -43,24 +43,26 @@ var (
 		Name:   "ping",
 		Usage:  "Sends ping to a node",
 		Action: discv5Ping,
+		Flags:  []cli.Flag{networkIdFlag},
 	}
 	discv5ResolveCommand = cli.Command{
 		Name:   "resolve",
 		Usage:  "Finds a node in the DHT",
 		Action: discv5Resolve,
-		Flags:  []cli.Flag{bootnodesFlag},
+		Flags:  []cli.Flag{bootnodesFlag, networkIdFlag},
 	}
 	discv5CrawlCommand = cli.Command{
 		Name:   "crawl",
 		Usage:  "Updates a nodes.json file with random nodes found in the DHT",
 		Action: discv5Crawl,
-		Flags:  []cli.Flag{bootnodesFlag, crawlTimeoutFlag},
+		Flags:  []cli.Flag{bootnodesFlag, crawlTimeoutFlag, networkIdFlag},
 	}
 	discv5TestCommand = cli.Command{
 		Name:   "test",
 		Usage:  "Runs protocol tests against a node",
 		Action: discv5Test,
 		Flags: []cli.Flag{
+			networkIdFlag,
 			testPatternFlag,
 			testTAPFlag,
 			testListen1Flag,
@@ -72,6 +74,7 @@ var (
 		Usage:  "Runs a node",
 		Action: discv5Listen,
 		Flags: []cli.Flag{
+			networkIdFlag,
 			bootnodesFlag,
 			nodekeyFlag,
 			nodedbFlag,

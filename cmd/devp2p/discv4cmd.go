@@ -26,9 +26,9 @@ import (
 	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/p2p/discover"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/celo-org/celo-blockchain/params"
 
 	"gopkg.in/urfave/cli.v1"
 )
@@ -52,32 +52,34 @@ var (
 		Usage:     "Sends ping to a node",
 		Action:    discv4Ping,
 		ArgsUsage: "<node>",
+		Flags:     []cli.Flag{networkIdFlag},
 	}
 	discv4RequestRecordCommand = cli.Command{
 		Name:      "requestenr",
 		Usage:     "Requests a node record using EIP-868 enrRequest",
 		Action:    discv4RequestRecord,
 		ArgsUsage: "<node>",
+		Flags:     []cli.Flag{networkIdFlag},
 	}
 	discv4ResolveCommand = cli.Command{
 		Name:      "resolve",
 		Usage:     "Finds a node in the DHT",
 		Action:    discv4Resolve,
 		ArgsUsage: "<node>",
-		Flags:     []cli.Flag{bootnodesFlag},
+		Flags:     []cli.Flag{bootnodesFlag, networkIdFlag},
 	}
 	discv4ResolveJSONCommand = cli.Command{
 		Name:      "resolve-json",
 		Usage:     "Re-resolves nodes in a nodes.json file",
 		Action:    discv4ResolveJSON,
-		Flags:     []cli.Flag{bootnodesFlag},
+		Flags:     []cli.Flag{bootnodesFlag, networkIdFlag},
 		ArgsUsage: "<nodes.json file>",
 	}
 	discv4CrawlCommand = cli.Command{
 		Name:   "crawl",
 		Usage:  "Updates a nodes.json file with random nodes found in the DHT",
 		Action: discv4Crawl,
-		Flags:  []cli.Flag{bootnodesFlag, crawlTimeoutFlag},
+		Flags:  []cli.Flag{bootnodesFlag, crawlTimeoutFlag, networkIdFlag},
 	}
 	discv4TestCommand = cli.Command{
 		Name:   "test",
@@ -89,6 +91,7 @@ var (
 			testTAPFlag,
 			testListen1Flag,
 			testListen2Flag,
+			networkIdFlag,
 		},
 	}
 )
@@ -120,13 +123,12 @@ var (
 		Usage:  "Enode of the remote node under test",
 		EnvVar: "REMOTE_ENODE",
 	}
+	networkIdFlag = cli.Uint64Flag{
+		Name:  "networkid",
+		Usage: "Network identifier",
+		Value: params.MainnetNetworkId,
+	}
 )
-
-var networkIdFlag = cli.Uint64Flag{
-	Name:  "networkid",
-	Usage: "Network identifier",
-	Value: node.DefaultConfig.P2P.NetworkId,
-}
 
 func discv4Ping(ctx *cli.Context) error {
 	n := getNodeArg(ctx)
@@ -261,7 +263,8 @@ func makeDiscoveryConfig(ctx *cli.Context) (*enode.LocalNode, discover.Config) {
 	if err != nil {
 		exit(err)
 	}
-	networkId := ctx.GlobalUint64(networkIdFlag.Name)
+	networkId := ctx.Uint64(networkIdFlag.Name)
+	fmt.Println("NetworkId: ", networkId)
 	ln := enode.NewLocalNode(db, cfg.PrivateKey, networkId)
 	return ln, cfg
 }
