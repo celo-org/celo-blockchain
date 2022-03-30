@@ -157,12 +157,6 @@ func headerTDKey(number uint64, hash common.Hash) []byte {
 	return append(headerKey(number, hash), headerTDSuffix...)
 }
 
-// uptimeKey = uptimePrefix + epoch number
-func uptimeKey(epoch uint64) []byte {
-	// abuse encodeBlockNumber for epochs
-	return append([]byte("uptime"), encodeBlockNumber(epoch)...)
-}
-
 // headerHashKey = headerPrefix + num (uint64 big endian) + headerHashSuffix
 func headerHashKey(number uint64) []byte {
 	return append(append(headerPrefix, encodeBlockNumber(number)...), headerHashSuffix...)
