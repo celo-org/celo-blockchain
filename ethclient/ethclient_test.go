@@ -28,16 +28,11 @@ import (
 
 	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/common"
-	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/eth"
-	"github.com/celo-org/celo-blockchain/eth/ethconfig"
-	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/stretchr/testify/require"
 )
 
 // Verify that Client implements the ethereum interfaces.
@@ -187,55 +182,10 @@ var (
 	testBalance = big.NewInt(2e15)
 )
 
-func newTestBackend(t *testing.T) (*node.Node, []*types.Block) {
-	// Generate test chain.
-	genesis, blocks := generateTestChain()
-	// Create node
-	n, err := node.New(&node.Config{})
-	if err != nil {
-		t.Fatalf("can't create new node: %v", err)
-	}
-	// Create Ethereum Service
-	config := &ethconfig.Config{Genesis: genesis}
-	ethservice, err := eth.New(n, config)
-	if err != nil {
-		t.Fatalf("can't create new ethereum service: %v", err)
-	}
-	// Import the test chain.
-	if err := n.Start(); err != nil {
-		t.Fatalf("can't start test node: %v", err)
-	}
-	if _, err := ethservice.BlockChain().InsertChain(blocks[1:]); err != nil {
-		t.Fatalf("can't import test blocks: %v", err)
-	}
-	return n, blocks
-}
-
-func generateTestChain() (*core.Genesis, []*types.Block) {
-	db := rawdb.NewMemoryDatabase()
-	config := params.TestChainConfig
-
-	engine := mockEngine.NewFaker()
-
-	genesis := &core.Genesis{
-		Config:    config,
-		Alloc:     core.GenesisAlloc{testAddr: {Balance: testBalance}},
-		ExtraData: []byte("test genesis"),
-		Timestamp: 9000,
-	}
-	generate := func(i int, g *core.BlockGen) {
-		g.OffsetTime(5)
-		g.SetExtra(core.CreateEmptyIstanbulExtra([]byte("test")))
-	}
-	gblock := genesis.ToBlock(db)
-	blocks, _ := core.GenerateChain(config, gblock, engine, db, 1, generate)
-	blocks = append([]*types.Block{gblock}, blocks...)
-	return genesis, blocks
-}
-
 func TestEthClient(t *testing.T) {
-	backend, chain := newTestBackend(t)
-	client, _ := backend.Attach()
+	backend, chain := NewTestBackend(t, testAddr, testBalance)
+	client, err := backend.Attach()
+	require.NoError(t, err)
 	defer backend.Close()
 	defer client.Close()
 
@@ -260,10 +210,9 @@ func TestEthClient(t *testing.T) {
 		"TestStatusFunctions": {
 			func(t *testing.T) { testStatusFunctions(t, client) },
 		},
-		// Flaky
-		// "TestCallContract": {
-		// 	func(t *testing.T) { testCallContract(t, client) },
-		// },
+		"TestCallContract": {
+			func(t *testing.T) { testCallContract(t, client) },
+		},
 		"TestAtFunctions": {
 			func(t *testing.T) { testAtFunctions(t, client) },
 		},
