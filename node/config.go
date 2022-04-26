@@ -101,6 +101,7 @@ type Config struct {
 	InsecureUnlockAllowed bool `toml:",omitempty"`
 
 	// NoUSB disables hardware wallet monitoring and connectivity.
+	// Deprecated: USB monitoring is disabled by default and must be enabled explicitly.
 	NoUSB bool `toml:",omitempty"`
 
 	// TODO: USB hw wallet is no. Does Celo suppor this?
