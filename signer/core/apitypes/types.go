@@ -105,6 +105,10 @@ func (args SendTxArgs) CheckEthCompatibility() error {
 }
 
 func (args *SendTxArgs) ToTransaction() *types.Transaction {
+	// Upstream refactored this method to copy what txArgs.ToTransaction is doing in
+	// bb1f7ebf203f40dae714a3b8445918cfcfc9a7db in order to be able to compile the code to
+	// WebAssembly. Duplicating this logic right now does not seem to be worth it for celo
+	// use case, so the same version as before is maintained.
 	txArgs := ethapi.TransactionArgs{
 		Gas:                  &args.Gas,
 		GasPrice:             args.GasPrice,
