@@ -336,7 +336,7 @@ func (api *PrivateDebugAPI) GetBadBlocks(ctx context.Context) ([]*BadBlockArgs, 
 			// We don't have information, so we return nil
 			return nil, nil
 		}
-		if blockJSON, err = ethapi.RPCMarshalBlock(block, true, true, baseFeeFn); err != nil {
+		if blockJSON, err = ethapi.RPCMarshalBlock(block, true, true, api.eth.engine, baseFeeFn); err != nil {
 			blockJSON = map[string]interface{}{"error": err.Error()}
 		}
 		results = append(results, &BadBlockArgs{
