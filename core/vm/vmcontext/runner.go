@@ -4,7 +4,6 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 )
@@ -18,10 +17,6 @@ type evmRunnerContext interface {
 
 	// GetVMConfig returns the node's vm configuration
 	GetVMConfig() *vm.Config
-
-	CurrentHeader() *types.Header
-
-	State() (*state.StateDB, error)
 }
 
 type evmRunner struct {
