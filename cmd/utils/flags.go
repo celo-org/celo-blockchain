@@ -414,7 +414,6 @@ var (
 		Name:  "miner.extradata",
 		Usage: "Block extra data set by the miner (default = client version)",
 	}
-
 	// Account settings
 
 	UnlockedAccountFlag = cli.StringFlag{
