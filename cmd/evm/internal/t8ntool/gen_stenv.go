@@ -30,8 +30,6 @@ func (s stEnv) MarshalJSON() ([]byte, error) {
 	}
 	var enc stEnv
 	enc.Coinbase = common.UnprefixedAddress(s.Coinbase)
-	enc.Difficulty = (*math.HexOrDecimal256)(s.Difficulty)
-	enc.ParentDifficulty = (*math.HexOrDecimal256)(s.ParentDifficulty)
 	enc.GasLimit = math.HexOrDecimal64(s.GasLimit)
 	enc.Number = math.HexOrDecimal64(s.Number)
 	enc.Timestamp = math.HexOrDecimal64(s.Timestamp)
@@ -39,7 +37,6 @@ func (s stEnv) MarshalJSON() ([]byte, error) {
 	enc.BlockHashes = s.BlockHashes
 	enc.Ommers = s.Ommers
 	enc.BaseFee = (*math.HexOrDecimal256)(s.BaseFee)
-	enc.ParentUncleHash = s.ParentUncleHash
 	return json.Marshal(&enc)
 }
 
@@ -66,12 +63,6 @@ func (s *stEnv) UnmarshalJSON(input []byte) error {
 		return errors.New("missing required field 'currentCoinbase' for stEnv")
 	}
 	s.Coinbase = common.Address(*dec.Coinbase)
-	if dec.Difficulty != nil {
-		s.Difficulty = (*big.Int)(dec.Difficulty)
-	}
-	if dec.ParentDifficulty != nil {
-		s.ParentDifficulty = (*big.Int)(dec.ParentDifficulty)
-	}
 	if dec.GasLimit == nil {
 		return errors.New("missing required field 'currentGasLimit' for stEnv")
 	}
@@ -95,9 +86,6 @@ func (s *stEnv) UnmarshalJSON(input []byte) error {
 	}
 	if dec.BaseFee != nil {
 		s.BaseFee = (*big.Int)(dec.BaseFee)
-	}
-	if dec.ParentUncleHash != nil {
-		s.ParentUncleHash = *dec.ParentUncleHash
 	}
 	return nil
 }
