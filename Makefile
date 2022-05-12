@@ -7,7 +7,7 @@
 .PHONY: geth-linux-arm geth-linux-arm-5 geth-linux-arm-6 geth-linux-arm-7 geth-linux-arm64
 .PHONY: geth-darwin geth-darwin-amd64
 .PHONY: geth-windows geth-windows-386 geth-windows-amd64
-.PHONY: prepare-system-contracts $(MONOREPO_PATH)
+.PHONY: prepare-system-contracts
 
 GOBIN = ./build/bin
 GO ?= latest
@@ -62,8 +62,13 @@ $(MONOREPO_PATH)/packages/protocol/build: $(CONTRACT_SOURCE_FILES)
 	@cd $(MONOREPO_PATH) && rm -rf packages/protocol/build && yarn && cd packages/protocol && yarn run build:sol
 
 
-# The source files depend on the MONOREPO_PATH rule to ensure that the monorepo is
-# checked out before we try to build.
+# This target serves as an intermediate step to avoid running the
+# $(MONOREPO_PATH) target once per contract source file.  This could also be
+# achieved by using the group targets separator '&:' instead of just ':', but
+# that functionality was added in make version 4.3 which doesn't seem to be
+# readily available on most systems yet. So although this rule will be run once
+# for each source file, since it is empty that is very quick. $(MONOREPO_PATH)
+# as a prerequisite of this will be run at most onece.
 $(CONTRACT_SOURCE_FILES): $(MONOREPO_PATH)
 
 # Clone the monorepo.
