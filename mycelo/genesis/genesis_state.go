@@ -508,7 +508,7 @@ func (ctx *deployContext) deployExchanges() error {
 		err := ctx.deployCoreContract(exchange.contract, func(contract *contract.EVMBackend) error {
 			return contract.SimpleCall("initialize",
 				env.MustProxyAddressFor("Registry"),
-				env.MustProxyAddressFor(exchange.stableTokenContract),
+				exchange.contract,
 				exchange.cfg.Spread.BigInt(),
 				exchange.cfg.ReserveFraction.BigInt(),
 				newBigInt(exchange.cfg.UpdateFrequency),
