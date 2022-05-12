@@ -19,7 +19,6 @@ package utils
 import (
 	"fmt"
 	"math/big"
-	"strings"
 
 	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/node"
@@ -80,35 +79,6 @@ var (
 	NoUSBFlag = cli.BoolFlag{
 		Name:  "nousb",
 		Usage: "Disables monitoring for and managing USB hardware wallets (deprecated)",
-	}
-	LegacyRPCEnabledFlag = cli.BoolFlag{
-		Name:  "rpc",
-		Usage: "Enable the HTTP-RPC server (deprecated, use --http)",
-	}
-	LegacyRPCListenAddrFlag = cli.StringFlag{
-		Name:  "rpcaddr",
-		Usage: "HTTP-RPC server listening interface (deprecated, use --http.addr)",
-		Value: node.DefaultHTTPHost,
-	}
-	LegacyRPCPortFlag = cli.IntFlag{
-		Name:  "rpcport",
-		Usage: "HTTP-RPC server listening port (deprecated, use --http.port)",
-		Value: node.DefaultHTTPPort,
-	}
-	LegacyRPCCORSDomainFlag = cli.StringFlag{
-		Name:  "rpccorsdomain",
-		Usage: "Comma separated list of domains from which to accept cross origin requests (browser enforced) (deprecated, use --http.corsdomain)",
-		Value: "",
-	}
-	LegacyRPCVirtualHostsFlag = cli.StringFlag{
-		Name:  "rpcvhosts",
-		Usage: "Comma separated list of virtual hostnames from which to accept requests (server enforced). Accepts '*' wildcard. (deprecated, use --http.vhosts)",
-		Value: strings.Join(node.DefaultConfig.HTTPVirtualHosts, ","),
-	}
-	LegacyRPCApiFlag = cli.StringFlag{
-		Name:  "rpcapi",
-		Usage: "API's offered over the HTTP-RPC interface (deprecated, use --http.api)",
-		Value: "",
 	}
 	LegacyWSListenAddrFlag = cli.StringFlag{
 		Name:  "wsaddr",
