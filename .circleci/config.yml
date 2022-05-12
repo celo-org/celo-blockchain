@@ -9,10 +9,10 @@ parameters:
     default: "compiled-system-contracts"
   system-contracts-executor-image:
     type: string
-      # The system contracts executor curr ently needs node 10 to function,
+      # The system contracts executor currently needs node 12 to function,
       # this should only be changed when the version in `monorepo_commit` is
       # changed.
-    default: "celohq/node10-gcloud:v3"
+    default: "us.gcr.io/celo-testnet/circleci-node12:1.0.0"
 executors:
   golang:
     docker:
