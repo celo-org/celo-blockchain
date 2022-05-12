@@ -26,10 +26,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/celo-org/celo-blockchain/accounts"
-	"github.com/celo-org/celo-blockchain/accounts/external"
 	"github.com/celo-org/celo-blockchain/accounts/keystore"
-	"github.com/celo-org/celo-blockchain/accounts/usbwallet"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/log"
@@ -442,22 +439,10 @@ func (c *Config) parsePersistentNodes(w *bool, path string) []*enode.Node {
 	return nodes
 }
 
-// KeystoreEncryptionParams returns the scrypt N and P parameters, that control
-// the level of encryption used in keystore operations.
-func (c *Config) KeystoreEncryptionParams() (scryptN, scryptP int) {
-	scryptN = keystore.StandardScryptN
-	scryptP = keystore.StandardScryptP
-	if c.UseLightweightKDF {
-		scryptN = keystore.LightScryptN
-		scryptP = keystore.LightScryptP
-	}
-	return scryptN, scryptP
-}
-
 // GetKeyStore returns a keystore, and if no keystore path was provided in the
 // config, it returns the ephemeral path that has been generated for this keystore.
 func (c *Config) GetKeyStore() (store *keystore.KeyStore, ephemeralPath string, err error) {
-	path, err := c.GetKeyStoreDir()
+	path, err := c.KeyDirConfig()
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get the path for the keystore: %v", err)
 	}
@@ -485,10 +470,16 @@ func (c *Config) GetKeyStore() (store *keystore.KeyStore, ephemeralPath string, 
 
 }
 
-// GetKeyStoreDir returns the absolute path of the keystore, if KeyStoreDir is
+// KeyDirConfig determines the settings for keydirectory
+//
+// returns the absolute path of the keystore, if KeyStoreDir is
 // not set this function will generae a path from the data dir. If neither are
 // set this function will return the empty string.
-func (c *Config) GetKeyStoreDir() (keydir string, err error) {
+func (c *Config) KeyDirConfig() (string, error) {
+	var (
+		keydir string
+		err    error
+	)
 	switch {
 	case filepath.IsAbs(c.KeyStoreDir):
 		keydir = c.KeyStoreDir
@@ -504,53 +495,28 @@ func (c *Config) GetKeyStoreDir() (keydir string, err error) {
 	return keydir, err
 }
 
-func makeAccountManager(conf *Config) (*accounts.Manager, string, error) {
-	// Assemble the account manager and supported backends
-	var backends []accounts.Backend
-	if len(conf.ExternalSigner) > 0 {
-		log.Info("Using external signer", "url", conf.ExternalSigner)
-		if extapi, err := external.NewExternalBackend(conf.ExternalSigner); err == nil {
-			backends = append(backends, extapi)
-		} else {
-			return nil, "", fmt.Errorf("error connecting to external signer: %v", err)
-		}
+// getKeyStoreDir retrieves the key directory and will create
+// and ephemeral one if necessary.
+func getKeyStoreDir(conf *Config) (string, bool, error) {
+	keydir, err := conf.KeyDirConfig()
+	if err != nil {
+		return "", false, err
 	}
-	var ephemeral string
-	if len(backends) == 0 {
-		var ks *keystore.KeyStore
-		var err error
-		ks, ephemeral, err = conf.GetKeyStore()
-		if err != nil {
-			return nil, "", err
-		}
-		// For now, we're using EITHER external signer OR local signers.
-		// If/when we implement some form of lockfile for USB and keystore wallets,
-		// we can have both, but it's very confusing for the user to see the same
-		// accounts in both externally and locally, plus very racey.
-		backends = append(backends, ks)
-		if conf.USB {
-			// Start a USB hub for Ledger hardware wallets
-			if ledgerhub, err := usbwallet.NewLedgerHub(); err != nil {
-				log.Warn(fmt.Sprintf("Failed to start Ledger hub, disabling: %v", err))
-			} else {
-				backends = append(backends, ledgerhub)
-			}
-			// Start a USB hub for Trezor hardware wallets (HID version)
-			if trezorhub, err := usbwallet.NewTrezorHubWithHID(); err != nil {
-				log.Warn(fmt.Sprintf("Failed to start HID Trezor hub, disabling: %v", err))
-			} else {
-				backends = append(backends, trezorhub)
-			}
-			// Start a USB hub for Trezor hardware wallets (WebUSB version)
-			if trezorhub, err := usbwallet.NewTrezorHubWithWebUSB(); err != nil {
-				log.Warn(fmt.Sprintf("Failed to start WebUSB Trezor hub, disabling: %v", err))
-			} else {
-				backends = append(backends, trezorhub)
-			}
-		}
+	isEphemeral := false
+	if keydir == "" {
+		// There is no datadir.
+		keydir, err = ioutil.TempDir("", "go-ethereum-keystore")
+		isEphemeral = true
 	}
 
-	return accounts.NewManager(&accounts.Config{InsecureUnlockAllowed: conf.InsecureUnlockAllowed}, backends...), ephemeral, nil
+	if err != nil {
+		return "", false, err
+	}
+	if err := os.MkdirAll(keydir, 0700); err != nil {
+		return "", false, err
+	}
+
+	return keydir, isEphemeral, nil
 }
 
 var warnLock sync.Mutex
