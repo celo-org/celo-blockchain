@@ -95,6 +95,11 @@ jobs:
           command: |
             set -e
             if [ ! -d <<pipeline.parameters.system-contracts-path>> ]; then
+              # Github is phasing out the git protocol so we ensure that we use
+              # https for all git operations that yarn may perform. Yarn is used by
+              # the prepare-system-contracts make rule since it partially builds celo-monorepo.
+              git config --global url."https://github.com".insteadOf git://github.com
+
               mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
               make prepare-system-contracts MONOREPO_COMMIT=<<pipeline.parameters.system-contracts-monorepo-version>>
             fi
@@ -334,6 +339,10 @@ jobs:
             cd celo-monorepo
             git fetch --depth 1 origin ${CELO_MONOREPO_COMMIT_OR_BRANCH}
             git checkout ${CELO_MONOREPO_COMMIT_OR_BRANCH}
+
+            # Github is phasing out the git protocol so we ensure that we use
+            # https for all git operations that yarn may perform.
+            git config --global url."https://github.com".insteadOf git://github.com
             yarn install || yarn install
             yarn build --scope @celo/celotool --include-filtered-dependencies
       - run:
@@ -468,6 +477,9 @@ workflows:
             - build-geth
             - prepare-system-contracts
       - race:
+          filters:
+            branches:
+              only: /master|release.*/
           requires:
             - build-geth
             - prepare-system-contracts
