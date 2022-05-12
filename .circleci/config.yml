@@ -4,17 +4,14 @@ parameters:
   system-contracts-cache-version:
     type: integer
     default: 1
-  # Use this git tag or commit of the monorepo to build the system contracts.
-  system-contracts-monorepo-version:
-    type: string
-    default: "celo-core-contracts-v3.rc0"
   system-contracts-path:
     type: string
     default: "compiled-system-contracts"
   system-contracts-executor-image:
     type: string
-      # The system contracts executor needs node 10 to function, this should
-      # only be changed when system-contracts-monorepo-version is changed.
+      # The system contracts executor curr ently needs node 10 to function,
+      # this should only be changed when the version in `monorepo_commit` is
+      # changed.
     default: "celohq/node10-gcloud:v3"
 executors:
   golang:
@@ -81,7 +78,7 @@ jobs:
     parameters:
       cache-key:
         type: string
-        default: system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>-<<pipeline.parameters.system-contracts-path>>-v<<pipeline.parameters.system-contracts-cache-version>>-<<pipeline.parameters.system-contracts-executor-image>>
+        default: system-contracts-cache-{{ checksum "monorepo_commit" }}-<<pipeline.parameters.system-contracts-path>>-v<<pipeline.parameters.system-contracts-cache-version>>-<<pipeline.parameters.system-contracts-executor-image>>
     executor: system-contracts-executor
     resource_class: medium+
     steps:
@@ -106,7 +103,7 @@ jobs:
               git config --global url."https://github.com".insteadOf git://github.com
 
               mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-              make prepare-system-contracts MONOREPO_COMMIT=<<pipeline.parameters.system-contracts-monorepo-version>>
+              make prepare-system-contracts 
             fi
       - save_cache:
           key: <<parameters.cache-key>>

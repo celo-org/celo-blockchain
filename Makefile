@@ -22,8 +22,6 @@ else
 	OS = linux
 endif
 
-MONOREPO_COMMIT=celo-core-contracts-v3.rc0
-
 # We checkout the monorepo as a sibling to the celo-blockchain dir because the
 # huge amount of files in the monorepo interferes with tooling such as gopls,
 # which becomes very slow.
@@ -47,8 +45,8 @@ geth:
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
-# This rule checks out celo-monorepo under MONOREPO_PATH at commit
-# MONOREPO_COMMIT and compiles the system solidty contracts. It then copies the
+# This rule checks out celo-monorepo under MONOREPO_PATH at the commit contained in
+# monorepo_commit and compiles the system solidty contracts. It then copies the
 # compiled contracts from the monorepo to the compiled-system-contracts, so
 # that this repo can always access the contracts at a consistent path.
 prepare-system-contracts: $(MONOREPO_PATH)/packages/protocol/build
@@ -70,26 +68,27 @@ $(CONTRACT_SOURCE_FILES): $(MONOREPO_PATH)
 
 # Clone the monorepo.
 #
-# If the repo has not been cloned then clone it at the MONOREPO_COMMIT and
-# store that commit in a file.  Otherwise if the repo has been cloned and
-# MONOREPO_COMMIT doesn't match the contents of current_commit then checkout
-# the new commit, and update the file that stores the current commit.  This
-# will fail if there are local changes.
-$(MONOREPO_PATH):
+# If the repo has not been cloned then clone it at the commit contained in
+# monorepo_commit and store that commit in a file.  Otherwise if the repo has
+# been cloned and the commit contained in monorepo_commit doesn't match the
+# contents of current_commit then checkout the new commit, and update the file
+# that stores the current commit.  This will fail if there are local changes.
+$(MONOREPO_PATH): monorepo_commit
 	@set -e; \
+	mc=`cat monorepo_commit`; \
 	if  [ ! -e $(MONOREPO_PATH) ]; \
 	then \
-		echo "Cloning monorepo at $(MONOREPO_COMMIT)"; \
-		git clone --quiet --depth 1 --branch $(MONOREPO_COMMIT) https://github.com/celo-org/celo-monorepo.git $(MONOREPO_PATH); \
-		echo $(MONOREPO_COMMIT) > $(MONOREPO_PATH)/current_commit; \
-	elif [ $(MONOREPO_COMMIT) != $(shell cat $(MONOREPO_PATH)/current_commit 2>/dev/null || echo "") ]; \
+		echo "Cloning monorepo at $${mc}"; \
+		git clone --quiet --depth 1 --branch $${mc} https://github.com/celo-org/celo-monorepo.git $(MONOREPO_PATH); \
+		echo $${mc} > $(MONOREPO_PATH)/current_commit; \
+	elif [ $${mc} != $(shell cat $(MONOREPO_PATH)/current_commit 2>/dev/null || echo "") ]; \
 	then \
-		echo "Checking out monorepo at $(MONOREPO_COMMIT)"; \
+		echo "Checking out monorepo at $${mc}"; \
 		cd $(MONOREPO_PATH); \
-		git fetch --quiet --depth 1 origin $(MONOREPO_COMMIT); \
+		git fetch --quiet --depth 1 origin $${mc}; \
 		git checkout FETCH_HEAD; \
 		sleep 0.5; \
-		echo $(MONOREPO_COMMIT) > current_commit; \
+		echo $${mc} > current_commit; \
 	fi
 
 

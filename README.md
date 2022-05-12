@@ -59,28 +59,29 @@ The Celo blockchain client comes with several wrappers/executables found in the 
 ## Running tests
 
 Prior to running tests you will need to run `make prepare-system-contracts`.
-This will checkout the celo-monorepo and compile the system contracts for use
-in full network tests. The rule will copy the compiled contracts from
-celo-monorepo to `compiled-system-contracts`. If you subsequently edit the
-system contracts source, running the make rule again will re-compile them and
-copy them into place.
+This will checkout the
+[celo-monorepo](https://github.com/celo-org/celo-monorepo) under
+`../.celo-blockchain-monorepo-checkout` relative to this project's root at the
+commit defined in the file `monorepo_commit`. Then it will compile the system
+contracts for use in full network tests. The rule will copy the compiled
+contracts from celo-monorepo to `compiled-system-contracts`. If you
+subsequently edit the system contracts source or `monorepo_commit`, running the
+make rule again will re-checkout the monorepo, re-compile the contracts and
+copy them into place. 
 
 This make rule will shallow checkout
 [celo-monorepo](https://github.com/celo-org/celo-monorepo) under
-`../.celo-blockchain-monorepo-checkout` relative to this project's root, and it
-will checkout the commit defined in the variable MONOREPO_COMMIT in the
-Makefile. 
+`../.celo-blockchain-monorepo-checkout` relative to this project's root.
 
-These values can be overridden if required, by setting those variables in the
+This value can be overridden if required, by setting it in the
 make command, for example:
 ```
-make prepare-system-contracts MONOREPO_COMMIT=master MONOREPO_PATH=../alt-monorepo
-```
+make prepare-system-contracts MONOREPO_PATH=../alt-monorepo
+``` 
 
 Without first running this make rule, certain tests will fail with errors such
 as:
 
-```
 panic: Can't read bytecode for monorepo/packages/protocol/build/contracts/FixidityLib.json: open
 ```
 
