@@ -41,6 +41,22 @@ var templateFlags = []cli.Flag{
 		Name:  "mnemonic",
 		Usage: "Mnemonic to generate accounts",
 	},
+	cli.StringFlag{
+		Name:  "node.port",
+		Usage: "First Node port",
+	},
+	cli.StringFlag{
+		Name:  "rpc.port",
+		Usage: "First Node RPC port",
+	},
+	cli.StringFlag{
+		Name:  "geth.http.addr",
+		Usage: "`--http.addr` option of geth command",
+	},
+	cli.StringFlag{
+		Name:  "geth.http.api",
+		Usage: "`--http.api` option of geth command",
+	},
 }
 
 var buildpathFlag = cli.StringFlag{
@@ -108,6 +124,18 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 	}
 	if ctx.IsSet("mnemonic") {
 		env.Accounts().Mnemonic = ctx.String("mnemonic")
+	}
+	if ctx.IsSet("node.port") {
+		env.Config.NodePort = ctx.Int("node.port")
+	}
+	if ctx.IsSet("rpc.port") {
+		env.Config.RPCPort = ctx.Int("rpc.port")
+	}
+	if ctx.IsSet("geth.http.addr") {
+		env.GethParams().HTTPAddr = ctx.String("geth.http.addr")
+	}
+	if ctx.IsSet("geth.http.api") {
+		env.GethParams().HTTPAPI = ctx.String("geth.http.api")
 	}
 
 	// Genesis config
