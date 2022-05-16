@@ -876,6 +876,23 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 
 	// Execute the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
+
+	// Call Prepare to ensure that any access logs from calls made by
+	// core.NewSysContractCallCtx have been erased.
+	//
+	// The upstream PR
+	// https://github.com/ethereum/go-ethereum/pull/21509 introduced the access
+	// list and the requirement to clear the access list between transaction
+	// execution. Because we introduced system contract calls into celo we now
+	// need to ensure that we clear the access list between system contract
+	// calls and transactin execution. We don't actually provide a real tx hash
+	// or tx index to prepare because we don't try to retrive the transaction
+	// receipt, the call simply serves to empty the access list. Prior to this
+	// call to prepare gas estimation would be low for transactions that
+	// accessed storage that had previuosly been accessed while executing
+	// core.NewSysContractCallCtx.
+	state.Prepare(common.Hash{}, 0)
+
 	result, err := core.ApplyMessageWithoutGasPriceMinimum(evm, msg, gp, b.NewEVMRunner(header, state), sysCtx)
 	if err := vmError(); err != nil {
 		return nil, err
