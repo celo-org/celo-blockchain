@@ -41,9 +41,9 @@ executors:
       # * When updating it, update the comment with (a) the branch or commit hash, (b) the date of the change, and
       #   (c) the contracts release it includes (`RELEASE_TAG` in the monorepo)
 
-      # e1edf382fce84b6d47c184a17e51348b4901ee07 is the latest commit on master as of May 17, 2022, and
+      # 052f7215c531dc917414c078ffcaa2dcb7a8879a is the latest commit on master as of May 17, 2022, and
       # includes contracts release 5 (core-contracts.v5)
-      CELO_MONOREPO_COMMIT_OR_BRANCH: e1edf382fce84b6d47c184a17e51348b4901ee07
+      CELO_MONOREPO_COMMIT_OR_BRANCH: 052f7215c531dc917414c078ffcaa2dcb7a8879a
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 # Unfortunately we cannot use anchors to represent a set of standard steps and
 # then add or override one or more of those steps when referencing the anchor.
