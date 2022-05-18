@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/celo-org/celo-blockchain/internal/cmdtest"
 	"github.com/docker/docker/pkg/reexec"
-	"github.com/ethereum/go-ethereum/internal/cmdtest"
 )
 
 func TestMain(m *testing.M) {
@@ -109,7 +109,7 @@ func TestT8n(t *testing.T) {
 		{
 			base: "./testdata/1",
 			input: t8nInput{
-				"alloc.json", "txs.json", "env.json", "Byzantium", "",
+				"alloc.json", "txs.json", "env.json", "Espresso", "",
 			},
 			output: t8nOutput{alloc: true, result: true},
 			expOut: "exp.json",
@@ -117,7 +117,7 @@ func TestT8n(t *testing.T) {
 		{ // blockhash test
 			base: "./testdata/3",
 			input: t8nInput{
-				"alloc.json", "txs.json", "env.json", "Berlin", "",
+				"alloc.json", "txs.json", "env.json", "Espresso", "",
 			},
 			output: t8nOutput{alloc: true, result: true},
 			expOut: "exp.json",
@@ -125,23 +125,15 @@ func TestT8n(t *testing.T) {
 		{ // missing blockhash test
 			base: "./testdata/4",
 			input: t8nInput{
-				"alloc.json", "txs.json", "env.json", "Berlin", "",
+				"alloc.json", "txs.json", "env.json", "Istanbul", "",
 			},
 			output:      t8nOutput{alloc: true, result: true},
 			expExitCode: 4,
 		},
-		{ // Ommer test
-			base: "./testdata/5",
-			input: t8nInput{
-				"alloc.json", "txs.json", "env.json", "Byzantium", "0x80",
-			},
-			output: t8nOutput{alloc: true, result: true},
-			expOut: "exp.json",
-		},
 		{ // Sign json transactions
 			base: "./testdata/13",
 			input: t8nInput{
-				"alloc.json", "txs.json", "env.json", "London", "",
+				"alloc.json", "txs.json", "env.json", "Espresso", "",
 			},
 			output: t8nOutput{body: true},
 			expOut: "exp.json",
@@ -149,23 +141,7 @@ func TestT8n(t *testing.T) {
 		{ // Already signed transactions
 			base: "./testdata/13",
 			input: t8nInput{
-				"alloc.json", "signed_txs.rlp", "env.json", "London", "",
-			},
-			output: t8nOutput{result: true},
-			expOut: "exp2.json",
-		},
-		{ // Difficulty calculation - no uncles
-			base: "./testdata/14",
-			input: t8nInput{
-				"alloc.json", "txs.json", "env.json", "London", "",
-			},
-			output: t8nOutput{result: true},
-			expOut: "exp.json",
-		},
-		{ // Difficulty calculation - with uncles
-			base: "./testdata/14",
-			input: t8nInput{
-				"alloc.json", "txs.json", "env.uncles.json", "London", "",
+				"alloc.json", "signed_txs.rlp", "env.json", "Espresso", "",
 			},
 			output: t8nOutput{result: true},
 			expOut: "exp2.json",
@@ -225,19 +201,19 @@ func TestT9n(t *testing.T) {
 		expExitCode int
 		expOut      string
 	}{
-		{ // London txs on homestead
+		{ // Espresso txs on Istanbul
 			base: "./testdata/15",
 			input: t9nInput{
 				inTxs:  "signed_txs.rlp",
-				stFork: "Homestead",
+				stFork: "Istanbul",
 			},
 			expOut: "exp.json",
 		},
-		{ // London txs on homestead
+		{ // Espresso txs on Espresso
 			base: "./testdata/15",
 			input: t9nInput{
 				inTxs:  "signed_txs.rlp",
-				stFork: "London",
+				stFork: "Espresso",
 			},
 			expOut: "exp2.json",
 		},
@@ -245,7 +221,7 @@ func TestT9n(t *testing.T) {
 			base: "./testdata/15",
 			input: t9nInput{
 				inTxs:  "blockheader.rlp",
-				stFork: "London",
+				stFork: "Espresso",
 			},
 			expOut: "exp3.json",
 		},
