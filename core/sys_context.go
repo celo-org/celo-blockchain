@@ -7,6 +7,8 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 )
 
@@ -46,6 +48,16 @@ func NewSysContractCallCtx(vmRunner vm.EVMRunner) (sc *SysContractCallCtx) {
 	}
 
 	return
+}
+
+type runnerFactory interface {
+	NewEVMRunner(*types.Header, vm.StateDB) vm.EVMRunner
+}
+
+// NewSysContractCallCtx2 creates the SysContractCallCtx object and makes the contract calls.
+func NewSysContractCallCtx2(header *types.Header, state *state.StateDB, factory runnerFactory) (sc *SysContractCallCtx) {
+	vmRunner := factory.NewEVMRunner(header, state.Copy())
+	return NewSysContractCallCtx(vmRunner)
 }
 
 // GetIntrinsicGasForAlternativeFeeCurrency retrieves intrinsic gas for non-native fee currencies.

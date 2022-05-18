@@ -25,7 +25,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/light"
 )
 
@@ -55,8 +54,7 @@ func (leth *LightEthereum) stateAtTransaction(ctx context.Context, block *types.
 	// Create SysContractCallCtx
 	var sysCtx *core.SysContractCallCtx
 	if leth.chainConfig.IsEspresso(block.Number()) {
-		vmRunner := vmcontext.NewEVMRunner(leth.blockchain, block.Header(), statedb.Copy())
-		sysCtx = core.NewSysContractCallCtx(vmRunner)
+		sysCtx = core.NewSysContractCallCtx2(block.Header(), statedb.Copy(), leth.blockchain)
 	}
 	// Recompute transactions up to the target index.
 	signer := types.MakeSigner(leth.blockchain.Config(), block.Number())

@@ -621,8 +621,7 @@ func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallM
 		if err != nil {
 			return nil, err
 		}
-		sysVmRunner := b.blockchain.NewEVMRunner(block.Header(), sysStateDB)
-		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
+		sysCtx = core.NewSysContractCallCtx2(block.Header(), sysStateDB, b.blockchain)
 	}
 	return core.NewStateTransition(vmEnv, msg, gasPool, vmRunner, sysCtx).TransitionDb()
 }
