@@ -109,7 +109,7 @@ func TestT8n(t *testing.T) {
 		{
 			base: "./testdata/1",
 			input: t8nInput{
-				"alloc.json", "txs.json", "env.json", "Espresso", "",
+				"alloc.json", "txs.json", "env.json", "Istanbul", "",
 			},
 			output: t8nOutput{alloc: true, result: true},
 			expOut: "exp.json",
@@ -125,7 +125,7 @@ func TestT8n(t *testing.T) {
 		{ // missing blockhash test
 			base: "./testdata/4",
 			input: t8nInput{
-				"alloc.json", "txs.json", "env.json", "Istanbul", "",
+				"alloc.json", "txs.json", "env.json", "Espresso", "",
 			},
 			output:      t8nOutput{alloc: true, result: true},
 			expExitCode: 4,
