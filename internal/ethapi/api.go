@@ -851,7 +851,7 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 	// Create SysContractCallCtx
 	var sysCtx *core.SysContractCallCtx
 	if b.ChainConfig().IsEspresso(header.Number) {
-		sysCtx = core.NewSysContractCallCtx2(header, state, b)
+		sysCtx = core.NewSysContractCallCtx(header, state, b)
 	}
 
 	// Get a new instance of the EVM.

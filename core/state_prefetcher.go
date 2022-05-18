@@ -62,7 +62,7 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 	byzantium := p.config.IsByzantium(block.Number())
 	espresso := p.bc.chainConfig.IsEspresso(block.Number())
 	if espresso {
-		sysCtx = NewSysContractCallCtx2(header, statedb, p.bc)
+		sysCtx = NewSysContractCallCtx(header, statedb, p.bc)
 	}
 	for i, tx := range block.Transactions() {
 		// If block precaching was interrupted, abort
@@ -104,7 +104,7 @@ func precacheTransaction(config *params.ChainConfig, bc *BlockChain, author *com
 
 	var sysCtx *SysContractCallCtx
 	if config.IsEspresso(header.Number) {
-		sysCtx = NewSysContractCallCtx2(header, statedb, bc)
+		sysCtx = NewSysContractCallCtx(header, statedb, bc)
 	}
 	_, err = ApplyMessage(vm, msg, gaspool, bc.NewEVMRunner(header, statedb), sysCtx)
 	return err

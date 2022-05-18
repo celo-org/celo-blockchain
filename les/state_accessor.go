@@ -54,7 +54,7 @@ func (leth *LightEthereum) stateAtTransaction(ctx context.Context, block *types.
 	// Create SysContractCallCtx
 	var sysCtx *core.SysContractCallCtx
 	if leth.chainConfig.IsEspresso(block.Number()) {
-		sysCtx = core.NewSysContractCallCtx2(block.Header(), statedb.Copy(), leth.blockchain)
+		sysCtx = core.NewSysContractCallCtx(block.Header(), statedb.Copy(), leth.blockchain)
 	}
 	// Recompute transactions up to the target index.
 	signer := types.MakeSigner(leth.blockchain.Config(), block.Number())

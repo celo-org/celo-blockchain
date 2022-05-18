@@ -277,7 +277,7 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 				blockCtx := core.NewEVMBlockContext(task.block.Header(), api.chainContext(localctx), nil)
 				var sysCtx *core.SysContractCallCtx
 				if api.backend.ChainConfig().IsEspresso(blockCtx.BlockNumber) {
-					sysCtx = core.NewSysContractCallCtx2(task.block.Header(), task.statedb, api.backend)
+					sysCtx = core.NewSysContractCallCtx(task.block.Header(), task.statedb, api.backend)
 				}
 				// Trace all the transactions contained within
 				for i, tx := range task.block.Transactions() {
@@ -536,7 +536,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 			for task := range jobs {
 				var sysCtx *core.SysContractCallCtx
 				if api.backend.ChainConfig().IsEspresso(block.Number()) {
-					sysCtx = core.NewSysContractCallCtx2(block.Header(), task.statedb, api.backend)
+					sysCtx = core.NewSysContractCallCtx(block.Header(), task.statedb, api.backend)
 				}
 				msg, _ := txs[task.index].AsMessage(signer, nil)
 				txctx := &Context{
@@ -556,7 +556,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	}
 	var sysCtx *core.SysContractCallCtx
 	if api.backend.ChainConfig().IsEspresso(block.Number()) {
-		sysCtx = core.NewSysContractCallCtx2(block.Header(), statedb, api.backend)
+		sysCtx = core.NewSysContractCallCtx(block.Header(), statedb, api.backend)
 	}
 	vmRunner := api.backend.NewEVMRunner(block.Header(), statedb)
 	// Feed the transactions into the tracers and return
@@ -649,7 +649,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 	}
 	var sysCtx *core.SysContractCallCtx
 	if api.backend.ChainConfig().IsEspresso(block.Number()) {
-		sysCtx = core.NewSysContractCallCtx2(block.Header(), statedb, api.backend)
+		sysCtx = core.NewSysContractCallCtx(block.Header(), statedb, api.backend)
 	}
 	for i, tx := range block.Transactions() {
 		// Prepare the trasaction for un-traced execution
@@ -750,7 +750,7 @@ func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *
 		if err != nil {
 			return nil, err
 		}
-		sysCtx = core.NewSysContractCallCtx2(block.Header(), sysStateDB, api.backend)
+		sysCtx = core.NewSysContractCallCtx(block.Header(), sysStateDB, api.backend)
 	}
 
 	msg, vmctx, vmRunner, statedb, err := api.backend.StateAtTransaction(ctx, block, int(index), reexec)
@@ -807,7 +807,7 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 	}
 	var sysCtx *core.SysContractCallCtx
 	if api.backend.ChainConfig().IsEspresso(block.Number()) {
-		sysCtx = core.NewSysContractCallCtx2(block.Header(), statedb, api.backend)
+		sysCtx = core.NewSysContractCallCtx(block.Header(), statedb, api.backend)
 	}
 	var traceConfig *TraceConfig
 	if config != nil {

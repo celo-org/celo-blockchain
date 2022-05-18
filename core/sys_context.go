@@ -22,8 +22,17 @@ type SysContractCallCtx struct {
 	gasPriceMinimums GasPriceMinimums
 }
 
-// NewSysContractCallCtx creates the SysContractCallCtx object and makes the contract calls.
-func NewSysContractCallCtx(vmRunner vm.EVMRunner) (sc *SysContractCallCtx) {
+// runnerFactory exists to allow multiple different implementations to be
+// used as input to NewSysContractCallCtx.
+type runnerFactory interface {
+	NewEVMRunner(*types.Header, vm.StateDB) vm.EVMRunner
+}
+
+// NewSysContractCallCtx creates the SysContractCallCtx object and makes the
+// contract calls. It copies the provided state before operating on it, so the
+// provided state is not modified.
+func NewSysContractCallCtx(header *types.Header, state *state.StateDB, factory runnerFactory) (sc *SysContractCallCtx) {
+	vmRunner := factory.NewEVMRunner(header, state.Copy())
 	sc = &SysContractCallCtx{
 		whitelistedCurrencies: make(map[common.Address]struct{}),
 		gasPriceMinimums:      make(map[common.Address]*big.Int),
@@ -46,18 +55,7 @@ func NewSysContractCallCtx(vmRunner vm.EVMRunner) (sc *SysContractCallCtx) {
 		gasPriceMinimum, _ := gasprice_minimum.GetGasPriceMinimum(vmRunner, &feeCurrency)
 		sc.gasPriceMinimums[feeCurrency] = gasPriceMinimum
 	}
-
-	return
-}
-
-type runnerFactory interface {
-	NewEVMRunner(*types.Header, vm.StateDB) vm.EVMRunner
-}
-
-// NewSysContractCallCtx2 creates the SysContractCallCtx object and makes the contract calls.
-func NewSysContractCallCtx2(header *types.Header, state *state.StateDB, factory runnerFactory) (sc *SysContractCallCtx) {
-	vmRunner := factory.NewEVMRunner(header, state.Copy())
-	return NewSysContractCallCtx(vmRunner)
+	return sc
 }
 
 // GetIntrinsicGasForAlternativeFeeCurrency retrieves intrinsic gas for non-native fee currencies.
