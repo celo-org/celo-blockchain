@@ -23,11 +23,14 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/math"
+	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/log"
@@ -54,11 +57,6 @@ type ExecutionResult struct {
 	Rejected    []*rejectedTx  `json:"rejected,omitempty"`
 }
 
-type ommer struct {
-	Delta   uint64         `json:"delta"`
-	Address common.Address `json:"address"`
-}
-
 //go:generate gencodec -type stEnv -field-override stEnvMarshaling -out gen_stenv.go
 type stEnv struct {
 	Coinbase        common.Address                      `json:"currentCoinbase"   gencodec:"required"`
@@ -67,13 +65,11 @@ type stEnv struct {
 	Timestamp       uint64                              `json:"currentTimestamp"  gencodec:"required"`
 	ParentTimestamp uint64                              `json:"parentTimestamp,omitempty"`
 	BlockHashes     map[math.HexOrDecimal64]common.Hash `json:"blockHashes,omitempty"`
-	Ommers          []ommer                             `json:"ommers,omitempty"`
 	BaseFee         *big.Int                            `json:"currentBaseFee,omitempty"`
 }
 
 type stEnvMarshaling struct {
 	Coinbase        common.UnprefixedAddress
-	Difficulty      *math.HexOrDecimal256
 	GasLimit        math.HexOrDecimal64
 	Number          math.HexOrDecimal64
 	Timestamp       math.HexOrDecimal64
@@ -85,6 +81,39 @@ type rejectedTx struct {
 	Index int    `json:"index"`
 	Err   string `json:"error"`
 }
+
+// ------------- evmRunnerCtx -------------
+// evmRunnerCtx is an implementation of evmRunnerContext, and it's for building evmRunner
+type evmRunnerCtx struct {
+	vmConfig    *vm.Config
+	engine      consensus.Engine
+	header      *types.Header
+	chainConfig *params.ChainConfig
+}
+
+func (e *evmRunnerCtx) GetVMConfig() *vm.Config {
+	return e.vmConfig
+}
+
+func (e *evmRunnerCtx) Engine() consensus.Engine {
+	return e.engine
+}
+
+// GetHeader doesn't take hash and number into account, because in the test we have only one header.
+func (e *evmRunnerCtx) GetHeader(common.Hash, uint64) *types.Header {
+	return e.header
+}
+
+// GetHeaderByNumber doesn't take number into account, because in the test we have only one header.
+func (e *evmRunnerCtx) GetHeaderByNumber(uint64) *types.Header {
+	return e.header
+}
+
+func (e *evmRunnerCtx) Config() *params.ChainConfig {
+	return e.chainConfig
+}
+
+// ^------------- evmRunnerCtx -------------
 
 // Apply applies a set of transactions to a pre-state
 func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
@@ -116,10 +145,22 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 		receipts    = make(types.Receipts, 0)
 		txIndex     = 0
 	)
+	header := &types.Header{
+		Number:   new(big.Int).SetUint64(pre.Env.Number),
+		Coinbase: pre.Env.Coinbase,
+		Time:     pre.Env.Timestamp,
+	}
+	evmRunnerCtx := &evmRunnerCtx{
+		vmConfig:    &(*(&vmConfig)), // Copy to avoid race
+		engine:      consensustest.NewFaker(),
+		header:      header,
+		chainConfig: chainConfig,
+	}
+
 	gaspool.AddGas(pre.Env.GasLimit)
 	vmContext := vm.BlockContext{
-		//		CanTransfer: core.CanTransfer,
-		//		Transfer:    core.Transfer,
+		CanTransfer: vmcontext.CanTransfer,
+		Transfer:    vmcontext.TobinTransfer,
 		Coinbase:    pre.Env.Coinbase,
 		BlockNumber: new(big.Int).SetUint64(pre.Env.Number),
 		Time:        new(big.Int).SetUint64(pre.Env.Timestamp),
@@ -150,9 +191,9 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 
 		snapshot := statedb.Snapshot()
 
-		// FIXME this is broken
+		vmRunner := vmcontext.NewEVMRunner(evmRunnerCtx, header, statedb)
 		// (ret []byte, usedGas uint64, failed bool, err error)
-		msgResult, err := core.ApplyMessage(evm, msg, gaspool, nil, &core.SysContractCallCtx{})
+		msgResult, err := core.ApplyMessage(evm, msg, gaspool, vmRunner, &core.SysContractCallCtx{})
 		if err != nil {
 			statedb.RevertToSnapshot(snapshot)
 			log.Info("rejected tx", "index", i, "hash", tx.Hash(), "from", msg.From(), "error", err)
@@ -210,22 +251,8 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 		// - the coinbase suicided, or
 		// - there are only 'bad' transactions, which aren't executed. In those cases,
 		//   the coinbase gets no txfee, so isn't created, and thus needs to be touched
-		var (
-			blockReward = big.NewInt(miningReward)
-			minerReward = new(big.Int).Set(blockReward)
-			perOmmer    = new(big.Int).Div(blockReward, big.NewInt(32))
-		)
-		for _, ommer := range pre.Env.Ommers {
-			// Add 1/32th for each ommer included
-			minerReward.Add(minerReward, perOmmer)
-			// Add (8-delta)/8
-			reward := big.NewInt(8)
-			reward.Sub(reward, big.NewInt(0).SetUint64(ommer.Delta))
-			reward.Mul(reward, blockReward)
-			reward.Div(reward, big.NewInt(8))
-			statedb.AddBalance(ommer.Address, reward)
-		}
-		statedb.AddBalance(pre.Env.Coinbase, minerReward)
+		blockReward := big.NewInt(miningReward)
+		statedb.AddBalance(pre.Env.Coinbase, blockReward)
 	}
 	// Commit block
 	root, err := statedb.Commit(chainConfig.IsEIP158(vmContext.BlockNumber))
