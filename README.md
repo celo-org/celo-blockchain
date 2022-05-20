@@ -79,11 +79,7 @@ make command, for example:
 make prepare-system-contracts MONOREPO_PATH=../alt-monorepo
 ``` 
 
-Without first running this make rule, certain tests will fail with errors such
-as:
-
-panic: Can't read bytecode for monorepo/packages/protocol/build/contracts/FixidityLib.json: open
-```
+Without first running this make rule, certain tests will fail.
 
 ## Running Celo
 
