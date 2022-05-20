@@ -1398,7 +1398,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	gasPriceMinimumFloor, _ := gpm.GetGasPriceMinimumFloor(pool.currentVMRunner)
 	// atomic store of the new txPoolContext
 	newCtx := txPoolContext{
-		NewSysContractCallCtx(pool.currentVMRunner),
+		NewSysContractCallCtx(newHead, statedb, pool.chain),
 		currency.NewManager(pool.currentVMRunner),
 		gasPriceMinimumFloor,
 	}
