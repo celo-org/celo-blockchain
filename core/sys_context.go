@@ -7,27 +7,46 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 )
 
-// SysContractCallCtx represents a system contract call context for a given block (represented by vm.EVMRunner).
-// It MUST sit on the header.Root of a block, which is parent of the block we intend to deal with.
+// SysContractCallCtx acts as a cache holding information obtained through
+// system contract calls to be used during block processing.
 type SysContractCallCtx struct {
-	whitelistedCurrencies     map[common.Address]struct{}
-	gasForAlternativeCurrency uint64
+	whitelistedCurrencies map[common.Address]struct{}
+	// The gas required for a non celo (cUSD, cEUR, ...) transfer.
+	nonCeloCurrencyIntrinsicGas uint64
 	// gasPriceMinimums stores values for whitelisted currencies keyed by their contract address
 	// Note that native token(CELO) is keyed by common.ZeroAddress
 	gasPriceMinimums map[common.Address]*big.Int
 }
 
-// NewSysContractCallCtx creates the SysContractCallCtx object and makes the contract calls.
-func NewSysContractCallCtx(vmRunner vm.EVMRunner) (sc *SysContractCallCtx) {
+// runnerFactory exists to allow multiple different implementations to be
+// used as input to NewSysContractCallCtx.
+type runnerFactory interface {
+	NewEVMRunner(*types.Header, vm.StateDB) vm.EVMRunner
+}
+
+// NewSysContractCallCtx returns a SysContractCallCtx filled with data obtained
+// by calling the relevant system contracts.  This is a read only operation, no
+// state changing operations should be performed here. The provided header and
+// state should be for the parent of the block to be processed, in normal
+// operation that will be the head block.
+//
+// Since geth introduced the access list, even read only contract calls modify
+// the state (by adding to the access list) as such the provided state is
+// copied to ensure that the state provided by the caller is not modified by
+// this operation.
+func NewSysContractCallCtx(header *types.Header, state *state.StateDB, factory runnerFactory) (sc *SysContractCallCtx) {
+	vmRunner := factory.NewEVMRunner(header, state.Copy())
 	sc = &SysContractCallCtx{
 		whitelistedCurrencies: make(map[common.Address]struct{}),
 		gasPriceMinimums:      make(map[common.Address]*big.Int),
 	}
 	// intrinsic gas
-	sc.gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
+	sc.nonCeloCurrencyIntrinsicGas = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
 	// whitelist
 	whiteListedArr, err := currency.CurrencyWhitelist(vmRunner)
 	if err != nil {
@@ -44,13 +63,12 @@ func NewSysContractCallCtx(vmRunner vm.EVMRunner) (sc *SysContractCallCtx) {
 		gasPriceMinimum, _ := gasprice_minimum.GetGasPriceMinimum(vmRunner, &feeCurrency)
 		sc.gasPriceMinimums[feeCurrency] = gasPriceMinimum
 	}
-
-	return
+	return sc
 }
 
 // GetIntrinsicGasForAlternativeFeeCurrency retrieves intrinsic gas for non-native fee currencies.
 func (sc *SysContractCallCtx) GetIntrinsicGasForAlternativeFeeCurrency() uint64 {
-	return sc.gasForAlternativeCurrency
+	return sc.nonCeloCurrencyIntrinsicGas
 }
 
 // IsWhitelisted indicates if the fee currency is whitelisted, or it's native token(CELO).
