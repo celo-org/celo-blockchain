@@ -388,7 +388,3 @@ func (b *LesApiBackend) StateAtBlock(ctx context.Context, block *types.Block, re
 func (b *LesApiBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, vm.EVMRunner, *state.StateDB, error) {
 	return b.eth.stateAtTransaction(ctx, block, txIndex, reexec)
 }
-
-func (b *LesApiBackend) VmRunnerAtHeader(header *types.Header, state *state.StateDB) vm.EVMRunner {
-	return b.eth.blockchain.NewEVMRunner(header, state)
-}

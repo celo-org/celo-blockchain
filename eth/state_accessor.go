@@ -163,7 +163,7 @@ func (eth *Ethereum) stateAtTransaction(block *types.Block, txIndex int, reexec 
 	var sysCtx *core.SysContractCallCtx
 	espresso := eth.blockchain.Config().IsEspresso(block.Number())
 	if espresso {
-		sysCtx = core.NewSysContractCallCtx(eth.blockchain.NewEVMRunner(block.Header(), statedb))
+		sysCtx = core.NewSysContractCallCtx(block.Header(), statedb, eth.blockchain)
 	}
 	// Recompute transactions up to the target index.
 	signer := types.MakeSigner(eth.blockchain.Config(), block.Number())
