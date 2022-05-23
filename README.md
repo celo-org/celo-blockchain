@@ -69,11 +69,20 @@ subsequently edit the system contracts source or `monorepo_commit`, running the
 make rule again will re-checkout the monorepo, re-compile the contracts and
 copy them into place. 
 
-The checkout location  can be overridden if required, by setting it in the
-make command, for example:
+In the case that you would like to change the default monorepo checkout
+location, or that you would like to have multipe checkouts of the monorepo (at
+different versions) you can set the `MONOREPO_PATH` variable in the make
+command, for example:
+
 ```
 make prepare-system-contracts MONOREPO_PATH=../alt-monorepo
-``` 
+
+```
+Note that `MONOREPO_PATH` should not be set to point at checkouts other than
+those checked out by the `prepare-system-contracts` rule, and the checkouts
+created by the `prepare-system-contracts` rule should not be manually modifed,
+aside from changing the contract source.
+
 
 Without first running this make rule, certain tests will fail.
 
