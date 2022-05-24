@@ -233,8 +233,9 @@ func (accountType *AccountType) UnmarshalText(text []byte) error {
 	return nil
 }
 
+// path is based on https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki#path-levels
 func mustDerivationPath(accountType AccountType, idx int) accounts.DerivationPath {
-	return hdwallet.MustParseDerivationPath(fmt.Sprintf("m/%d/%d", int(accountType), idx))
+	return hdwallet.MustParseDerivationPath(fmt.Sprintf("m/44'/%d'/%d'/0/%d", MyceloCT.Int(), int(accountType), idx))
 }
 
 // DeriveAccount will derive the account corresponding to (accountType, idx) using the
