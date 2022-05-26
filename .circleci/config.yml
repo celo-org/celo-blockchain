@@ -1,13 +1,13 @@
 version: 2.1
 parameters:
   # Increment this to force cache rebuilding
-  system-contracts-cache-version:
+  monorepo-build-cache-version:
     type: integer
     default: 1
   system-contracts-path:
     type: string
     default: "compiled-system-contracts"
-  system-contracts-executor-image:
+  monreopo-build-executor-image:
     type: string
       # The system contracts executor currently needs node 12 to function,
       # this should only be changed when the version in `monorepo_commit` is
@@ -18,29 +18,15 @@ executors:
     docker:
       - image: circleci/golang:1.16
     working_directory: ~/repos/geth
-  system-contracts-executor:
+  monorepo-build-executor:
     docker:
-      - image: <<pipeline.parameters.system-contracts-executor-image>>
-    working_directory: ~/repos/geth
+      - image: <<pipeline.parameters.monreopo-build-executor-image>>
+    working_directory: ~/repos
   e2e:
     docker:
       - image: us.gcr.io/celo-testnet/circleci-node12:1.0.0
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
-      GO_VERSION: "1.16.4"
-      # CELO_MONOREPO_COMMIT_OR_BRANCH should point to a monorepo commit which is known to work, so that
-      # our CI doesn't break due to another team making changes in monorepo.
-      # * It should be updated when:
-      #     (a) changes or additions are made to the blockchain e2e tests in celo-monorepo, or
-      #     (b) a new contracts release has been merged to monorepo's master
-      #    In the latter case, we need to check whether the new contract release breaks things and update the mycelo
-      #    contracts ABI and migrations accordingly if necessary.
-      # * When updating it, update the comment with (a) the branch or commit hash, (b) the date of the change, and
-      #   (c) the contracts release it includes (`RELEASE_TAG` in the monorepo)
-
-      # b16a2d472a7cf24858f9d8b33a7185c8b81a261a is the current commit on master as of August 25, 2021, and
-      # includes contracts release 5 (core-contracts.v5)
-      CELO_MONOREPO_COMMIT_OR_BRANCH: b16a2d472a7cf24858f9d8b33a7185c8b81a261a
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 # Unfortunately we cannot use anchors to represent a set of standard steps and
 # then add or override one or more of those steps when referencing the anchor.
@@ -74,44 +60,67 @@ jobs:
           paths:
             - geth
 
-  prepare-system-contracts:
+  monorepo-build:
     parameters:
       cache-key:
         type: string
-        default: system-contracts-cache-{{ checksum "monorepo_commit" }}-<<pipeline.parameters.system-contracts-path>>-v<<pipeline.parameters.system-contracts-cache-version>>-<<pipeline.parameters.system-contracts-executor-image>>
-    executor: system-contracts-executor
+        default: monorepo-build-{{ checksum "geth/monorepo_commit" }}-v<<pipeline.parameters.monorepo-build-cache-version>>-<<pipeline.parameters.monorepo-build-executor-image>>
+      go-version:
+        type: string
+        default: "1.16.4"
+    executor: monorepo-build-executor
     resource_class: medium+
     steps:
-      - checkout
+      - checkout:
+          path: geth
       - restore_cache:
           keys:
             - <<parameters.cache-key>>
       - attach_workspace:
           at: ~/repos
       - run:
-          name: prepare system contracts
-          # Runs make prepare-system-contracts and sets the MONOREPO_COMMIT to
-          # use We also need to add the fingerprint id for the github ssh key
-          # to our known hosts in order for the monorepo post install script to
-          # work. We only do this if the cache has not been restored.
+          name: monorepo-build
+          # Runs make prepare-system-contracts which will checkout the monorepo at
+          # the version defined in the monorepo_commit file at the blockchain
+          # repo root and build the system contracts.  Then builds celotool for use in
+          # the monorepo e2e tests. The results of this are then persisted to
+          # the workspace. Although we could separate these 2 operations
+          # keeping them as one allows us to avoid duplicating any special
+          # requirements to work with the monorepo. (eg special git config... etc)
           command: |
             set -e
+            cd geth
             if [ ! -d <<pipeline.parameters.system-contracts-path>> ]; then
               # Github is phasing out the git protocol so we ensure that we use
               # https for all git operations that yarn may perform. Yarn is used by
               # the prepare-system-contracts make rule since it partially builds celo-monorepo.
               git config --global url."https://github.com".insteadOf git://github.com
 
+              # Add the fingerprint id for the github ssh key to our known
+              # hosts in order for the monorepo post install script to work.
               mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-              make prepare-system-contracts 
+              make prepare-system-contracts MONOREPO_PATH=../celo-monorepo #checkout the monorepo as sibling
+              cd ../celo-monorepo
+              yarn build --scope @celo/celotool --include-filtered-dependencies
             fi
+      - run:
+          name: Setup Go language
+          command: |
+            mkdir -p ~/repos/golang
+            wget https://dl.google.com/go/go<<parameters.go-version>>.linux-amd64.tar.gz
+            tar xf go<<parameters.go-version>>.linux-amd64.tar.gz -C ~/repos/golang
+            ~/repos/golang/go/bin/go version
       - save_cache:
           key: <<parameters.cache-key>>
           paths:
+            - ~/repos/celo-monorepo
             - ~/repos/geth/<<pipeline.parameters.system-contracts-path>>
+            - ~/repos/golang
       - persist_to_workspace:
           root: ~/repos
           paths:
+            - golang
+            - celo-monorepo
             - geth/<<pipeline.parameters.system-contracts-path>>
 
   race:
@@ -334,39 +343,6 @@ jobs:
           at: ~/repos
       - run: DATADIR=/tmp/lightest_sync_test_data MODE=lightest ./scripts/sync_test.sh
 
-  checkout-monorepo:
-    executor: e2e
-    working_directory: ~/repos
-    steps:
-      - run:
-          name: Setup celo-monorepo
-          command: |
-            set -e
-            mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-            ssh-keygen -F github.com -l -f ~/.ssh/known_hosts | grep "github.com RSA ${GITHUB_RSA_FINGERPRINT}"
-            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git celo-monorepo
-            cd celo-monorepo
-            git fetch --depth 1 origin ${CELO_MONOREPO_COMMIT_OR_BRANCH}
-            git checkout ${CELO_MONOREPO_COMMIT_OR_BRANCH}
-
-            # Github is phasing out the git protocol so we ensure that we use
-            # https for all git operations that yarn may perform.
-            git config --global url."https://github.com".insteadOf git://github.com
-            yarn install || yarn install
-            yarn build --scope @celo/celotool --include-filtered-dependencies
-      - run:
-          name: Setup Go language
-          command: |
-            mkdir -p ~/repos/golang
-            wget https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz
-            tar xf go${GO_VERSION}.linux-amd64.tar.gz -C ~/repos/golang
-            ~/repos/golang/go/bin/go version
-      - persist_to_workspace:
-          root: ~/repos
-          paths:
-            - celo-monorepo
-            - golang
-
   end-to-end-blockchain-parameters-test:
     executor: e2e
     resource_class: large
@@ -474,9 +450,8 @@ workflows:
   version: 2
   build:
     jobs:
-      - checkout-monorepo
+      - monorepo-build
       - build-geth
-      - prepare-system-contracts
       - check-imports
       - lint:
           requires:
@@ -484,22 +459,22 @@ workflows:
       - unit-tests:
           requires:
             - build-geth
-            - prepare-system-contracts
+            - monorepo-build
       - race:
           filters:
             branches:
               only: /master|release.*/
           requires:
             - build-geth
-            - prepare-system-contracts
+            - monorepo-build
       - istanbul-e2e-coverage:
           requires:
             - build-geth
-            - prepare-system-contracts
+            - monorepo-build
       - e2e-benchmarks:
           requires:
             - build-geth
-            - prepare-system-contracts
+            - monorepo-build
       - android
       - ios
       - publish-mobile-client:
@@ -525,27 +500,27 @@ workflows:
             - build-geth
       - end-to-end-blockchain-parameters-test:
           requires:
-            - checkout-monorepo
+            - monorepo-build
             - build-geth
       - end-to-end-governance-test:
           requires:
-            - checkout-monorepo
+            - monorepo-build
             - build-geth
       - end-to-end-slashing-test:
           requires:
-            - checkout-monorepo
+            - monorepo-build
             - build-geth
       - end-to-end-sync-test:
           requires:
-            - checkout-monorepo
+            - monorepo-build
             - build-geth
       - end-to-end-transfer-test:
           requires:
-            - checkout-monorepo
+            - monorepo-build
             - build-geth
       - end-to-end-validator-order-test:
           requires:
-            - checkout-monorepo
+            - monorepo-build
             - build-geth
 # Flaky!
 #      - end-to-end-cip35-eth-compatibility-test:
@@ -554,5 +529,5 @@ workflows:
 #            - build-geth
       - end-to-end-replica-test:
           requires:
-            - checkout-monorepo
+            - monorepo-build
             - build-geth
