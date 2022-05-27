@@ -4,19 +4,44 @@ import "time"
 
 type StopFn func()
 
-func RunTaskRepeateadly(task func(), period time.Duration) StopFn {
+// ticker is an interface which allows us to test RunTaskRepeateadly without
+// needing to rely on actual timing which is not perfectly accurate and thus
+// makes tests flakey.
+type ticker interface {
+	stop()
+	tickChan() <-chan time.Time
+}
+
+func NewDefaultTicker(period time.Duration) *DefaultTicker {
+	return &DefaultTicker{*time.NewTicker(period)}
+}
+
+// DefaultTicker is an implementation of ticker which simply delegates to
+// time.Ticker.
+type DefaultTicker struct {
+	t time.Ticker
+}
+
+func (d *DefaultTicker) tickChan() <-chan time.Time {
+	return d.t.C
+}
+func (d *DefaultTicker) stop() {
+	d.t.Stop()
+}
+
+func RunTaskRepeateadly(task func(), t ticker) StopFn {
 	// Setup the ticker and the channel to signal
 	// the ending of the interval
-	ticker := time.NewTicker(period)
 	stop := make(chan struct{})
 
+	println("run task started")
 	go func() {
 		for {
 			select {
-			case <-ticker.C:
+			case <-t.tickChan():
 				task()
 			case <-stop:
-				ticker.Stop()
+				t.stop()
 				return
 			}
 		}
