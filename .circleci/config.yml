@@ -22,7 +22,8 @@ executors:
       - image: circleci/golang:1.16
     environment:
       # Change the go modules to be cached under ~/repos so that we can add
-      # them to the workspace
+      # them to the workspace, this doesn't seem to work if you use the ~
+      # symbol to represent the home dir.
       GOMODCACHE: /home/circleci/repos/gomodcache
     working_directory: ~/repos/geth
   monorepo-build-executor:
@@ -79,16 +80,11 @@ jobs:
     resource_class: medium+
     steps:
       - checkout
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
+      - attach_workspace:
+          at: ~/repos
       - run:
           name: Build Geth
           command: go run build/ci.go install
-      - save_cache:
-          key: go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
-          paths:
-            - "/go/pkg/mod"
       - persist_to_workspace:
           root: ~/repos
           paths:
