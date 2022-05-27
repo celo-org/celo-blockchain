@@ -58,11 +58,13 @@ jobs:
       - attach_workspace:
           at: ~/repos
       - run: env
+      - run: go version
       - run: go mod download
       - run: pwd
       - run: ls
       - run: ls ..
       - run: ls ../gomodcache
+      - run: ls /go/pkg/mod
       - save_cache:
           key: go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
           paths:
