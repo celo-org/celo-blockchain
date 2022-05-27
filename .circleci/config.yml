@@ -59,6 +59,10 @@ jobs:
           at: ~/repos
       - run: env
       - run: go mod download
+      - run: pwd
+      - run: ls
+      - run: ls ..
+      - run: ls ../gomodcache
       - save_cache:
           key: go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
           paths:
