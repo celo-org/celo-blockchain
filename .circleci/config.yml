@@ -23,7 +23,7 @@ executors:
     environment:
       # Change the go modules to be cached under ~/repos so that we can add
       # them to the workspace
-      GOMODCACHE: ~/repos/gomodcache
+      GOMODCACHE: /home/circleci/repos/gomodcache
     working_directory: ~/repos/geth
   monorepo-build-executor:
     docker:
@@ -60,11 +60,11 @@ jobs:
       - run: env
       - run: go version
       - run: go mod download -json
-      - run: pwd
-      - run: ls
-      - run: ls ..
-      - run: ls /go/pkg/mod
-      - run: ls ../gomodcache
+      # - run: pwd
+      # - run: ls
+      # - run: ls ..
+      # - run: ls /go/pkg/mod
+      # - run: ls ../gomodcache
       - save_cache:
           key: go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
           paths:
