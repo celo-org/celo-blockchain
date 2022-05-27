@@ -59,7 +59,7 @@ jobs:
           at: ~/repos
       - run: env
       - run: go version
-      - run: go mod download
+      - run: go mod download -json
       - run: pwd
       - run: ls
       - run: ls ..
