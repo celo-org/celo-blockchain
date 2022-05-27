@@ -1,9 +1,17 @@
 version: 2.1
 parameters:
-  # Increment this to force cache rebuilding
+  # Increment these to force cache rebuilding
   system-contracts-cache-version:
     type: integer
+    default: 2
+  go-mod-cache-version:
+    type: integer
+    default: 2
+  monorepo-build-cache-version:
+    type: integer
     default: 1
+  # Location where compiled system contracts are stored under the root of this
+  # repo.
   system-contracts-path:
     type: string
     default: "compiled-system-contracts"
@@ -47,12 +55,12 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: Build Geth
           command: go run build/ci.go install
       - save_cache:
-          key: go-mod-v1-{{ checksum "go.sum" }}
+          key: go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
       - persist_to_workspace:
@@ -107,7 +115,7 @@ jobs:
           at: ~/repos
       - restore_cache:
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
       - run: go get github.com/jstemmer/go-junit-report
       - run:
           name: Run tests
@@ -128,7 +136,7 @@ jobs:
           at: ~/repos
       - restore_cache:
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
       - run: go get github.com/jstemmer/go-junit-report
       - run:
           name: Run tests
@@ -150,7 +158,7 @@ jobs:
           at: ~/repos
       - restore_cache:
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
         # Run the tests with coverage parse the coverage and output the summary
       - run:
           name: Run tests and print coverage summary
@@ -228,7 +236,7 @@ jobs:
           at: ~/repos
       - restore_cache:
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: Run benchmarks
           command: |
