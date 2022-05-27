@@ -63,8 +63,8 @@ jobs:
       - run: pwd
       - run: ls
       - run: ls ..
-      - run: ls ../gomodcache
       - run: ls /go/pkg/mod
+      - run: ls ../gomodcache
       - save_cache:
           key: go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
           paths:
