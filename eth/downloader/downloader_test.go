@@ -630,7 +630,7 @@ func testThrottling(t *testing.T, protocol uint, mode SyncMode) {
 		}
 		// Wait a bit for sync to throttle itself
 		var cached, frozen int
-		for start := time.Now(); time.Since(start) < 3*time.Second; {
+		for start := time.Now(); time.Since(start) < 6*time.Second; {
 			time.Sleep(25 * time.Millisecond)
 
 			tester.lock.Lock()
