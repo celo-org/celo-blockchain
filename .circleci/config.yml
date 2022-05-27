@@ -20,6 +20,10 @@ executors:
   golang:
     docker:
       - image: circleci/golang:1.16
+    environment:
+      # Change the go modules to be cached under ~/repos so that we can add
+      # them to the workspace
+      GOMODCACHE: ~/repos/gomodcache
     working_directory: ~/repos/geth
   monorepo-build-executor:
     docker:
@@ -43,6 +47,24 @@ unit-tests-defaults: &unit-tests-defaults
   resource_class: medium+
 
 jobs:
+  go-modules:
+    executor: golang
+    resource_class: small
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
+      - run: go mod download ./...
+      - save_cache:
+          key: go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
+          paths:
+            - ~/repos/gomodcache
+      - persist_to_workspace:
+          root: ~/repos
+          paths:
+            - gomodcache
+
   build-geth:
     executor: golang
     resource_class: medium+
@@ -465,7 +487,9 @@ workflows:
   build:
     jobs:
       - monorepo-build
-      - build-geth
+      - build-geth:
+          requires:
+            - go-modules
       - install-go
       - check-imports
       - lint:
