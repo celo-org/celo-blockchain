@@ -236,7 +236,7 @@ jobs:
           command: |
             mkdir -p /tmp/test-results
             trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
-            go test -p 1 -v -covermode=atomic -cover -coverprofile=coverage.out ./... | tee /tmp/test-results/go-test.out
+            go test -v -cover -coverprofile=coverage.out ./... | tee /tmp/test-results/go-test.out
             bash <(curl -s https://codecov.io/bash)
       - store_artifacts:
           path: /tmp/test-results
