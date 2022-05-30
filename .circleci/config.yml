@@ -74,7 +74,9 @@ jobs:
     executor: golang
     resource_class: small
     steps:
-      - checkout
+      - run:
+          name: shallow checkout
+          command: git clone --quiet --depth 1 "$CIRCLE_REPOSITORY_URL" --branch "$CIRCLE_BRANCH"
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
