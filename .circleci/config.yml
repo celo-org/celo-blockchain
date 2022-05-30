@@ -100,8 +100,8 @@ jobs:
           keys:
             - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "go.sum" }}
       - run:
-          name: Build everything
-          command: make all
+          name: Build everything to populate the cache but drop the binaries
+          command: make all & rm -rf ./build
       - run:
           name: Remove .git dir (its huge)
           command: rm -rf .git
