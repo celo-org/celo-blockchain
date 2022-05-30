@@ -118,7 +118,6 @@ jobs:
           root: ~/repos
           paths:
             - geth
-            - gocache
 
   prepare-system-contracts:
     parameters:
@@ -470,6 +469,9 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - restore_cache:
+          keys:
+            - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
       - run:
           name: End-to-end test of proof-of-stake
           no_output_timeout: 15m
@@ -486,6 +488,9 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - restore_cache:
+          keys:
+            - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
       - run:
           name: End-to-end test of syncing
           no_output_timeout: 15m
@@ -502,6 +507,9 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - restore_cache:
+          keys:
+            - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
       - run:
           name: End-to-end test of slashing
           no_output_timeout: 15m
@@ -518,6 +526,9 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - restore_cache:
+          keys:
+            - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
       - run:
           name: End-to-end test of transfers
           no_output_timeout: 15m
@@ -534,6 +545,9 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - restore_cache:
+          keys:
+            - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
       - run:
           name: End-to-end test of random validator order
           no_output_timeout: 15m
@@ -550,6 +564,9 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - restore_cache:
+          keys:
+            - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
       - run:
           name: End-to-end test of CIP 35
           no_output_timeout: 15m
@@ -566,6 +583,9 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - restore_cache:
+          keys:
+            - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
       - run:
           name: End-to-end test of hotswap functionality
           no_output_timeout: 15m
