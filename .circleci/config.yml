@@ -273,8 +273,7 @@ jobs:
     executor: golang
     resource_class: medium+
     steps:
-      - attach_workspace:
-          at: ~/repos
+      - checkout
       - run: go get github.com/jstemmer/go-junit-report
       - run:
           name: Run Linter
@@ -521,9 +520,7 @@ workflows:
             - go-modules
       - prepare-system-contracts
       - check-imports
-      - lint:
-          requires:
-            - go-modules
+      - lint
       - unit-tests:
           requires:
             - go-modules
