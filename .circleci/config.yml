@@ -342,7 +342,7 @@ jobs:
             # Github is phasing out the git protocol so we ensure that we use
             # https for all git operations that yarn may perform.
             git config --global url."https://github.com".insteadOf git://github.com
-            yarn install --production=true
+            yarn install
             yarn build --scope @celo/celotool --include-filtered-dependencies
             # Clear out unnecessary stuff
             curl -sf https://gobinaries.com/tj/node-prune | sh
