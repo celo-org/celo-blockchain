@@ -134,6 +134,7 @@ jobs:
   race:
     <<: *unit-tests-defaults
     steps:
+      - checkout
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -155,6 +156,7 @@ jobs:
   unit-tests:
     <<: *unit-tests-defaults
     steps:
+      - checkout
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -177,6 +179,7 @@ jobs:
   istanbul-e2e-coverage:
     <<: *unit-tests-defaults
     steps:
+      - checkout
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -255,6 +258,7 @@ jobs:
     executor: golang
     resource_class: medium+
     steps:
+      - checkout
       - attach_workspace:
           at: ~/repos
       - restore_cache:
