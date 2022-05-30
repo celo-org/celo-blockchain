@@ -10,15 +10,22 @@ parameters:
   go-cache-version:
     type: integer
     default: 2
-  monorepo-build-cache-version:
+  checkout-monorepo-cache-version:
     type: integer
-    default: 1
+    default: 2
   # Location where compiled system contracts are stored under the root of this
   # repo.
   system-contracts-path:
     type: string
     default: "compiled-system-contracts"
   system-contracts-executor-image:
+    type:
+      string
+      # The system contracts executor currently needs node 12 to function,
+      # this should only be changed when the version in `monorepo_commit` is
+      # changed.
+    default: "us.gcr.io/celo-testnet/circleci-node12:1.0.0"
+  e2e-executor-image:
     type:
       string
       # The system contracts executor currently needs node 12 to function,
@@ -42,7 +49,7 @@ executors:
     working_directory: ~/repos/geth
   e2e:
     docker:
-      - image: us.gcr.io/celo-testnet/circleci-node12:1.0.0
+      - image: <<pipeline.parameters.e2e-executor-image>>
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
       # Change the go modules and build cache to be cached under ~/repos so
@@ -384,46 +391,55 @@ jobs:
     executor: e2e
     working_directory: ~/repos
     parameters:
+      cache-key:
+        type: string
+        default: checkout-monorepo-{{ checksum "geth/monorepo_commit" }}-v<<pipeline.parameters.checkout-monorepo-cache-version>>-<<pipeline.parameters.e2e-executor-image>>
       go-version:
         type: string
         default: "1.16.4"
     steps:
       - checkout:
           path: geth
+      - restore_cache:
+          keys:
+            - <<parameters.cache-key>>
       - run:
-          name: Setup celo-monorepo
+          name: Setup celo-monorepo for e2e tests
           command: |
             set -e
-            mc=`cat geth/monorepo_commit`
-            git clone --quiet --depth 1 --branch ${mc} https://github.com/celo-org/celo-monorepo.git
-            cd celo-monorepo
+            # only run this if the cache was not restored
+            if [ ! -d ./celo-monorepo ]; then
+              mc=`cat geth/monorepo_commit`
+              git clone --quiet --depth 1 --branch ${mc} https://github.com/celo-org/celo-monorepo.git
+              cd celo-monorepo
 
-            # Github is phasing out the git protocol so we ensure that we use
-            # https for all git operations that yarn may perform.
-            git config --global url."https://github.com".insteadOf git://github.com
+              # Github is phasing out the git protocol so we ensure that we use
+              # https for all git operations that yarn may perform.
+              git config --global url."https://github.com".insteadOf git://github.com
 
-            # See if we can chuck some files by autocleaning
-            yarn autoclean --init
+              # See if we can chuck some files by autocleaning
+              yarn autoclean --init
 
-            # Note we can't install for production only since the the build
-            # script and many others depend on lerna, which is a dev
-            # dependency.
-            yarn install
-            yarn build --scope @celo/celotool --include-filtered-dependencies
+              # Note we can't install for production only since the the build
+              # script and many others depend on lerna, which is a dev
+              # dependency.
+              yarn install
+              yarn build --scope @celo/celotool --include-filtered-dependencies
 
-            # Clearing out stuff with, for example, node-prune seems not to
-            # work here, because the e2e tests make use of some test files only
-            # referenced from shell scripts.
+              # Clear out unnecessary stuff
+              rm -rf .git
 
-            # Clear out unnecessary stuff
-            rm -rf .git
-      - run:
-          name: Setup Go language
-          command: |
-            mkdir -p ~/repos/golang
-            wget https://dl.google.com/go/go<<parameters.go-version>>.linux-amd64.tar.gz
-            tar xf go<<parameters.go-version>>.linux-amd64.tar.gz -C ~/repos/golang
-            ~/repos/golang/go/bin/go version
+              # Install go so the e2e tests can build geth
+              mkdir -p ~/repos/golang
+              wget https://dl.google.com/go/go<<parameters.go-version>>.linux-amd64.tar.gz
+              tar xf go<<parameters.go-version>>.linux-amd64.tar.gz -C ~/repos/golang
+              ~/repos/golang/go/bin/go version
+            fi
+      - save_cache:
+          key: <<parameters.cache-key>>
+          paths:
+            - ~/repos/celo-monorepo
+            - ~/repos/golang
       - persist_to_workspace:
           root: ~/repos
           paths:
