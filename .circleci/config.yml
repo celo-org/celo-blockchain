@@ -345,8 +345,6 @@ jobs:
             yarn install
             yarn build --scope @celo/celotool --include-filtered-dependencies
             # Clear out unnecessary stuff
-            curl -sf https://gobinaries.com/tj/node-prune | sh
-            node-prune
             rm -rf .git
       - run:
           name: Setup Go language
