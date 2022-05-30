@@ -26,22 +26,7 @@ executors:
     docker:
       - image: us.gcr.io/celo-testnet/circleci-node12:1.0.0
     working_directory: ~/repos/celo-monorepo/packages/celotool
-    environment:
-      GO_VERSION: "1.16.4"
-      # CELO_MONOREPO_COMMIT_OR_BRANCH should point to a monorepo commit which is known to work, so that
-      # our CI doesn't break due to another team making changes in monorepo.
-      # * It should be updated when:
-      #     (a) changes or additions are made to the blockchain e2e tests in celo-monorepo, or
-      #     (b) a new contracts release has been merged to monorepo's master
-      #    In the latter case, we need to check whether the new contract release breaks things and update the mycelo
-      #    contracts ABI and migrations accordingly if necessary.
-      # * When updating it, update the comment with (a) the branch or commit hash, (b) the date of the change, and
-      #   (c) the contracts release it includes (`RELEASE_TAG` in the monorepo)
 
-      # b16a2d472a7cf24858f9d8b33a7185c8b81a261a is the current commit on master as of August 25, 2021, and
-      # includes contracts release 5 (core-contracts.v5)
-      CELO_MONOREPO_COMMIT_OR_BRANCH: b16a2d472a7cf24858f9d8b33a7185c8b81a261a
-      GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 # Unfortunately we cannot use anchors to represent a set of standard steps and
 # then add or override one or more of those steps when referencing the anchor.
 # This would be useful because a lot of jobs share many steps, it is not
@@ -337,29 +322,36 @@ jobs:
   checkout-monorepo:
     executor: e2e
     working_directory: ~/repos
+    parameters:
+      go-version:
+        type: string
+        default: "1.16.4"
     steps:
+      - checkout
       - run:
           name: Setup celo-monorepo
           command: |
             set -e
             mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-            ssh-keygen -F github.com -l -f ~/.ssh/known_hosts | grep "github.com RSA ${GITHUB_RSA_FINGERPRINT}"
-            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git celo-monorepo
+            mc=`cat geth/monorepo_commit`
+            git clone --quiet --depth 1 --branch ${mc} https://github.com/celo-org/celo-monorepo.git
             cd celo-monorepo
-            git fetch --depth 1 origin ${CELO_MONOREPO_COMMIT_OR_BRANCH}
-            git checkout ${CELO_MONOREPO_COMMIT_OR_BRANCH}
 
             # Github is phasing out the git protocol so we ensure that we use
             # https for all git operations that yarn may perform.
             git config --global url."https://github.com".insteadOf git://github.com
-            yarn install || yarn install
+            yarn install --production=true
             yarn build --scope @celo/celotool --include-filtered-dependencies
+            # Clear out unnecessary stuff
+            curl -sf https://gobinaries.com/tj/node-prune | sh
+            node-prune
+            rm -rf .git
       - run:
           name: Setup Go language
           command: |
             mkdir -p ~/repos/golang
-            wget https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz
-            tar xf go${GO_VERSION}.linux-amd64.tar.gz -C ~/repos/golang
+            wget https://dl.google.com/go/go<<parameters.go-version>>.linux-amd64.tar.gz
+            tar xf go<<parameters.go-version>>.linux-amd64.tar.gz -C ~/repos/golang
             ~/repos/golang/go/bin/go version
       - persist_to_workspace:
           root: ~/repos
