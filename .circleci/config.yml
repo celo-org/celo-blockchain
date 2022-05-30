@@ -27,6 +27,11 @@ executors:
     docker:
       - image: circleci/golang:1.16
     working_directory: ~/repos/geth
+    environment:
+      # Change the go modules to be cached under ~/repos so that we can add
+      # them to the workspace, this doesn't seem to work if you use the ~
+      # symbol to represent the home dir.
+      GOMODCACHE: /home/circleci/repos/gomodcache
   system-contracts-executor:
     docker:
       - image: <<pipeline.parameters.system-contracts-executor-image>>
@@ -35,6 +40,12 @@ executors:
     docker:
       - image: us.gcr.io/celo-testnet/circleci-node12:1.0.0
     working_directory: ~/repos/celo-monorepo/packages/celotool
+    environment:
+      # Change the go modules and build cache to be cached under ~/repos so
+      # that we can add them to the workspace, this doesn't seem to work if you
+      # use the ~ symbol to represent the home dir.
+      GOMODCACHE: /home/circleci/repos/gomodcache
+      GOCACHE: /home/circleci/repos/gocache
 
 # Unfortunately we cannot use anchors to represent a set of standard steps and
 # then add or override one or more of those steps when referencing the anchor.
@@ -48,6 +59,20 @@ unit-tests-defaults: &unit-tests-defaults
   resource_class: medium+
 
 jobs:
+  go-modules:
+    executor: golang
+    resource_class: small
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
+      - run: go mod download
+      - save_cache:
+          key: go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
+          paths:
+            - ~/repos/gomodcache
+
   build-geth:
     executor: golang
     resource_class: medium+
@@ -59,14 +84,12 @@ jobs:
       - run:
           name: Build Geth
           command: go run build/ci.go install
-      - save_cache:
-          key: go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
-          paths:
-            - "/go/pkg/mod"
       - persist_to_workspace:
           root: ~/repos
           paths:
             - geth
+            - gomodcache
+            - gocache
 
   prepare-system-contracts:
     parameters:
@@ -279,6 +302,9 @@ jobs:
     working_directory: ~/repos/geth
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: Compile android client
           command: make android
@@ -293,6 +319,9 @@ jobs:
     working_directory: ~/repos/geth
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: Setup Go language
           command: |
@@ -485,31 +514,34 @@ workflows:
   version: 2
   build:
     jobs:
+      - go-modules
       - checkout-monorepo
-      - build-geth
+      - build-geth:
+          requires:
+            - go-modules
       - prepare-system-contracts
       - check-imports
       - lint:
           requires:
-            - build-geth
+            - go-modules
       - unit-tests:
           requires:
-            - build-geth
+            - go-modules
             - prepare-system-contracts
       - race:
           filters:
             branches:
               only: /master|release.*/
           requires:
-            - build-geth
+            - go-modules
             - prepare-system-contracts
       - istanbul-e2e-coverage:
           requires:
-            - build-geth
+            - go-modules
             - prepare-system-contracts
       - e2e-benchmarks:
           requires:
-            - build-geth
+            - go-modules
             - prepare-system-contracts
       - android
       - ios
