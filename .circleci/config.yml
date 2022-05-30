@@ -7,6 +7,9 @@ parameters:
   go-mod-cache-version:
     type: integer
     default: 3
+  go-cache-version:
+    type: integer
+    default: 1
   monorepo-build-cache-version:
     type: integer
     default: 1
@@ -32,6 +35,7 @@ executors:
       # them to the workspace, this doesn't seem to work if you use the ~
       # symbol to represent the home dir.
       GOMODCACHE: /home/circleci/repos/gomodcache
+      GOCACHE: /home/circleci/repos/gocache
   system-contracts-executor:
     docker:
       - image: <<pipeline.parameters.system-contracts-executor-image>>
@@ -81,9 +85,16 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
+      - restore_cache:
+          keys:
+            - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: Build Geth
           command: go run build/ci.go install
+      - save_cache:
+          key: go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "go.sum" }}
+          paths:
+            - ~/repos/gocache
       - persist_to_workspace:
           root: ~/repos
           paths:
