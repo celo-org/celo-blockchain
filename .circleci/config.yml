@@ -334,7 +334,6 @@ jobs:
           name: Setup celo-monorepo
           command: |
             set -e
-            mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
             mc=`cat geth/monorepo_commit`
             git clone --quiet --depth 1 --branch ${mc} https://github.com/celo-org/celo-monorepo.git
             cd celo-monorepo
@@ -342,8 +341,17 @@ jobs:
             # Github is phasing out the git protocol so we ensure that we use
             # https for all git operations that yarn may perform.
             git config --global url."https://github.com".insteadOf git://github.com
+
+            # Note we can't install for production only since the the build
+            # script and many others depend on lerna, which is a dev
+            # dependency.
             yarn install
             yarn build --scope @celo/celotool --include-filtered-dependencies
+
+            # Clearing out stuff with, for example, node-prune seems not to
+            # work here, because the e2e tests make use of some test files only
+            # referenced from shell scripts.
+
             # Clear out unnecessary stuff
             rm -rf .git
       - run:
