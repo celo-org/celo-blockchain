@@ -111,7 +111,6 @@ jobs:
           root: ~/repos
           paths:
             - geth
-            - gomodcache
             - gocache
 
   prepare-system-contracts:
@@ -437,6 +436,9 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/repos
+      - restore_cache:
+          keys:
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: End-to-end test of governable blockchain parameters
           command: |
@@ -449,6 +451,9 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/repos
+      - restore_cache:
+          keys:
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: End-to-end test of proof-of-stake
           no_output_timeout: 15m
@@ -462,6 +467,9 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/repos
+      - restore_cache:
+          keys:
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: End-to-end test of syncing
           no_output_timeout: 15m
@@ -475,6 +483,9 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/repos
+      - restore_cache:
+          keys:
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: End-to-end test of slashing
           no_output_timeout: 15m
@@ -488,6 +499,9 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/repos
+      - restore_cache:
+          keys:
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: End-to-end test of transfers
           no_output_timeout: 15m
@@ -501,6 +515,9 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/repos
+      - restore_cache:
+          keys:
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: End-to-end test of random validator order
           no_output_timeout: 15m
@@ -514,6 +531,9 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/repos
+      - restore_cache:
+          keys:
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: End-to-end test of CIP 35
           no_output_timeout: 15m
@@ -527,6 +547,9 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/repos
+      - restore_cache:
+          keys:
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: End-to-end test of hotswap functionality
           no_output_timeout: 15m
