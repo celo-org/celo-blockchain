@@ -341,10 +341,8 @@ jobs:
       xcode: "12.5.1"
     working_directory: ~/repos/geth
     steps:
+      # Note the macos executor does not seem to be able to restore caches.
       - checkout
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: Setup Go language
           command: |
