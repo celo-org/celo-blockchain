@@ -91,6 +91,15 @@ jobs:
       - run:
           name: Build Geth
           command: go run build/ci.go install
+      - run:
+          name: du geth
+          command: du -h -d 1 | sort -h
+      - run:
+          name: du gocache
+          command: du -sh ~/repos/gocache
+      - run:
+          name: du gocache
+          command: du -sh ~/repos/gomodcache
       - save_cache:
           key: go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "go.sum" }}
           paths:
