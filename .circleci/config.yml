@@ -342,6 +342,9 @@ jobs:
             # https for all git operations that yarn may perform.
             git config --global url."https://github.com".insteadOf git://github.com
 
+            # See if we can chuck some files by autocleaning
+            yarn autoclean --init
+
             # Note we can't install for production only since the the build
             # script and many others depend on lerna, which is a dev
             # dependency.
