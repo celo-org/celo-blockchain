@@ -9,7 +9,7 @@ parameters:
     default: 3
   go-cache-version:
     type: integer
-    default: 2
+    default: 3
   checkout-monorepo-cache-version:
     type: integer
     default: 2
@@ -101,7 +101,7 @@ jobs:
             - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: Build everything
-          command: go build ./...
+          command: make all
       - run:
           name: Remove .git dir (its huge)
           command: rm -rf .git
