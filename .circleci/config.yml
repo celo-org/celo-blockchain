@@ -78,7 +78,7 @@ jobs:
           name: shallow checkout
           command: |
             mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-            git clone --quiet --depth 1 "$CIRCLE_REPOSITORY_URL" --branch "$CIRCLE_BRANCH"
+            git clone --quiet --depth 1 "$CIRCLE_REPOSITORY_URL" --branch "$CIRCLE_BRANCH" ~/repos/geth
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
