@@ -121,6 +121,46 @@ jobs:
           paths:
             - geth
 
+  build-all-plain:
+    executor: golang
+    resource_class: medium+
+    steps:
+      - checkout
+      - run: go run build/ci.go install
+
+  build-all-with-both-caches:
+    executor: golang
+    resource_class: medium+
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
+      - restore_cache:
+          keys:
+            - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "go.sum" }}
+      - run: go run build/ci.go install
+
+  build-all-with-mod:
+    executor: golang
+    resource_class: medium+
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
+      - run: go run build/ci.go install
+
+  build-all-with-gocahce:
+    executor: golang
+    resource_class: medium+
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "go.sum" }}
+      - run: go run build/ci.go install
+
   prepare-system-contracts:
     parameters:
       cache-key:
@@ -604,6 +644,16 @@ workflows:
       - build-geth:
           requires:
             - go-modules
+      - build-all-plain
+      - build-all-with-both-caches:
+          requires:
+            - build-geth
+      - build-all-with-mod:
+          requires:
+            - build-geth
+      - build-all-with-gocahce:
+          requires:
+            - build-geth
       - prepare-system-contracts
       - check-imports
       - lint
