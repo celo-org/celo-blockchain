@@ -9,7 +9,7 @@ parameters:
     default: 3
   go-cache-version:
     type: integer
-    default: 1
+    default: 2
   monorepo-build-cache-version:
     type: integer
     default: 1
@@ -89,8 +89,8 @@ jobs:
           keys:
             - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "go.sum" }}
       - run:
-          name: Build Geth
-          command: go run build/ci.go install
+          name: Build everything
+          command: go build ./...
       - run:
           name: du geth
           command: du -h -d 1 | sort -h
