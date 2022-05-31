@@ -236,7 +236,8 @@ jobs:
           path: /tmp/test-results
 
   unit-tests:
-    <<: *unit-tests-defaults
+    executor: golang
+    resource_class: xlarge
     steps:
       - <<: *shallow-checkout
       - attach_workspace:
