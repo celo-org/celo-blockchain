@@ -531,6 +531,7 @@ jobs:
     resource_class: large
     steps:
       - <<: *shallow-checkout
+      - <<: *install-go
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -593,6 +594,7 @@ jobs:
     resource_class: xlarge
     steps:
       - <<: *shallow-checkout
+      - <<: *install-go
       - attach_workspace:
           at: ~/repos
       - restore_cache:
