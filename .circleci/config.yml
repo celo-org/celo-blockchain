@@ -1,3 +1,85 @@
+# A note on performance.
+#
+# TL;DR: Storing and retrieveing from workspaces is slow so use it sparingly
+# for things that take a long time to generate/get and cannot be cached.
+#
+# Long version:
+#
+# Storing and retrieveing data from workspaces seems to be slow. And
+# caches/checkouts/plain downloads appear to be faster. Some numbers ...
+#
+####
+#
+# Restoring repo dir (no binaries) (65M) + gocache (243M) + gomodcache (1.5G)
+# from a workspace takes approx 121s
+#
+# Restoring repo dir (no binaries) (65M) + gocache (243M) from a workspace
+# takes approx 52s and then restoring the gomodcache (1.5G) from a cache takes
+# approx 12s, so 64s total, so a reduction of 57s which is almost half the
+# time!
+#
+####
+#
+# Restoring monorepo dir + celo-blockchain  + go install (684M) from workspace
+# approx 51s.
+#
+# Restoring monorepo dir + go install (659M) from workspace approx 37s +
+# shallow ceckout celo-monorepo 2s, so a total of 39s a 12 second improvement.
+#
+####
+#
+# Restoring monorepo dir + golang install from workspace (659M) takes
+# approx 35s.
+#
+# Downloading and installing go (109M) takes approx 4s and restoring monorepo
+# dir from (414M) takes approx 28s, so a total of 32s, so a 3s improvement.
+#
+#######
+#
+# As can be seen from the above numbers restoring from workspaces are
+# significantly slower than caches, a fair bit slower than github checkouts and
+# a little bit slower than downloading and installing go.
+#
+# Since workspaces are scoped to a workflow you need to persist to a workspace
+# in your workflow before you can read from it, which further slows the build
+# time and persisting seems to take about twice as long as retrieving. And on
+# top of that remember that before persisting you will need to run the task
+# that you would otherwise run direcltly in a downstream job.
+#
+# Workspaces work best for small amounts of data that take a long time to
+# generate that we want to share between many jobs without having to duplicate
+# everywhere the logic to generate the data.
+#
+# How are we using them?
+#
+# We are currently using workspaces to store the compiled-system-contracts
+# (4.7M) which take about 5 minutes to generate 2s to persist to the workspace
+# and 0s to restore from the workspace, we also cache them so that most of the
+# time we can skip the build step and simply persist
+# the cache to the workspace. This is saving about 4 minutes per build.
+#
+# We also persist the entire contents of the celo-monorepo after running
+# install and build (414M) to the workspace for e2e tests although this is very
+# large the time to generate the data is about 8m and duplicating the
+# functionality to build it across all dependent jobs would be unwieldy.
+# Persisting takes 1m5s and restoring 27s and restoring the cache takes 36s
+# meaning that on average we are reducing build times by about 6m with this use
+# of a workspace. Interestingly in this case the workspace restore is faster
+# than the cache, but when you take into account that you have to wait 1m7s to
+# persist it first, it is no longer faste.
+#
+########
+#
+# The structure of this workflow
+#
+# We have a central folder ~/repos under which there are paths which are used
+# throughout the workflow:
+#
+# - geth: The celo-blockchain checkout
+# - celo-monorepo: The celo-monorepo checkout
+# - golang: A golang installation
+# - gocache: A folder containing intermediate compilation results for golang
+# - gomodcache: A folder containing downloaded modules for golang
 version: 2.1
 parameters:
   # Increment these to force cache rebuilding
