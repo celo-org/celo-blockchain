@@ -507,7 +507,7 @@ jobs:
 
   end-to-end-governance-test:
     executor: e2e
-    resource_class: xlarge
+    resource_class: 2xlarge
     steps:
       - <<: *shallow-checkout
       - <<: *install-go
