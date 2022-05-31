@@ -114,8 +114,13 @@ jobs:
           keys:
             - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "go.sum" }}
       - run:
-          name: Build everything to populate the cache but drop the binaries
-          command: make all
+          name: Build everything to populate the cache
+          command: |
+            set -e
+            # Only build if we don't have a cache
+            if [ ! -d /home/circleci/repos/gocache ]; then
+              make all
+            fi
       - run:
           name: du geth
           command: du -h -d 1 | sort -h
