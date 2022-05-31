@@ -12,7 +12,7 @@ parameters:
     default: 3
   checkout-monorepo-cache-version:
     type: integer
-    default: 2
+    default: 3
   # Location where compiled system contracts are stored under the root of this
   # repo.
   system-contracts-path:
@@ -78,6 +78,15 @@ shallow-checkout: &shallow-checkout
         mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
         git clone --quiet --depth 1 "$CIRCLE_REPOSITORY_URL" --branch "$CIRCLE_BRANCH" ~/repos/geth
 
+install-go: &install-go
+  - run:
+      name: install go
+      command: |
+        # Install go so the e2e tests can build geth
+        mkdir -p ~/repos/golang
+        wget https://dl.google.com/go/go1.16.4.linux-amd64.tar.gz
+        tar xf go1.16.4.linux-amd64.tar.gz -C ~/repos/golang
+        ~/repos/golang/go/bin/go version
 jobs:
   go-modules:
     executor: golang
@@ -433,9 +442,6 @@ jobs:
       cache-key:
         type: string
         default: checkout-monorepo-{{ checksum "geth/monorepo_commit" }}-v<<pipeline.parameters.checkout-monorepo-cache-version>>-<<pipeline.parameters.e2e-executor-image>>
-      go-version:
-        type: string
-        default: "1.16.4"
     steps:
       - <<: *shallow-checkout
       - restore_cache:
@@ -466,29 +472,22 @@ jobs:
 
               # Clear out unnecessary stuff
               rm -rf .git
-
-              # Install go so the e2e tests can build geth
-              mkdir -p ~/repos/golang
-              wget https://dl.google.com/go/go<<parameters.go-version>>.linux-amd64.tar.gz
-              tar xf go<<parameters.go-version>>.linux-amd64.tar.gz -C ~/repos/golang
-              ~/repos/golang/go/bin/go version
             fi
       - save_cache:
           key: <<parameters.cache-key>>
           paths:
             - ~/repos/celo-monorepo
-            - ~/repos/golang
       - persist_to_workspace:
           root: ~/repos
           paths:
             - celo-monorepo
-            - golang
 
   end-to-end-blockchain-parameters-test:
     executor: e2e
     resource_class: large
     steps:
       - <<: *shallow-checkout
+      - <<: *install-go
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -505,6 +504,7 @@ jobs:
     resource_class: xlarge
     steps:
       - <<: *shallow-checkout
+      - <<: *install-go
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -545,6 +545,7 @@ jobs:
     resource_class: large
     steps:
       - <<: *shallow-checkout
+      - <<: *install-go
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -565,6 +566,7 @@ jobs:
     resource_class: large
     steps:
       - <<: *shallow-checkout
+      - <<: *install-go
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -605,6 +607,7 @@ jobs:
     resource_class: xlarge
     steps:
       - <<: *shallow-checkout
+      - <<: *install-go
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -625,6 +628,7 @@ jobs:
     resource_class: xlarge
     steps:
       - <<: *shallow-checkout
+      - <<: *install-go
       - attach_workspace:
           at: ~/repos
       - restore_cache:
