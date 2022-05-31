@@ -189,12 +189,18 @@ jobs:
     resource_class: medium+
     steps:
       - <<: *shallow-checkout
+        # output the current month to a file, we'll use this to rotate the
+        # gocache monthly.  This is because most of what is in the gocache will
+        # be related to the go modules but some of it will be related to the
+        # repo code, but we don't want to rebuild on every commit, so instead
+        # we regenerate the cache monthly.
+      - run: date +%m > month
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
       - restore_cache:
           keys:
-            - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "go.sum" }}
+            - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "go.sum" }}-{{ checksum "month" }}
       - run:
           name: Build everything to populate the cache
           command: |
