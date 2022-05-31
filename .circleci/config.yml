@@ -437,8 +437,14 @@ jobs:
   lightest-sync-test:
     executor: golang
     steps:
-      - attach_workspace:
-          at: ~/repos
+      - <<: *shallow-checkout
+      - restore_cache:
+          keys:
+            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - restore_cache:
+          keys:
+            - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - run: make geth
       - run: DATADIR=/tmp/lightest_sync_test_data MODE=lightest ./scripts/sync_test.sh
 
   checkout-monorepo:
