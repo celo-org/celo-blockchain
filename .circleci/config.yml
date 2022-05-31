@@ -106,13 +106,10 @@ jobs:
             - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: Build everything to populate the cache but drop the binaries
-          command: make all & rm -rf ./build/bin ./build/cache
+          command: make all
       - run:
           name: du geth
           command: du -h -d 1 | sort -h
-      - run:
-          name: Remove .git dir (its huge)
-          command: rm -rf .git
       - run:
           name: du gocache
           command: du -sh ~/repos/gocache
@@ -123,10 +120,6 @@ jobs:
           key: go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "go.sum" }}
           paths:
             - ~/repos/gocache
-      - persist_to_workspace:
-          root: ~/repos
-          paths:
-            - geth
 
   build-all-plain:
     executor: golang
@@ -495,6 +488,7 @@ jobs:
     executor: e2e
     resource_class: large
     steps:
+      - <<: *shallow-checkout
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -510,6 +504,7 @@ jobs:
     executor: e2e
     resource_class: xlarge
     steps:
+      - <<: *shallow-checkout
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -529,6 +524,7 @@ jobs:
     executor: e2e
     resource_class: large
     steps:
+      - <<: *shallow-checkout
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -548,6 +544,7 @@ jobs:
     executor: e2e
     resource_class: large
     steps:
+      - <<: *shallow-checkout
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -567,6 +564,7 @@ jobs:
     executor: e2e
     resource_class: large
     steps:
+      - <<: *shallow-checkout
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -586,6 +584,7 @@ jobs:
     executor: e2e
     resource_class: xlarge
     steps:
+      - <<: *shallow-checkout
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -605,6 +604,7 @@ jobs:
     executor: e2e
     resource_class: xlarge
     steps:
+      - <<: *shallow-checkout
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -624,6 +624,7 @@ jobs:
     executor: e2e
     resource_class: xlarge
     steps:
+      - <<: *shallow-checkout
       - attach_workspace:
           at: ~/repos
       - restore_cache:
