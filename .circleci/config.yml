@@ -505,6 +505,9 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - restore_cache:
+          keys:
+            - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
       - run:
           name: End-to-end test of governable blockchain parameters
           command: |
