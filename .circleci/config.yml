@@ -69,16 +69,19 @@ unit-tests-defaults: &unit-tests-defaults
   executor: golang
   resource_class: medium+
 
+shallow-checkout: &shallow-checkout
+  - run:
+      name: shallow checkout
+      command: |
+        mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+        git clone --quiet --depth 1 "$CIRCLE_REPOSITORY_URL" --branch "$CIRCLE_BRANCH" ~/repos/geth
+
 jobs:
   go-modules:
     executor: golang
     resource_class: small
     steps:
-      - run:
-          name: shallow checkout
-          command: |
-            mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-            git clone --quiet --depth 1 "$CIRCLE_REPOSITORY_URL" --branch "$CIRCLE_BRANCH" ~/repos/geth
+      - <<: *shallow-checkout
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
@@ -92,7 +95,11 @@ jobs:
     executor: golang
     resource_class: medium+
     steps:
-      - checkout
+      - run:
+          name: shallow checkout
+          command: |
+            mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+            git clone --quiet --depth 1 "$CIRCLE_REPOSITORY_URL" --branch "$CIRCLE_BRANCH" ~/repos/geth
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
