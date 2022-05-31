@@ -69,6 +69,8 @@ unit-tests-defaults: &unit-tests-defaults
   executor: golang
   resource_class: medium+
 
+# The default circle ci checkout does a full checkout and that brings about
+# 450M of history that we don't need.
 shallow-checkout: &shallow-checkout
   - run:
       name: shallow checkout
@@ -95,11 +97,7 @@ jobs:
     executor: golang
     resource_class: medium+
     steps:
-      - run:
-          name: shallow checkout
-          command: |
-            mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-            git clone --quiet --depth 1 "$CIRCLE_REPOSITORY_URL" --branch "$CIRCLE_BRANCH" ~/repos/geth
+      - <<: *shallow-checkout
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
@@ -108,13 +106,13 @@ jobs:
             - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "go.sum" }}
       - run:
           name: Build everything to populate the cache but drop the binaries
-          command: make all & rm -rf ./build
-      - run:
-          name: Remove .git dir (its huge)
-          command: rm -rf .git
+          command: make all & rm -rf ./build/bin ./build/cache
       - run:
           name: du geth
           command: du -h -d 1 | sort -h
+      - run:
+          name: Remove .git dir (its huge)
+          command: rm -rf .git
       - run:
           name: du gocache
           command: du -sh ~/repos/gocache
@@ -134,14 +132,14 @@ jobs:
     executor: golang
     resource_class: medium+
     steps:
-      - checkout
+      - <<: *shallow-checkout
       - run: go run build/ci.go install
 
   build-all-with-both-caches:
     executor: golang
     resource_class: medium+
     steps:
-      - checkout
+      - <<: *shallow-checkout
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
@@ -154,7 +152,7 @@ jobs:
     executor: golang
     resource_class: medium+
     steps:
-      - checkout
+      - <<: *shallow-checkout
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
@@ -164,7 +162,7 @@ jobs:
     executor: golang
     resource_class: medium+
     steps:
-      - checkout
+      - <<: *shallow-checkout
       - restore_cache:
           keys:
             - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "go.sum" }}
@@ -178,12 +176,10 @@ jobs:
     executor: system-contracts-executor
     resource_class: medium+
     steps:
-      - checkout
+      - <<: *shallow-checkout
       - restore_cache:
           keys:
             - <<parameters.cache-key>>
-      - attach_workspace:
-          at: ~/repos
       - run:
           name: prepare system contracts
           # Runs make prepare-system-contracts and sets the MONOREPO_COMMIT to
@@ -213,7 +209,7 @@ jobs:
   race:
     <<: *unit-tests-defaults
     steps:
-      - checkout
+      - <<: *shallow-checkout
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -235,7 +231,7 @@ jobs:
   unit-tests:
     <<: *unit-tests-defaults
     steps:
-      - checkout
+      - <<: *shallow-checkout
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -258,7 +254,7 @@ jobs:
   istanbul-e2e-coverage:
     <<: *unit-tests-defaults
     steps:
-      - checkout
+      - <<: *shallow-checkout
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -337,7 +333,7 @@ jobs:
     executor: golang
     resource_class: medium+
     steps:
-      - checkout
+      - <<: *shallow-checkout
       - attach_workspace:
           at: ~/repos
       - restore_cache:
@@ -356,7 +352,7 @@ jobs:
     executor: golang
     resource_class: medium+
     steps:
-      - checkout
+      - <<: *shallow-checkout
       - run: go get github.com/jstemmer/go-junit-report
       - run:
           name: Run Linter
@@ -373,7 +369,7 @@ jobs:
   check-imports:
     executor: golang
     steps:
-      - checkout
+      - <<: *shallow-checkout
       - run:
           name: Check imports to ensure we are using github.com/celo-org/celo-blockchain
           command: ./scripts/check_imports.sh
@@ -383,7 +379,7 @@ jobs:
       - image: us.gcr.io/celo-testnet/android:v3
     working_directory: ~/repos/geth
     steps:
-      - checkout
+      - <<: *shallow-checkout
       - restore_cache:
           keys:
             - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
@@ -401,7 +397,7 @@ jobs:
     working_directory: ~/repos/geth
     steps:
       # Note the macos executor does not seem to be able to restore caches.
-      - checkout
+      - <<: *shallow-checkout
       - run:
           name: Setup Go language
           command: |
@@ -448,8 +444,7 @@ jobs:
         type: string
         default: "1.16.4"
     steps:
-      - checkout:
-          path: geth
+      - <<: *shallow-checkout
       - restore_cache:
           keys:
             - <<parameters.cache-key>>
