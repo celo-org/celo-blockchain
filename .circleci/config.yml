@@ -154,21 +154,21 @@ unit-tests-defaults: &unit-tests-defaults
 # The default circle ci checkout does a full checkout and that brings about
 # 450M of history that we don't need.
 shallow-checkout: &shallow-checkout
-  - run:
-      name: shallow checkout
-      command: |
-        mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-        git clone --quiet --depth 1 "$CIRCLE_REPOSITORY_URL" --branch "$CIRCLE_BRANCH" ~/repos/geth
+  run:
+    name: shallow checkout
+    command: |
+      mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+      git clone --quiet --depth 1 "$CIRCLE_REPOSITORY_URL" --branch "$CIRCLE_BRANCH" ~/repos/geth
 
 install-go: &install-go
-  - run:
-      name: install go
-      command: |
-        # Install go so the e2e tests can build geth
-        mkdir -p ~/repos/golang
-        wget https://dl.google.com/go/go1.16.4.linux-amd64.tar.gz
-        tar xf go1.16.4.linux-amd64.tar.gz -C ~/repos/golang
-        ~/repos/golang/go/bin/go version
+  run:
+    name: install go
+    command: |
+      # Install go so the e2e tests can build geth
+      mkdir -p ~/repos/golang
+      wget https://dl.google.com/go/go1.16.4.linux-amd64.tar.gz
+      tar xf go1.16.4.linux-amd64.tar.gz -C ~/repos/golang
+      ~/repos/golang/go/bin/go version
 
 save-go-cache: &save-go-cache
   save_cache:
@@ -192,28 +192,37 @@ restore-go-mod-cache: &restore-go-mod-cache
     keys:
       - go-mod-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
 
+store-month-in-file: &store-month-in-file
+  # output the current month to a file, we'll use this to rotate the gocache
+  # monthly.  This is because most of what is in the gocache will be related to
+  # the go modules but some of it will be related to the repo code, but we
+  # don't want to rebuild on every commit, so instead we regenerate the cache
+  # monthly and of course if the modules change that will change the cache key.
+  run: date +%m > month
+
 end-to-end-test: &end-to-end-test
   executor: e2e
   resource_class: large
   steps:
-    - <<: *shallow-checkout
-    - <<: *install-go
+    - *shallow-checkout
+    - *install-go
     - attach_workspace:
         at: ~/repos
     - *restore-go-mod-cache
+    - *store-month-in-file
     - *restore-go-cache
     - run:
-        name: <<parameters.test-name>>
+        name: ${TEST_NAME}
         no_output_timeout: 15m
         command: |
           export PATH=${PATH}:~/repos/golang/go/bin
-          ./<<parameters.test-name>> local ~/repos/geth
+          ./${TEST_NAME} local ~/repos/geth
 jobs:
   go-modules:
     executor: golang
     resource_class: small
     steps:
-      - <<: *shallow-checkout
+      - *shallow-checkout
       - *restore-go-mod-cache
       - run: go mod download
       - *save-go-mod-cache
@@ -222,13 +231,13 @@ jobs:
     executor: golang
     resource_class: medium+
     steps:
-      - <<: *shallow-checkout
+      - *shallow-checkout
         # output the current month to a file, we'll use this to rotate the
         # gocache monthly.  This is because most of what is in the gocache will
         # be related to the go modules but some of it will be related to the
         # repo code, but we don't want to rebuild on every commit, so instead
         # we regenerate the cache monthly.
-      - run: date +%m > month
+      - *store-month-in-file
       - *restore-go-mod-cache
       - *restore-go-cache
       - run:
@@ -248,7 +257,7 @@ jobs:
     executor: system-contracts-executor
     resource_class: medium+
     steps:
-      - <<: *shallow-checkout
+      - *shallow-checkout
       - restore_cache:
           keys:
             - <<parameters.cache-key>>
@@ -281,7 +290,7 @@ jobs:
   race:
     <<: *unit-tests-defaults
     steps:
-      - <<: *shallow-checkout
+      - *shallow-checkout
       - attach_workspace:
           at: ~/repos
       - *restore-go-mod-cache
@@ -302,7 +311,7 @@ jobs:
     executor: golang
     resource_class: xlarge
     steps:
-      - <<: *shallow-checkout
+      - *shallow-checkout
       - attach_workspace:
           at: ~/repos
       - *restore-go-mod-cache
@@ -323,7 +332,7 @@ jobs:
   istanbul-e2e-coverage:
     <<: *unit-tests-defaults
     steps:
-      - <<: *shallow-checkout
+      - *shallow-checkout
       - attach_workspace:
           at: ~/repos
       - *restore-go-mod-cache
@@ -400,7 +409,7 @@ jobs:
     executor: golang
     resource_class: medium+
     steps:
-      - <<: *shallow-checkout
+      - *shallow-checkout
       - attach_workspace:
           at: ~/repos
       - *restore-go-mod-cache
@@ -417,7 +426,7 @@ jobs:
     executor: golang
     resource_class: medium+
     steps:
-      - <<: *shallow-checkout
+      - *shallow-checkout
       - run: go get github.com/jstemmer/go-junit-report
       - run:
           name: Run Linter
@@ -434,7 +443,7 @@ jobs:
   check-imports:
     executor: golang
     steps:
-      - <<: *shallow-checkout
+      - *shallow-checkout
       - run:
           name: Check imports to ensure we are using github.com/celo-org/celo-blockchain
           command: ./scripts/check_imports.sh
@@ -444,7 +453,7 @@ jobs:
       - image: us.gcr.io/celo-testnet/android:v3
     working_directory: ~/repos/geth
     steps:
-      - <<: *shallow-checkout
+      - *shallow-checkout
       - *restore-go-mod-cache
       - run:
           name: Compile android client
@@ -460,7 +469,7 @@ jobs:
     working_directory: ~/repos/geth
     steps:
       # Note the macos executor does not seem to be able to restore caches.
-      - <<: *shallow-checkout
+      - *shallow-checkout
       - run:
           name: Setup Go language
           command: |
@@ -492,8 +501,9 @@ jobs:
   lightest-sync-test:
     executor: golang
     steps:
-      - <<: *shallow-checkout
+      - *shallow-checkout
       - *restore-go-mod-cache
+      - *store-month-in-file
       - *restore-go-cache
       - run: make geth
       - run: DATADIR=/tmp/lightest_sync_test_data MODE=lightest ./scripts/sync_test.sh
@@ -507,7 +517,7 @@ jobs:
         type: string
         default: checkout-monorepo-{{ checksum "geth/monorepo_commit" }}-v<<pipeline.parameters.checkout-monorepo-cache-version>>-<<pipeline.parameters.e2e-executor-image>>
     steps:
-      - <<: *shallow-checkout
+      - *shallow-checkout
       - restore_cache:
           keys:
             - <<parameters.cache-key>>
@@ -547,18 +557,16 @@ jobs:
             - celo-monorepo
 
   end-to-end-blockchain-parameters-test:
-    parameters:
-      test-name:
-        type: string
-        default: ci_test_blockchain_parameters.sh
+    environment:
+      TEST_NAME: ci_test_blockchain_parameters.sh
     <<: *end-to-end-test
 
   end-to-end-governance-test:
     executor: e2e
     resource_class: xlarge
     steps:
-      - <<: *shallow-checkout
-      - <<: *install-go
+      - *shallow-checkout
+      - *install-go
       - attach_workspace:
           at: ~/repos
       - *restore-go-mod-cache
@@ -574,8 +582,8 @@ jobs:
     executor: e2e
     resource_class: large
     steps:
-      - <<: *shallow-checkout
-      - <<: *install-go
+      - *shallow-checkout
+      - *install-go
       - attach_workspace:
           at: ~/repos
       - *restore-go-mod-cache
@@ -591,8 +599,8 @@ jobs:
     executor: e2e
     resource_class: large
     steps:
-      - <<: *shallow-checkout
-      - <<: *install-go
+      - *shallow-checkout
+      - *install-go
       - attach_workspace:
           at: ~/repos
       - *restore-go-mod-cache
@@ -608,8 +616,8 @@ jobs:
     executor: e2e
     resource_class: large
     steps:
-      - <<: *shallow-checkout
-      - <<: *install-go
+      - *shallow-checkout
+      - *install-go
       - attach_workspace:
           at: ~/repos
       - *restore-go-mod-cache
@@ -625,8 +633,8 @@ jobs:
     executor: e2e
     resource_class: xlarge
     steps:
-      - <<: *shallow-checkout
-      - <<: *install-go
+      - *shallow-checkout
+      - *install-go
       - attach_workspace:
           at: ~/repos
       - *restore-go-mod-cache
@@ -642,8 +650,8 @@ jobs:
     executor: e2e
     resource_class: xlarge
     steps:
-      - <<: *shallow-checkout
-      - <<: *install-go
+      - *shallow-checkout
+      - *install-go
       - attach_workspace:
           at: ~/repos
       - *restore-go-mod-cache
@@ -659,8 +667,8 @@ jobs:
     executor: e2e
     resource_class: xlarge
     steps:
-      - <<: *shallow-checkout
-      - <<: *install-go
+      - *shallow-checkout
+      - *install-go
       - attach_workspace:
           at: ~/repos
       - *restore-go-mod-cache
