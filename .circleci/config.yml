@@ -203,20 +203,70 @@ store-month-in-file: &store-month-in-file
 end-to-end-test: &end-to-end-test
   executor: e2e
   resource_class: large
+  parameters:
+    cache-key:
+      type: string
+      default: checkout-monorepo-{{ checksum "geth/monorepo_commit" }}-v<<pipeline.parameters.checkout-monorepo-cache-version>>-<<pipeline.parameters.e2e-executor-image>>
   steps:
     - *shallow-checkout
+    - restore_cache:
+        keys:
+          - <<parameters.cache-key>>
+    - run:
+        name: Setup celo-monorepo for e2e tests
+        command: |
+          set -e
+          # only run this if the cache was not restored
+          if [ ! -d ./celo-monorepo ]; then
+            mc=`cat geth/monorepo_commit`
+            git clone --quiet --depth 1 --branch ${mc} https://github.com/celo-org/celo-monorepo.git
+            cd celo-monorepo
+
+            # Github is phasing out the git protocol so we ensure that we use
+            # https for all git operations that yarn may perform.
+            git config --global url."https://github.com".insteadOf git://github.com
+
+            # See if we can chuck some files by autocleaning
+            yarn autoclean --init
+
+            # Note we can't install for production only since the the build
+            # script and many others depend on lerna, which is a dev
+            # dependency.
+            yarn install
+            yarn build --scope @celo/celotool --include-filtered-dependencies
+
+            # Clear out unnecessary stuff
+            rm -rf .git
+          fi
+    - save_cache:
+        key: <<parameters.cache-key>>
+        paths:
+          - ~/repos/celo-monorepo
     - *install-go
-    - attach_workspace:
-        at: ~/repos
     - *restore-go-mod-cache
     - *store-month-in-file
     - *restore-go-cache
     - run:
-        name: ${TEST_NAME}
+        name: Run e2e test
         no_output_timeout: 15m
         command: |
           export PATH=${PATH}:~/repos/golang/go/bin
           ./${TEST_NAME} local ~/repos/geth
+
+  # checkout-monorepo:
+  #   executor: e2e
+  #   resource_class: xlarge
+  #   working_directory: ~/repos
+  #   steps:
+  #     - *shallow-checkout
+  #     - restore_cache:
+  #         keys:
+  #           - <<parameters.cache-key>>
+  #     - persist_to_workspace:
+  #         root: ~/repos
+  #         paths:
+  #           - celo-monorepo
+
 jobs:
   go-modules:
     executor: golang
@@ -249,6 +299,7 @@ jobs:
               make all
             fi
       - *save-go-cache
+
   prepare-system-contracts:
     parameters:
       cache-key:
@@ -508,54 +559,6 @@ jobs:
       - run: make geth
       - run: DATADIR=/tmp/lightest_sync_test_data MODE=lightest ./scripts/sync_test.sh
 
-  checkout-monorepo:
-    executor: e2e
-    resource_class: xlarge
-    working_directory: ~/repos
-    parameters:
-      cache-key:
-        type: string
-        default: checkout-monorepo-{{ checksum "geth/monorepo_commit" }}-v<<pipeline.parameters.checkout-monorepo-cache-version>>-<<pipeline.parameters.e2e-executor-image>>
-    steps:
-      - *shallow-checkout
-      - restore_cache:
-          keys:
-            - <<parameters.cache-key>>
-      - run:
-          name: Setup celo-monorepo for e2e tests
-          command: |
-            set -e
-            # only run this if the cache was not restored
-            if [ ! -d ./celo-monorepo ]; then
-              mc=`cat geth/monorepo_commit`
-              git clone --quiet --depth 1 --branch ${mc} https://github.com/celo-org/celo-monorepo.git
-              cd celo-monorepo
-
-              # Github is phasing out the git protocol so we ensure that we use
-              # https for all git operations that yarn may perform.
-              git config --global url."https://github.com".insteadOf git://github.com
-
-              # See if we can chuck some files by autocleaning
-              yarn autoclean --init
-
-              # Note we can't install for production only since the the build
-              # script and many others depend on lerna, which is a dev
-              # dependency.
-              yarn install
-              yarn build --scope @celo/celotool --include-filtered-dependencies
-
-              # Clear out unnecessary stuff
-              rm -rf .git
-            fi
-      - save_cache:
-          key: <<parameters.cache-key>>
-          paths:
-            - ~/repos/celo-monorepo
-      - persist_to_workspace:
-          root: ~/repos
-          paths:
-            - celo-monorepo
-
   end-to-end-blockchain-parameters-test:
     environment:
       TEST_NAME: ci_test_blockchain_parameters.sh
@@ -605,7 +608,6 @@ workflows:
   build:
     jobs:
       - go-modules
-      - checkout-monorepo
       - build-geth:
           requires:
             - go-modules
@@ -656,34 +658,26 @@ workflows:
             - build-geth
       - end-to-end-blockchain-parameters-test:
           requires:
-            - checkout-monorepo
             - build-geth
       - end-to-end-governance-test:
           requires:
-            - checkout-monorepo
             - build-geth
       - end-to-end-slashing-test:
           requires:
-            - checkout-monorepo
             - build-geth
       - end-to-end-sync-test:
           requires:
-            - checkout-monorepo
             - build-geth
       - end-to-end-transfer-test:
           requires:
-            - checkout-monorepo
             - build-geth
       - end-to-end-validator-order-test:
           requires:
-            - checkout-monorepo
             - build-geth
       # Flaky!
       #      - end-to-end-cip35-eth-compatibility-test:
       #          requires:
-      #            - checkout-monorepo
       #            - build-geth
       - end-to-end-replica-test:
           requires:
-            - checkout-monorepo
             - build-geth
