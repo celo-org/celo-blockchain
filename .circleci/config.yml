@@ -171,14 +171,14 @@ install-go: &install-go
 
 save-go-cache: &save-go-cache
   save_cache:
-    key: go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}-{{ checksum "~/repos/geth/month" }}
+    key: go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}-{{ checksum "~/repos/month" }}
     paths:
       - ~/repos/gocache
 
 restore-go-cache: &restore-go-cache
   restore_cache:
     keys:
-      - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}-{{ checksum "~/repos/geth/month" }}
+      - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}-{{ checksum "~/repos/month" }}
 
 go-mod-cache: &save-go-mod-cache
   save_cache:
@@ -197,7 +197,7 @@ store-month-in-file: &store-month-in-file
   # the go modules but some of it will be related to the repo code, but we
   # don't want to rebuild on every commit, so instead we regenerate the cache
   # monthly and of course if the modules change that will change the cache key.
-  run: date +%m > month
+  run: date +%m > ~/repos/month
 
 end-to-end-test: &end-to-end-test
   executor: e2e
