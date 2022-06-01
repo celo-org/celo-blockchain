@@ -180,20 +180,26 @@ restore-go-cache: &restore-go-cache
   restore_cache:
     keys:
       - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}-{{ checksum "~/repos/geth/month" }}
+
+save-go-mod-cache: &save-go-mod-cache
+  save_cache:
+    key: go-mod-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+    paths:
+      - ~/repos/gocache
+
+restore-go-mod-cache: &restore-go-mod-cache
+  restore_cache:
+    keys:
+      - go-mod-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
 jobs:
   go-modules:
     executor: golang
     resource_class: small
     steps:
       - <<: *shallow-checkout
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
+      - *restore-go-mod-cache
       - run: go mod download
-      - save_cache:
-          key: go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
-          paths:
-            - ~/repos/gomodcache
+      - *save-go-mod-cache
 
   build-geth:
     executor: golang
@@ -206,9 +212,7 @@ jobs:
         # repo code, but we don't want to rebuild on every commit, so instead
         # we regenerate the cache monthly.
       - run: date +%m > month
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
+      - *restore-go-mod-cache
       - *restore-go-cache
       - run:
           name: Build everything to populate the cache
@@ -263,9 +267,7 @@ jobs:
       - <<: *shallow-checkout
       - attach_workspace:
           at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
+      - *restore-go-mod-cache
       - run: go get github.com/jstemmer/go-junit-report
       - run:
           name: Run tests
@@ -286,9 +288,7 @@ jobs:
       - <<: *shallow-checkout
       - attach_workspace:
           at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
+      - *restore-go-mod-cache
       - run: go get github.com/jstemmer/go-junit-report
       - run:
           name: Run tests
@@ -309,9 +309,7 @@ jobs:
       - <<: *shallow-checkout
       - attach_workspace:
           at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
+      - *restore-go-mod-cache
         # Run the tests with coverage parse the coverage and output the summary
       - run:
           name: Run tests and print coverage summary
@@ -388,9 +386,7 @@ jobs:
       - <<: *shallow-checkout
       - attach_workspace:
           at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
+      - *restore-go-mod-cache
       - run:
           name: Run benchmarks
           command: |
@@ -432,9 +428,7 @@ jobs:
     working_directory: ~/repos/geth
     steps:
       - <<: *shallow-checkout
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "go.sum" }}
+      - *restore-go-mod-cache
       - run:
           name: Compile android client
           command: make android
@@ -482,9 +476,7 @@ jobs:
     executor: golang
     steps:
       - <<: *shallow-checkout
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - *restore-go-mod-cache
       - *restore-go-cache
       - run: make geth
       - run: DATADIR=/tmp/lightest_sync_test_data MODE=lightest ./scripts/sync_test.sh
@@ -545,9 +537,7 @@ jobs:
       - <<: *install-go
       - attach_workspace:
           at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - *restore-go-mod-cache
       - *restore-go-cache
       - run:
           name: End-to-end test of governable blockchain parameters
@@ -563,9 +553,7 @@ jobs:
       - <<: *install-go
       - attach_workspace:
           at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - *restore-go-mod-cache
       - *restore-go-cache
       - run:
           name: End-to-end test of proof-of-stake
@@ -582,9 +570,7 @@ jobs:
       - <<: *install-go
       - attach_workspace:
           at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - *restore-go-mod-cache
       - *restore-go-cache
       - run:
           name: End-to-end test of syncing
@@ -601,9 +587,7 @@ jobs:
       - <<: *install-go
       - attach_workspace:
           at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - *restore-go-mod-cache
       - *restore-go-cache
       - run:
           name: End-to-end test of slashing
@@ -620,9 +604,7 @@ jobs:
       - <<: *install-go
       - attach_workspace:
           at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - *restore-go-mod-cache
       - *restore-go-cache
       - run:
           name: End-to-end test of transfers
@@ -639,9 +621,7 @@ jobs:
       - <<: *install-go
       - attach_workspace:
           at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - *restore-go-mod-cache
       - *restore-go-cache
       - run:
           name: End-to-end test of random validator order
@@ -658,9 +638,7 @@ jobs:
       - <<: *install-go
       - attach_workspace:
           at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - *restore-go-mod-cache
       - *restore-go-cache
       - run:
           name: End-to-end test of CIP 35
@@ -677,9 +655,7 @@ jobs:
       - <<: *install-go
       - attach_workspace:
           at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-<<pipeline.parameters.go-mod-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+      - *restore-go-mod-cache
       - *restore-go-cache
       - run:
           name: End-to-end test of hotswap functionality
