@@ -562,123 +562,43 @@ jobs:
     <<: *end-to-end-test
 
   end-to-end-governance-test:
-    executor: e2e
+    environment:
+      TEST_NAME: ci_test_governance.sh
     resource_class: xlarge
-    steps:
-      - *shallow-checkout
-      - *install-go
-      - attach_workspace:
-          at: ~/repos
-      - *restore-go-mod-cache
-      - *restore-go-cache
-      - run:
-          name: End-to-end test of proof-of-stake
-          no_output_timeout: 15m
-          command: |
-            export PATH=${PATH}:~/repos/golang/go/bin
-            ./ci_test_governance.sh local ~/repos/geth
+    <<: *end-to-end-test
 
   end-to-end-sync-test:
-    executor: e2e
-    resource_class: large
-    steps:
-      - *shallow-checkout
-      - *install-go
-      - attach_workspace:
-          at: ~/repos
-      - *restore-go-mod-cache
-      - *restore-go-cache
-      - run:
-          name: End-to-end test of syncing
-          no_output_timeout: 15m
-          command: |
-            export PATH=${PATH}:~/repos/golang/go/bin
-            ./ci_test_sync.sh local ~/repos/geth
+    environment:
+      TEST_NAME: ci_test_sync.sh
+    <<: *end-to-end-test
 
   end-to-end-slashing-test:
-    executor: e2e
-    resource_class: large
-    steps:
-      - *shallow-checkout
-      - *install-go
-      - attach_workspace:
-          at: ~/repos
-      - *restore-go-mod-cache
-      - *restore-go-cache
-      - run:
-          name: End-to-end test of slashing
-          no_output_timeout: 15m
-          command: |
-            export PATH=${PATH}:~/repos/golang/go/bin
-            ./ci_test_slashing.sh local ~/repos/geth
+    environment:
+      TEST_NAME: ci_test_slashing.sh
+    <<: *end-to-end-test
 
   end-to-end-transfer-test:
-    executor: e2e
-    resource_class: large
-    steps:
-      - *shallow-checkout
-      - *install-go
-      - attach_workspace:
-          at: ~/repos
-      - *restore-go-mod-cache
-      - *restore-go-cache
-      - run:
-          name: End-to-end test of transfers
-          no_output_timeout: 15m
-          command: |
-            export PATH=${PATH}:~/repos/golang/go/bin
-            ./ci_test_transfers.sh local ~/repos/geth
+    environment:
+      TEST_NAME: ci_test_transfers.sh
+    <<: *end-to-end-test
 
   end-to-end-validator-order-test:
-    executor: e2e
+    environment:
+      TEST_NAME: ci_test_validator_order.sh
     resource_class: xlarge
-    steps:
-      - *shallow-checkout
-      - *install-go
-      - attach_workspace:
-          at: ~/repos
-      - *restore-go-mod-cache
-      - *restore-go-cache
-      - run:
-          name: End-to-end test of random validator order
-          no_output_timeout: 15m
-          command: |
-            export PATH=${PATH}:~/repos/golang/go/bin
-            ./ci_test_validator_order.sh local ~/repos/geth
+    <<: *end-to-end-test
 
   end-to-end-cip35-eth-compatibility-test:
-    executor: e2e
+    environment:
+      TEST_NAME: ci_test_cip35.sh
     resource_class: xlarge
-    steps:
-      - *shallow-checkout
-      - *install-go
-      - attach_workspace:
-          at: ~/repos
-      - *restore-go-mod-cache
-      - *restore-go-cache
-      - run:
-          name: End-to-end test of CIP 35
-          no_output_timeout: 15m
-          command: |
-            export PATH=${PATH}:~/repos/golang/go/bin
-            ./ci_test_cip35.sh local ~/repos/geth
+    <<: *end-to-end-test
 
   end-to-end-replica-test:
-    executor: e2e
+    environment:
+      TEST_NAME: ci_test_replicas.sh
     resource_class: xlarge
-    steps:
-      - *shallow-checkout
-      - *install-go
-      - attach_workspace:
-          at: ~/repos
-      - *restore-go-mod-cache
-      - *restore-go-cache
-      - run:
-          name: End-to-end test of hotswap functionality
-          no_output_timeout: 15m
-          command: |
-            export PATH=${PATH}:~/repos/golang/go/bin
-            ./ci_test_replicas.sh local ~/repos/geth
+    <<: *end-to-end-test
 
 workflows:
   version: 2
