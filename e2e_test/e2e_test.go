@@ -281,6 +281,7 @@ func TestBlockTracingConcurrentMapAccess(t *testing.T) {
 
 type rpcCustomTransaction struct {
 	BlockNumber *hexutil.Big `json:"blockNumber"`
+	BlockHash   *common.Hash `json:"blockHash"`
 	GasPrice    *hexutil.Big `json:"gasPrice"`
 }
 
@@ -361,12 +362,13 @@ func TestRPCDynamicTxGasPriceWithState(t *testing.T) {
 	// Blocknumber != nil it means that it eas already processed
 	require.NotNil(t, json.BlockNumber)
 
-	// Wait until the state is prunned in the case of a full node.
-	// For this we create blocks with at least 1 tx
-	for i := 0; i < 200; i++ {
-		_, err := accounts[0].SendCeloTracked(ctx, accounts[1].Address, 1, network[0])
-		require.NoError(t, err)
-	}
+	// Create one block to be able to prune the last state
+	_, err = accounts[0].SendCeloTracked(ctx, accounts[1].Address, 1, network[0])
+	require.NoError(t, err)
+
+	// Prune state
+	err = pruneStateOfBlock(ctx, network[0], *json.BlockHash)
+	require.NoError(t, err)
 
 	var json2 *rpcCustomTransaction
 	// Check that the transaction can still be retrieved via the rpc api
@@ -418,11 +420,13 @@ func TestRPCDynamicTxGasPriceWithoutState(t *testing.T) {
 	// Blocknumber != nil it means that it eas already processed
 	require.NotNil(t, json.BlockNumber)
 
-	// Wait until the state is prunned. For this we create blocks with at least 1 tx
-	for i := 0; i < 200; i++ {
-		_, err := accounts[0].SendCeloTracked(ctx, accounts[1].Address, 1, network[0])
-		require.NoError(t, err)
-	}
+	// Create one block to be able to prune the last state
+	_, err = accounts[0].SendCeloTracked(ctx, accounts[1].Address, 1, network[0])
+	require.NoError(t, err)
+
+	// Prune state
+	err = pruneStateOfBlock(ctx, network[0], *json.BlockHash)
+	require.NoError(t, err)
 
 	var json2 *rpcCustomTransaction
 	// Check that the transaction can still be retrieved via the rpc api
@@ -434,4 +438,16 @@ func TestRPCDynamicTxGasPriceWithoutState(t *testing.T) {
 	require.NotNil(t, json2.BlockNumber)
 
 	require.Nil(t, json2.GasPrice)
+}
+
+func pruneStateOfBlock(ctx context.Context, network *test.Node, blockHash common.Hash) error {
+	var block *types.Block
+	block, err := network.WsClient.BlockByHash(ctx, blockHash)
+	if err != nil {
+		return err
+	}
+	root := block.Root()
+	network.Eth.BlockChain().StateCache().TrieDB().Dereference(root)
+
+	return nil
 }
