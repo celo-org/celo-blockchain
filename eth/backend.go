@@ -141,6 +141,10 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if err := pruner.RecoverPruning(stack.ResolvePath(""), chainDb, stack.ResolvePath(config.TrieCleanCacheJournal)); err != nil {
 		log.Error("Failed to recover state", "error", err)
 	}
+	if config.RPCGasInflationRate == 0 {
+		// if it was not set, default it as 1
+		config.RPCGasInflationRate = 1
+	}
 	eth := &Ethereum{
 		config:            config,
 		chainDb:           chainDb,

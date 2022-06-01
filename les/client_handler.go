@@ -610,7 +610,7 @@ func (d *downloaderPeerNotify) registerPeer(p *serverPeer) {
 		handler: h,
 		peer:    p,
 	}
-	h.downloader.RegisterLightPeer(p.id, istanbul.Celo66, pc)
+	h.downloader.RegisterLightPeer(p.id, istanbul.Celo67, pc)
 }
 
 func (d *downloaderPeerNotify) unregisterPeer(p *serverPeer) {

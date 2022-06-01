@@ -174,39 +174,21 @@ type Decoder interface {
 	Time() time.Time
 }
 
-var celo66 = map[uint64]msgHandler{
-	GetBlockHeadersMsg:            handleGetBlockHeaders,
-	BlockHeadersMsg:               handleBlockHeaders,
-	GetBlockBodiesMsg:             handleGetBlockBodies,
-	BlockBodiesMsg:                handleBlockBodies,
-	GetNodeDataMsg:                handleGetNodeData,
-	NodeDataMsg:                   handleNodeData,
-	GetReceiptsMsg:                handleGetReceipts,
-	ReceiptsMsg:                   handleReceipts,
-	NewBlockHashesMsg:             handleNewBlockhashes,
-	NewBlockMsg:                   handleNewBlock,
-	TransactionsMsg:               handleTransactions,
-	NewPooledTransactionHashesMsg: handleNewPooledTransactionHashes,
-	GetPooledTransactionsMsg:      handleGetPooledTransactions,
-	PooledTransactionsMsg:         handlePooledTransactions,
-}
-
 var celo67 = map[uint64]msgHandler{
 	NewBlockHashesMsg:             handleNewBlockhashes,
 	NewBlockMsg:                   handleNewBlock,
 	TransactionsMsg:               handleTransactions,
 	NewPooledTransactionHashesMsg: handleNewPooledTransactionHashes,
-	// celo67 messages with request-id
-	GetBlockHeadersMsg:       handleGetBlockHeaders67,
-	BlockHeadersMsg:          handleBlockHeaders67,
-	GetBlockBodiesMsg:        handleGetBlockBodies67,
-	BlockBodiesMsg:           handleBlockBodies67,
-	GetNodeDataMsg:           handleGetNodeData67,
-	NodeDataMsg:              handleNodeData67,
-	GetReceiptsMsg:           handleGetReceipts67,
-	ReceiptsMsg:              handleReceipts67,
-	GetPooledTransactionsMsg: handleGetPooledTransactions67,
-	PooledTransactionsMsg:    handlePooledTransactions67,
+	GetBlockHeadersMsg:            handleGetBlockHeaders67,
+	BlockHeadersMsg:               handleBlockHeaders67,
+	GetBlockBodiesMsg:             handleGetBlockBodies67,
+	BlockBodiesMsg:                handleBlockBodies67,
+	GetNodeDataMsg:                handleGetNodeData67,
+	NodeDataMsg:                   handleNodeData67,
+	GetReceiptsMsg:                handleGetReceipts67,
+	ReceiptsMsg:                   handleReceipts67,
+	GetPooledTransactionsMsg:      handleGetPooledTransactions67,
+	PooledTransactionsMsg:         handlePooledTransactions67,
 }
 
 // handleMessage is invoked whenever an inbound message is received from a remote
@@ -230,10 +212,11 @@ func handleMessage(backend Backend, peer *Peer) error {
 		}
 	}
 
-	var handlers = celo66
-	if peer.Version() >= istanbul.Celo67 {
-		handlers = celo67
-	}
+	var handlers = celo67
+	//if peer.Version() >= celo68 { // Left in as a sample when new protocol is added
+	//	handlers = celo68
+	//}
+
 	// Track the amount of time it takes to serve the request and run the handler
 	if metrics.Enabled {
 		h := fmt.Sprintf("%s/%s/%d/%#02x", p2p.HandleHistName, ProtocolName, peer.Version(), msg.Code)

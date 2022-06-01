@@ -247,6 +247,7 @@ func createGQLService(t *testing.T, stack *node.Node) {
 		TrieDirtyCache:          5,
 		TrieTimeout:             60 * time.Minute,
 		SnapshotCache:           5,
+		RPCGasInflationRate:     1,
 	}
 	ethConf.Genesis.Config.Faker = true
 	ethBackend, err := eth.New(stack, ethConf)

@@ -33,6 +33,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -122,6 +123,10 @@ func (b *testBackend) GetTransaction(ctx context.Context, txHash common.Hash) (*
 	return tx, hash, blockNumber, index, nil
 }
 
+func (b *testBackend) RPCGasInflationRate() float64 {
+	return 1
+}
+
 func (b *testBackend) RPCGasCap() uint64 {
 	return 25000000
 }
@@ -144,6 +149,10 @@ func (b *testBackend) StateAtBlock(ctx context.Context, block *types.Block, reex
 		return nil, errStateNotFound
 	}
 	return statedb, nil
+}
+
+func (b *testBackend) NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return testutil.NewMockEVMRunner()
 }
 
 func (b *testBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, vm.EVMRunner, *state.StateDB, error) {
@@ -175,10 +184,6 @@ func (b *testBackend) StateAtTransaction(ctx context.Context, block *types.Block
 		statedb.Finalise(vmenv.ChainConfig().IsEIP158(block.Number()))
 	}
 	return nil, vm.BlockContext{}, nil, nil, fmt.Errorf("transaction index %d out of range for block %#x", txIndex, block.Hash())
-}
-
-func (b *testBackend) VmRunnerAtHeader(header *types.Header, state *state.StateDB) vm.EVMRunner {
-	return b.chain.NewEVMRunner(header, state)
 }
 
 func TestTraceCall(t *testing.T) {

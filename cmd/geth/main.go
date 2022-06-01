@@ -194,6 +194,7 @@ var (
 		utils.IPCDisabledFlag,
 		utils.IPCPathFlag,
 		utils.InsecureUnlockAllowedFlag,
+		utils.RPCGlobalGasInflationRateFlag,
 		utils.RPCGlobalGasCapFlag,
 		utils.RPCGlobalTxFeeCapFlag,
 	}
@@ -209,6 +210,10 @@ var (
 		utils.MetricsInfluxDBUsernameFlag,
 		utils.MetricsInfluxDBPasswordFlag,
 		utils.MetricsInfluxDBTagsFlag,
+		utils.MetricsEnableInfluxDBV2Flag,
+		utils.MetricsInfluxDBTokenFlag,
+		utils.MetricsInfluxDBBucketFlag,
+		utils.MetricsInfluxDBOrganizationFlag,
 		utils.MetricsLoadTestCSVFlag,
 	}
 )

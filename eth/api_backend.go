@@ -364,6 +364,10 @@ func (b *EthAPIBackend) UnprotectedAllowed() bool {
 	return b.allowUnprotectedTxs
 }
 
+func (b *EthAPIBackend) RPCGasInflationRate() float64 {
+	return b.eth.config.RPCGasInflationRate
+}
+
 func (b *EthAPIBackend) RPCGasCap() uint64 {
 	return b.eth.config.RPCGasCap
 }
@@ -413,8 +417,4 @@ func (b *EthAPIBackend) StateAtBlock(ctx context.Context, block *types.Block, re
 
 func (b *EthAPIBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, vm.EVMRunner, *state.StateDB, error) {
 	return b.eth.stateAtTransaction(block, txIndex, reexec)
-}
-
-func (b *EthAPIBackend) VmRunnerAtHeader(header *types.Header, state *state.StateDB) vm.EVMRunner {
-	return b.eth.blockchain.NewEVMRunner(header, state)
 }

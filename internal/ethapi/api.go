@@ -30,6 +30,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
+	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -850,11 +851,7 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 	// Create SysContractCallCtx
 	var sysCtx *core.SysContractCallCtx
 	if b.ChainConfig().IsEspresso(header.Number) {
-		vmRunner := b.NewEVMRunner(header, state)
-		if err != nil {
-			return nil, err
-		}
-		sysCtx = core.NewSysContractCallCtx(vmRunner)
+		sysCtx = core.NewSysContractCallCtx(header, state, b)
 	}
 
 	// Get a new instance of the EVM.
@@ -1013,7 +1010,8 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 			return 0, fmt.Errorf("gas required exceeds allowance (%d)", cap)
 		}
 	}
-	return hexutil.Uint64(hi), nil
+	inflatedGas := hexutil.Uint64(uint64(float64(hi) * b.RPCGasInflationRate()))
+	return inflatedGas, nil
 }
 
 // EstimateGas returns an estimate of the amount of gas needed to execute the
@@ -1088,14 +1086,15 @@ func FormatLogs(logs []vm.StructLog) []StructLogRes {
 }
 
 // RPCMarshalHeader converts the given header to the RPC output .
-func RPCMarshalHeader(head *types.Header) map[string]interface{} {
+func RPCMarshalHeader(head *types.Header, _ consensus.Engine) map[string]interface{} {
+	miner := head.Coinbase // use the coinbase, not the validator author address for istanbul
 	result := map[string]interface{}{
 		"number":           (*hexutil.Big)(head.Number),
 		"hash":             head.Hash(),
 		"parentHash":       head.ParentHash,
 		"logsBloom":        head.Bloom,
 		"stateRoot":        head.Root,
-		"miner":            head.Coinbase,
+		"miner":            miner,
 		"extraData":        hexutil.Bytes(head.Extra),
 		"size":             hexutil.Uint64(head.Size()),
 		"gasUsed":          hexutil.Uint64(head.GasUsed),
@@ -1110,8 +1109,8 @@ func RPCMarshalHeader(head *types.Header) map[string]interface{} {
 // RPCMarshalBlock converts the given block to the RPC output which depends on fullTx. If inclTx is true transactions are
 // returned. When fullTx is true the returned block contains full transaction details, otherwise it will only contain
 // transaction hashes.
-func RPCMarshalBlock(block *types.Block, inclTx bool, fullTx bool, baseFeeFn func(*common.Address) (*big.Int, error)) (map[string]interface{}, error) {
-	fields := RPCMarshalHeader(block.Header())
+func RPCMarshalBlock(block *types.Block, inclTx bool, fullTx bool, engine consensus.Engine, baseFeeFn func(*common.Address) (*big.Int, error)) (map[string]interface{}, error) {
+	fields := RPCMarshalHeader(block.Header(), engine)
 	fields["size"] = hexutil.Uint64(block.Size())
 
 	fields["randomness"] = map[string]interface{}{
@@ -1154,7 +1153,7 @@ func RPCMarshalBlock(block *types.Block, inclTx bool, fullTx bool, baseFeeFn fun
 // rpcMarshalHeader uses the generalized output filler, then adds the total difficulty field, which requires
 // a `PublicBlockchainAPI`.
 func (s *PublicBlockChainAPI) rpcMarshalHeader(ctx context.Context, header *types.Header) map[string]interface{} {
-	fields := RPCMarshalHeader(header)
+	fields := RPCMarshalHeader(header, s.b.Engine())
 	fields["totalDifficulty"] = (*hexutil.Big)(s.b.GetTd(ctx, header.Hash()))
 	return fields
 }
@@ -1163,7 +1162,7 @@ func (s *PublicBlockChainAPI) rpcMarshalHeader(ctx context.Context, header *type
 // a `PublicBlockchainAPI`.
 func (s *PublicBlockChainAPI) rpcMarshalBlock(ctx context.Context, b *types.Block, inclTx bool, fullTx bool) (map[string]interface{}, error) {
 	baseFeeFn := getGasPriceMinimumFromState(ctx, s.b, b.Hash())
-	fields, err := RPCMarshalBlock(b, inclTx, fullTx, baseFeeFn)
+	fields, err := RPCMarshalBlock(b, inclTx, fullTx, s.b.Engine(), baseFeeFn)
 	if err != nil {
 		return nil, err
 	}
@@ -1243,9 +1242,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		al := tx.AccessList()
 		result.Accesses = &al
 		result.ChainID = (*hexutil.Big)(tx.ChainId())
-	case types.DynamicFeeTxType:
-		fallthrough
-	case types.CeloDynamicFeeTxType:
+	case types.DynamicFeeTxType, types.CeloDynamicFeeTxType:
 		al := tx.AccessList()
 		result.Accesses = &al
 		result.ChainID = (*hexutil.Big)(tx.ChainId())
@@ -1254,12 +1251,13 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		// if the transaction has been mined, compute the effective gas price
 		if blockHash != (common.Hash{}) {
 			baseFee, err := baseFeeFn(tx.FeeCurrency())
-			if err != nil {
+			if err == nil {
 				// price = min(tip, gasFeeCap - baseFee) + baseFee
 				price := math.BigMin(new(big.Int).Add(tx.GasTipCap(), baseFee), tx.GasFeeCap())
 				result.GasPrice = (*hexutil.Big)(price)
 			} else {
-				// error != nil for DinamicFees implies that there is no state to retrieve the baseFee for that block
+				log.Warn("error retrieving baseFee for tx", "hash", tx.Hash().Hex(), "error", err)
+				// error != nil for DynamicFees implies that there is no state to retrieve the baseFee for that block
 				result.GasPrice = nil
 			}
 		} else {
