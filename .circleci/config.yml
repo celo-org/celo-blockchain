@@ -253,20 +253,9 @@ end-to-end-test: &end-to-end-test
           export PATH=${PATH}:~/repos/golang/go/bin
           cd celo-monorepo/packages/celotool
           ./${TEST_NAME} local ~/repos/geth
-
-  # checkout-monorepo:
-  #   executor: e2e
-  #   resource_class: xlarge
-  #   working_directory: ~/repos
-  #   steps:
-  #     - *shallow-checkout
-  #     - restore_cache:
-  #         keys:
-  #           - <<parameters.cache-key>>
-  #     - persist_to_workspace:
-  #         root: ~/repos
-  #         paths:
-  #           - celo-monorepo
+    # Note, all e2e tests call 'make all' in ~/repos/geth, this causes most code
+    # to be built and so results in a faifly well populated go cache.
+    - *save-go-cache
 
 jobs:
   go-modules:
@@ -277,29 +266,6 @@ jobs:
       - *restore-go-mod-cache
       - run: go mod download
       - *save-go-mod-cache
-
-  build-geth:
-    executor: golang
-    resource_class: medium+
-    steps:
-      - *shallow-checkout
-        # output the current month to a file, we'll use this to rotate the
-        # gocache monthly.  This is because most of what is in the gocache will
-        # be related to the go modules but some of it will be related to the
-        # repo code, but we don't want to rebuild on every commit, so instead
-        # we regenerate the cache monthly.
-      - *store-month-in-file
-      - *restore-go-mod-cache
-      - *restore-go-cache
-      - run:
-          name: Build everything to populate the cache
-          command: |
-            set -e
-            # Only build if we don't have a cache
-            if [ ! -d /home/circleci/repos/gocache ]; then
-              make all
-            fi
-      - *save-go-cache
 
   prepare-system-contracts:
     parameters:
@@ -609,9 +575,6 @@ workflows:
   build:
     jobs:
       - go-modules
-      - build-geth:
-          requires:
-            - go-modules
       - prepare-system-contracts
       - check-imports
       - lint
@@ -656,29 +619,29 @@ workflows:
               only: master
       - lightest-sync-test:
           requires:
-            - build-geth
+            - go-modules
       - end-to-end-blockchain-parameters-test:
           requires:
-            - build-geth
+            - go-modules
       - end-to-end-governance-test:
           requires:
-            - build-geth
+            - go-modules
       - end-to-end-slashing-test:
           requires:
-            - build-geth
+            - go-modules
       - end-to-end-sync-test:
           requires:
-            - build-geth
+            - go-modules
       - end-to-end-transfer-test:
           requires:
-            - build-geth
+            - go-modules
       - end-to-end-validator-order-test:
           requires:
-            - build-geth
+            - go-modules
       # Flaky!
       #      - end-to-end-cip35-eth-compatibility-test:
       #          requires:
-      #            - build-geth
+      #            - go-modules
       - end-to-end-replica-test:
           requires:
-            - build-geth
+            - go-modules
