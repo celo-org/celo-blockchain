@@ -181,7 +181,7 @@ restore-go-cache: &restore-go-cache
     keys:
       - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}-{{ checksum "~/repos/geth/month" }}
 
-save-go-mod-cache: &save-go-mod-cache
+go-mod-cache: &save-go-mod-cache
   save_cache:
     key: go-mod-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
     paths:
@@ -191,6 +191,23 @@ restore-go-mod-cache: &restore-go-mod-cache
   restore_cache:
     keys:
       - go-mod-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+
+end-to-end-test: &end-to-end-test
+  executor: e2e
+  resource_class: large
+  steps:
+    - <<: *shallow-checkout
+    - <<: *install-go
+    - attach_workspace:
+        at: ~/repos
+    - *restore-go-mod-cache
+    - *restore-go-cache
+    - run:
+        name: <<parameters.test-name>>
+        no_output_timeout: 15m
+        command: |
+          export PATH=${PATH}:~/repos/golang/go/bin
+          ./<<parameters.test-name>> local ~/repos/geth
 jobs:
   go-modules:
     executor: golang
@@ -530,20 +547,11 @@ jobs:
             - celo-monorepo
 
   end-to-end-blockchain-parameters-test:
-    executor: e2e
-    resource_class: large
-    steps:
-      - <<: *shallow-checkout
-      - <<: *install-go
-      - attach_workspace:
-          at: ~/repos
-      - *restore-go-mod-cache
-      - *restore-go-cache
-      - run:
-          name: End-to-end test of governable blockchain parameters
-          command: |
-            export PATH=${PATH}:~/repos/golang/go/bin
-            ./ci_test_blockchain_parameters.sh local ~/repos/geth
+    parameters:
+      test-name:
+        type: string
+        default: ci_test_blockchain_parameters.sh
+    <<: *end-to-end-test
 
   end-to-end-governance-test:
     executor: e2e
