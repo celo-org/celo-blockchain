@@ -331,13 +331,13 @@ func TestRPCDynamicTxGasPriceWithBigFeeCap(t *testing.T) {
 func TestRPCDynamicTxGasPriceWithState(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
 	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
 	ec.TxLookupLimit = 0
 	ec.NoPruning = true
-	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
 	defer shutdown()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*90)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
 	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
@@ -362,7 +362,7 @@ func TestRPCDynamicTxGasPriceWithState(t *testing.T) {
 	// Blocknumber != nil it means that it eas already processed
 	require.NotNil(t, json.BlockNumber)
 
-	// Create one block to be able to prune the last state
+	// Create a block containing a transaction, we will prune the state of this block.
 	_, err = accounts[0].SendCeloTracked(ctx, accounts[1].Address, 1, network[0])
 	require.NoError(t, err)
 
@@ -440,14 +440,14 @@ func TestRPCDynamicTxGasPriceWithoutState(t *testing.T) {
 	require.Nil(t, json2.GasPrice)
 }
 
-func pruneStateOfBlock(ctx context.Context, network *test.Node, blockHash common.Hash) error {
+func pruneStateOfBlock(ctx context.Context, node *test.Node, blockHash common.Hash) error {
 	var block *types.Block
-	block, err := network.WsClient.BlockByHash(ctx, blockHash)
+	block, err := node.WsClient.BlockByHash(ctx, blockHash)
 	if err != nil {
 		return err
 	}
 	root := block.Root()
-	network.Eth.BlockChain().StateCache().TrieDB().Dereference(root)
+	node.Eth.BlockChain().StateCache().TrieDB().Dereference(root)
 
 	return nil
 }
