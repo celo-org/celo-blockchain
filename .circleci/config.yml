@@ -132,7 +132,6 @@ executors:
   e2e:
     docker:
       - image: <<pipeline.parameters.e2e-executor-image>>
-    working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
       # Change the go modules and build cache to be cached under ~/repos so
       # that we can add them to the workspace, this doesn't seem to work if you
@@ -203,10 +202,11 @@ store-month-in-file: &store-month-in-file
 end-to-end-test: &end-to-end-test
   executor: e2e
   resource_class: large
+  working_directory: ~/repos
   parameters:
     cache-key:
       type: string
-      default: checkout-monorepo-{{ checksum "geth/monorepo_commit" }}-v<<pipeline.parameters.checkout-monorepo-cache-version>>-<<pipeline.parameters.e2e-executor-image>>
+      default: checkout-monorepo-{{ checksum "~/repos/geth/monorepo_commit" }}-v<<pipeline.parameters.checkout-monorepo-cache-version>>-<<pipeline.parameters.e2e-executor-image>>
   steps:
     - *shallow-checkout
     - restore_cache:
@@ -251,6 +251,7 @@ end-to-end-test: &end-to-end-test
         no_output_timeout: 15m
         command: |
           export PATH=${PATH}:~/repos/golang/go/bin
+          cd celo-monorepo/packages/celotool
           ./${TEST_NAME} local ~/repos/geth
 
   # checkout-monorepo:
