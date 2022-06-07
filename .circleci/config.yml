@@ -176,7 +176,7 @@ restore-go-cache: &restore-go-cache
     keys:
       - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}-{{ checksum "~/repos/month" }}
 
-go-mod-cache: &save-go-mod-cache
+save-go-mod-cache: &save-go-mod-cache
   save_cache:
     key: go-mod-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
     paths:
