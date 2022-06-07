@@ -56,7 +56,7 @@
 # How are we using them?
 #
 # We are currently using workspaces to store the compiled-system-contracts
-# (4.7M) which take about 5 minutes to generate 2s to persist to the workspace
+# (4.7M) which take about 5 minutes to generate, 2s to persist to the workspace
 # and 0s to restore from the workspace, we also cache them so that most of the
 # time we can skip the build step and simply persist the cache to the
 # workspace. Having this functionality contained in one job makes the config
