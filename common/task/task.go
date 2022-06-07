@@ -34,7 +34,6 @@ func RunTaskRepeateadly(task func(), t ticker) StopFn {
 	// the ending of the interval
 	stop := make(chan struct{})
 
-	println("run task started")
 	go func() {
 		for {
 			select {

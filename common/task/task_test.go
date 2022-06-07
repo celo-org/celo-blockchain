@@ -22,7 +22,7 @@ func TestRunTaskRepeateadly(t *testing.T) {
 	t.Parallel()
 
 	counter := 0
-	ping := func() { println("tick"); counter++ }
+	ping := func() { counter++ }
 
 	tt := &testTicker{
 		tc: make(chan time.Time),
