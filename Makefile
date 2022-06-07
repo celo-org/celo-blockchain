@@ -81,6 +81,12 @@ $(CONTRACT_SOURCE_FILES): $(MONOREPO_PATH)
 $(MONOREPO_PATH): monorepo_commit
 	@set -e; \
 	mc=`cat monorepo_commit`; \
+	echo "monorepo_commit is $${mc}"; \
+	if git show-ref --verify refs/heads/$${mc} > /dev/null 2>&1; \
+	then \
+		echo "Expected commit hash or tag in 'monorepo_commit' instead found branch name '$${mc}'"; \
+		exit 1; \
+	fi; \
 	if  [ ! -e $(MONOREPO_PATH) ]; \
 	then \
 		echo "Cloning monorepo at $${mc}"; \
