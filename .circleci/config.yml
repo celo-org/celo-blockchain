@@ -250,7 +250,7 @@ end-to-end-test: &end-to-end-test
           cd celo-monorepo/packages/celotool
           ./${TEST_NAME} local ~/repos/geth
     # Note, all e2e tests call 'make all' in ~/repos/geth, this causes most code
-    # to be built and so results in a faifly well populated go cache.
+    # to be built and so results in a fairly well populated go cache.
     - *save-go-cache
 
 jobs:
