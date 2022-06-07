@@ -1,3 +1,16 @@
+# The structure of this workflow
+#
+# We have a central folder ~/repos under which there are paths which are used
+# throughout the workflow:
+#
+# - geth: The celo-blockchain checkout
+# - celo-monorepo: The celo-monorepo checkout
+# - golang: A golang installation
+# - gocache: A folder containing intermediate compilation results for golang
+# - gomodcache: A folder containing downloaded modules for golang
+
+####################
+#
 # A note on performance.
 #
 # TL;DR: Storing and retrieving from workspaces is slow so use it sparingly.
@@ -64,18 +77,6 @@
 # the downstream jobs and since this job is quite fast and not in the critical
 # path for the workflow it's ok to be a bit slower here.
 #
-########
-#
-# The structure of this workflow
-#
-# We have a central folder ~/repos under which there are paths which are used
-# throughout the workflow:
-#
-# - geth: The celo-blockchain checkout
-# - celo-monorepo: The celo-monorepo checkout
-# - golang: A golang installation
-# - gocache: A folder containing intermediate compilation results for golang
-# - gomodcache: A folder containing downloaded modules for golang
 version: 2.1
 parameters:
   # Increment these to force cache rebuilding
