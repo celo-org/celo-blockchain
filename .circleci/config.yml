@@ -6,7 +6,7 @@
 # involved in using a cache and providing functionality to rebuild the cache in
 # each job is too high.
 #
-# Long version:
+# Lang version:
 #
 # Storing and retrieving data from workspaces seems to be slow. And
 # caches/checkouts/plain downloads appear to be faster. Some numbers ...
@@ -27,7 +27,7 @@
 # approx 51s.
 #
 # Restoring monorepo dir + go install (659M) from workspace approx 37s +
-# shallow ceckout celo-monorepo 2s, so a total of 39s a 12 second improvement.
+# shallow checkout celo-blockchain 2s, so a total of 39s a 12 second improvement.
 #
 ####
 #
