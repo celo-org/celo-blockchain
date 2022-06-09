@@ -361,7 +361,7 @@ func GenerateGenesis(accounts *env.AccountsConfig, gc *genesis.Config, contracts
 		if err != nil {
 			panic(fmt.Sprintf("failed to get abs path for %s, error: %v", contractsBuildPath, err))
 		}
-		return nil, fmt.Errorf("Could not find dir %s, try running 'make compiled-system-contracts' and then re-running the test", abs)
+		return nil, fmt.Errorf("Could not find dir %s, try running 'make prepare-system-contracts' and then re-running the test", abs)
 
 	}
 	return genesis.GenerateGenesis(accounts, gc, contractsBuildPath)
