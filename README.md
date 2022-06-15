@@ -69,6 +69,9 @@ subsequently edit the system contracts source or `monorepo_commit`, running the
 make rule again will re-checkout the monorepo, re-compile the contracts and
 copy them into place. 
 
+`monorepo_commit` may contain a commit hash or a tag, branch names are
+forbidden.
+
 In the case that you would like to change the default monorepo checkout
 location, or that you would like to have multipe checkouts of the monorepo (at
 different versions) you can set the `MONOREPO_PATH` variable in the make
