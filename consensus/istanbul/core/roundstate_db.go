@@ -111,7 +111,7 @@ func newRoundStateDB(path string, opts *RoundStateDBOptions) (RoundStateDB, erro
 	}
 
 	if rsdb.opts.withGarbageCollector {
-		rsdb.stopGarbageCollector = task.RunTaskRepeateadly(rsdb.garbageCollectEntries, rsdb.opts.garbageCollectorPeriod)
+		rsdb.stopGarbageCollector = task.RunTaskRepeateadly(rsdb.garbageCollectEntries, task.NewDefaultTicker(rsdb.opts.garbageCollectorPeriod))
 	}
 
 	return rsdb, nil
