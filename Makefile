@@ -46,7 +46,7 @@ geth:
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
 # This rule checks out celo-monorepo under MONOREPO_PATH at the commit contained in
-# monorepo_commit and compiles the system solidty contracts. It then copies the
+# monorepo_commit and compiles the system solidity contracts. It then copies the
 # compiled contracts from the monorepo to the compiled-system-contracts, so
 # that this repo can always access the contracts at a consistent path.
 prepare-system-contracts: $(MONOREPO_PATH)/packages/protocol/build
@@ -68,7 +68,7 @@ $(MONOREPO_PATH)/packages/protocol/build: $(CONTRACT_SOURCE_FILES)
 # that functionality was added in make version 4.3 which doesn't seem to be
 # readily available on most systems yet. So although this rule will be run once
 # for each source file, since it is empty that is very quick. $(MONOREPO_PATH)
-# as a prerequisite of this will be run at most onece.
+# as a prerequisite of this will be run at most once.
 $(CONTRACT_SOURCE_FILES): $(MONOREPO_PATH)
 
 # Clone the monorepo.
@@ -81,6 +81,12 @@ $(CONTRACT_SOURCE_FILES): $(MONOREPO_PATH)
 $(MONOREPO_PATH): monorepo_commit
 	@set -e; \
 	mc=`cat monorepo_commit`; \
+	echo "monorepo_commit is $${mc}"; \
+	if git show-ref --verify refs/heads/$${mc} > /dev/null 2>&1; \
+	then \
+		echo "Expected commit hash or tag in 'monorepo_commit' instead found branch name '$${mc}'"; \
+		exit 1; \
+	fi; \
 	if  [ ! -e $(MONOREPO_PATH) ]; \
 	then \
 		echo "Cloning monorepo at $${mc}"; \
