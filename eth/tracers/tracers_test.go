@@ -355,8 +355,8 @@ func BenchmarkTransactionTrace(b *testing.B) {
 	tracer := vm.NewStructLogger(&vm.LogConfig{
 		Debug: false,
 		//DisableStorage: true,
-		//DisableMemory: true,
-		//DisableReturnData: true,
+		//EnableMemory: false,
+		//EnableReturnData: false,
 	})
 	evm := vm.NewEVM(context, txContext, statedb, params.TestChainConfig, vm.Config{Debug: true, Tracer: tracer})
 	msg, err := tx.AsMessage(signer, nil)
