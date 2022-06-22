@@ -21,6 +21,7 @@ import (
 	"context"
 	"math/big"
 
+	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
@@ -29,7 +30,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/params"
@@ -40,11 +40,12 @@ import (
 // both full and light clients) with access to necessary functions.
 type Backend interface {
 	// General Ethereum API
-	Downloader() *downloader.Downloader
 	SuggestPrice(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
 	SuggestGasTipCap(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
 	CurrentGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
 	GasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error)
+	SyncProgress() ethereum.SyncProgress
+
 	ChainDb() ethdb.Database
 	AccountManager() *accounts.Manager
 	ExtRPCEnabled() bool

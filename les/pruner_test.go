@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/les/downloader"
 	"github.com/celo-org/celo-blockchain/light"
 )
 

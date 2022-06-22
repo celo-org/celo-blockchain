@@ -112,7 +112,7 @@ func (s *PublicEthereumAPI) MaxPriorityFeePerGas(ctx context.Context, feeCurrenc
 // - pulledStates:  number of state entries processed until now
 // - knownStates:   number of known state entries that still need to be pulled
 func (s *PublicEthereumAPI) Syncing() (interface{}, error) {
-	progress := s.b.Downloader().Progress()
+	progress := s.b.SyncProgress()
 
 	// Return not syncing if the synchronisation already completed
 	if progress.CurrentBlock >= progress.HighestBlock {
