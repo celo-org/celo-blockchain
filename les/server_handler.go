@@ -29,7 +29,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/forkid"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/les/flowcontrol"
 	"github.com/celo-org/celo-blockchain/light"
@@ -378,20 +378,20 @@ func (h *serverHandler) GetGatewayFee() *big.Int {
 }
 
 // getAccount retrieves an account from the state based on root.
-func getAccount(triedb *trie.Database, root, hash common.Hash) (state.Account, error) {
+func getAccount(triedb *trie.Database, root, hash common.Hash) (types.StateAccount, error) {
 	trie, err := trie.New(root, triedb)
 	if err != nil {
-		return state.Account{}, err
+		return types.StateAccount{}, err
 	}
 	blob, err := trie.TryGet(hash[:])
 	if err != nil {
-		return state.Account{}, err
+		return types.StateAccount{}, err
 	}
-	var account state.Account
-	if err = rlp.DecodeBytes(blob, &account); err != nil {
-		return state.Account{}, err
+	var acc types.StateAccount
+	if err = rlp.DecodeBytes(blob, &acc); err != nil {
+		return types.StateAccount{}, err
 	}
-	return account, nil
+	return acc, nil
 }
 
 // getHelperTrie returns the post-processed trie root for the given trie ID and section index
