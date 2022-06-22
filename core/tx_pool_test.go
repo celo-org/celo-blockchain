@@ -63,8 +63,8 @@ func init() {
 }
 
 type testBlockChain struct {
+	gasLimit      uint64 // must be first field for 64 bit alignment (atomic access)
 	statedb       *state.StateDB
-	gasLimit      uint64
 	chainHeadFeed *event.Feed
 	celoMock      testutil.CeloMock
 }
@@ -159,9 +159,8 @@ func setupTxPool() (*TxPool, *ecdsa.PrivateKey) {
 }
 
 func setupTxPoolWithConfig(config *params.ChainConfig) (*TxPool, *ecdsa.PrivateKey) {
-	// blockchain := &testBlockChain{statedb, 10000000, new(event.Feed), testutil.NewCeloMock()}
 	// statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-	// blockchain := &testBlockChain{statedb, 10000000, new(event.Feed)}
+	// blockchain := &testBlockChain{10000000, statedb, new(event.Feed)}
 
 	blockchain := newTestBlockchain()
 	key, _ := crypto.GenerateKey()
