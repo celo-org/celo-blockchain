@@ -24,17 +24,11 @@ import (
 
 	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/common"
-	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/eth"
-	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/ethclient"
-	"github.com/celo-org/celo-blockchain/node"
-	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -43,66 +37,19 @@ var (
 	testBalance = big.NewInt(2e15)
 )
 
-func newTestBackend(t *testing.T) (*node.Node, []*types.Block) {
-	// Generate test chain.
-	genesis, blocks := generateTestChain()
-	// Create node
-	n, err := node.New(&node.Config{})
-	if err != nil {
-		t.Fatalf("can't create new node: %v", err)
-	}
-	// Create Ethereum Service
-	config := &ethconfig.Config{Genesis: genesis}
-	ethservice, err := eth.New(n, config)
-	if err != nil {
-		t.Fatalf("can't create new ethereum service: %v", err)
-	}
-	// Import the test chain.
-	if err := n.Start(); err != nil {
-		t.Fatalf("can't start test node: %v", err)
-	}
-	if _, err := ethservice.BlockChain().InsertChain(blocks[1:]); err != nil {
-		t.Fatalf("can't import test blocks: %v", err)
-	}
-	return n, blocks
-}
-
-func generateTestChain() (*core.Genesis, []*types.Block) {
-	db := rawdb.NewMemoryDatabase()
-	config := params.TestChainConfig
-	genesis := &core.Genesis{
-		Config:    config,
-		Alloc:     core.GenesisAlloc{testAddr: {Balance: testBalance}},
-		ExtraData: []byte("test genesis"),
-		Timestamp: 9000,
-	}
-	generate := func(i int, g *core.BlockGen) {
-		g.OffsetTime(5)
-		g.SetExtra(core.CreateEmptyIstanbulExtra([]byte("test")))
-	}
-	gblock := genesis.ToBlock(db)
-	engine := mockEngine.NewFaker()
-	blocks, _ := core.GenerateChain(config, gblock, engine, db, 1, generate)
-	blocks = append([]*types.Block{gblock}, blocks...)
-	return genesis, blocks
-}
-
 func TestGethClient(t *testing.T) {
-	backend, _ := newTestBackend(t)
+	backend, _ := ethclient.NewTestBackend(t, testAddr, testBalance)
 	client, err := backend.Attach()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer backend.Close()
 	defer client.Close()
 
 	tests := map[string]struct {
 		test func(t *testing.T)
 	}{
-		// Flaky
-		// "TestAccessList": {
-		// 	func(t *testing.T) { testAccessList(t, client) },
-		// },
+		"TestAccessList": {
+			func(t *testing.T) { testAccessList(t, client) },
+		},
 		"TestGetProof": {
 			func(t *testing.T) { testGetProof(t, client) },
 		},
