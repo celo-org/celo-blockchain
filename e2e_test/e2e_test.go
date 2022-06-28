@@ -196,6 +196,14 @@ func TestStartStopValidators(t *testing.T) {
 	err = network[2].Start()
 	require.NoError(t, err)
 
+	// We need to wait here to allow the call to "Backend.RefreshValPeers" to
+	// complete before adding peers. This is because "Backend.RefreshValPeers"
+	// deletes all peers and then re-adds any peers from the cached
+	// connections, but in the case that peers were recently added there may
+	// not have been enough time to connect to them and populate the connection
+	// cache, and in that case "Backend.RefreshValPeers" simply removes all the
+	// peers.
+	time.Sleep(250 * time.Millisecond)
 	// Connect last stopped node to running nodes
 	network[2].AddPeers(network[:2]...)
 	time.Sleep(25 * time.Millisecond)
@@ -221,6 +229,14 @@ func TestStartStopValidators(t *testing.T) {
 	err = network[3].Start()
 	require.NoError(t, err)
 
+	// We need to wait here to allow the call to "Backend.RefreshValPeers" to
+	// complete before adding peers. This is because "Backend.RefreshValPeers"
+	// deletes all peers and then re-adds any peers from the cached
+	// connections, but in the case that peers were recently added there may
+	// not have been enough time to connect to them and populate the connection
+	// cache, and in that case "Backend.RefreshValPeers" simply removes all the
+	// peers.
+	time.Sleep(250 * time.Millisecond)
 	// Connect final node to rest of network
 	network[3].AddPeers(network[:3]...)
 	time.Sleep(25 * time.Millisecond)
