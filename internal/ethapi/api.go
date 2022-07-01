@@ -30,7 +30,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
-	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -1086,15 +1085,14 @@ func FormatLogs(logs []vm.StructLog) []StructLogRes {
 }
 
 // RPCMarshalHeader converts the given header to the RPC output .
-func RPCMarshalHeader(head *types.Header, _ consensus.Engine) map[string]interface{} {
-	miner := head.Coinbase // use the coinbase, not the validator author address for istanbul
+func RPCMarshalHeader(head *types.Header) map[string]interface{} {
 	result := map[string]interface{}{
 		"number":           (*hexutil.Big)(head.Number),
 		"hash":             head.Hash(),
 		"parentHash":       head.ParentHash,
 		"logsBloom":        head.Bloom,
 		"stateRoot":        head.Root,
-		"miner":            miner,
+		"miner":            head.Coinbase,
 		"extraData":        hexutil.Bytes(head.Extra),
 		"size":             hexutil.Uint64(head.Size()),
 		"gasUsed":          hexutil.Uint64(head.GasUsed),
@@ -1109,8 +1107,8 @@ func RPCMarshalHeader(head *types.Header, _ consensus.Engine) map[string]interfa
 // RPCMarshalBlock converts the given block to the RPC output which depends on fullTx. If inclTx is true transactions are
 // returned. When fullTx is true the returned block contains full transaction details, otherwise it will only contain
 // transaction hashes.
-func RPCMarshalBlock(block *types.Block, inclTx bool, fullTx bool, engine consensus.Engine, baseFeeFn func(*common.Address) (*big.Int, error)) (map[string]interface{}, error) {
-	fields := RPCMarshalHeader(block.Header(), engine)
+func RPCMarshalBlock(block *types.Block, inclTx bool, fullTx bool, baseFeeFn func(*common.Address) (*big.Int, error)) (map[string]interface{}, error) {
+	fields := RPCMarshalHeader(block.Header())
 	fields["size"] = hexutil.Uint64(block.Size())
 
 	fields["randomness"] = map[string]interface{}{
@@ -1153,7 +1151,7 @@ func RPCMarshalBlock(block *types.Block, inclTx bool, fullTx bool, engine consen
 // rpcMarshalHeader uses the generalized output filler, then adds the total difficulty field, which requires
 // a `PublicBlockchainAPI`.
 func (s *PublicBlockChainAPI) rpcMarshalHeader(ctx context.Context, header *types.Header) map[string]interface{} {
-	fields := RPCMarshalHeader(header, s.b.Engine())
+	fields := RPCMarshalHeader(header)
 	fields["totalDifficulty"] = (*hexutil.Big)(s.b.GetTd(ctx, header.Hash()))
 	return fields
 }
@@ -1162,7 +1160,7 @@ func (s *PublicBlockChainAPI) rpcMarshalHeader(ctx context.Context, header *type
 // a `PublicBlockchainAPI`.
 func (s *PublicBlockChainAPI) rpcMarshalBlock(ctx context.Context, b *types.Block, inclTx bool, fullTx bool) (map[string]interface{}, error) {
 	baseFeeFn := getGasPriceMinimumFromState(ctx, s.b, b.Hash())
-	fields, err := RPCMarshalBlock(b, inclTx, fullTx, s.b.Engine(), baseFeeFn)
+	fields, err := RPCMarshalBlock(b, inclTx, fullTx, baseFeeFn)
 	if err != nil {
 		return nil, err
 	}

@@ -30,7 +30,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/forkid"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
-	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/les/flowcontrol"
 	"github.com/celo-org/celo-blockchain/light"
@@ -428,7 +427,7 @@ func (h *serverHandler) broadcastLoop() {
 	defer headSub.Unsubscribe()
 
 	var (
-		lastHead *types.Header
+		lastHead = h.blockchain.CurrentHeader()
 		lastTd   = common.Big0
 	)
 	for {

@@ -155,9 +155,7 @@ type lightFetcher struct {
 	synchronise func(peer *serverPeer)
 
 	// Test fields or hooks
-	noAnnounce  bool
 	newHeadHook func(*types.Header)
-	newAnnounce func(*serverPeer, *announceData)
 }
 
 // newLightFetcher creates a light fetcher instance.
@@ -485,12 +483,6 @@ func (f *lightFetcher) mainloop() {
 
 // announce processes a new announcement message received from a peer.
 func (f *lightFetcher) announce(p *serverPeer, head *announceData) {
-	if f.newAnnounce != nil {
-		f.newAnnounce(p, head)
-	}
-	if f.noAnnounce {
-		return
-	}
 	select {
 	case f.announceCh <- &announce{peerid: p.ID(), trust: p.trusted, data: head}:
 	case <-f.closeCh:

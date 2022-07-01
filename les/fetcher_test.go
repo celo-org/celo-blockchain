@@ -98,14 +98,12 @@ func testSequentialAnnouncements(t *testing.T, syncMode downloader.SyncMode, pro
 	s, c, teardown := newClientServerEnv(t, netconfig)
 	defer teardown()
 
-	// Create connected peer pair.
-	c.handler.fetcher.noAnnounce = true // Ignore the first announce from peer which can trigger a resync.
-	p1, _, err := newTestPeerPair("peer", protocol, s.handler, c.handler)
+	// Create connected peer pair, the initial signal from LES server
+	// is discarded to prevent syncing.
+	p1, _, err := newTestPeerPair("peer", protocol, s.handler, c.handler, true)
 	if err != nil {
 		t.Fatalf("Failed to create peer pair %v", err)
 	}
-	c.handler.fetcher.noAnnounce = false
-
 	importCh := make(chan interface{})
 	c.handler.fetcher.newHeadHook = func(header *types.Header) {
 		importCh <- header
@@ -166,14 +164,12 @@ func testGappedAnnouncements(t *testing.T, syncMode downloader.SyncMode, protoco
 	s, c, teardown := newClientServerEnv(t, netconfig)
 	defer teardown()
 
-	// Create connected peer pair.
-	c.handler.fetcher.noAnnounce = true // Ignore the first announce from peer which can trigger a resync.
-	peer, _, err := newTestPeerPair("peer", protocol, s.handler, c.handler)
+	// Create connected peer pair, the initial signal from LES server
+	// is discarded to prevent syncing.
+	peer, _, err := newTestPeerPair("peer", protocol, s.handler, c.handler, true)
 	if err != nil {
 		t.Fatalf("Failed to create peer pair %v", err)
 	}
-	c.handler.fetcher.noAnnounce = false
-
 	done := make(chan *types.Header, 1)
 	c.handler.fetcher.newHeadHook = func(header *types.Header) { done <- header }
 
@@ -193,29 +189,11 @@ func testGappedAnnouncements(t *testing.T, syncMode downloader.SyncMode, protoco
 	verifyChainHeight(t, c.handler.fetcher, 4)
 
 	// Send a reorged announcement
-	var newAnno = make(chan struct{}, 1)
-	c.handler.fetcher.noAnnounce = true
-	c.handler.fetcher.newAnnounce = func(*serverPeer, *announceData) {
-		newAnno <- struct{}{}
-	}
 	blocks, _ := core.GenerateChain(rawdb.ReadChainConfig(s.db, s.backend.Blockchain().Genesis().Hash()), s.backend.Blockchain().GetBlockByNumber(3),
 		mockEngine.NewFaker(), s.db, 2, func(i int, gen *core.BlockGen) {
 			gen.OffsetTime(-9) // higher block difficulty
 		})
 	s.backend.Blockchain().InsertChain(blocks)
-	<-newAnno
-	c.handler.fetcher.noAnnounce = false
-	c.handler.fetcher.newAnnounce = nil
-
-	latest = blocks[len(blocks)-1].Header()
-	hash, number = latest.Hash(), latest.Number.Uint64()
-	td = rawdb.ReadTd(s.db, hash, number)
-
-	announce = announceData{hash, number, td, 1, nil}
-	if peer.cpeer.announceType == announceTypeSigned {
-		announce.sign(s.handler.server.privateKey)
-	}
-	peer.cpeer.sendAnnounce(announce)
 
 	<-done // Wait syncing
 	verifyChainHeight(t, c.handler.fetcher, 5)
@@ -291,20 +269,15 @@ func testTrustedAnnouncement(t *testing.T, syncMode downloader.SyncMode, protoco
 			teardowns[i]()
 		}
 	}()
-
-	c.handler.fetcher.noAnnounce = true // Ignore the first announce from peer which can trigger a resync.
-
 	// Connect all server instances.
 	for i := 0; i < len(servers); i++ {
-		sp, cp, err := connect(servers[i].handler, nodes[i].ID(), c.handler, protocol)
+		sp, cp, err := connect(servers[i].handler, nodes[i].ID(), c.handler, protocol, true)
 		if err != nil {
 			t.Fatalf("connect server and client failed, err %s", err)
 		}
 		cpeers = append(cpeers, cp)
 		speers = append(speers, sp)
 	}
-	c.handler.fetcher.noAnnounce = false
-
 	newHead := make(chan *types.Header, 1)
 	c.handler.fetcher.newHeadHook = func(header *types.Header) { newHead <- header }
 
@@ -350,14 +323,12 @@ func testInvalidAnnounces(t *testing.T, syncMode downloader.SyncMode, protocol i
 	s, c, teardown := newClientServerEnv(t, netconfig)
 	defer teardown()
 
-	// Create connected peer pair.
-	c.handler.fetcher.noAnnounce = true // Ignore the first announce from peer which can trigger a resync.
-	peer, _, err := newTestPeerPair("peer", lpv3, s.handler, c.handler)
+	// Create connected peer pair, the initial signal from LES server
+	// is discarded to prevent syncing.
+	peer, _, err := newTestPeerPair("peer", lpv3, s.handler, c.handler, true)
 	if err != nil {
 		t.Fatalf("Failed to create peer pair %v", err)
 	}
-	c.handler.fetcher.noAnnounce = false
-
 	done := make(chan *types.Header, 1)
 	c.handler.fetcher.newHeadHook = func(header *types.Header) { done <- header }
 
