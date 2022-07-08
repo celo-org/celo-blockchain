@@ -15,7 +15,7 @@ require (
 	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/btcsuite/btcutil v1.0.2
 	github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72
-	github.com/celo-org/celo-bls-go v0.2.4
+	github.com/celo-org/celo-bls-go v0.6.1
 	github.com/cespare/cp v0.1.0
 	github.com/cespare/xxhash/v2 v2.1.1
 	github.com/cloudflare/cloudflare-go v0.14.0
