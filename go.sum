@@ -123,6 +123,8 @@ github.com/c-bata/go-prompt v0.2.2 h1:uyKRz6Z6DUyj49QVijyM339UJV9yhbr70gESwbNU3e
 github.com/c-bata/go-prompt v0.2.2/go.mod h1:VzqtzE2ksDBcdln8G7mk2RX9QyGjH+OVqOCSiVIqS34=
 github.com/celo-org/celo-bls-go v0.2.4 h1:V1y92kM5IRJWQZ6DCwqiKLW7swmUA5y/dPJ9YbU4HfA=
 github.com/celo-org/celo-bls-go v0.2.4/go.mod h1:eXUCLXu5F1yfd3M+3VaUk5ZUXaA0sLK2rWdLC1Cfaqo=
+github.com/celo-org/celo-bls-go v0.2.5 h1:FnZ9T4klZ9OMbI8XX4DQYbRQJsm3IDW0yB8roeVFyNk=
+github.com/celo-org/celo-bls-go v0.2.5/go.mod h1:eXUCLXu5F1yfd3M+3VaUk5ZUXaA0sLK2rWdLC1Cfaqo=
 github.com/celo-org/celo-bls-go v0.3.1 h1:iR72YyoRNIoLUx/ccc51mAPQ5IV2j0KR6UF+gZa3AxU=
 github.com/celo-org/celo-bls-go v0.3.1/go.mod h1:I3MXhBBpdfZ3DuX0kyRims4vPXxXSogEpTgWmo0VLRQ=
 github.com/celo-org/celo-bls-go v0.3.2 h1:7Br/SLXrMf+loAsTf4E9Kd+MLq0GZYgvj4ohRWDaJu0=
