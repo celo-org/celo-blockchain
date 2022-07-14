@@ -134,9 +134,18 @@ func dummyMessage(code uint64) *Message {
 	return msg
 }
 
+func dummyRoundChangeMessage() *Message {
+	msg := NewPrepareMessage(dummySubject(), common.HexToAddress("AABB"))
+	// Set empty rather than nil signature since this is how rlp decodes non
+	// existent slices.
+	msg.Signature = []byte{}
+	msg.Code = MsgRoundChange
+	return msg
+}
+
 func dummyRoundChangeCertificate() *RoundChangeCertificate {
 	return &RoundChangeCertificate{
-		RoundChangeMessages: []Message{*dummyMessage(42), *dummyMessage(32), *dummyMessage(15)},
+		RoundChangeMessages: []Message{*dummyRoundChangeMessage(), *dummyRoundChangeMessage(), *dummyRoundChangeMessage()},
 	}
 }
 
