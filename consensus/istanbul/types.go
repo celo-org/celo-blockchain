@@ -146,7 +146,7 @@ func (c *RoundChangeCertificate) EncodeRLP(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	log.Debug("Proposals count on the round change certificate", len(proposals))
+	log.Debug("Round change certificate proposals", "count", len(proposals))
 	return rlp.Encode(w, []interface{}{proposals, messages})
 }
 
