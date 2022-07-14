@@ -266,10 +266,10 @@ func extractProposal(message *Message) (Proposal, *IndexedRoundChangeMessage, er
 	}
 
 	setMessageBytes(&indexedMsg.Message,
-		RoundChange{
+		&RoundChange{
 			View: roundChange.View,
 			PreparedCertificate: PreparedCertificate{
-				Proposal:                nil, // Removed
+				Proposal:                &types.Block{}, // Empty Block
 				PrepareOrCommitMessages: pc.PrepareOrCommitMessages,
 			},
 		})
