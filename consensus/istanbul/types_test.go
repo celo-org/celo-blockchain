@@ -140,6 +140,8 @@ func dummyRoundChangeMessage() *Message {
 	// existent slices.
 	msg.Signature = []byte{}
 	msg.Code = MsgRoundChange
+	roundChange := RoundChange{}
+	setMessageBytes(msg, roundChange)
 	return msg
 }
 
