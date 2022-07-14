@@ -151,7 +151,7 @@ func (c *RoundChangeCertificate) EncodeRLP(w io.Writer) error {
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
 func (c *RoundChangeCertificate) DecodeRLP(s *rlp.Stream) error {
 	var decodestr struct {
-		Proposals       []Proposal
+		Proposals       []*types.Block
 		IndexedMessages []IndexedRoundChangeMessage
 	}
 
@@ -164,7 +164,7 @@ func (c *RoundChangeCertificate) DecodeRLP(s *rlp.Stream) error {
 // setValues recreates the RoundChange messages from the props (Proposal set/index) and the
 // list of IndexedRoundChangeMessage, which is supposed to be the same as the RoundChange
 // Messages but with the proposals just referenced to the Proposals set.
-func (c *RoundChangeCertificate) setValues(props []Proposal, iMess []IndexedRoundChangeMessage) error {
+func (c *RoundChangeCertificate) setValues(props []*types.Block, iMess []IndexedRoundChangeMessage) error {
 	// create a Proposal index from the list
 	propIndex := make(map[common.Hash]Proposal)
 	for _, prop := range props {
@@ -202,14 +202,14 @@ type IndexedRoundChangeMessage struct {
 // asValues presents the RoundChangeCertificate as values for RLP Serialization.
 // This is done using a list of proposals, and the RoundChange messages using
 // hash references instead of the full proposal objects, to reduce bandwith.
-func (c *RoundChangeCertificate) asValues() ([]Proposal, []*IndexedRoundChangeMessage, error) {
+func (c *RoundChangeCertificate) asValues() ([]*types.Block, []*IndexedRoundChangeMessage, error) {
 	var err error
 
 	messages := make([]*IndexedRoundChangeMessage, len(c.RoundChangeMessages))
-	proposalsMap := make(map[common.Hash]Proposal)
+	proposalsMap := make(map[common.Hash]*types.Block)
 
 	for i, message := range c.RoundChangeMessages {
-		var proposal Proposal
+		var proposal *types.Block
 		proposal, messages[i], err = extractProposal(&message)
 		if err != nil {
 			return nil, nil, err
@@ -222,7 +222,7 @@ func (c *RoundChangeCertificate) asValues() ([]Proposal, []*IndexedRoundChangeMe
 	}
 
 	// Iterate values. RLP does not support maps
-	proposals := make([]Proposal, len(proposalsMap))
+	proposals := make([]*types.Block, len(proposalsMap))
 	var i = 0
 	for _, p := range proposalsMap {
 		proposals[i] = p
@@ -243,7 +243,7 @@ func getRoundChange(message *Message) (*RoundChange, error) {
 	return p, nil
 }
 
-func extractProposal(message *Message) (Proposal, *IndexedRoundChangeMessage, error) {
+func extractProposal(message *Message) (*types.Block, *IndexedRoundChangeMessage, error) {
 	// We assume the message is already parsed
 	roundChange, err := getRoundChange(message)
 	if err != nil {
@@ -274,7 +274,7 @@ func extractProposal(message *Message) (Proposal, *IndexedRoundChangeMessage, er
 			},
 		})
 
-	return pc.Proposal, &indexedMsg, nil
+	return pc.Proposal.(*types.Block), &indexedMsg, nil
 }
 
 // ## Preprepare ##############################################################
