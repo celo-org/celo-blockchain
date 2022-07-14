@@ -135,6 +135,99 @@ func (b *RoundChangeCertificate) IsEmpty() bool {
 	return len(b.RoundChangeMessages) == 0
 }
 
+// EncodeRLP serializes b into the Ethereum RLP format.
+func (c *RoundChangeCertificate) EncodeRLP(w io.Writer) error {
+	proposals := c.distinctProposals()
+	messages := c.indexedMessages()
+	return rlp.Encode(w, []interface{}{proposals, messages})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
+func (c *RoundChangeCertificate) DecodeRLP(s *rlp.Stream) error {
+	var decodestr struct {
+		Proposals       []Proposal
+		IndexedMessages []IndexedRoundChangeMessage
+	}
+
+	if err := s.Decode(&decodestr); err != nil {
+		return err
+	}
+	// join the structures and set values in c
+	return nil
+}
+
+func (c *RoundChangeCertificate) distinctProposals() []Proposal {
+	r := make(map[common.Hash]Proposal)
+	for _, message := range c.RoundChangeMessages {
+		rcm := message.RoundChange()
+		if rcm.HasPreparedCertificate() {
+			prop := rcm.PreparedCertificate.Proposal
+			if prop == nil {
+				r[prop.Hash()] = prop
+			}
+		}
+	}
+	// Iterate values. RLP does not support maps
+	v := make([]Proposal, 0)
+	for _, p := range r {
+		v = append(v, p)
+	}
+	return v
+}
+
+type IndexedRoundChangeMessage struct {
+	ProposalHash common.Hash
+	Message      Message // PreparedCertificate.Proposal = nil if any
+}
+
+func NewIndexedRoundChangeMessage(message Message) *IndexedRoundChangeMessage {
+	roundChange := message.RoundChange()
+	pc := roundChange.PreparedCertificate
+	if pc == nil {
+		return &IndexedRoundChangeMessage{
+			Message: message,
+		}
+	}
+
+	// Assume message.Code = MsgRoundChange
+	var pHash common.Hash
+	if pc.Proposal != nil {
+		pHash = pc.Proposal.Hash()
+	}
+
+	// Remove proposal from the Message
+	curatedMessage := Message{
+		Code:      message.Code,
+		Address:   message.Address,
+		Signature: message.Signature,
+	}
+
+	curatedPC := &PreparedCertificate{
+		Proposal:                nil, // Removed
+		PrepareOrCommitMessages: pc.PrepareOrCommitMessages,
+	}
+
+	curatedRoundChange := RoundChange{
+		View:                roundChange.View,
+		PreparedCertificate: *curatedPC,
+	}
+
+	setMessageBytes(&curatedMessage, curatedRoundChange)
+
+	return &IndexedRoundChangeMessage{
+		ProposalHash: pHash,
+		Message:      curatedMessage,
+	}
+}
+
+func (c *RoundChangeCertificate) indexedMessages() []*IndexedRoundChangeMessage {
+	r := make([]*IndexedRoundChangeMessage, len(c.RoundChangeMessages))
+	for i, message := range c.RoundChangeMessages {
+		r[i] = NewIndexedRoundChangeMessage(message)
+	}
+	return r
+}
+
 // ## Preprepare ##############################################################
 
 // NewPreprepareMessage constructs a Message instance with the given sender and
