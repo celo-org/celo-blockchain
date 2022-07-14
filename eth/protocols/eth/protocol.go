@@ -43,7 +43,7 @@ const ProtocolName = "eth"
 var ProtocolVersions = []uint{ETH66, ETH65}
 
 // maxMessageSize is the maximum cap on the size of a protocol message.
-const maxMessageSize = 10 * 1024 * 1024 * 10 // Celo increase for istanbul round change certificates
+const maxMessageSize = 10 * 1024 * 1024
 
 const (
 	// Protocol messages in eth/64 (celo65)
