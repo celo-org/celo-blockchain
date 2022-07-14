@@ -26,6 +26,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/rlp"
 	"golang.org/x/crypto/sha3"
+	"gotest.tools/assert"
 )
 
 // testHasher is the helper tool for transaction/receipt list hashing.
@@ -220,6 +221,29 @@ func TestRoundChangeCertificateRLPEncoding(t *testing.T) {
 
 	if err = rlp.DecodeBytes(rawVal, &result); err != nil {
 		t.Fatalf("Error %v", err)
+	}
+
+	assert.Equal(t, len(original.RoundChangeMessages), len(original.RoundChangeMessages))
+	o1 := original.RoundChangeMessages[0]
+	r1 := result.RoundChangeMessages[0]
+	if !reflect.DeepEqual(o1.Code, r1.Code) {
+		t.Fatalf("RLP Encode/Decode mismatch at first Code")
+	}
+
+	if !reflect.DeepEqual(o1.Code, r1.Code) {
+		t.Fatalf("RLP Encode/Decode mismatch at first Code")
+	}
+
+	if !reflect.DeepEqual(o1.Address, r1.Address) {
+		t.Fatalf("RLP Encode/Decode mismatch at first Address")
+	}
+
+	if !reflect.DeepEqual(o1.Signature, r1.Signature) {
+		t.Fatalf("RLP Encode/Decode mismatch at first Signature")
+	}
+
+	if !reflect.DeepEqual(o1, r1) {
+		t.Fatalf("RLP Encode/Decode mismatch at first RoundChangeMessage")
 	}
 
 	if !reflect.DeepEqual(original, result) {
