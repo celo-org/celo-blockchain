@@ -164,11 +164,16 @@ func getRoundChange(message *Message) RoundChange {
 	return nil
 }
 
+// setValues recreates the RoundChange messages from the props (Proposal set/index) and the
+// list of IndexedRoundChangeMessage, which is supposed to be the same as the RoundChange
+// Messages but with the proposals just referenced to the Proposals set.
 func (c *RoundChangeCertificate) setValues(props []Proposal, iMess []IndexedRoundChangeMessage) error {
+	// create a Proposal index from the list
 	propIndex := make(map[common.Hash]Proposal)
 	for _, prop := range props {
 		propIndex[prop.Hash()] = prop
 	}
+	// Recreate Messages one by one
 	mess := make([]Message, len(iMess))
 	for i, im := range iMess {
 		mess[i] = Message{
@@ -177,6 +182,7 @@ func (c *RoundChangeCertificate) setValues(props []Proposal, iMess []IndexedRoun
 			Signature: im.Message.Signature,
 		}
 
+		// Add the proposal to the message if it had one
 		roundChange := getRoundChange(&im.Message)
 		if proposal, ok := propIndex[im.ProposalHash]; ok {
 			roundChange.PreparedCertificate.Proposal = proposal
