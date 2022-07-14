@@ -126,6 +126,10 @@ func (v *View) Cmp(y *View) int {
 }
 
 // ## RoundChangeCertificate ##############################################################
+// To considerably reduce the bandwith used by the RoundChangeCertificate type (which often
+// contains repeated Proposal from different RoundChange messages), we break it apart during
+// RLP encoding and then build it back during decoding. Proposals are sent just once, and
+// Messages referencing them will use their Hash instead.
 
 type RoundChangeCertificate struct {
 	RoundChangeMessages []Message
