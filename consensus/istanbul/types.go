@@ -163,6 +163,9 @@ func (c *RoundChangeCertificate) DecodeRLP(s *rlp.Stream) error {
 }
 
 func getRoundChange(message *Message) (*RoundChange, error) {
+	if message.Code != MsgRoundChange {
+		return nil, fmt.Errorf("Expected round change message, received code: %d", message.Code)
+	}
 	var p *RoundChange
 	err := message.decode(&p)
 	if err != nil {
