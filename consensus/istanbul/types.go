@@ -142,7 +142,10 @@ func (b *RoundChangeCertificate) IsEmpty() bool {
 // EncodeRLP serializes b into the Ethereum RLP format.
 func (c *RoundChangeCertificate) EncodeRLP(w io.Writer) error {
 	proposals := c.distinctProposals()
-	messages := c.indexedMessages()
+	messages, err := c.indexedMessages()
+	if err != nil {
+		return err
+	}
 	return rlp.Encode(w, []interface{}{proposals, messages})
 }
 
@@ -159,9 +162,13 @@ func (c *RoundChangeCertificate) DecodeRLP(s *rlp.Stream) error {
 	return c.setValues(decodestr.Proposals, decodestr.IndexedMessages)
 }
 
-func getRoundChange(message *Message) RoundChange {
-	// implement
-	return nil
+func getRoundChange(message *Message) (*RoundChange, error) {
+	var p *RoundChange
+	err := message.decode(&p)
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 // setValues recreates the RoundChange messages from the props (Proposal set/index) and the
@@ -183,7 +190,10 @@ func (c *RoundChangeCertificate) setValues(props []Proposal, iMess []IndexedRoun
 		}
 
 		// Add the proposal to the message if it had one
-		roundChange := getRoundChange(&im.Message)
+		roundChange, err := getRoundChange(&im.Message)
+		if err != nil {
+			return err
+		}
 		if proposal, ok := propIndex[im.ProposalHash]; ok {
 			roundChange.PreparedCertificate.Proposal = proposal
 		}
@@ -218,8 +228,11 @@ type IndexedRoundChangeMessage struct {
 	Message      Message // PreparedCertificate.Proposal = nil if any
 }
 
-func NewIndexedRoundChangeMessage(message *Message) *IndexedRoundChangeMessage {
-	roundChange := getRoundChange(message)
+func NewIndexedRoundChangeMessage(message *Message) (*IndexedRoundChangeMessage, error) {
+	roundChange, err := getRoundChange(message)
+	if err != nil {
+		return nil, err
+	}
 	pc := roundChange.PreparedCertificate
 
 	// Assume message.Code = MsgRoundChange
@@ -244,15 +257,19 @@ func NewIndexedRoundChangeMessage(message *Message) *IndexedRoundChangeMessage {
 			},
 		})
 
-	return &indexedMsg
+	return &indexedMsg, nil
 }
 
-func (c *RoundChangeCertificate) indexedMessages() []*IndexedRoundChangeMessage {
+func (c *RoundChangeCertificate) indexedMessages() ([]*IndexedRoundChangeMessage, error) {
 	r := make([]*IndexedRoundChangeMessage, len(c.RoundChangeMessages))
 	for i, message := range c.RoundChangeMessages {
-		r[i] = NewIndexedRoundChangeMessage(&message)
+		var err error
+		r[i], err = NewIndexedRoundChangeMessage(&message)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return r
+	return r, nil
 }
 
 // ## Preprepare ##############################################################
