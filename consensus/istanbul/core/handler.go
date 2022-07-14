@@ -166,13 +166,12 @@ func (c *core) handleMsg(payload []byte) error {
 	// Decode message and check its signature
 	msg := new(istanbul.Message)
 	logger.Trace("Got new message", "payload", hexutil.Encode(payload))
-	logger.Debug("Got new Istanbul consensus message",
-		"code", msg.Code,
-		"from", hexutil.Encode(msg.Address[:]))
 	if err := msg.FromPayload(payload, c.validateFn); err != nil {
 		logger.Debug("Failed to decode message from payload", "err", err)
 		return err
 	}
+	logger.Debug("Got new Istanbul consensus message", "code", msg.Code,
+		"from", msg.Address[:])
 
 	// Only accept message if the address is valid
 	_, src := c.current.ValidatorSet().GetByAddress(msg.Address)
