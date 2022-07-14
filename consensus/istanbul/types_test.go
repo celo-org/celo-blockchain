@@ -140,7 +140,16 @@ func dummyRoundChangeMessage() *Message {
 	// existent slices.
 	msg.Signature = []byte{}
 	msg.Code = MsgRoundChange
-	roundChange := RoundChange{}
+	roundChange := &RoundChange{
+		View: &View{
+			Round:    common.Big1,
+			Sequence: common.Big2,
+		},
+		PreparedCertificate: PreparedCertificate{
+			PrepareOrCommitMessages: []Message{},
+			Proposal:                dummyBlock(2),
+		},
+	}
 	setMessageBytes(msg, roundChange)
 	return msg
 }

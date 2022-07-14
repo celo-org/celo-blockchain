@@ -664,7 +664,7 @@ type Message struct {
 func setMessageBytes(msg *Message, innerMessage interface{}) {
 	bytes, err := rlp.EncodeToBytes(innerMessage)
 	if err != nil {
-		panic(fmt.Sprintf("attempt to serialise inner message of type %T failed", innerMessage))
+		panic(fmt.Sprintf("attempt to serialise inner message of type %T failed. %s", innerMessage, err))
 	}
 	msg.Msg = bytes
 }
