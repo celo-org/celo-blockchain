@@ -141,8 +141,7 @@ func (b *RoundChangeCertificate) IsEmpty() bool {
 
 // EncodeRLP serializes b into the Ethereum RLP format.
 func (c *RoundChangeCertificate) EncodeRLP(w io.Writer) error {
-	proposals := c.distinctProposals()
-	messages, err := c.indexedMessages()
+	proposals, messages, err := c.asData()
 	if err != nil {
 		return err
 	}
@@ -207,37 +206,51 @@ func (c *RoundChangeCertificate) setValues(props []Proposal, iMess []IndexedRoun
 	return nil
 }
 
-func (c *RoundChangeCertificate) distinctProposals() []Proposal {
-	r := make(map[common.Hash]Proposal)
-	for _, message := range c.RoundChangeMessages {
-		rcm := message.RoundChange()
-		if rcm.HasPreparedCertificate() {
-			prop := rcm.PreparedCertificate.Proposal
-			if prop != nil {
-				r[prop.Hash()] = prop
-			}
-		}
-	}
-	// Iterate values. RLP does not support maps
-	v := make([]Proposal, 0)
-	for _, p := range r {
-		v = append(v, p)
-	}
-	return v
-}
-
 type IndexedRoundChangeMessage struct {
 	ProposalHash common.Hash
 	Message      Message // PreparedCertificate.Proposal = nil if any
 }
 
-func NewIndexedRoundChangeMessage(message *Message) (*IndexedRoundChangeMessage, error) {
+
+func (c *RoundChangeCertificate) asData() ([]Proposal, []*IndexedRoundChangeMessage, error) {
+	var err error
+
+	messages := make([]*IndexedRoundChangeMessage, len(c.RoundChangeMessages))
+	proposalsMap := make(map[common.Hash]Proposal)
+
+	for i, message := range c.RoundChangeMessages {
+		var proposal Proposal
+		proposal, messages[i], err = extractProposal(&message)
+		if err != nil {
+			return nil, nil, err
+		}
+		
+		if proposal != nil {
+			// we don't use the height since we know they MUST be the same
+			proposalsMap[proposal.Hash()] = proposal
+		}		
+	}
+
+	// Iterate values. RLP does not support maps
+	proposals := make([]Proposal, len(proposalsMap))
+	for i, p := range r {
+		proposals[i] = p
+	}
+	return proposals, messages, nil
+}
+
+func extractProposal(message *Message) (Proposal, *IndexedRoundChangeMessage, error) {
+	// We assume the message is already parsed
 	roundChange, err := getRoundChange(message)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	
 	pc := roundChange.PreparedCertificate
-
+	if pc == nil {
+		return nil, &IndexedRoundChangeMessage{Message: *message},nil
+	}
+	
 	// Assume message.Code = MsgRoundChange
 	indexedMsg := IndexedRoundChangeMessage{
 		Message: Message{
@@ -260,19 +273,7 @@ func NewIndexedRoundChangeMessage(message *Message) (*IndexedRoundChangeMessage,
 			},
 		})
 
-	return &indexedMsg, nil
-}
-
-func (c *RoundChangeCertificate) indexedMessages() ([]*IndexedRoundChangeMessage, error) {
-	r := make([]*IndexedRoundChangeMessage, len(c.RoundChangeMessages))
-	for i, message := range c.RoundChangeMessages {
-		var err error
-		r[i], err = NewIndexedRoundChangeMessage(&message)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return r, nil
+	return pc.Proposal, &indexedMsg, nil
 }
 
 // ## Preprepare ##############################################################
