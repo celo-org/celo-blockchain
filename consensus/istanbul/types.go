@@ -152,7 +152,35 @@ func (c *RoundChangeCertificate) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&decodestr); err != nil {
 		return err
 	}
-	// join the structures and set values in c
+	return c.setValues(decodestr.Proposals, decodestr.IndexedMessages)
+}
+
+func getRoundChange(message *Message) RoundChange {
+	// implement
+	return nil
+}
+
+func (c *RoundChangeCertificate) setValues(props []Proposal, iMess []IndexedRoundChangeMessage) error {
+	propIndex := make(map[common.Hash]Proposal)
+	for _, prop := range props {
+		propIndex[prop.Hash()] = prop
+	}
+	mess := make([]Message, len(iMess))
+	for i, im := range iMess {
+		mess[i] = Message{
+			Code:      im.Message.Code,
+			Address:   im.Message.Address,
+			Signature: im.Message.Signature,
+		}
+
+		roundChange := getRoundChange(&im.Message)
+		if proposal, ok := propIndex[im.ProposalHash]; ok {
+			roundChange.PreparedCertificate.Proposal = proposal
+		}
+
+		setMessageBytes(&mess[i], roundChange)
+	}
+	c.RoundChangeMessages = mess
 	return nil
 }
 
@@ -162,7 +190,7 @@ func (c *RoundChangeCertificate) distinctProposals() []Proposal {
 		rcm := message.RoundChange()
 		if rcm.HasPreparedCertificate() {
 			prop := rcm.PreparedCertificate.Proposal
-			if prop == nil {
+			if prop != nil {
 				r[prop.Hash()] = prop
 			}
 		}
@@ -181,35 +209,35 @@ type IndexedRoundChangeMessage struct {
 }
 
 func NewIndexedRoundChangeMessage(message *Message) *IndexedRoundChangeMessage {
-	roundChange := message.RoundChange()
+	roundChange := getRoundChange(message)
 	pc := roundChange.PreparedCertificate
 	if pc == nil {
 		return &IndexedRoundChangeMessage{
 			Message: *message,
 		}
 	}
-	
+
 	// Assume message.Code = MsgRoundChange
 	indexedMsg := IndexedRoundChangeMessage{
 		Message: Message{
-			Code: message.Code,
-			Address: message.Address,
+			Code:      message.Code,
+			Address:   message.Address,
 			Signature: message.Signature,
-		}
+		},
 	}
 
 	if pc.Proposal != nil {
 		indexedMsg.ProposalHash = pc.Proposal.Hash()
 	}
 
-	setMessageBytes(&indexedMsg.Message, 
+	setMessageBytes(&indexedMsg.Message,
 		RoundChange{
-			View:                roundChange.View,
+			View: roundChange.View,
 			PreparedCertificate: PreparedCertificate{
 				Proposal:                nil, // Removed
 				PrepareOrCommitMessages: pc.PrepareOrCommitMessages,
 			},
-	})
+		})
 
 	return &indexedMsg
 }
