@@ -126,7 +126,7 @@ func (v *View) Cmp(y *View) int {
 }
 
 // ## RoundChangeCertificate ##############################################################
-// To considerably reduce the bandwith used by the RoundChangeCertificate type (which often
+// To considerably reduce the bandwidth used by the RoundChangeCertificate type (which often
 // contains repeated Proposal from different RoundChange messages), we break it apart during
 // RLP encoding and then build it back during decoding. Proposals are sent just once, and
 // Messages referencing them will use their Hash instead.
@@ -201,7 +201,7 @@ type IndexedRoundChangeMessage struct {
 
 // asValues presents the RoundChangeCertificate as values for RLP Serialization.
 // This is done using a list of proposals, and the RoundChange messages using
-// hash references instead of the full proposal objects, to reduce bandwith.
+// hash references instead of the full proposal objects, to reduce bandwidth.
 func (c *RoundChangeCertificate) asValues() ([]*types.Block, []*IndexedRoundChangeMessage, error) {
 	var err error
 
