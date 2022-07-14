@@ -211,11 +211,6 @@ type IndexedRoundChangeMessage struct {
 func NewIndexedRoundChangeMessage(message *Message) *IndexedRoundChangeMessage {
 	roundChange := getRoundChange(message)
 	pc := roundChange.PreparedCertificate
-	if pc == nil {
-		return &IndexedRoundChangeMessage{
-			Message: *message,
-		}
-	}
 
 	// Assume message.Code = MsgRoundChange
 	indexedMsg := IndexedRoundChangeMessage{
