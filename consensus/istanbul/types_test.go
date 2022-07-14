@@ -242,6 +242,10 @@ func TestRoundChangeCertificateRLPEncoding(t *testing.T) {
 		t.Fatalf("RLP Encode/Decode mismatch at first Signature")
 	}
 
+	if !reflect.DeepEqual(o1.Msg, r1.Msg) {
+		t.Fatalf("RLP Encode/Decode mismatch at first internal Msg bytes. %v ----- %v", o1.Msg, r1.Msg)
+	}
+
 	if !reflect.DeepEqual(o1, r1) {
 		t.Fatalf("RLP Encode/Decode mismatch at first RoundChangeMessage")
 	}
