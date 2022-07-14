@@ -141,7 +141,7 @@ func (b *RoundChangeCertificate) IsEmpty() bool {
 
 // EncodeRLP serializes b into the Ethereum RLP format.
 func (c *RoundChangeCertificate) EncodeRLP(w io.Writer) error {
-	proposals, messages, err := c.asData()
+	proposals, messages, err := c.asValues()
 	if err != nil {
 		return err
 	}
@@ -159,18 +159,6 @@ func (c *RoundChangeCertificate) DecodeRLP(s *rlp.Stream) error {
 		return err
 	}
 	return c.setValues(decodestr.Proposals, decodestr.IndexedMessages)
-}
-
-func getRoundChange(message *Message) (*RoundChange, error) {
-	if message.Code != MsgRoundChange {
-		return nil, fmt.Errorf("Expected round change message, received code: %d", message.Code)
-	}
-	var p *RoundChange
-	err := message.decode(&p)
-	if err != nil {
-		return nil, err
-	}
-	return p, nil
 }
 
 // setValues recreates the RoundChange messages from the props (Proposal set/index) and the
@@ -212,7 +200,7 @@ type IndexedRoundChangeMessage struct {
 }
 
 
-func (c *RoundChangeCertificate) asData() ([]Proposal, []*IndexedRoundChangeMessage, error) {
+func (c *RoundChangeCertificate) asValues() ([]Proposal, []*IndexedRoundChangeMessage, error) {
 	var err error
 
 	messages := make([]*IndexedRoundChangeMessage, len(c.RoundChangeMessages))
@@ -237,6 +225,18 @@ func (c *RoundChangeCertificate) asData() ([]Proposal, []*IndexedRoundChangeMess
 		proposals[i] = p
 	}
 	return proposals, messages, nil
+}
+
+func getRoundChange(message *Message) (*RoundChange, error) {
+	if message.Code != MsgRoundChange {
+		return nil, fmt.Errorf("Expected round change message, received code: %d", message.Code)
+	}
+	var p *RoundChange
+	err := message.decode(&p)
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 func extractProposal(message *Message) (Proposal, *IndexedRoundChangeMessage, error) {
