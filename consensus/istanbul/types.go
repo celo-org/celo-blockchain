@@ -265,13 +265,13 @@ func extractProposal(message *Message) (*types.Block, *IndexedRoundChangeMessage
 		indexedMsg.ProposalHash = pc.Proposal.Hash()
 	}
 
+	curatedPC := EmptyPreparedCertificate()
+	curatedPC.PrepareOrCommitMessages = pc.PrepareOrCommitMessages
+
 	setMessageBytes(&indexedMsg.Message,
 		&RoundChange{
-			View: roundChange.View,
-			PreparedCertificate: PreparedCertificate{
-				Proposal:                &types.Block{}, // Empty Block
-				PrepareOrCommitMessages: pc.PrepareOrCommitMessages,
-			},
+			View:                roundChange.View,
+			PreparedCertificate: curatedPC,
 		})
 
 	return pc.Proposal.(*types.Block), &indexedMsg, nil
