@@ -271,6 +271,11 @@ func TestPreprepareRLPEncoding(t *testing.T) {
 		t.Fatalf("Error %v", err)
 	}
 
+	o := original.RoundChangeCertificate
+	o.RoundChangeMessages[0].prepare = nil
+	o.RoundChangeMessages[1].prepare = nil
+	o.RoundChangeMessages[2].prepare = nil
+
 	// decoded Blocks don't equal Original ones so we need to check equality differently
 	assertEqual(t, "RLP Encode/Decode mismatch: View", result.View, original.View)
 	assertEqual(t, "RLP Encode/Decode mismatch: RoundChangeCertificate", result.RoundChangeCertificate, original.RoundChangeCertificate)
