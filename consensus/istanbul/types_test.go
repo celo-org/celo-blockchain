@@ -249,6 +249,9 @@ func TestRoundChangeCertificateRLPEncoding(t *testing.T) {
 	original.RoundChangeMessages[0].prepare = nil
 	original.RoundChangeMessages[1].prepare = nil
 	original.RoundChangeMessages[2].prepare = nil
+	result.RoundChangeMessages[0].roundChange = nil
+	result.RoundChangeMessages[1].roundChange = nil
+	result.RoundChangeMessages[2].roundChange = nil
 	if !reflect.DeepEqual(original, result) {
 		t.Fatalf("RLP Encode/Decode mismatch. Got %v, expected %v", result, original)
 	}
@@ -275,6 +278,10 @@ func TestPreprepareRLPEncoding(t *testing.T) {
 	o.RoundChangeMessages[0].prepare = nil
 	o.RoundChangeMessages[1].prepare = nil
 	o.RoundChangeMessages[2].prepare = nil
+	r := result.RoundChangeCertificate
+	r.RoundChangeMessages[0].roundChange = nil
+	r.RoundChangeMessages[1].roundChange = nil
+	r.RoundChangeMessages[2].roundChange = nil
 
 	// decoded Blocks don't equal Original ones so we need to check equality differently
 	assertEqual(t, "RLP Encode/Decode mismatch: View", result.View, original.View)

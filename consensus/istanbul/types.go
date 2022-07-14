@@ -189,6 +189,7 @@ func (c *RoundChangeCertificate) setValues(props []*types.Block, iMess []Indexed
 		}
 
 		setMessageBytes(&mess[i], roundChange)
+		mess[i].roundChange = roundChange
 	}
 	c.RoundChangeMessages = mess
 	return nil
