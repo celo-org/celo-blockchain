@@ -199,6 +199,9 @@ type IndexedRoundChangeMessage struct {
 	Message      Message // PreparedCertificate.Proposal = nil if any
 }
 
+// asValues presents the RoundChangeCertificate as values for RLP Serialization.
+// This is done using a list of proposals, and the RoundChange messages using
+// hash references instead of the full proposal objects, to reduce bandwith.
 func (c *RoundChangeCertificate) asValues() ([]Proposal, []*IndexedRoundChangeMessage, error) {
 	var err error
 
