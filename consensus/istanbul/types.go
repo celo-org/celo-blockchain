@@ -199,7 +199,6 @@ type IndexedRoundChangeMessage struct {
 	Message      Message // PreparedCertificate.Proposal = nil if any
 }
 
-
 func (c *RoundChangeCertificate) asValues() ([]Proposal, []*IndexedRoundChangeMessage, error) {
 	var err error
 
@@ -212,17 +211,19 @@ func (c *RoundChangeCertificate) asValues() ([]Proposal, []*IndexedRoundChangeMe
 		if err != nil {
 			return nil, nil, err
 		}
-		
+
 		if proposal != nil {
 			// we don't use the height since we know they MUST be the same
 			proposalsMap[proposal.Hash()] = proposal
-		}		
+		}
 	}
 
 	// Iterate values. RLP does not support maps
 	proposals := make([]Proposal, len(proposalsMap))
-	for i, p := range r {
+	var i = 0
+	for _, p := range proposalsMap {
 		proposals[i] = p
+		i++
 	}
 	return proposals, messages, nil
 }
@@ -245,12 +246,9 @@ func extractProposal(message *Message) (Proposal, *IndexedRoundChangeMessage, er
 	if err != nil {
 		return nil, nil, err
 	}
-	
+
 	pc := roundChange.PreparedCertificate
-	if pc == nil {
-		return nil, &IndexedRoundChangeMessage{Message: *message},nil
-	}
-	
+
 	// Assume message.Code = MsgRoundChange
 	indexedMsg := IndexedRoundChangeMessage{
 		Message: Message{
