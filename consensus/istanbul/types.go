@@ -28,6 +28,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
@@ -145,6 +146,7 @@ func (c *RoundChangeCertificate) EncodeRLP(w io.Writer) error {
 	if err != nil {
 		return err
 	}
+	log.Debug("Proposals count on the round change certificate", len(proposals))
 	return rlp.Encode(w, []interface{}{proposals, messages})
 }
 
