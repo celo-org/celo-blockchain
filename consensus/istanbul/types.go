@@ -180,12 +180,12 @@ type IndexedRoundChangeMessage struct {
 	Message      Message // PreparedCertificate.Proposal = nil if any
 }
 
-func NewIndexedRoundChangeMessage(message Message) *IndexedRoundChangeMessage {
+func NewIndexedRoundChangeMessage(message *Message) *IndexedRoundChangeMessage {
 	roundChange := message.RoundChange()
 	pc := roundChange.PreparedCertificate
 	if pc == nil {
 		return &IndexedRoundChangeMessage{
-			Message: message,
+			Message: *message,
 		}
 	}
 	
@@ -217,7 +217,7 @@ func NewIndexedRoundChangeMessage(message Message) *IndexedRoundChangeMessage {
 func (c *RoundChangeCertificate) indexedMessages() []*IndexedRoundChangeMessage {
 	r := make([]*IndexedRoundChangeMessage, len(c.RoundChangeMessages))
 	for i, message := range c.RoundChangeMessages {
-		r[i] = NewIndexedRoundChangeMessage(message)
+		r[i] = NewIndexedRoundChangeMessage(&message)
 	}
 	return r
 }
