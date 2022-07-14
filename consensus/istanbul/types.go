@@ -188,36 +188,30 @@ func NewIndexedRoundChangeMessage(message Message) *IndexedRoundChangeMessage {
 			Message: message,
 		}
 	}
-
+	
 	// Assume message.Code = MsgRoundChange
-	var pHash common.Hash
+	indexedMsg := IndexedRoundChangeMessage{
+		Message: Message{
+			Code: message.Code,
+			Address: message.Address,
+			Signature: message.Signature,
+		}
+	}
+
 	if pc.Proposal != nil {
-		pHash = pc.Proposal.Hash()
+		indexedMsg.ProposalHash = pc.Proposal.Hash()
 	}
 
-	// Remove proposal from the Message
-	curatedMessage := Message{
-		Code:      message.Code,
-		Address:   message.Address,
-		Signature: message.Signature,
-	}
+	setMessageBytes(&indexedMsg.Message, 
+		RoundChange{
+			View:                roundChange.View,
+			PreparedCertificate: PreparedCertificate{
+				Proposal:                nil, // Removed
+				PrepareOrCommitMessages: pc.PrepareOrCommitMessages,
+			},
+	})
 
-	curatedPC := &PreparedCertificate{
-		Proposal:                nil, // Removed
-		PrepareOrCommitMessages: pc.PrepareOrCommitMessages,
-	}
-
-	curatedRoundChange := RoundChange{
-		View:                roundChange.View,
-		PreparedCertificate: *curatedPC,
-	}
-
-	setMessageBytes(&curatedMessage, curatedRoundChange)
-
-	return &IndexedRoundChangeMessage{
-		ProposalHash: pHash,
-		Message:      curatedMessage,
-	}
+	return &indexedMsg
 }
 
 func (c *RoundChangeCertificate) indexedMessages() []*IndexedRoundChangeMessage {
