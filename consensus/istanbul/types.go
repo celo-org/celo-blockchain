@@ -182,10 +182,11 @@ func (c *RoundChangeCertificate) setValues(props []*types.Block, iMess []Indexed
 		}
 
 		// Add the proposal to the message if it had one
-		roundChange, err := getRoundChange(&im.Message)
+		roundChange, err := im.Message.TryRoundChange()
 		if err != nil {
 			return err
 		}
+
 		if proposal, ok := propIndex[im.ProposalHash]; ok {
 			roundChange.PreparedCertificate.Proposal = proposal
 		}
@@ -234,21 +235,8 @@ func (c *RoundChangeCertificate) asValues() ([]*types.Block, []*IndexedRoundChan
 	return proposals, messages, nil
 }
 
-func getRoundChange(message *Message) (*RoundChange, error) {
-	if message.Code != MsgRoundChange {
-		return nil, fmt.Errorf("Expected round change message, received code: %d", message.Code)
-	}
-	var p *RoundChange
-	err := message.decode(&p)
-	if err != nil {
-		return nil, err
-	}
-	return p, nil
-}
-
 func extractProposal(message *Message) (*types.Block, *IndexedRoundChangeMessage, error) {
-	// We assume the message is already parsed
-	roundChange, err := getRoundChange(message)
+	roundChange, err := message.TryRoundChange()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -682,20 +670,8 @@ func (m *Message) Sign(signingFn func(data []byte) ([]byte, error)) error {
 	return err
 }
 
-func (m *Message) DecodeRLP(stream *rlp.Stream) error {
-	type decodable Message
-	var d decodable
-	err := stream.Decode(&d)
-	if err != nil {
-		return err
-	}
-	*m = Message(d)
-
-	if len(m.Msg) == 0 && len(m.Signature) == 0 {
-		// Empty validator handshake message
-		return nil
-	}
-
+func (m *Message) DecodeMessage() error {
+	var err error
 	switch m.Code {
 	case MsgPreprepare:
 		var p *Preprepare
@@ -743,7 +719,23 @@ func (m *Message) DecodeRLP(stream *rlp.Stream) error {
 		err = fmt.Errorf("unrecognised message code %d", m.Code)
 	}
 	return err
+}
 
+func (m *Message) DecodeRLP(stream *rlp.Stream) error {
+	type decodable Message
+	var d decodable
+	err := stream.Decode(&d)
+	if err != nil {
+		return err
+	}
+	*m = Message(d)
+
+	if len(m.Msg) == 0 && len(m.Signature) == 0 {
+		// Empty validator handshake message
+		return nil
+	}
+
+	return m.DecodeMessage()
 }
 
 // FromPayload decodes b into a Message instance it will set one of the private
@@ -809,6 +801,20 @@ func (m *Message) Preprepare() *Preprepare {
 // Prepare returns prepare if this is a prepare message.
 func (m *Message) Prepare() *Subject {
 	return m.prepare
+}
+
+// Prepare returns round change if this is a round change message.
+func (m *Message) TryRoundChange() (*RoundChange, error) {
+	if m.roundChange != nil {
+		return m.roundChange, nil
+	}
+	if m.Code != MsgRoundChange {
+		return nil, fmt.Errorf("expected round change message, received code: %d", m.Code)
+	}
+	if err := m.DecodeMessage(); err != nil {
+		return nil, err
+	}
+	return m.roundChange, nil
 }
 
 // Prepare returns round change if this is a round change message.
