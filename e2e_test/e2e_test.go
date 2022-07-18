@@ -13,6 +13,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/node"
+	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rpc"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +24,7 @@ func init() {
 	// This statement is commented out but left here since its very useful for
 	// debugging problems and its non trivial to construct.
 	//
-	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
+	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlError, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
 
 	// This disables all logging which in general we want, because there is a lot
 	log.Root().SetHandler(log.DiscardHandler())
@@ -32,24 +33,49 @@ func init() {
 // This test starts a network submits a transaction and waits for the whole
 // network to process the transaction.
 func TestSendCelo(t *testing.T) {
-	ac := test.AccountConfig(3, 2)
-	gc, ec, err := test.BuildConfig(ac)
-	require.NoError(t, err)
-	network, shutdown, err := test.NewNetwork(ac, gc, ec)
-	require.NoError(t, err)
-	defer shutdown()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
 
-	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+	// Add lots of data into the transaction block gas limit is 50000000
+	bgl := 50000000
+	remaining := bgl - int(params.TxGas)
+	maxCalldataSize := remaining / int(params.TxDataZeroGas)
+	minSize, maxSize := 0, maxCalldataSize
+	for minSize < maxSize {
+		time.Sleep(time.Second)
+		target := (minSize + maxSize) / 2
+		println()
+		println("calldata size", target)
+		ac := test.AccountConfig(3, 2)
+		gc, ec, err := test.BuildConfig(ac)
+		require.NoError(t, err)
+		network, shutdown, err := test.NewNetwork(ac, gc, ec)
+		require.NoError(t, err)
 
-	// Send one celo from external account 0 to 1 via node 0.
-	tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, network[0])
-	require.NoError(t, err)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*4)
+		defer cancel()
 
-	// Wait for the whole network to process the transaction.
-	err = network.AwaitTransactions(ctx, tx)
-	require.NoError(t, err)
+		accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+		// Send one celo from external account 0 to 1 via node 0.
+		tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, network[0], target)
+		require.NoError(t, err)
+
+		// Wait for the whole network to process the transaction.
+		err = network.AwaitTransactions(ctx, tx)
+		if errors.Is(err, context.DeadlineExceeded) {
+			maxSize = target
+			shutdown()
+			continue
+		}
+		if err != nil {
+			shutdown()
+			t.Fatalf("Error awaiting tranasaction %v", err)
+		} else {
+			shutdown()
+			minSize = target
+		}
+	}
+	println("result", minSize, maxSize)
+	// println("calldata size mb", calldataSize/(1024*1024))
 }
 
 // This test is intended to ensure that epoch blocks can be correctly marshalled.

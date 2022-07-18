@@ -137,7 +137,7 @@ func BaseConfig() *Config {
 		Blockchain: BlockchainParameters{
 			Version:                 Version{1, 0, 0},
 			GasForNonGoldCurrencies: 50000,
-			BlockGasLimit:           13000000,
+			BlockGasLimit:           50000000,
 		},
 		DoubleSigningSlasher: DoubleSigningSlasherParameters{
 			Reward:  bigIntStr("1000000000000000000000"), // 1000 cGLD

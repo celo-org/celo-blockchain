@@ -1448,6 +1448,9 @@ func (bc *BlockChain) InsertPreprocessedBlock(block *types.Block, receipts []*ty
 // insertPreprocessedBlock writes the block and all associated state to the database,
 // but is expects the chain mutex to be held.
 func (bc *BlockChain) insertPreprocessedBlock(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
+	if atomic.LoadInt32(&bc.running) == 1 {
+		return CanonStatTy, nil
+	}
 	bc.wg.Add(1)
 	defer bc.wg.Done()
 

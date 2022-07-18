@@ -3,6 +3,7 @@ package log
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 	"time"
 
 	"github.com/go-stack/stack"
@@ -181,6 +182,7 @@ func (l *logger) Error(msg string, ctx ...interface{}) {
 }
 
 func (l *logger) Crit(msg string, ctx ...interface{}) {
+	debug.PrintStack()
 	l.write(msg, LvlCrit, ctx, skipLevel)
 	os.Exit(1)
 }

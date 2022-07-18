@@ -2,6 +2,7 @@ package log
 
 import (
 	"os"
+	"runtime/debug"
 )
 
 var (
@@ -56,6 +57,7 @@ func Error(msg string, ctx ...interface{}) {
 
 // Crit is a convenient alias for Root().Crit
 func Crit(msg string, ctx ...interface{}) {
+	debug.PrintStack()
 	root.write(msg, LvlCrit, ctx, skipLevel)
 	os.Exit(1)
 }

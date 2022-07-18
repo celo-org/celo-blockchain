@@ -132,6 +132,9 @@ func (h *handler) handleBatch(msgs []*jsonrpcMessage) {
 
 // handleMsg handles a single message.
 func (h *handler) handleMsg(msg *jsonrpcMessage) {
+	if msg.Method == "eth_sendRawTransaction" {
+		println("the tx")
+	}
 	if ok := h.handleImmediate(msg); ok {
 		return
 	}

@@ -483,6 +483,7 @@ func ValueTransferTransaction(
 	nonce uint64,
 	value *big.Int,
 	signer types.Signer,
+	calldataSize ...int,
 ) (*types.Transaction, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
@@ -491,15 +492,20 @@ func ValueTransferTransaction(
 	if err != nil {
 		return nil, fmt.Errorf("failed to suggest gas price: %v", err)
 	}
+	calldata := make([]byte, 0)
+	if len(calldataSize) > 0 {
+		calldata = make([]byte, calldataSize[0])
+	}
 
-	msg := ethereum.CallMsg{From: sender, To: &recipient, GasPrice: gasPrice, Value: value}
+	msg := ethereum.CallMsg{From: sender, To: &recipient, GasPrice: gasPrice, Value: value, Data: calldata}
 	gasLimit, err := client.EstimateGas(ctx, msg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to estimate gas needed: %v", err)
 	}
+	println("gas limit", gasLimit)
 
 	// Create the transaction and sign it
-	rawTx := types.NewTransactionEthCompatible(nonce, recipient, value, gasLimit, gasPrice, nil)
+	rawTx := types.NewTransactionEthCompatible(nonce, recipient, value, gasLimit, gasPrice, calldata)
 	signed, err := types.SignTx(rawTx, signer, senderKey)
 	if err != nil {
 		return nil, err

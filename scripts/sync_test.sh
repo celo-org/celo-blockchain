@@ -16,7 +16,7 @@ LOGFILE=/tmp/sync_test.log
 
 # Do the sync
 echo "Running geth sync"
-build/bin/geth --datadir $DATADIR --syncmode $MODE --exitwhensynced > $LOGFILE 2>&1
+build/bin/geth --datadir $DATADIR --syncmode $MODE --exitwhensynced
 
 MARK=`date +%s`
 

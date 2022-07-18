@@ -28,7 +28,7 @@ func NewAccount(key *ecdsa.PrivateKey, address common.Address, chainConfig *para
 
 // SendCelo submits a value transfer transaction via the provided Node to send
 // celo to the recipient. The submitted transaction is returned.
-func (a *Account) SendCelo(ctx context.Context, recipient common.Address, value int64, node *Node) (*types.Transaction, error) {
+func (a *Account) SendCelo(ctx context.Context, recipient common.Address, value int64, node *Node, calldatasize ...int) (*types.Transaction, error) {
 	var err error
 	// Lazy set nonce
 	if a.Nonce == nil {
@@ -51,7 +51,8 @@ func (a *Account) SendCelo(ctx context.Context, recipient common.Address, value 
 		recipient,
 		*a.Nonce,
 		big.NewInt(value),
-		signer)
+		signer,
+		calldatasize...)
 
 	if err != nil {
 		return nil, err
