@@ -150,7 +150,7 @@ func (c *Conn) Read() (code uint64, data []byte, wireSize int, err error) {
 		if err != nil {
 			return code, nil, 0, err
 		}
-		if actualSize > maxUint24 {
+		if actualSize > MaxMessageSize {
 			return code, nil, 0, errPlainMessageTooLarge
 		}
 		c.snappyReadBuffer = growslice(c.snappyReadBuffer, actualSize)
@@ -212,7 +212,7 @@ func (c *Conn) Write(code uint64, data []byte) (uint32, error) {
 	if c.session == nil {
 		panic("can't WriteMsg before handshake")
 	}
-	if len(data) > maxUint24 {
+	if len(data) > MaxMessageSize {
 		return 0, errPlainMessageTooLarge
 	}
 	if c.snappyWriteBuffer != nil {
@@ -233,7 +233,7 @@ func (h *sessionState) writeFrame(conn io.Writer, code uint64, data []byte) erro
 
 	// Write header.
 	fsize := rlp.IntSize(code) + len(data)
-	if fsize > maxUint24 {
+	if fsize > MaxMessageSize {
 		return errPlainMessageTooLarge
 	}
 	header := h.wbuf.appendZero(16)

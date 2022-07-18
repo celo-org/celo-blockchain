@@ -25,6 +25,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/forkid"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/p2p/rlpx"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
 
@@ -42,7 +43,7 @@ const ProtocolName = "eth"
 var ProtocolVersions = []uint{ETH66}
 
 // maxMessageSize is the maximum cap on the size of a protocol message.
-const maxMessageSize = 10 * 1024 * 1024
+const maxMessageSize = rlpx.MaxMessageSize
 
 const (
 	StatusMsg                     = 0x00
