@@ -59,7 +59,6 @@ prepare-system-contracts: $(MONOREPO_PATH)/packages/protocol/build
 # build dir or the build dir does not exist then we remove the build dir, yarn
 # install and rebuild the contracts.
 $(MONOREPO_PATH)/packages/protocol/build: $(CONTRACT_SOURCE_FILES)
-	@node --version | grep "^v10" || (echo "node v10 is required to build the monorepo (nvm use 10)" && exit 1)
 	@echo Running yarn install and compiling contracts
 	@cd $(MONOREPO_PATH) && rm -rf packages/protocol/build && yarn && cd packages/protocol && yarn run build:sol
 
