@@ -10,8 +10,8 @@ import (
 	"math/big"
 	"sync"
 
+	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcutil/hdkeychain"
 	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
@@ -493,7 +493,7 @@ func (w *Wallet) derivePrivateKey(path accounts.DerivationPath) (*ecdsa.PrivateK
 	var err error
 	key := w.masterKey
 	for _, n := range path {
-		key, err = key.Child(n)
+		key, err = key.Derive(n)
 		if err != nil {
 			return nil, err
 		}

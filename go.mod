@@ -12,8 +12,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.1.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.1.1
 	github.com/aws/aws-sdk-go-v2/service/route53 v1.1.1
-	github.com/btcsuite/btcd v0.20.1-beta
-	github.com/btcsuite/btcutil v1.0.2
+	github.com/btcsuite/btcd v0.23.1
+	github.com/btcsuite/btcd/btcec/v2 v2.1.3
+	github.com/btcsuite/btcd/btcutil v1.1.1
 	github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72
 	github.com/celo-org/celo-bls-go v0.3.3
 	github.com/cespare/cp v0.1.0
