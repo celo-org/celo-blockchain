@@ -243,8 +243,8 @@ func (rcs *roundChangeSet) Summary() *RoundChangeSetSummary {
 	vals := make(map[uint64][]common.Address)
 	for r, vs := range rcs.msgsForRound {
 		vs2 := make([]common.Address, 0, vs.Size())
-		for i, v := range vs.Values() {
-			vs2[i] = v.Address
+		for _, v := range vs.Values() {
+			vs2 = append(vs2, v.Address)
 		}
 		vals[r] = vs2
 	}
