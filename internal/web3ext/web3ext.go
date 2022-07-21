@@ -741,6 +741,10 @@ web3._extend({
 			getter: 'istanbul_getCurrentRoundState',
 		}),
 		new web3._extend.Property({
+			name: 'currentRoundChangeSet',
+			getter: 'istanbul_getCurrentRoundChangeSet',
+		}),
+		new web3._extend.Property({
 			name: 'proxies',
 			getter: 'istanbul_getProxiesInfo',
 		}),
