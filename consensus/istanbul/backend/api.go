@@ -199,6 +199,17 @@ func (api *API) GetCurrentRoundState() (*core.RoundStateSummary, error) {
 	return api.istanbul.core.CurrentRoundState().Summary(), nil
 }
 
+// GetCurrentRoundChangeSet retrieves the current round change set
+func (api *API) GetCurrentRoundChangeSet() (*core.RoundChangeSetSummary, error) {
+	api.istanbul.coreMu.RLock()
+	defer api.istanbul.coreMu.RUnlock()
+
+	if !api.istanbul.isCoreStarted() {
+		return nil, istanbul.ErrStoppedEngine
+	}
+	return api.istanbul.core.CurrentRoundChangeSet(), nil
+}
+
 func (api *API) ForceRoundChange() (bool, error) {
 	api.istanbul.coreMu.RLock()
 	defer api.istanbul.coreMu.RUnlock()

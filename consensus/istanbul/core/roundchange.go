@@ -201,6 +201,15 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 
 // ----------------------------------------------------------------------------
 
+// CurrentRoundChangeSet returns the current round change set summary.
+func (c *core) CurrentRoundChangeSet() *RoundChangeSetSummary {
+	rcs := c.roundChangeSet
+	if rcs != nil {
+		return rcs.Summary()
+	}
+	return nil
+}
+
 func newRoundChangeSet(valSet istanbul.ValidatorSet) *roundChangeSet {
 	return &roundChangeSet{
 		validatorSet:      valSet,
@@ -215,6 +224,34 @@ type roundChangeSet struct {
 	msgsForRound      map[uint64]MessageSet
 	latestRoundForVal map[common.Address]uint64
 	mu                *sync.Mutex
+}
+
+// RoundChangeSetSummary holds a print friendly view of a RoundChangeSet.
+type RoundChangeSetSummary struct {
+	RoundForVal map[common.Address]uint64   `json:"roundForVal"`
+	ValsInRound map[uint64][]common.Address `json:"valsInRound"`
+}
+
+// Summary returns a print friendly summary of the messages in the set.
+func (rcs *roundChangeSet) Summary() *RoundChangeSetSummary {
+	rcs.mu.Lock()
+	defer rcs.mu.Unlock()
+	rounds := make(map[common.Address]uint64)
+	for v, r := range rcs.latestRoundForVal {
+		rounds[v] = r
+	}
+	vals := make(map[uint64][]common.Address)
+	for r, vs := range rcs.msgsForRound {
+		vs2 := make([]common.Address, 0, vs.Size())
+		for i, v := range vs.Values() {
+			vs2[i] = v.Address
+		}
+		vals[r] = vs2
+	}
+	return &RoundChangeSetSummary{
+		RoundForVal: rounds,
+		ValsInRound: vals,
+	}
 }
 
 // Add adds the round and message into round change set
