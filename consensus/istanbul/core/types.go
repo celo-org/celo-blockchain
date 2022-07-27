@@ -39,6 +39,9 @@ type Engine interface {
 	ParentCommits() MessageSet
 	// ForceRoundChange will force round change to the current desiredRound + 1
 	ForceRoundChange()
+
+	// ResendPreprepare sends again the preprepare message.
+	ResendPreprepare() error
 }
 
 // State represents the IBFT state
