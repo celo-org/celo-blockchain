@@ -29,6 +29,11 @@ type Engine interface {
 	CurrentView() *istanbul.View
 	// CurrentRoundState returns the current roundState or nil if none
 	CurrentRoundState() RoundState
+	// CurrentRoundChangeSet returns the current round change set summary:
+	// a collection of the latest round change messages from all other
+	// validators.
+	CurrentRoundChangeSet() *RoundChangeSetSummary
+
 	SetAddress(common.Address)
 	// Validator -> CommittedSeal from Parent Block
 	ParentCommits() MessageSet
