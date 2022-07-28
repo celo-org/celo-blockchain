@@ -42,6 +42,10 @@ type Engine interface {
 
 	// ResendPreprepare sends again the preprepare message.
 	ResendPreprepare() error
+	// GossipPrepares gossips to other validators all the prepares received in the current round.
+	GossipPrepares() error
+	// GossipCommits gossips to other validators all the commits received in the current round.
+	GossipCommits() error
 }
 
 // State represents the IBFT state

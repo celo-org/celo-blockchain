@@ -40,6 +40,7 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 	}
 }
 
+// ResendPreprepare sends again the preprepare message.
 func (c *core) ResendPreprepare() error {
 	logger := c.newLogger("func", "resendPreprepare")
 	if !c.isProposer() {

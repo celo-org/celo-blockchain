@@ -281,3 +281,20 @@ func (c *core) verifyEpochValidatorSetSeal(comSub *istanbul.CommittedSubject, bl
 	}
 	return blscrypto.VerifySignature(src.BLSPublicKey(), epochData, epochExtraData, comSub.EpochValidatorSetSeal, true, cip22)
 }
+
+// GossipCommits gossips to other validators all the commits received in the current round.
+func (c *core) GossipCommits() error {
+	logger := c.newLogger("func", "gossipCommits")
+	st := c.current.State()
+	if st != StatePreprepared && st != StatePrepared && st != StateCommitted {
+		return errors.New("Cant gossip commits if not in preprepared, prepared, or committed state")
+	}
+	commits := c.current.Commits().Values()
+	logger.Debug("Gossipping commits", "len", len(commits))
+	for _, commit := range commits {
+		c.broadcast(commit)
+		// let the bandwidth breathe a little
+		time.Sleep(10 * time.Millisecond)
+	}
+	return nil
+}
