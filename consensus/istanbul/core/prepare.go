@@ -212,7 +212,7 @@ func (c *core) GossipPrepares() error {
 	prepares := c.current.Prepares().Values()
 	logger.Debug("Gossipping prepares", "len", len(prepares))
 	for _, prepare := range prepares {
-		c.broadcast(prepare)
+		c.gossip(prepare)
 		// let the bandwidth breathe a little
 		time.Sleep(10 * time.Millisecond)
 	}

@@ -292,7 +292,7 @@ func (c *core) GossipCommits() error {
 	commits := c.current.Commits().Values()
 	logger.Debug("Gossipping commits", "len", len(commits))
 	for _, commit := range commits {
-		c.broadcast(commit)
+		c.gossip(commit)
 		// let the bandwidth breathe a little
 		time.Sleep(10 * time.Millisecond)
 	}
