@@ -346,7 +346,7 @@ func (c *core) gossipTo(msg *istanbul.Message, addresses []common.Address) {
 		logger.Error("Tried to gossip unsigned istanbul message", "m", msg)
 		return
 	}
-
+	logger.Trace("Gossipping message", "msg.Address", msg.Address.Hex(), "msg.Code", msg.Code)
 	// Convert to payload
 	payload, err := msg.Payload()
 	if err != nil {
