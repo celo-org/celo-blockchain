@@ -305,3 +305,18 @@ func (api *API) GetLookbackWindow(number *rpc.BlockNumber) (uint64, error) {
 
 	return api.istanbul.LookbackWindow(header, state), nil
 }
+
+// ResendPreprepare sends again the preprepare message
+func (api *API) ResendPreprepare() error {
+	return api.istanbul.core.ResendPreprepare()
+}
+
+// GossipPrepares gossips the prepare messages
+func (api *API) GossipPrepares() error {
+	return api.istanbul.core.GossipPrepares()
+}
+
+// GossipCommits gossips the commit messages
+func (api *API) GossipCommits() error {
+	return api.istanbul.core.GossipCommits()
+}

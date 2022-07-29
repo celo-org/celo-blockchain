@@ -39,6 +39,13 @@ type Engine interface {
 	ParentCommits() MessageSet
 	// ForceRoundChange will force round change to the current desiredRound + 1
 	ForceRoundChange()
+
+	// ResendPreprepare sends again the preprepare message.
+	ResendPreprepare() error
+	// GossipPrepares gossips to other validators all the prepares received in the current round.
+	GossipPrepares() error
+	// GossipCommits gossips to other validators all the commits received in the current round.
+	GossipCommits() error
 }
 
 // State represents the IBFT state

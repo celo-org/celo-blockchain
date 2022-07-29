@@ -728,6 +728,21 @@ web3._extend({
 			call: 'istanbul_stopValidating',
 			params: 0,
 		}),
+		new web3._extend.Method({
+			name: 'resendPreprepare',
+			call: 'istanbul_resendPreprepare',
+			params: 0,
+		}),
+		new web3._extend.Method({
+			name: 'gossipPrepares',
+			call: 'istanbul_gossipPrepares',
+			params: 0,
+		}),
+		new web3._extend.Method({
+			name: 'gossipCommits',
+			call: 'istanbul_gossipCommits',
+			params: 0,
+		}),
 		new web3._extend.Property({
 			name: 'valEnodeTableInfo',
 			getter: 'istanbul_getValEnodeTable',
