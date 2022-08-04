@@ -376,7 +376,7 @@ func (c *core) commit(aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpo
 	c.backlog.updateState(c.current.View(), c.current.State())
 
 	proposal := c.current.Proposal()
-//<<<<<<< HEAD
+/*<<<<<<< HEAD
 	if proposal == nil {
 		return nil
 	}
@@ -386,8 +386,8 @@ func (c *core) commit(aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpo
 		logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
 		c.waitForDesiredRound(nextRound)
 		return nil
-/*=======
-	if proposal != nil {
+=======*/
+	/*if proposal != nil {
 		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits(), c.current.Round())
 		if err != nil {
 			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
@@ -401,7 +401,7 @@ func (c *core) commit(aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpo
 			c.logger.Warn("Error on commit, waiting for desired round", "reason", "GetAggregatedEpochValidatorSetSeal", "err", err, "desired_round", nextRound)
 			c.waitForDesiredRound(nextRound)
 			return nil
-		}
+		}*/
 
 		// Query the StateProcessResult cache, nil if it's cache miss
 		result := c.current.GetStateProcessResult(proposal.Hash())
@@ -410,8 +410,8 @@ func (c *core) commit(aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpo
 			logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
 			c.waitForDesiredRound(nextRound)
 			return nil
-		}
->>>>>>> master*/
+	//	}
+//>>>>>>> master
 	}
 
 	logger.Info("Committed")

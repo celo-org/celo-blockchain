@@ -1,4 +1,4 @@
-// Copyright 2017 The go-ethereum Authors
+// iopyright 2017 The go-ethereum Authors
 // This file is part of the go-ethereum library.
 //
 // The go-ethereum library is free software: you can redistribute it and/or modify
@@ -437,7 +437,7 @@ type ForwardMessage struct {
 // NewQueryEnodeMessage constructs a Message instance with the given sender and
 // queryEnode. Both the queryEnode instance and the serialized bytes of
 // queryEnode are part of the returned Message.
-/*func NewQueryEnodeMessage(queryEnode *QueryEnodeData, sender common.Address) *Message {
+func NewQueryEnodeMessage(queryEnode *QueryEnodeData, sender common.Address) *Message {
 	message := &Message{
 		Address:    sender,
 		Code:       QueryEnodeMsg,
@@ -447,7 +447,7 @@ type ForwardMessage struct {
 	return message
 }
 
->>>>>>> master*/
+//>>>>>>> master
 type EncryptedEnodeURL struct {
 	DestAddress       common.Address
 	EncryptedEnodeURL []byte
@@ -469,8 +469,8 @@ func (qed *QueryEnodeData) String() string {
 	return fmt.Sprintf("{Version: %v, Timestamp: %v, EncryptedEnodeURLs: %v}", qed.Version, qed.Timestamp, qed.EncryptedEnodeURLs)
 }
 
-/*<<<<<<< HEAD
-=======
+//<<<<<<< HEAD
+//=======
 // HasDuplicates returns true if there are duplicate destination addresses in the query, and the first
 // duplicate's destination address.
 func (qed *QueryEnodeData) HasDuplicates() (bool, common.Address) {
@@ -485,7 +485,7 @@ func (qed *QueryEnodeData) HasDuplicates() (bool, common.Address) {
 	return false, common.Address{}
 }
 
->>>>>>> master*/
+//>>>>>>> master
 // ==============================================
 //
 // define the functions that needs to be provided for rlp Encoder/Decoder.
@@ -978,8 +978,8 @@ func (ae *AddressEntry) GetAddress() common.Address {
 
 // ## VersionCertificate ######################################################################
 
-/*<<<<<<< HEAD
-=======
+//<<<<<<< HEAD
+//=======
 // NewVersionCeritifcatesMessage constructs a Message instance with the given sender
 // and versionCertificates. Both the versionCertificates instance and the serialized
 // bytes of versionCertificates are part of the returned Message.
@@ -993,7 +993,7 @@ func NewVersionCeritifcatesMessage(versionCertificates []*VersionCertificate, se
 	return message
 }
 
->>>>>>> master*/
+//>>>>>>> master
 // VersionCertificate is an entry in the VersionCertificateDB.
 // It's a signed message from a registered or active validator indicating
 // the most recent version of its enode.
@@ -1020,7 +1020,7 @@ func NewVersionCertificate(version uint, signingFn func([]byte) ([]byte, error))
 	if err != nil {
 		return nil, err
 	}
-<<<<<<< HEAD
+//<<<<<<< HEAD
 	return vc, vc.recoverAddressAndPubKey()
 /*=======
 	err = vc.recoverAddressAndPubKey()
@@ -1028,7 +1028,7 @@ func NewVersionCertificate(version uint, signingFn func([]byte) ([]byte, error))
 		return nil, err
 	}
 
-	return vc, nil
+	return vc, nil*/
 }
 
 // NewVersionCeritifcateFrom fields constructs a VersionCertificate instance
@@ -1044,7 +1044,7 @@ func NewVersionCertificateFromFields(version uint, signature []byte, address com
 		address:   address,
 		pubKey:    key,
 	}
->>>>>>> master*/
+//>>>>>>> master*/
 }
 
 // Used as a salt when signing versionCertificate. This is to account for
@@ -1138,8 +1138,8 @@ func (sd *ValEnodesShareData) DecodeRLP(s *rlp.Stream) error {
 	sd.ValEnodes = msg.ValEnodes
 	return nil
 }
-/*<<<<<<< HEAD
-=======
+//<<<<<<< HEAD
+//=======
 
 var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
@@ -1209,4 +1209,4 @@ type Wallets struct {
 	Ecdsa EcdsaInfo
 	Bls   BlsInfo
 }
->>>>>>> master*/
+//>>>>>>> master*/

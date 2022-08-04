@@ -19,7 +19,7 @@ package core
 import (
 	"math/big"
 	"reflect"
-	"time"
+//	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -178,7 +178,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 	//
 	// TODO(joshua): Remove state comparisons (or change the cmp function)
 	if numberOfCommits >= minQuorumSize && c.current.State().Cmp(StateCommitted) < 0 {
-/*<<<<<<< HEAD
+//<<<<<<< HEAD
 		round := c.current.Round()
 		proposal := c.current.Proposal()
 		validators := c.current.ValidatorSet()
@@ -236,10 +236,10 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 
 		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", commits)
 		err = c.commit(aggregatedSeal, aggregatedEpochValidatorSetSeal)
-=======*/
+/*=======
 		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", numberOfCommits, "quorum", minQuorumSize)
 		err := c.commit()
-//>>>>>>> master
+>>>>>>> master*/
 		if err != nil {
 			logger.Error("Failed to commit()", "err", err)
 			return err

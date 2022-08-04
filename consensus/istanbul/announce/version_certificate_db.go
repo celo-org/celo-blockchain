@@ -25,9 +25,9 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/db"
-//	"github.com/celo-org/celo-blockchain/consensus/istanbul/db"
-//	"github.com/celo-org/celo-blockchain/crypto"
+//	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/db"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/db"
+	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
@@ -151,10 +151,10 @@ func (svdb *VersionCertificateDB) Upsert(savEntries []*istanbul.VersionCertifica
 // Get gets the istanbul.VersionCertificateEntry entry with address `address`.
 // Returns an error if no entry exists.
 func (svdb *VersionCertificateDB) Get(address common.Address) (*istanbul.VersionCertificate, error) {
-<<<<<<< HEAD:consensus/istanbul/backend/internal/enodes/version_certificate_db.go
-	var entry istanbul.VersionCertificate
-=======
->>>>>>> master:consensus/istanbul/announce/version_certificate_db.go
+//<<<<<<< HEAD:consensus/istanbul/backend/internal/enodes/version_certificate_db.go
+	//var entry istanbul.VersionCertificate
+//=======
+//>>>>>>> master:consensus/istanbul/announce/version_certificate_db.go
 	entryBytes, err := svdb.gdb.Get(addressKey(address))
 	if err != nil {
 		return nil, err
@@ -251,13 +251,13 @@ func (svdb *VersionCertificateDB) iterate(onEntry func(common.Address, *istanbul
 	keyPrefix := []byte(dbAddressPrefix)
 
 	onDBEntry := func(key []byte, value []byte) error {
-<<<<<<< HEAD:consensus/istanbul/backend/internal/enodes/version_certificate_db.go
+/*<<<<<<< HEAD:consensus/istanbul/backend/internal/enodes/version_certificate_db.go
 		var entry istanbul.VersionCertificate
 		if err := rlp.DecodeBytes(value, &entry); err != nil {
-=======
+=======*/
 		entry, err := decodeVersionCertificate(value)
 		if err != nil {
->>>>>>> master:consensus/istanbul/announce/version_certificate_db.go
+//>>>>>>> master:consensus/istanbul/announce/version_certificate_db.go
 			return err
 		}
 

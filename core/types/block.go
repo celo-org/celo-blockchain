@@ -376,6 +376,19 @@ func (b *Block) WithHeader(header *Header) *Block {
 	}
 }
 
+// WithSeal returns a new block with the data from b but the header replaced with
+// the sealed one.
+func (b *Block) WithSeal(header *Header) *Block {
+	cpy := *header
+
+	return &Block{
+		header:         &cpy,
+		transactions:   b.transactions,
+		randomness:     b.randomness,
+		epochSnarkData: b.epochSnarkData,
+	}
+}
+
 // WithRandomness returns a new block with the given randomness.
 func (b *Block) WithRandomness(randomness *Randomness) *Block {
 	block := &Block{
