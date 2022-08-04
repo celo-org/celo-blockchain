@@ -25,8 +25,6 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/params"
-
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -37,10 +35,10 @@ import (
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
-	"github.com/celo-org/celo-bls-go/bls"
-
 	elog "github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-bls-go/bls"
 )
 
 // ErrorReporter is the intersection of the testing.B and testing.T interfaces.
@@ -69,7 +67,7 @@ type testSystemBackend struct {
 
 	// Function pointer to a verify function, so that the test core_test.go/TestVerifyProposal
 	// can inject in different proposal verification statuses.
-	verifyImpl func(proposal istanbul.Proposal) (time.Duration, error)
+	verifyImpl func(proposal istanbul.Proposal) (*StateProcessResult, time.Duration, error)
 
 	donutBlock *big.Int
 }
@@ -78,6 +76,7 @@ type testCommittedMsgs struct {
 	commitProposal                  istanbul.Proposal
 	aggregatedSeal                  types.IstanbulAggregatedSeal
 	aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal
+	stateProcessResult              *StateProcessResult
 }
 
 // ==============================================
@@ -170,12 +169,13 @@ func (self *testSystemBackend) SignBLS(data []byte, extra []byte, useComposite, 
 	return sig[:], err
 }
 
-func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {
+func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal, stateProcessResult *StateProcessResult) error {
 	testLogger.Info("commit message", "address", self.Address())
 	self.committedMsgs = append(self.committedMsgs, testCommittedMsgs{
 		commitProposal:                  proposal,
 		aggregatedSeal:                  aggregatedSeal,
 		aggregatedEpochValidatorSetSeal: aggregatedEpochValidatorSetSeal,
+		stateProcessResult:              stateProcessResult,
 	})
 
 	// fake new head events
@@ -183,7 +183,7 @@ func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal
 	return nil
 }
 
-func (self *testSystemBackend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
+func (self *testSystemBackend) Verify(proposal istanbul.Proposal) (*StateProcessResult, time.Duration, error) {
 	if self.verifyImpl == nil {
 		return self.verifyWithSuccess(proposal)
 	} else {
@@ -191,16 +191,16 @@ func (self *testSystemBackend) Verify(proposal istanbul.Proposal) (time.Duration
 	}
 }
 
-func (self *testSystemBackend) verifyWithSuccess(proposal istanbul.Proposal) (time.Duration, error) {
-	return 0, nil
+func (self *testSystemBackend) verifyWithSuccess(proposal istanbul.Proposal) (*StateProcessResult, time.Duration, error) {
+	return nil, 0, nil
 }
 
-func (self *testSystemBackend) verifyWithFailure(proposal istanbul.Proposal) (time.Duration, error) {
-	return 0, InvalidProposalError
+func (self *testSystemBackend) verifyWithFailure(proposal istanbul.Proposal) (*StateProcessResult, time.Duration, error) {
+	return nil, 0, InvalidProposalError
 }
 
-func (self *testSystemBackend) verifyWithFutureProposal(proposal istanbul.Proposal) (time.Duration, error) {
-	return 5, consensus.ErrFutureBlock
+func (self *testSystemBackend) verifyWithFutureProposal(proposal istanbul.Proposal) (*StateProcessResult, time.Duration, error) {
+	return nil, 5, consensus.ErrFutureBlock
 }
 
 func (self *testSystemBackend) Sign(data []byte) ([]byte, error) {
@@ -339,7 +339,7 @@ func (self *testSystemBackend) RefreshValPeers() error {
 	return nil
 }
 
-func (self *testSystemBackend) setVerifyImpl(verifyImpl func(proposal istanbul.Proposal) (time.Duration, error)) {
+func (self *testSystemBackend) setVerifyImpl(verifyImpl func(proposal istanbul.Proposal) (*StateProcessResult, time.Duration, error)) {
 	self.verifyImpl = verifyImpl
 }
 

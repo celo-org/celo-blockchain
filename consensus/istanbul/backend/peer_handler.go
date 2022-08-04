@@ -50,6 +50,8 @@ func (vph *validatorPeerHandler) startThread() error {
 		return istanbul.ErrStartedVPHThread
 	}
 
+	vph.threadRunning = true
+	vph.threadWg.Add(1)
 	go vph.thread()
 
 	return nil
@@ -71,7 +73,6 @@ func (vph *validatorPeerHandler) stopThread() error {
 }
 
 func (vph *validatorPeerHandler) thread() {
-	vph.threadWg.Add(1)
 	defer vph.threadWg.Done()
 
 	refreshValidatorPeersTicker := time.NewTicker(1 * time.Minute)

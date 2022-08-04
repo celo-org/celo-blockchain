@@ -79,10 +79,10 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			})
 			return true, nil
 		case istanbul.QueryEnodeMsg:
-			go sb.handleQueryEnodeMsg(addr, peer, data)
+			go sb.announceManager.HandleQueryEnodeMsg(addr, peer, data)
 			return true, nil
 		case istanbul.VersionCertificatesMsg:
-			go sb.handleVersionCertificatesMsg(addr, peer, data)
+			go sb.announceManager.HandleVersionCertificatesMsg(addr, peer, data)
 			return true, nil
 		case istanbul.ValidatorHandshakeMsg:
 			logger.Warn("Received unexpected Istanbul validator handshake message")
@@ -111,13 +111,13 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			// Do not return an error, otherwise bad ethstat setup might cause disconnecting from proxy
 			return true, nil
 		case istanbul.EnodeCertificateMsg:
-			go sb.handleEnodeCertificateMsg(peer, data)
+			go sb.announceManager.HandleEnodeCertificateMsg(peer, data)
 			return true, nil
 		case istanbul.QueryEnodeMsg:
-			go sb.handleQueryEnodeMsg(addr, peer, data)
+			go sb.announceManager.HandleQueryEnodeMsg(addr, peer, data)
 			return true, nil
 		case istanbul.VersionCertificatesMsg:
-			go sb.handleVersionCertificatesMsg(addr, peer, data)
+			go sb.announceManager.HandleVersionCertificatesMsg(addr, peer, data)
 			return true, nil
 		case istanbul.ValidatorHandshakeMsg:
 			logger.Warn("Received unexpected Istanbul validator handshake message")
@@ -144,13 +144,13 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			// Do not return an error, otherwise bad ethstat setup might cause disconnecting from proxy
 			return true, nil
 		case istanbul.EnodeCertificateMsg:
-			go sb.handleEnodeCertificateMsg(peer, data)
+			go sb.announceManager.HandleEnodeCertificateMsg(peer, data)
 			return true, nil
 		case istanbul.QueryEnodeMsg:
-			go sb.handleQueryEnodeMsg(addr, peer, data)
+			go sb.announceManager.HandleQueryEnodeMsg(addr, peer, data)
 			return true, nil
 		case istanbul.VersionCertificatesMsg:
-			go sb.handleVersionCertificatesMsg(addr, peer, data)
+			go sb.announceManager.HandleVersionCertificatesMsg(addr, peer, data)
 			return true, nil
 		case istanbul.ValidatorHandshakeMsg:
 			logger.Warn("Received unexpected Istanbul validator handshake message")
@@ -197,13 +197,13 @@ func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
 	sb.p2pserver = p2pserver
 }
 
-// This function is called by miner/worker.go whenever it's mainLoop gets a newWork event.
+// NewWork is called by miner/worker.go whenever it's mainLoop gets a newWork event.
 func (sb *Backend) NewWork() error {
 	sb.logger.Debug("NewWork called, acquiring core lock", "func", "NewWork")
 
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
-	if !sb.coreStarted {
+	if !sb.isCoreStarted() {
 		return istanbul.ErrStoppedEngine
 	}
 
@@ -346,7 +346,10 @@ func (sb *Backend) newChainHead(newBlock *types.Block) {
 
 		sb.logger.Info("Validator Election Results", "address", sb.ValidatorAddress(), "elected", valSetIndex >= 0, "number", newBlock.Number().Uint64())
 
-		if sb.announceRunning {
+		// We lock here (inside IsAnnounceRunning) to protect access to announceRunning because
+		// announceRunning is also accessed in StartAnnouncing and
+		// StopAnnouncing.
+		if sb.announceManager.IsAnnounceRunning() {
 			sb.logger.Trace("At end of epoch and going to refresh validator peers", "new_block_number", newBlock.Number().Uint64())
 			if err := sb.RefreshValPeers(); err != nil {
 				sb.logger.Warn("Error refreshing validator peers", "err", err)
@@ -381,7 +384,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
 		}
 	}
 
-	if err := sb.sendVersionCertificateTable(peer); err != nil {
+	if err := sb.announceManager.SendVersionCertificateTable(peer); err != nil {
 		logger.Debug("Error sending all version certificates", "err", err)
 	}
 

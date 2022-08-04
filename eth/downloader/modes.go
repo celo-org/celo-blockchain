@@ -19,11 +19,13 @@ package downloader
 import "fmt"
 
 // SyncMode represents the synchronisation mode of the downloader.
-type SyncMode int
+// It is a uint32 as it is used with atomic operations.
+type SyncMode uint32
 
 const (
 	FullSync     SyncMode = iota // Synchronise the entire blockchain history from full blocks
 	FastSync                     // Quickly download the headers, full sync only at the chain head
+	SnapSync                     // Download the chain and the state via compact snapshots
 	LightSync                    // Download only the headers and terminate afterwards
 	LightestSync                 // Synchronise one block per Epoch (Celo-specific mode)
 )
@@ -39,6 +41,8 @@ func (mode SyncMode) String() string {
 		return "full"
 	case FastSync:
 		return "fast"
+	// case SnapSync:
+	// 	return "snap"
 	case LightSync:
 		return "light"
 	case LightestSync:
@@ -54,6 +58,9 @@ func (mode SyncMode) MarshalText() ([]byte, error) {
 		return []byte("full"), nil
 	case FastSync:
 		return []byte("fast"), nil
+	// case SnapSync:
+	// 	return []byte("snap"), nil
+	// TODO: Implement snap sync
 	case LightSync:
 		return []byte("light"), nil
 	case LightestSync:
@@ -69,6 +76,9 @@ func (mode *SyncMode) UnmarshalText(text []byte) error {
 		*mode = FullSync
 	case "fast":
 		*mode = FastSync
+	// case "snap":
+	// 	*mode = SnapSync
+	// TODO: Implement snap sync
 	case "light":
 		*mode = LightSync
 	case "lightest":
@@ -78,6 +88,8 @@ func (mode *SyncMode) UnmarshalText(text []byte) error {
 	}
 	return nil
 }
+
+// TODO: Enable snap sync mode here. (https://github.com/celo-org/celo-blockchain/issues/1735)
 
 // Returns true if the all headers and not just some a small, discontinuous, set of headers are fetched.
 func (mode SyncMode) SyncFullHeaderChain() bool {

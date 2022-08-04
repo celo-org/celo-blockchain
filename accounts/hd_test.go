@@ -17,6 +17,7 @@
 package accounts
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -61,7 +62,7 @@ func TestHDPathParsing(t *testing.T) {
 		// Weird inputs just to ensure they work
 		{"	m  /   44			'\n/\n   52752	\n\n\t'   /\n0 ' /\t\t	0", DerivationPath{0x80000000 + 44, 0x80000000 + 52752, 0x80000000 + 0, 0}},
 
-		// Invaid derivation paths
+		// Invalid derivation paths
 		{"", nil},                 // Empty relative derivation path
 		{"m", nil},                // Empty absolute derivation path
 		{"m/", nil},               // Missing last derivation component
@@ -76,4 +77,42 @@ func TestHDPathParsing(t *testing.T) {
 			t.Errorf("test %d: nil path and error: %v", i, err)
 		}
 	}
+}
+
+func testDerive(t *testing.T, next func() DerivationPath, expected []string) {
+	t.Helper()
+	for i, want := range expected {
+		if have := next(); fmt.Sprintf("%v", have) != want {
+			t.Errorf("step %d, have %v, want %v", i, have, want)
+		}
+	}
+}
+
+func TestHdPathIteration(t *testing.T) {
+	testDerive(t, DefaultIterator(DefaultBaseDerivationPath),
+		[]string{
+			"m/44'/52752'/0'/0/0", "m/44'/52752'/0'/0/1",
+			"m/44'/52752'/0'/0/2", "m/44'/52752'/0'/0/3",
+			"m/44'/52752'/0'/0/4", "m/44'/52752'/0'/0/5",
+			"m/44'/52752'/0'/0/6", "m/44'/52752'/0'/0/7",
+			"m/44'/52752'/0'/0/8", "m/44'/52752'/0'/0/9",
+		})
+
+	testDerive(t, DefaultIterator(LegacyLedgerBaseDerivationPath),
+		[]string{
+			"m/44'/52752'/0'/0", "m/44'/52752'/0'/1",
+			"m/44'/52752'/0'/2", "m/44'/52752'/0'/3",
+			"m/44'/52752'/0'/4", "m/44'/52752'/0'/5",
+			"m/44'/52752'/0'/6", "m/44'/52752'/0'/7",
+			"m/44'/52752'/0'/8", "m/44'/52752'/0'/9",
+		})
+
+	testDerive(t, LedgerLiveIterator(DefaultBaseDerivationPath),
+		[]string{
+			"m/44'/52752'/0'/0/0", "m/44'/52752'/1'/0/0",
+			"m/44'/52752'/2'/0/0", "m/44'/52752'/3'/0/0",
+			"m/44'/52752'/4'/0/0", "m/44'/52752'/5'/0/0",
+			"m/44'/52752'/6'/0/0", "m/44'/52752'/7'/0/0",
+			"m/44'/52752'/8'/0/0", "m/44'/52752'/9'/0/0",
+		})
 }

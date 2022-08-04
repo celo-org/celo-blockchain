@@ -31,6 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/common/compiler"
 	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/internal/flags"
 	"github.com/celo-org/celo-blockchain/log"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -100,7 +101,7 @@ var (
 	}
 	aliasFlag = cli.StringFlag{
 		Name:  "alias",
-		Usage: "Comma separated aliases for function and event renaming, e.g. foo=bar",
+		Usage: "Comma separated aliases for function and event renaming, e.g. original1=alias1, original2=alias2",
 	}
 	version2Flag = cli.BoolFlag{
 		Name:  "v2",
@@ -109,7 +110,7 @@ var (
 )
 
 func init() {
-	app = utils.NewApp(gitCommit, gitDate, "ethereum checkpoint helper tool")
+	app = flags.NewApp(gitCommit, gitDate, "ethereum checkpoint helper tool")
 	app.Flags = []cli.Flag{
 		abiFlag,
 		binFlag,
@@ -128,7 +129,7 @@ func init() {
 		version2Flag,
 	}
 	app.Action = utils.MigrateFlags(abigen)
-	cli.CommandHelpTemplate = utils.OriginCommandHelpTemplate
+	cli.CommandHelpTemplate = flags.OriginCommandHelpTemplate
 }
 
 func abigen(c *cli.Context) error {

@@ -20,10 +20,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"math/big"
+	"sort"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/uptime"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/log"
@@ -79,6 +79,39 @@ func ReadAllHashes(db ethdb.Iteratee, number uint64) []common.Hash {
 		}
 	}
 	return hashes
+}
+
+// ReadAllCanonicalHashes retrieves all canonical number and hash mappings at the
+// certain chain range. If the accumulated entries reaches the given threshold,
+// abort the iteration and return the semi-finish result.
+func ReadAllCanonicalHashes(db ethdb.Iteratee, from uint64, to uint64, limit int) ([]uint64, []common.Hash) {
+	// Short circuit if the limit is 0.
+	if limit == 0 {
+		return nil, nil
+	}
+	var (
+		numbers []uint64
+		hashes  []common.Hash
+	)
+	// Construct the key prefix of start point.
+	start, end := headerHashKey(from), headerHashKey(to)
+	it := db.NewIterator(nil, start)
+	defer it.Release()
+
+	for it.Next() {
+		if bytes.Compare(it.Key(), end) >= 0 {
+			break
+		}
+		if key := it.Key(); len(key) == len(headerPrefix)+8+1 && bytes.Equal(key[len(key)-1:], headerHashSuffix) {
+			numbers = append(numbers, binary.BigEndian.Uint64(key[len(headerPrefix):len(headerPrefix)+8]))
+			hashes = append(hashes, common.BytesToHash(it.Value()))
+			// If the accumulated entries reaches the limit threshold, return.
+			if len(numbers) >= limit {
+				break
+			}
+		}
+	}
+	return numbers, hashes
 }
 
 // ReadHeaderNumber returns the header number assigned to a hash.
@@ -479,39 +512,6 @@ func ReadTd(db ethdb.Reader, hash common.Hash, number uint64) *big.Int {
 	return td
 }
 
-// ReadAccumulatedEpochUptime retrieves the so-far accumulated uptime array for the validators of the specified epoch
-func ReadAccumulatedEpochUptime(db ethdb.Reader, epoch uint64) *uptime.Uptime {
-	data, _ := db.Get(uptimeKey(epoch))
-	if len(data) == 0 {
-		log.Trace("ReadAccumulatedEpochUptime EMPTY", "epoch", epoch)
-		return nil
-	}
-	uptime := new(uptime.Uptime)
-	if err := rlp.Decode(bytes.NewReader(data), uptime); err != nil {
-		log.Error("Invalid uptime RLP", "err", err)
-		return nil
-	}
-	return uptime
-}
-
-// WriteAccumulatedEpochUptime updates the accumulated uptime array for the validators of the specified epoch
-func WriteAccumulatedEpochUptime(db ethdb.KeyValueWriter, epoch uint64, uptime *uptime.Uptime) {
-	data, err := rlp.EncodeToBytes(uptime)
-	if err != nil {
-		log.Crit("Failed to RLP encode updated uptime", "err", err)
-	}
-	if err := db.Put(uptimeKey(epoch), data); err != nil {
-		log.Crit("Failed to store updated uptime", "err", err)
-	}
-}
-
-// DeleteAccumulatedEpochUptime removes all accumulated uptime data for that epoch
-func DeleteAccumulatedEpochUptime(db ethdb.KeyValueWriter, epoch uint64) {
-	if err := db.Delete(uptimeKey(epoch)); err != nil {
-		log.Crit("Failed to delete stored uptime of validators", "err", err)
-	}
-}
-
 // WriteTd stores the total difficulty of a block into the database.
 func WriteTd(db ethdb.KeyValueWriter, hash common.Hash, number uint64, td *big.Int) {
 	data, err := rlp.EncodeToBytes(td)
@@ -735,6 +735,102 @@ func ReadRandomCommitmentCache(db ethdb.Reader, commitment common.Hash) common.H
 	return common.BytesToHash(parentHash)
 }
 
+const badBlockToKeep = 10
+
+type badBlock struct {
+	Header *types.Header
+	Body   *types.Body
+}
+
+// badBlockList implements the sort interface to allow sorting a list of
+// bad blocks by their number in the reverse order.
+type badBlockList []*badBlock
+
+func (s badBlockList) Len() int { return len(s) }
+func (s badBlockList) Less(i, j int) bool {
+	return s[i].Header.Number.Uint64() < s[j].Header.Number.Uint64()
+}
+func (s badBlockList) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// ReadBadBlock retrieves the bad block with the corresponding block hash.
+func ReadBadBlock(db ethdb.Reader, hash common.Hash) *types.Block {
+	blob, err := db.Get(badBlockKey)
+	if err != nil {
+		return nil
+	}
+	var badBlocks badBlockList
+	if err := rlp.DecodeBytes(blob, &badBlocks); err != nil {
+		return nil
+	}
+	for _, bad := range badBlocks {
+		if bad.Header.Hash() == hash {
+			return types.NewBlockWithHeader(bad.Header).WithBody(bad.Body.Transactions, bad.Body.Randomness, bad.Body.EpochSnarkData)
+		}
+	}
+	return nil
+}
+
+// ReadAllBadBlocks retrieves all the bad blocks in the database.
+// All returned blocks are sorted in reverse order by number.
+func ReadAllBadBlocks(db ethdb.Reader) []*types.Block {
+	blob, err := db.Get(badBlockKey)
+	if err != nil {
+		return nil
+	}
+	var badBlocks badBlockList
+	if err := rlp.DecodeBytes(blob, &badBlocks); err != nil {
+		return nil
+	}
+	var blocks []*types.Block
+	for _, bad := range badBlocks {
+		blocks = append(blocks, types.NewBlockWithHeader(bad.Header).WithBody(bad.Body.Transactions, bad.Body.Randomness, bad.Body.EpochSnarkData))
+	}
+	return blocks
+}
+
+// WriteBadBlock serializes the bad block into the database. If the cumulated
+// bad blocks exceeds the limitation, the oldest will be dropped.
+func WriteBadBlock(db ethdb.KeyValueStore, block *types.Block) {
+	blob, err := db.Get(badBlockKey)
+	if err != nil {
+		log.Warn("Failed to load old bad blocks", "error", err)
+	}
+	var badBlocks badBlockList
+	if len(blob) > 0 {
+		if err := rlp.DecodeBytes(blob, &badBlocks); err != nil {
+			log.Crit("Failed to decode old bad blocks", "error", err)
+		}
+	}
+	for _, b := range badBlocks {
+		if b.Header.Number.Uint64() == block.NumberU64() && b.Header.Hash() == block.Hash() {
+			log.Info("Skip duplicated bad block", "number", block.NumberU64(), "hash", block.Hash())
+			return
+		}
+	}
+	badBlocks = append(badBlocks, &badBlock{
+		Header: block.Header(),
+		Body:   block.Body(),
+	})
+	sort.Sort(sort.Reverse(badBlocks))
+	if len(badBlocks) > badBlockToKeep {
+		badBlocks = badBlocks[:badBlockToKeep]
+	}
+	data, err := rlp.EncodeToBytes(badBlocks)
+	if err != nil {
+		log.Crit("Failed to encode bad blocks", "err", err)
+	}
+	if err := db.Put(badBlockKey, data); err != nil {
+		log.Crit("Failed to write bad blocks", "err", err)
+	}
+}
+
+// DeleteBadBlocks deletes all the bad blocks from the database
+func DeleteBadBlocks(db ethdb.KeyValueWriter) {
+	if err := db.Delete(badBlockKey); err != nil {
+		log.Crit("Failed to delete bad blocks", "err", err)
+	}
+}
+
 // FindCommonAncestor returns the last common ancestor of two block headers
 func FindCommonAncestor(db ethdb.Reader, a, b *types.Header) *types.Header {
 	for bn := b.Number.Uint64(); a.Number.Uint64() > bn; {
@@ -760,4 +856,30 @@ func FindCommonAncestor(db ethdb.Reader, a, b *types.Header) *types.Header {
 		}
 	}
 	return a
+}
+
+// ReadHeadHeader returns the current canonical head header.
+func ReadHeadHeader(db ethdb.Reader) *types.Header {
+	headHeaderHash := ReadHeadHeaderHash(db)
+	if headHeaderHash == (common.Hash{}) {
+		return nil
+	}
+	headHeaderNumber := ReadHeaderNumber(db, headHeaderHash)
+	if headHeaderNumber == nil {
+		return nil
+	}
+	return ReadHeader(db, headHeaderHash, *headHeaderNumber)
+}
+
+// ReadHeadBlock returns the current canonical head block.
+func ReadHeadBlock(db ethdb.Reader) *types.Block {
+	headBlockHash := ReadHeadBlockHash(db)
+	if headBlockHash == (common.Hash{}) {
+		return nil
+	}
+	headBlockNumber := ReadHeaderNumber(db, headBlockHash)
+	if headBlockNumber == nil {
+		return nil
+	}
+	return ReadBlock(db, headBlockHash, *headBlockNumber)
 }

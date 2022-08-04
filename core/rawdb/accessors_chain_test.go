@@ -22,12 +22,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
+	"math/rand"
 	"os"
 	"reflect"
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/uptime"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rlp"
@@ -85,7 +85,7 @@ func TestBodyStorage(t *testing.T) {
 	WriteBody(db, hash, 0, body)
 	if entry := ReadBody(db, hash, 0); entry == nil {
 		t.Fatalf("Stored body not found")
-	} else if types.DeriveSha(types.Transactions(entry.Transactions)) != types.DeriveSha(types.Transactions(body.Transactions)) {
+	} else if types.DeriveSha(types.Transactions(entry.Transactions), newHasher()) != types.DeriveSha(types.Transactions(body.Transactions), newHasher()) {
 		t.Fatalf("Retrieved body mismatch: have %v, want %v", entry, body)
 	}
 	if entry := ReadBodyRLP(db, hash, 0); entry == nil {
@@ -138,7 +138,7 @@ func TestBlockStorage(t *testing.T) {
 	}
 	if entry := ReadBody(db, block.Hash(), block.NumberU64()); entry == nil {
 		t.Fatalf("Stored body not found")
-	} else if types.DeriveSha(types.Transactions(entry.Transactions)) != types.DeriveSha(block.Transactions()) {
+	} else if types.DeriveSha(types.Transactions(entry.Transactions), newHasher()) != types.DeriveSha(block.Transactions(), newHasher()) {
 		t.Fatalf("Retrieved body mismatch: have %v, want %v", entry, block.Body())
 	}
 	// Delete the block and verify the execution
@@ -187,34 +187,69 @@ func TestPartialBlockStorage(t *testing.T) {
 	}
 }
 
-// Tests uptime accumulator storage and retrieval operations.
-func TestUptimeStorage(t *testing.T) {
+// Tests block storage and retrieval operations.
+func TestBadBlockStorage(t *testing.T) {
 	db := NewMemoryDatabase()
-	epoch := uint64(0)
 
-	// Create a test uptime to move around the database and make sure it's really new
-	if entry := ReadAccumulatedEpochUptime(db, epoch); entry != nil {
-		t.Fatalf("Non existent uptime returned: %v", entry)
+	// Create a test block to move around the database and make sure it's really new
+	block := types.NewBlockWithHeader(&types.Header{
+		Number:      big.NewInt(1),
+		Extra:       []byte("bad block"),
+		TxHash:      types.EmptyRootHash,
+		ReceiptHash: types.EmptyRootHash,
+	})
+	if entry := ReadBadBlock(db, block.Hash()); entry != nil {
+		t.Fatalf("Non existent block returned: %v", entry)
+	}
+	// Write and verify the block in the database
+	WriteBadBlock(db, block)
+	if entry := ReadBadBlock(db, block.Hash()); entry == nil {
+		t.Fatalf("Stored block not found")
+	} else if entry.Hash() != block.Hash() {
+		t.Fatalf("Retrieved block mismatch: have %v, want %v", entry, block)
+	}
+	// Write one more bad block
+	blockTwo := types.NewBlockWithHeader(&types.Header{
+		Number:      big.NewInt(2),
+		Extra:       []byte("bad block two"),
+		TxHash:      types.EmptyRootHash,
+		ReceiptHash: types.EmptyRootHash,
+	})
+	WriteBadBlock(db, blockTwo)
+
+	// Write the block one again, should be filtered out.
+	WriteBadBlock(db, block)
+	badBlocks := ReadAllBadBlocks(db)
+	if len(badBlocks) != 2 {
+		t.Fatalf("Failed to load all bad blocks")
 	}
 
-	uptime := &uptime.Uptime{
-		Entries: []uptime.UptimeEntry{
-			{UpBlocks: 0, LastSignedBlock: 1},
-			{UpBlocks: 2, LastSignedBlock: 2},
-			{UpBlocks: 8, LastSignedBlock: 8},
-		},
-		LatestBlock: 5,
+	// Write a bunch of bad blocks, all the blocks are should sorted
+	// in reverse order. The extra blocks should be truncated.
+	for _, n := range rand.Perm(100) {
+		block := types.NewBlockWithHeader(&types.Header{
+			Number:      big.NewInt(int64(n)),
+			Extra:       []byte("bad block"),
+			TxHash:      types.EmptyRootHash,
+			ReceiptHash: types.EmptyRootHash,
+		})
+		WriteBadBlock(db, block)
 	}
-	WriteAccumulatedEpochUptime(db, epoch, uptime)
-	if entry := ReadAccumulatedEpochUptime(db, epoch); entry == nil {
-		t.Fatalf("Stored uptime not found")
-	} else if !reflect.DeepEqual(entry, uptime) {
-		t.Fatalf("Retrieved uptime mismatch: have %v, want %v", entry, uptime)
+	badBlocks = ReadAllBadBlocks(db)
+	if len(badBlocks) != badBlockToKeep {
+		t.Fatalf("The number of persised bad blocks in incorrect %d", len(badBlocks))
 	}
-	// Delete the uptime and verify the execution
-	DeleteAccumulatedEpochUptime(db, epoch)
-	if entry := ReadAccumulatedEpochUptime(db, epoch); entry != nil {
-		t.Fatalf("Deleted uptime returned: %v", entry)
+	for i := 0; i < len(badBlocks)-1; i++ {
+		if badBlocks[i].NumberU64() < badBlocks[i+1].NumberU64() {
+			t.Fatalf("The bad blocks are not sorted #[%d](%d) < #[%d](%d)", i, i+1, badBlocks[i].NumberU64(), badBlocks[i+1].NumberU64())
+		}
+	}
+
+	// Delete all bad blocks
+	DeleteBadBlocks(db)
+	badBlocks = ReadAllBadBlocks(db)
+	if len(badBlocks) != 0 {
+		t.Fatalf("Failed to delete bad blocks")
 	}
 }
 
@@ -400,10 +435,11 @@ func TestAncientStorage(t *testing.T) {
 	}
 	defer os.Remove(frdir)
 
-	db, err := NewDatabaseWithFreezer(NewMemoryDatabase(), frdir, "")
+	db, err := NewDatabaseWithFreezer(NewMemoryDatabase(), frdir, "", false)
 	if err != nil {
 		t.Fatalf("failed to create database with ancient backend")
 	}
+	defer db.Close()
 	// Create a test block
 	block := types.NewBlockWithHeader(&types.Header{
 		Number:      big.NewInt(0),
@@ -452,5 +488,37 @@ func TestAncientStorage(t *testing.T) {
 	}
 	if blob := ReadTdRLP(db, fakeHash, number); len(blob) != 0 {
 		t.Fatalf("invalid td returned")
+	}
+}
+
+func TestCanonicalHashIteration(t *testing.T) {
+	var cases = []struct {
+		from, to uint64
+		limit    int
+		expect   []uint64
+	}{
+		{1, 8, 0, nil},
+		{1, 8, 1, []uint64{1}},
+		{1, 8, 10, []uint64{1, 2, 3, 4, 5, 6, 7}},
+		{1, 9, 10, []uint64{1, 2, 3, 4, 5, 6, 7, 8}},
+		{2, 9, 10, []uint64{2, 3, 4, 5, 6, 7, 8}},
+		{9, 10, 10, nil},
+	}
+	// Test empty db iteration
+	db := NewMemoryDatabase()
+	numbers, _ := ReadAllCanonicalHashes(db, 0, 10, 10)
+	if len(numbers) != 0 {
+		t.Fatalf("No entry should be returned to iterate an empty db")
+	}
+	// Fill database with testing data.
+	for i := uint64(1); i <= 8; i++ {
+		WriteCanonicalHash(db, common.Hash{}, i)
+		WriteTd(db, common.Hash{}, i, big.NewInt(10)) // Write some interferential data
+	}
+	for i, c := range cases {
+		numbers, _ := ReadAllCanonicalHashes(db, c.from, c.to, c.limit)
+		if !reflect.DeepEqual(numbers, c.expect) {
+			t.Fatalf("Case %d failed, want %v, got %v", i, c.expect, numbers)
+		}
 	}
 }

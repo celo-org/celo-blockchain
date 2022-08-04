@@ -101,22 +101,23 @@ const (
 	NUMBER
 	CHAINID     OpCode = 0x46
 	SELFBALANCE OpCode = 0x47
+	BASEFEE     OpCode = 0x48
 )
 
 // 0x50 range - 'storage' and execution.
 const (
-	POP OpCode = 0x50 + iota
-	MLOAD
-	MSTORE
-	MSTORE8
-	SLOAD
-	SSTORE
-	JUMP
-	JUMPI
-	PC
-	MSIZE
-	GAS
-	JUMPDEST
+	POP      OpCode = 0x50
+	MLOAD    OpCode = 0x51
+	MSTORE   OpCode = 0x52
+	MSTORE8  OpCode = 0x53
+	SLOAD    OpCode = 0x54
+	SSTORE   OpCode = 0x55
+	JUMP     OpCode = 0x56
+	JUMPI    OpCode = 0x57
+	PC       OpCode = 0x58
+	MSIZE    OpCode = 0x59
+	GAS      OpCode = 0x5a
+	JUMPDEST OpCode = 0x5b
 )
 
 // 0x60 range.
@@ -276,6 +277,7 @@ var opCodeToString = map[OpCode]string{
 	NUMBER:      "NUMBER",
 	CHAINID:     "CHAINID",
 	SELFBALANCE: "SELFBALANCE",
+	BASEFEE:     "BASEFEE",
 
 	// 0x50 range - 'storage' and execution.
 	POP: "POP",
@@ -428,6 +430,7 @@ var stringToOp = map[string]OpCode{
 	"CALLDATASIZE":   CALLDATASIZE,
 	"CALLDATACOPY":   CALLDATACOPY,
 	"CHAINID":        CHAINID,
+	"BASEFEE":        BASEFEE,
 	"DELEGATECALL":   DELEGATECALL,
 	"STATICCALL":     STATICCALL,
 	"CODESIZE":       CODESIZE,

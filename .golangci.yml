@@ -1,7 +1,7 @@
 # This file configures github.com/golangci/golangci-lint.
 
 run:
-  timeout: 2m
+  timeout: 3m
   tests: true
   # default is true. Enables skipping of directories:
   #   vendor$, third_party$, testdata$, examples$, Godeps$, builtin$
@@ -12,21 +12,21 @@ run:
 linters:
   disable-all: true
   enable:
-    # - deadcode
-    # - errcheck
+    - deadcode
+    - goconst
+    - goimports
     - gosimple
     - govet
     - ineffassign
-    - staticcheck
-    - unused
+    - misspell
+    # - staticcheck
+    - unconvert
+    # - unused
     - varcheck
 
-    - goconst
-    - goimports
-    - gosec
-    - misspell
+    # - gosec
+    # - errcheck
     # - prealloc
-    - unconvert
     # - unparam
 
 linters-settings:

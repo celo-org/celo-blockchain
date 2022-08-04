@@ -17,24 +17,40 @@
 package abi
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"reflect"
 	"strings"
 )
 
+// ConvertType converts an interface of a runtime type into a interface of the
+// given type
+// e.g. turn
+// var fields []reflect.StructField
+// fields = append(fields, reflect.StructField{
+// 		Name: "X",
+//		Type: reflect.TypeOf(new(big.Int)),
+//		Tag:  reflect.StructTag("json:\"" + "x" + "\""),
+// }
+// into
+// type TupleT struct { X *big.Int }
+func ConvertType(in interface{}, proto interface{}) interface{} {
+	protoType := reflect.TypeOf(proto)
+	if reflect.TypeOf(in).ConvertibleTo(protoType) {
+		return reflect.ValueOf(in).Convert(protoType).Interface()
+	}
+	// Use set as a last ditch effort
+	if err := set(reflect.ValueOf(proto), reflect.ValueOf(in)); err != nil {
+		panic(err)
+	}
+	return proto
+}
+
 // indirect recursively dereferences the value until it either gets the value
 // or finds a big.Int
 func indirect(v reflect.Value) reflect.Value {
 	if v.Kind() == reflect.Ptr && v.Elem().Type() != reflect.TypeOf(big.Int{}) {
-		return indirect(v.Elem())
-	}
-	return v
-}
-
-// indirectInterfaceOrPtr recursively dereferences the value until value is not interface.
-func indirectInterfaceOrPtr(v reflect.Value) reflect.Value {
-	if (v.Kind() == reflect.Interface || v.Kind() == reflect.Ptr) && v.Elem().IsValid() {
 		return indirect(v.Elem())
 	}
 	return v
@@ -68,7 +84,7 @@ func reflectIntType(unsigned bool, size int) reflect.Type {
 	return reflect.TypeOf(&big.Int{})
 }
 
-// mustArrayToBytesSlice creates a new byte slice with the exact same size as value
+// mustArrayToByteSlice creates a new byte slice with the exact same size as value
 // and copies the bytes in value to the new slice.
 func mustArrayToByteSlice(value reflect.Value) reflect.Value {
 	slice := reflect.MakeSlice(reflect.TypeOf([]byte{}), value.Len(), value.Len())
@@ -90,7 +106,11 @@ func set(dst, src reflect.Value) error {
 	case srcType.AssignableTo(dstType) && dst.CanSet():
 		dst.Set(src)
 	case dstType.Kind() == reflect.Slice && srcType.Kind() == reflect.Slice && dst.CanSet():
-		setSlice(dst, src)
+		return setSlice(dst, src)
+	case dstType.Kind() == reflect.Array:
+		return setArray(dst, src)
+	case dstType.Kind() == reflect.Struct:
+		return setStruct(dst, src)
 	default:
 		return fmt.Errorf("abi: cannot unmarshal %v in to %v", src.Type(), dst.Type())
 	}
@@ -100,33 +120,58 @@ func set(dst, src reflect.Value) error {
 // setSlice attempts to assign src to dst when slices are not assignable by default
 // e.g. src: [][]byte -> dst: [][15]byte
 // setSlice ignores if we cannot copy all of src' elements.
-func setSlice(dst, src reflect.Value) {
+func setSlice(dst, src reflect.Value) error {
 	slice := reflect.MakeSlice(dst.Type(), src.Len(), src.Len())
 	for i := 0; i < src.Len(); i++ {
-		reflect.Copy(slice.Index(i), src.Index(i))
-	}
-	dst.Set(slice)
-}
-
-// requireAssignable assures that `dest` is a pointer and it's not an interface.
-func requireAssignable(dst, src reflect.Value) error {
-	if dst.Kind() != reflect.Ptr && dst.Kind() != reflect.Interface {
-		return fmt.Errorf("abi: cannot unmarshal %v into %v", src.Type(), dst.Type())
-	}
-	return nil
-}
-
-// requireUnpackKind verifies preconditions for unpacking `args` into `kind`
-func requireUnpackKind(v reflect.Value, minLength int, args Arguments) error {
-	switch v.Kind() {
-	case reflect.Struct:
-	case reflect.Slice, reflect.Array:
-		if v.Len() < minLength {
-			return fmt.Errorf("abi: insufficient number of elements in the list/array for unpack, want %d, got %d",
-				minLength, v.Len())
+		if src.Index(i).Kind() == reflect.Struct {
+			if err := set(slice.Index(i), src.Index(i)); err != nil {
+				return err
+			}
+		} else {
+			// e.g. [][32]uint8 to []common.Hash
+			if err := set(slice.Index(i), src.Index(i)); err != nil {
+				return err
+			}
 		}
-	default:
-		return fmt.Errorf("abi: cannot unmarshal tuple into %v", v.Type())
+	}
+	if dst.CanSet() {
+		dst.Set(slice)
+		return nil
+	}
+	return errors.New("Cannot set slice, destination not settable")
+}
+
+func setArray(dst, src reflect.Value) error {
+	if src.Kind() == reflect.Ptr {
+		return set(dst, indirect(src))
+	}
+	array := reflect.New(dst.Type()).Elem()
+	min := src.Len()
+	if src.Len() > dst.Len() {
+		min = dst.Len()
+	}
+	for i := 0; i < min; i++ {
+		if err := set(array.Index(i), src.Index(i)); err != nil {
+			return err
+		}
+	}
+	if dst.CanSet() {
+		dst.Set(array)
+		return nil
+	}
+	return errors.New("Cannot set array, destination not settable")
+}
+
+func setStruct(dst, src reflect.Value) error {
+	for i := 0; i < src.NumField(); i++ {
+		srcField := src.Field(i)
+		dstField := dst.Field(i)
+		if !dstField.IsValid() || !srcField.IsValid() {
+			return fmt.Errorf("Could not find src field: %v value: %v in destination", srcField.Type().Name(), srcField)
+		}
+		if err := set(dstField, srcField); err != nil {
+			return err
+		}
 	}
 	return nil
 }

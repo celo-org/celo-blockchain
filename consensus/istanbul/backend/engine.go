@@ -29,8 +29,9 @@ import (
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/uptime"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
-	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
-	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/core"
 	ethCore "github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -38,6 +39,7 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/celo-org/celo-blockchain/trie"
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/crypto/sha3"
 )
@@ -71,15 +73,14 @@ var (
 	errInvalidVotingChain = errors.New("invalid voting chain")
 	// errInvalidAggregatedSeal is returned if the aggregated seal is invalid.
 	errInvalidAggregatedSeal = errors.New("invalid aggregated seal")
-	// errInvalidAggregatedSeal is returned if the aggregated seal is missing.
+	// errEmptyAggregatedSeal is returned if the aggregated seal is missing.
 	errEmptyAggregatedSeal = errors.New("empty aggregated seal")
+	// errNonEmptyAggregatedSeal is returned if the aggregated seal is not empty during preprepase proposal phase.
+	errNonEmptyAggregatedSeal = errors.New("Non empty aggregated seal during preprepare")
 	// errMismatchTxhashes is returned if the TxHash in header is mismatch.
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
 	// errInvalidValidatorSetDiff is returned if the header contains invalid validator set diff
 	errInvalidValidatorSetDiff = errors.New("invalid validator set diff")
-	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
-	// an unregistered validator
-	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
 	// errNotAValidator is returned when the node is not configured as a validator
 	errNotAValidator = errors.New("Not configured as a validator")
 )
@@ -100,15 +101,23 @@ func (sb *Backend) Author(header *types.Header) (common.Address, error) {
 
 // VerifyHeader checks whether a header conforms to the consensus rules of a
 // given engine. Verifies the seal regardless of given "seal" argument.
-func (sb *Backend) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
-	return sb.verifyHeader(chain, header, nil)
+func (sb *Backend) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
+	return sb.verifyHeader(chain, header, false, nil)
+}
+
+// verifyHeaderFromProposal checks whether a header conforms to the consensus rules from the
+// preprepare istanbul phase.
+func (sb *Backend) verifyHeaderFromProposal(chain consensus.ChainHeaderReader, header *types.Header) error {
+	return sb.verifyHeader(chain, header, true, nil)
 }
 
 // verifyHeader checks whether a header conforms to the consensus rules.The
 // caller may optionally pass in a batch of parents (ascending order) to avoid
 // looking those up from the database. This is useful for concurrently verifying
 // a batch of new headers.
-func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+// If emptyAggregatedSeal is set, the aggregatedSeal will be checked to be completely empty. Otherwise
+// it will be checked as a normal aggregated seal.
+func (sb *Backend) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, emptyAggregatedSeal bool, parents []*types.Header) error {
 	if header.Number == nil {
 		return errUnknownBlock
 	}
@@ -130,11 +139,11 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 		return errInvalidExtraDataFormat
 	}
 
-	return sb.verifyCascadingFields(chain, header, parents)
+	return sb.verifyCascadingFields(chain, header, emptyAggregatedSeal, parents)
 }
 
 // A sanity check for lightest mode. Checks that the correct epoch block exists for this header
-func (sb *Backend) checkEpochBlockExists(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+func (sb *Backend) checkEpochBlockExists(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
 	number := header.Number.Uint64()
 	// Check that latest epoch block is available
 	epoch := istanbul.GetEpochNumber(number, sb.config.Epoch)
@@ -158,7 +167,9 @@ func (sb *Backend) checkEpochBlockExists(chain consensus.ChainReader, header *ty
 // rather depend on a batch of previous headers. The caller may optionally pass
 // in a batch of parents (ascending order) to avoid looking those up from the
 // database. This is useful for concurrently verifying a batch of new headers.
-func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+// If emptyAggregatedSeal is set, the aggregatedSeal will be checked to be completely empty. Otherwise
+// it will be checked as a normal aggregated seal.
+func (sb *Backend) verifyCascadingFields(chain consensus.ChainHeaderReader, header *types.Header, emptyAggregatedSeal bool, parents []*types.Header) error {
 	// The genesis block is the always valid dead-end
 	number := header.Number.Uint64()
 	if number == 0 {
@@ -187,14 +198,14 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 		return err
 	}
 
-	return sb.verifyAggregatedSeals(chain, header, parents)
+	return sb.verifyAggregatedSeals(chain, header, emptyAggregatedSeal, parents)
 }
 
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
 // concurrently. The method returns a quit channel to abort the operations and
 // a results channel to retrieve the async verifications (the order is that of
 // the input slice).
-func (sb *Backend) VerifyHeaders(chain consensus.ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
+func (sb *Backend) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
 	abort := make(chan struct{})
 	results := make(chan error, len(headers))
 	go func() {
@@ -204,7 +215,7 @@ func (sb *Backend) VerifyHeaders(chain consensus.ChainReader, headers []*types.H
 			if errored {
 				err = consensus.ErrUnknownAncestor
 			} else {
-				err = sb.verifyHeader(chain, header, headers[:i])
+				err = sb.verifyHeader(chain, header, false, headers[:i])
 			}
 
 			if err != nil {
@@ -222,7 +233,7 @@ func (sb *Backend) VerifyHeaders(chain consensus.ChainReader, headers []*types.H
 }
 
 // verifySigner checks whether the signer is in parent's validator set
-func (sb *Backend) verifySigner(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+func (sb *Backend) verifySigner(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
 	// Verifying the genesis block is not supported
 	number := header.Number.Uint64()
 	if number == 0 {
@@ -250,7 +261,9 @@ func (sb *Backend) verifySigner(chain consensus.ChainReader, header *types.Heade
 
 // verifyAggregatedSeals checks whether the aggregated seal and parent seal in the header is
 // signed on by the block's validators and the parent block's validators respectively
-func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+// If emptyAggregatedSeal is set, the aggregatedSeal will be checked to be completely empty. Otherwise
+// it will be checked as a normal aggregated seal.
+func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainHeaderReader, header *types.Header, emptyAggregatedseal bool, parents []*types.Header) error {
 	number := header.Number.Uint64()
 	// We don't need to verify committed seals in the genesis block
 	if number == 0 {
@@ -262,11 +275,6 @@ func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainReader, header *ty
 		return err
 	}
 
-	// The length of Committed seals should be larger than 0
-	if len(extra.AggregatedSeal.Signature) == 0 {
-		return errEmptyAggregatedSeal
-	}
-
 	// Check the signatures on the current header
 	snap, err := sb.snapshot(chain, number-1, header.ParentHash, parents)
 	if err != nil {
@@ -276,6 +284,25 @@ func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainReader, header *ty
 	err = istanbulCore.IstanbulAggregatedSeal(extra.AggregatedSeal).Verify(header.Hash(), validators)
 	if err != nil {
 		return err
+/*=======
+
+	if emptyAggregatedseal {
+		// The length of Committed seals should be exactly 0 (preprepare proposal check)
+		if len(extra.AggregatedSeal.Signature) != 0 {
+			return errNonEmptyAggregatedSeal
+		}
+		// Should we also verify that the bitmap and round are nil?
+	} else {
+		// The length of Committed seals should be larger than 0
+		if len(extra.AggregatedSeal.Signature) == 0 {
+			return errEmptyAggregatedSeal
+		}
+
+		err = sb.verifyAggregatedSeal(header.Hash(), validators, extra.AggregatedSeal)
+		if err != nil {
+			return err
+		}
+>>>>>>> master*/
 	}
 
 	// The genesis block is skipped since it has no parents.
@@ -313,7 +340,7 @@ func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainReader, header *ty
 
 // VerifySeal checks whether the crypto seal on a header is valid according to
 // the consensus rules of the given engine.
-func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header) error {
+func (sb *Backend) VerifySeal(header *types.Header) error {
 	// Ensure the block number is greater than zero, but less or equal to than max uint64.
 	if header.Number.Cmp(common.Big0) <= 0 || !header.Number.IsUint64() {
 		return errUnknownBlock
@@ -336,7 +363,8 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 
 // Prepare initializes the consensus fields of a block header according to the
 // rules of a particular engine. The changes are executed inline.
-func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
+// The parent seal is not included when the node is not validating.
+func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
 	// copy the parent extra data as the header extra data
 	number := header.Number.Uint64()
 	parent := chain.GetHeader(header.ParentHash, number-1)
@@ -351,19 +379,34 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 		header.Time = nowTime
 	}
 
+	// Record what the delay should be and sleep if greater than 0.
+	// TODO(victor): Sleep here was previously removed and added to the miner instead, that change
+	// has been temporarily reverted until it can be reimplemented without causing fewer signatures
+	// to be included by the block producer.
+	delay := time.Until(time.Unix(int64(header.Time), 0))
+	if delay < 0 {
+		sb.sleepGauge.Update(0)
+	} else {
+		sb.sleepGauge.Update(delay.Nanoseconds())
+		time.Sleep(delay)
+	}
+
 	if err := writeEmptyIstanbulExtra(header); err != nil {
 		return err
 	}
 
-	// wait for the timestamp of header, use this to adjust the block period
-	delay := time.Unix(int64(header.Time), 0).Sub(now())
-	time.Sleep(delay)
-
-	return sb.addParentSeal(chain, header)
+	// addParentSeal blocks for up to 500ms waiting for the core to reach the target sequence.
+	// Prepare is called from non-validators, so don't bother with the parent seal unless this
+	// block is to be proposed instead of for the local state.
+	if sb.IsValidating() {
+		return sb.addParentSeal(chain, header)
+	} else {
+		return nil
+	}
 }
 
 // UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
-func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.Header, state *state.StateDB) error {
+func (sb *Backend) UpdateValSetDiff(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB) error {
 	// If this is the last block of the epoch, then get the validator set diff, to save into the header
 	log.Trace("Called UpdateValSetDiff", "number", header.Number.Uint64(), "epoch", sb.config.Epoch)
 	if istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch) {
@@ -396,11 +439,12 @@ func (sb *Backend) LookbackWindow(header *types.Header, state *state.StateDB) ui
 	firstBlockOfEpoch := istanbul.MustGetEpochFirstBlockGivenBlockNumber(header.Number.Uint64(), sb.config.Epoch)
 	cip21Activated := sb.chain.Config().IsDonut(new(big.Int).SetUint64(firstBlockOfEpoch))
 
+	vmRunner := sb.chain.NewEVMRunner(header, state)
 	return uptime.ComputeLookbackWindow(
 		sb.config.Epoch,
 		sb.config.DefaultLookbackWindow,
 		cip21Activated,
-		func() (uint64, error) { return blockchain_parameters.GetLookbackWindow(header, state) },
+		func() (uint64, error) { return blockchain_parameters.GetLookbackWindow(vmRunner) },
 	)
 }
 
@@ -409,22 +453,30 @@ func (sb *Backend) LookbackWindow(header *types.Header, state *state.StateDB) ui
 //
 // Note: The block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
-func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction) {
+func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction) {
 	start := time.Now()
 	defer sb.finalizationTimer.UpdateSince(start)
 
 	logger := sb.logger.New("func", "Finalize", "block", header.Number.Uint64(), "epochSize", sb.config.Epoch)
 	logger.Trace("Finalizing")
 
+	// The contract calls in Finalize() may emit logs, which we later add to an extra "block" receipt
+	// (in FinalizeAndAssemble() during construction or in `StateProcessor.process()` during verification).
+	// They are looked up using the zero hash instead of a transaction hash, and so we need to first call
+	// `state.Prepare()` so that they get filed under the zero hash. Otherwise, they would get filed under
+	// the hash of the last transaction in the block (if there were any).
+	state.Prepare(common.Hash{}, len(txs))
+
 	snapshot := state.Snapshot()
-	err := sb.setInitialGoldTokenTotalSupplyIfUnset(header, state)
+	vmRunner := sb.chain.NewEVMRunner(header, state)
+	err := sb.setInitialGoldTokenTotalSupplyIfUnset(vmRunner)
 	if err != nil {
 		state.RevertToSnapshot(snapshot)
 	}
 
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
 	snapshot = state.Snapshot()
-	_, err = gpm.UpdateGasPriceMinimum(header, state)
+	_, err = gpm.UpdateGasPriceMinimum(vmRunner, header.GasUsed)
 	if err != nil {
 		state.RevertToSnapshot(snapshot)
 	}
@@ -448,88 +500,63 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 //
 // Note: The block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
-func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 
 	sb.Finalize(chain, header, state, txs)
-
-	// Add extra receipt for Block's Internal Transaction Logs
-	if len(state.GetLogs(common.Hash{})) > 0 {
-		receipt := types.NewReceipt(nil, false, 0)
-		receipt.Logs = state.GetLogs(common.Hash{})
-		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
-		receipts = append(receipts, receipt)
-	}
+	// Add the block receipt with logs from the non-transaction core contract calls (if there were any)
+	receipts = core.AddBlockReceipt(receipts, state, header.Hash())
 
 	// Assemble and return the final block for sealing
-	block := types.NewBlock(header, txs, receipts, randomness)
+	block := types.NewBlock(header, txs, receipts, randomness, new(trie.Trie))
 	return block, nil
 }
 
-// Seal generates a new block for the given input block with the local miner's
-// seal place on top.
-func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
-	// update the block header timestamp and signature and propose the block to core engine
-	header := block.Header()
-	number := header.Number.Uint64()
-
-	// Bail out if we're unauthorized to sign a block
-	snap, err := sb.snapshot(chain, number-1, header.ParentHash, nil)
+// checkIsValidSigner checks if validator is a valid signer for the block
+// returns an error if not
+func (sb *Backend) checkIsValidSigner(chain consensus.ChainHeaderReader, header *types.Header) error {
+	snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
 	if err != nil {
 		return err
 	}
-	if _, v := snap.ValSet.GetByAddress(sb.address); v == nil {
+
+	_, v := snap.ValSet.GetByAddress(sb.wallets().Ecdsa.Address)
+	if v == nil {
 		return errUnauthorized
 	}
-
-	parent := chain.GetHeader(header.ParentHash, number-1)
-	if parent == nil {
-		return consensus.ErrUnknownAncestor
-	}
-	block, err = sb.updateBlock(parent, block)
-	if err != nil {
-		return err
-	}
-
-	// get the proposed block hash and clear it if the seal() is completed.
-	sb.sealMu.Lock()
-	sb.proposedBlockHash = block.Hash()
-	clear := func() {
-		sb.proposedBlockHash = common.Hash{}
-		sb.sealMu.Unlock()
-	}
-
-	// post block into Istanbul engine
-	go sb.EventMux().Post(istanbul.RequestEvent{
-		Proposal: block,
-	})
-
-	go func() {
-		defer clear()
-		for {
-			select {
-			case result := <-sb.commitCh:
-				// Somehow, the block `result` coming from commitCh can be null
-				// if the block hash and the hash from channel are the same,
-				// return the result. Otherwise, keep waiting the next hash.
-				if result != nil && block.Hash() == result.Hash() {
-					results <- result
-					return
-				}
-			case <-stop:
-				return
-			}
-		}
-	}()
 	return nil
 }
 
-// SealHash returns the hash of a block prior to it being sealed.
-func (sb *Backend) SealHash(header *types.Header) common.Hash {
-	return sigHash(header)
+// Seal generates a new block for the given input block with the local miner's
+// seal place on top and submits it the the consensus engine.
+func (sb *Backend) Seal(chain consensus.ChainHeaderReader, block *types.Block) error {
+
+	header := block.Header()
+
+	// Bail out if we're unauthorized to sign a block
+	if err := sb.checkIsValidSigner(chain, header); err != nil {
+		return err
+	}
+
+	if parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1); parent == nil {
+		return consensus.ErrUnknownAncestor
+	}
+
+	// update the block header timestamp and signature and propose the block to core engine
+	block, err := sb.signBlock(block)
+	if err != nil {
+		return err
+	}
+
+	// post block into Istanbul engine
+	if err := sb.EventMux().Post(istanbul.RequestEvent{Proposal: block}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-// update timestamp and signature of the block based on its number of transactions
-func (sb *Backend) updateBlock(parent *types.Header, block *types.Block) (*types.Block, error) {
+// signBlock signs block with a seal
+func (sb *Backend) signBlock(block *types.Block) (*types.Block, error) {
 	header := block.Header()
 	// sign the hash
 	seal, err := sb.Sign(sigHash(header).Bytes())
@@ -542,11 +569,11 @@ func (sb *Backend) updateBlock(parent *types.Header, block *types.Block) (*types
 		return nil, err
 	}
 
-	return block.WithSeal(header), nil
+	return block.WithHeader(header), nil
 }
 
 // APIs returns the RPC APIs this consensus engine provides.
-func (sb *Backend) APIs(chain consensus.ChainReader) []rpc.API {
+func (sb *Backend) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 	return []rpc.API{{
 		Namespace: "istanbul",
 		Version:   "1.0",
@@ -555,71 +582,68 @@ func (sb *Backend) APIs(chain consensus.ChainReader) []rpc.API {
 	}}
 }
 
-func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error)) {
+func (sb *Backend) SetChain(chain consensus.ChainContext, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error)) {
 	sb.chain = chain
 	sb.currentBlock = currentBlock
 	sb.stateAt = stateAt
 
 	if bc, ok := chain.(*ethCore.BlockChain); ok {
-		go sb.newChainHeadLoop(bc)
-		go sb.updateReplicaStateLoop(bc)
-	}
+		// Batched. For stats & announce
+		chainHeadCh := make(chan ethCore.ChainHeadEvent, 10)
+		chainHeadSub := bc.SubscribeChainHeadEvent(chainHeadCh)
 
-}
-
-// Loop to run on new chain head events. Chain head events may be batched.
-func (sb *Backend) newChainHeadLoop(bc *ethCore.BlockChain) {
-	// Batched. For stats & announce
-	chainHeadCh := make(chan ethCore.ChainHeadEvent, 10)
-	chainHeadSub := bc.SubscribeChainHeadEvent(chainHeadCh)
-	defer chainHeadSub.Unsubscribe()
-
-	for {
-		select {
-		case chainHeadEvent := <-chainHeadCh:
-			sb.newChainHead(chainHeadEvent.Block)
-		case err := <-chainHeadSub.Err():
-			log.Error("Error in istanbul's subscription to the blockchain's chainhead event", "err", err)
-			return
-		}
-	}
-}
-
-// Loop to update replica state. Listens to chain events to avoid batching.
-func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
-	// Unbatched event listener
-	chainEventCh := make(chan ethCore.ChainEvent, 10)
-	chainEventSub := bc.SubscribeChainEvent(chainEventCh)
-	defer chainEventSub.Unsubscribe()
-
-	for {
-		select {
-		case chainEvent := <-chainEventCh:
-			if !sb.coreStarted && sb.replicaState != nil {
-				consensusBlock := new(big.Int).Add(chainEvent.Block.Number(), common.Big1)
-				sb.replicaState.NewChainHead(consensusBlock)
+		go func() {
+			defer chainHeadSub.Unsubscribe()
+			// Loop to run on new chain head events. Chain head events may be batched.
+			for {
+				select {
+				case chainHeadEvent := <-chainHeadCh:
+					sb.newChainHead(chainHeadEvent.Block)
+				case err := <-chainHeadSub.Err():
+					log.Error("Error in istanbul's subscription to the blockchain's chainhead event", "err", err)
+					return
+				}
 			}
-		case err := <-chainEventSub.Err():
-			log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
-			return
-		}
+		}()
+
+		// Unbatched event listener
+		chainEventCh := make(chan ethCore.ChainEvent, 10)
+		chainEventSub := bc.SubscribeChainEvent(chainEventCh)
+
+		go func() {
+			defer chainEventSub.Unsubscribe()
+			// Loop to update replica state. Listens to chain events to avoid batching.
+			for {
+				select {
+				case chainEvent := <-chainEventCh:
+					if !sb.isCoreStarted() && sb.replicaState != nil {
+						consensusBlock := new(big.Int).Add(chainEvent.Block.Number(), common.Big1)
+						sb.replicaState.NewChainHead(consensusBlock)
+					}
+				case err := <-chainEventSub.Err():
+					log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
+					return
+				}
+			}
+		}()
 	}
 }
 
-// SetBlockProcessors implements consensus.Istanbul.SetBlockProcessors
-func (sb *Backend) SetBlockProcessors(hasBadBlock func(common.Hash) bool,
+// SetCallBacks implements consensus.Istanbul.SetCallBacks
+func (sb *Backend) SetCallBacks(hasBadBlock func(common.Hash) bool,
 	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
-	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
-	sb.coreMu.Lock()
-	defer sb.coreMu.Unlock()
-	if sb.coreStarted {
+	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
+	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)) error {
+	sb.coreMu.RLock()
+	defer sb.coreMu.RUnlock()
+	if sb.isCoreStarted() {
 		return istanbul.ErrStartedEngine
 	}
 
 	sb.hasBadBlock = hasBadBlock
 	sb.processBlock = processBlock
 	sb.validateState = validateState
-
+	sb.onNewConsensusBlock = onNewConsensusBlock
 	return nil
 }
 
@@ -627,20 +651,13 @@ func (sb *Backend) SetBlockProcessors(hasBadBlock func(common.Hash) bool,
 func (sb *Backend) StartValidating() error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
-	if sb.coreStarted {
+	if sb.isCoreStarted() {
 		return istanbul.ErrStartedEngine
 	}
 
 	if sb.hasBadBlock == nil || sb.processBlock == nil || sb.validateState == nil {
-		return errors.New("Must SetBlockProcessors prior to StartValidating")
+		return errors.New("Must SetCallBacks prior to StartValidating")
 	}
-
-	// clear previous data
-	sb.proposedBlockHash = common.Hash{}
-	if sb.commitCh != nil {
-		close(sb.commitCh)
-	}
-	sb.commitCh = make(chan *types.Block, 1)
 
 	sb.logger.Info("Starting istanbul.Engine validating")
 	if err := sb.core.Start(); err != nil {
@@ -654,7 +671,7 @@ func (sb *Backend) StartValidating() error {
 		sb.UpdateAnnounceVersion()
 	}
 
-	sb.coreStarted = true
+	sb.coreStarted.Store(true)
 
 	// coreStarted must be true by this point for validator peers to be successfully added
 	if !sb.config.Proxied {
@@ -670,54 +687,16 @@ func (sb *Backend) StartValidating() error {
 func (sb *Backend) StopValidating() error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
-	if !sb.coreStarted {
+	if !sb.isCoreStarted() {
 		return istanbul.ErrStoppedEngine
 	}
 	sb.logger.Info("Stopping istanbul.Engine validating")
 	if err := sb.core.Stop(); err != nil {
 		return err
 	}
-	sb.coreStarted = false
+	sb.coreStarted.Store(false)
 
 	return nil
-}
-
-// StartAnnouncing implements consensus.Istanbul.StartAnnouncing
-func (sb *Backend) StartAnnouncing() error {
-	sb.announceMu.Lock()
-	defer sb.announceMu.Unlock()
-	if sb.announceRunning {
-		return istanbul.ErrStartedAnnounce
-	}
-
-	go sb.announceThread()
-
-	sb.announceThreadQuit = make(chan struct{})
-	sb.announceRunning = true
-
-	if err := sb.vph.startThread(); err != nil {
-		sb.StopAnnouncing()
-		return err
-	}
-
-	return nil
-}
-
-// StopAnnouncing implements consensus.Istanbul.StopAnnouncing
-func (sb *Backend) StopAnnouncing() error {
-	sb.announceMu.Lock()
-	defer sb.announceMu.Unlock()
-
-	if !sb.announceRunning {
-		return istanbul.ErrStoppedAnnounce
-	}
-
-	close(sb.announceThreadQuit)
-	sb.announceThreadWg.Wait()
-
-	sb.announceRunning = false
-
-	return sb.vph.stopThread()
 }
 
 // StartProxiedValidatorEngine implements consensus.Istanbul.StartProxiedValidatorEngine
@@ -776,7 +755,7 @@ func (sb *Backend) MakePrimary() error {
 // hash - The requested snapshot's block's hash. Only used for snapshot cache storage.
 // number - The requested snapshot's block number
 // parents - (Optional argument) An array of headers from directly previous blocks.
-func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
+func (sb *Backend) snapshot(chain consensus.ChainHeaderReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
 	// Search for a snapshot in memory or on disk
 	var (
 		headers []*types.Header
@@ -926,7 +905,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	return returnSnap, nil
 }
 
-func (sb *Backend) addParentSeal(chain consensus.ChainReader, header *types.Header) error {
+func (sb *Backend) addParentSeal(chain consensus.ChainHeaderReader, header *types.Header) error {
 	number := header.Number.Uint64()
 	logger := sb.logger.New("func", "addParentSeal", "number", number)
 
@@ -1186,7 +1165,6 @@ func waitCoreToReachSequence(core istanbulCore.Engine, expectedSequence *big.Int
 				return view.Sequence
 			}
 		case <-timeout:
-			// TODO(asa): Why is this logged by full nodes?
 			log.Trace("Timed out while waiting for core to sequence change, unable to combine commit messages with ParentAggregatedSeal", "cur_view", core.CurrentView())
 			return nil
 		}

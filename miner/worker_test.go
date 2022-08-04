@@ -19,7 +19,6 @@ package miner
 import (
 	"math/big"
 	"math/rand"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -36,10 +35,8 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
-
-	"github.com/celo-org/celo-blockchain/contract_comm"
 	"github.com/celo-org/celo-blockchain/crypto"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/crypto/ecies"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
@@ -72,26 +69,31 @@ var (
 	pendingTxs []*types.Transaction
 	newTxs     []*types.Transaction
 
-	testConfig = &Config{
-		Recommit: time.Second,
-		GasFloor: 0,
-		GasCeil:  0,
-	}
+	testConfig = &Config{}
 )
 
 func init() {
 	testTxPoolConfig = core.DefaultTxPoolConfig
 	testTxPoolConfig.Journal = ""
-	istanbulChainConfig = params.IstanbulTestChainConfig
+	istanbulChainConfig = params.IstanbulEHFTestChainConfig
 	istanbulChainConfig.Istanbul = &params.IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
 	}
 
-	tx1, _ := types.SignTx(types.NewTransaction(0, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
+	signer := types.LatestSigner(params.IstanbulEHFTestChainConfig)
+	tx1 := types.MustSignNewTx(testBankKey, signer, &types.AccessListTx{
+		ChainID:  params.IstanbulEHFTestChainConfig.ChainID,
+		Nonce:    0,
+		To:       &testUserAddress,
+		Value:    big.NewInt(1000),
+		Gas:      params.TxGas,
+		GasPrice: new(big.Int),
+	})
 	pendingTxs = append(pendingTxs, tx1)
-	tx2, _ := types.SignTx(types.NewTransaction(1, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
+	tx2, _ := types.SignTx(types.NewTransaction(1, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, testBankKey)
 	newTxs = append(newTxs, tx2)
+
 	rand.Seed(time.Now().UnixNano())
 }
 
@@ -127,7 +129,6 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	genesis := gspec.MustCommit(db)
 
 	chain, _ := core.NewBlockChain(db, &core.CacheConfig{TrieDirtyDisabled: true}, gspec.Config, engine, vm.Config{}, nil, nil)
-	contract_comm.SetInternalEVMHandler(chain)
 
 	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain)
 
@@ -166,11 +167,13 @@ func (b *testWorkerBackend) BlockChain() *core.BlockChain      { return b.chain 
 func (b *testWorkerBackend) TxPool() *core.TxPool              { return b.txPool }
 
 func (b *testWorkerBackend) newRandomTx(creation bool) *types.Transaction {
+	signer := types.LatestSigner(b.chain.Config())
 	var tx *types.Transaction
+	gasPrice := big.NewInt(10)
 	if creation {
-		tx, _ = types.SignTx(types.NewContractCreation(b.txPool.Nonce(testBankAddress), big.NewInt(0), testGas, nil, nil, nil, nil, common.FromHex(testCode)), types.HomesteadSigner{}, testBankKey)
+		tx, _ = types.SignTx(types.NewContractCreation(b.txPool.Nonce(testBankAddress), big.NewInt(0), testGas, gasPrice, nil, nil, nil, common.FromHex(testCode)), signer, testBankKey)
 	} else {
-		tx, _ = types.SignTx(types.NewTransaction(b.txPool.Nonce(testBankAddress), testUserAddress, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
+		tx, _ = types.SignTx(types.NewTransaction(b.txPool.Nonce(testBankAddress), testUserAddress, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil), signer, testBankKey)
 	}
 	return tx
 }
@@ -181,7 +184,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 		backend.txPool.AddLocals(pendingTxs)
 	}
 
-	w := newWorker(testConfig, chainConfig, engine, backend, new(event.TypeMux), nil, backend.db, false)
+	w := newWorker(testConfig, chainConfig, engine, backend, new(event.TypeMux), backend.db)
 	w.setTxFeeRecipient(testBankAddress)
 	w.setValidator(testBankAddress)
 
@@ -194,10 +197,12 @@ func TestGenerateBlockAndImport(t *testing.T) {
 		chainConfig *params.ChainConfig
 		db          = rawdb.NewMemoryDatabase()
 	)
-	chainConfig = params.IstanbulTestChainConfig
+	chainConfig = params.IstanbulEHFTestChainConfig
+
 	engine = mockEngine.NewFaker()
 
 	w, b := newTestWorker(t, chainConfig, engine, db, 0, true)
+
 	defer w.close()
 
 	// This test chain imports the mined blocks.
@@ -218,18 +223,28 @@ func TestGenerateBlockAndImport(t *testing.T) {
 	// Start mining!
 	w.start()
 
+	sentTxs := 1 // from newTestWorker w/ shouldAddPendingTxs = true
+	totalTxs := 0
+
 	for i := 0; i < 5; i++ {
 		b.txPool.AddLocal(b.newRandomTx(true))
 		b.txPool.AddLocal(b.newRandomTx(false))
+		sentTxs += 2
 		select {
 		case ev := <-sub.Chan():
-			block := ev.Data.(core.NewMinedBlockEvent).Block
-			if _, err := chain.InsertChain([]*types.Block{block}); err != nil {
-				t.Fatalf("failed to insert new mined block %d: %v", block.NumberU64(), err)
+			block, ok := ev.Data.(core.NewMinedBlockEvent)
+			if !ok {
+				t.Fatal("Could not decode NewMinedBlockEvent from subscription channel")
 			}
+			totalTxs += len(block.Block.Transactions())
+
 		case <-time.After(3 * time.Second): // Worker needs 1s to include new changes.
 			t.Fatalf("timeout")
 		}
+	}
+
+	if sentTxs != totalTxs {
+		t.Errorf("Expected %v transactions, got %v transactions", sentTxs, totalTxs)
 	}
 }
 
@@ -378,142 +393,25 @@ func TestRegenerateMiningBlockIstanbul(t *testing.T) {
 	}
 }
 
-// nolint: unused
-func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
-	defer engine.Close()
+func TestNoTxChDeadLockValidator(t *testing.T)    { testNoTxChDeadlock(t, true) }
+func TestNoTxChDeadLockNonValidator(t *testing.T) { testNoTxChDeadlock(t, false) }
 
-	w, b := newTestWorker(t, chainConfig, engine, rawdb.NewMemoryDatabase(), 0, true)
+func testNoTxChDeadlock(t *testing.T, validating bool) {
+	chainConfig := params.IstanbulTestChainConfig
+	engine := mockEngine.NewFaker()
+	db := rawdb.NewMemoryDatabase()
+	w, b := newTestWorker(t, chainConfig, engine, db, 0, true)
 	defer w.close()
-
-	var taskCh = make(chan struct{})
-
-	taskIndex := 0
-	w.newTaskHook = func(task *task) {
-		if task.block.NumberU64() == 1 {
-			// The first task is an empty task, the second
-			// one has 1 pending tx, the third one has 2 txs
-			if taskIndex == 2 {
-				receiptLen, balance := 2, big.NewInt(2000)
-				if len(task.receipts) != receiptLen {
-					t.Errorf("receipt number mismatch: have %d, want %d", len(task.receipts), receiptLen)
-				}
-				if task.state.GetBalance(testUserAddress).Cmp(balance) != 0 {
-					t.Errorf("account balance mismatch: have %d, want %d", task.state.GetBalance(testUserAddress), balance)
-				}
-			}
-			taskCh <- struct{}{}
-			taskIndex += 1
-		}
+	if validating {
+		w.start()
 	}
-	w.skipSealHook = func(task *task) bool {
-		return true
+	for i := 0; i < txChanSize+1; i++ {
+		b.txPool.AddLocal(b.newRandomTx(false))
 	}
-	w.fullTaskHook = func() {
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	w.start()
-	// Ignore the first two works
-	for i := 0; i < 2; i += 1 {
-		select {
-		case <-taskCh:
-		case <-time.NewTimer(time.Second).C:
-			t.Error("new task timeout")
-		}
-	}
-	b.txPool.AddLocals(newTxs)
-	time.Sleep(time.Second)
-
 	select {
-	case <-taskCh:
-	case <-time.NewTimer(time.Second).C:
-		t.Error("new task timeout")
-	}
-}
-
-// nolint: unused
-func testAdjustInterval(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
-	defer engine.Close()
-
-	w, _ := newTestWorker(t, chainConfig, engine, rawdb.NewMemoryDatabase(), 0, true)
-	defer w.close()
-
-	w.skipSealHook = func(task *task) bool {
-		return true
-	}
-	w.fullTaskHook = func() {
-		time.Sleep(100 * time.Millisecond)
-	}
-	var (
-		progress = make(chan struct{}, 10)
-		result   = make([]float64, 0, 10)
-		index    = 0
-		start    uint32
-	)
-	w.resubmitHook = func(minInterval time.Duration, recommitInterval time.Duration) {
-		// Short circuit if interval checking hasn't started.
-		if atomic.LoadUint32(&start) == 0 {
-			return
-		}
-		var wantMinInterval, wantRecommitInterval time.Duration
-
-		switch index {
-		case 0:
-			wantMinInterval, wantRecommitInterval = 3*time.Second, 3*time.Second
-		case 1:
-			origin := float64(3 * time.Second.Nanoseconds())
-			estimate := origin*(1-intervalAdjustRatio) + intervalAdjustRatio*(origin/0.8+intervalAdjustBias)
-			wantMinInterval, wantRecommitInterval = 3*time.Second, time.Duration(estimate)*time.Nanosecond
-		case 2:
-			estimate := result[index-1]
-			min := float64(3 * time.Second.Nanoseconds())
-			estimate = estimate*(1-intervalAdjustRatio) + intervalAdjustRatio*(min-intervalAdjustBias)
-			wantMinInterval, wantRecommitInterval = 3*time.Second, time.Duration(estimate)*time.Nanosecond
-		case 3:
-			wantMinInterval, wantRecommitInterval = time.Second, time.Second
-		}
-
-		// Check interval
-		if minInterval != wantMinInterval {
-			t.Errorf("resubmit min interval mismatch: have %v, want %v ", minInterval, wantMinInterval)
-		}
-		if recommitInterval != wantRecommitInterval {
-			t.Errorf("resubmit interval mismatch: have %v, want %v", recommitInterval, wantRecommitInterval)
-		}
-		result = append(result, float64(recommitInterval.Nanoseconds()))
-		index += 1
-		progress <- struct{}{}
-	}
-	w.start()
-
-	time.Sleep(time.Second) // Ensure two tasks have been summitted due to start opt
-	atomic.StoreUint32(&start, 1)
-
-	w.setRecommitInterval(3 * time.Second)
-	select {
-	case <-progress:
-	case <-time.NewTimer(time.Second).C:
-		t.Error("interval reset timeout")
-	}
-
-	w.resubmitAdjustCh <- &intervalAdjust{inc: true, ratio: 0.8}
-	select {
-	case <-progress:
-	case <-time.NewTimer(time.Second).C:
-		t.Error("interval reset timeout")
-	}
-
-	w.resubmitAdjustCh <- &intervalAdjust{inc: false}
-	select {
-	case <-progress:
-	case <-time.NewTimer(time.Second).C:
-		t.Error("interval reset timeout")
-	}
-
-	w.setRecommitInterval(500 * time.Millisecond)
-	select {
-	case <-progress:
-	case <-time.NewTimer(time.Second).C:
-		t.Error("interval reset timeout")
+	case w.exitCh <- struct{}{}:
+		// exitCh is unbuffered, so if the send succeeds it means mainLoop isn't deadlocked
+	case <-time.After(100 * time.Millisecond):
+		t.Error("Deadlock in mainLoop's select statement")
 	}
 }

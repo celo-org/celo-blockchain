@@ -2,11 +2,14 @@ package genesis
 
 import (
 	"math/big"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/decimal/token"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-blockchain/params"
 
 	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"github.com/celo-org/celo-blockchain/rlp"
@@ -14,6 +17,51 @@ import (
 
 // Keccak256 of "The Times 09/Apr/2020 With $2.3 Trillion Injection, Fed’s Plan Far Exceeds Its 2008 Rescue"
 var genesisMsgHash = common.HexToHash("ecc833a7747eaa8327335e8e0c6b6d8aa3a38d0063591e43ce116ccf5c89753e")
+
+// CreateCommonGenesisConfig generates a config starting point which templates can then customize further
+func CreateCommonGenesisConfig(chainID *big.Int, adminAccountAddress common.Address, istanbulConfig params.IstanbulConfig) *Config {
+	genesisConfig := BaseConfig()
+	genesisConfig.ChainID = chainID
+	genesisConfig.GenesisTimestamp = uint64(time.Now().Unix())
+	genesisConfig.Istanbul = istanbulConfig
+	genesisConfig.Hardforks = HardforkConfig{
+		ChurritoBlock: common.Big0,
+		DonutBlock:    common.Big0,
+	}
+
+	// Make admin account manager of Governance & Reserve
+	adminMultisig := MultiSigParameters{
+		Signatories:                      []common.Address{adminAccountAddress},
+		NumRequiredConfirmations:         1,
+		NumInternalRequiredConfirmations: 1,
+	}
+
+	genesisConfig.ReserveSpenderMultiSig = adminMultisig
+	genesisConfig.GovernanceApproverMultiSig = adminMultisig
+
+	// Ensure nothing is frozen
+	genesisConfig.GoldToken.Frozen = false
+	genesisConfig.StableToken.Frozen = false
+	genesisConfig.Exchange.Frozen = false
+	genesisConfig.Reserve.FrozenAssetsDays = 0
+	genesisConfig.EpochRewards.Frozen = false
+
+	return genesisConfig
+}
+
+func FundAccounts(genesisConfig *Config, accounts []env.Account) {
+	cusdBalances := make([]Balance, len(accounts))
+	ceurBalances := make([]Balance, len(accounts))
+	goldBalances := make([]Balance, len(accounts))
+	for i, acc := range accounts {
+		cusdBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cUSD
+		ceurBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cEUR
+		goldBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k CELO
+	}
+	genesisConfig.StableTokenEUR.InitialBalances = ceurBalances
+	genesisConfig.StableToken.InitialBalances = cusdBalances
+	genesisConfig.GoldToken.InitialBalances = goldBalances
+}
 
 // GenerateGenesis will create a new genesis block with full celo blockchain already configured
 func GenerateGenesis(accounts *env.AccountsConfig, cfg *Config, contractsBuildPath string) (*core.Genesis, error) {

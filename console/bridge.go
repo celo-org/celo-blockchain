@@ -26,6 +26,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/usbwallet"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/console/prompt"
 	"github.com/celo-org/celo-blockchain/internal/jsre"
 	"github.com/celo-org/celo-blockchain/rpc"
 	"github.com/dop251/goja"
@@ -34,13 +35,13 @@ import (
 // bridge is a collection of JavaScript utility methods to bride the .js runtime
 // environment and the Go RPC connection backing the remote method calls.
 type bridge struct {
-	client   *rpc.Client  // RPC client to execute Ethereum requests through
-	prompter UserPrompter // Input prompter to allow interactive user feedback
-	printer  io.Writer    // Output writer to serialize any display strings to
+	client   *rpc.Client         // RPC client to execute Ethereum requests through
+	prompter prompt.UserPrompter // Input prompter to allow interactive user feedback
+	printer  io.Writer           // Output writer to serialize any display strings to
 }
 
 // newBridge creates a new JavaScript wrapper around an RPC client.
-func newBridge(client *rpc.Client, prompter UserPrompter, printer io.Writer) *bridge {
+func newBridge(client *rpc.Client, prompter prompt.UserPrompter, printer io.Writer) *bridge {
 	return &bridge{
 		client:   client,
 		prompter: prompter,
@@ -178,14 +179,15 @@ func (b *bridge) readPinAndReopenWallet(call jsre.Call) (goja.Value, error) {
 // original RPC method (saved in jeth.unlockAccount) with it to actually execute
 // the RPC call.
 func (b *bridge) UnlockAccount(call jsre.Call) (goja.Value, error) {
-	if nArgs := len(call.Arguments); nArgs < 2 {
+	if len(call.Arguments) < 1 {
 		return nil, fmt.Errorf("usage: unlockAccount(account, [ password, duration ])")
 	}
+
+	account := call.Argument(0)
 	// Make sure we have an account specified to unlock.
-	if call.Argument(0).ExportType().Kind() != reflect.String {
+	if goja.IsUndefined(account) || goja.IsNull(account) || account.ExportType().Kind() != reflect.String {
 		return nil, fmt.Errorf("first argument must be the account to unlock")
 	}
-	account := call.Argument(0)
 
 	// If password is not given or is the null value, prompt the user for it.
 	var passwd goja.Value
@@ -233,10 +235,10 @@ func (b *bridge) Sign(call jsre.Call) (goja.Value, error) {
 		passwd  = call.Argument(2)
 	)
 
-	if message.ExportType().Kind() != reflect.String {
+	if goja.IsUndefined(message) || message.ExportType().Kind() != reflect.String {
 		return nil, fmt.Errorf("first argument must be the message to sign")
 	}
-	if account.ExportType().Kind() != reflect.String {
+	if goja.IsUndefined(account) || account.ExportType().Kind() != reflect.String {
 		return nil, fmt.Errorf("second argument must be the account to sign with")
 	}
 
@@ -253,9 +255,9 @@ func (b *bridge) Sign(call jsre.Call) (goja.Value, error) {
 	}
 
 	// Send the request to the backend and return
-	sign, callable := goja.AssertFunction(getJeth(call.VM).Get("unlockAccount"))
+	sign, callable := goja.AssertFunction(getJeth(call.VM).Get("sign"))
 	if !callable {
-		return nil, fmt.Errorf("jeth.unlockAccount is not callable")
+		return nil, fmt.Errorf("jeth.sign is not callable")
 	}
 	return sign(goja.Null(), message, account, passwd)
 }
@@ -265,10 +267,11 @@ func (b *bridge) Sleep(call jsre.Call) (goja.Value, error) {
 	if nArgs := len(call.Arguments); nArgs < 1 {
 		return nil, fmt.Errorf("usage: sleep(<number of seconds>)")
 	}
-	if !isNumber(call.Argument(0)) {
+	sleepObj := call.Argument(0)
+	if goja.IsUndefined(sleepObj) || goja.IsNull(sleepObj) || !isNumber(sleepObj) {
 		return nil, fmt.Errorf("usage: sleep(<number of seconds>)")
 	}
-	sleep := call.Argument(0).ToFloat()
+	sleep := sleepObj.ToFloat()
 	time.Sleep(time.Duration(sleep * float64(time.Second)))
 	return call.VM.ToValue(true), nil
 }
@@ -286,27 +289,27 @@ func (b *bridge) SleepBlocks(call jsre.Call) (goja.Value, error) {
 		return nil, fmt.Errorf("usage: sleepBlocks(<n blocks>[, max sleep in seconds])")
 	}
 	if nArgs >= 1 {
-		if !isNumber(call.Argument(0)) {
+		if goja.IsNull(call.Argument(0)) || goja.IsUndefined(call.Argument(0)) || !isNumber(call.Argument(0)) {
 			return nil, fmt.Errorf("expected number as first argument")
 		}
 		blocks = call.Argument(0).ToInteger()
 	}
 	if nArgs >= 2 {
-		if !isNumber(call.Argument(1)) {
+		if goja.IsNull(call.Argument(1)) || goja.IsUndefined(call.Argument(1)) || !isNumber(call.Argument(1)) {
 			return nil, fmt.Errorf("expected number as second argument")
 		}
 		sleep = call.Argument(1).ToInteger()
 	}
 
 	// Poll the current block number until either it or a timeout is reached.
-	var (
-		deadline   = time.Now().Add(time.Duration(sleep) * time.Second)
-		lastNumber = ^hexutil.Uint64(0)
-	)
+	deadline := time.Now().Add(time.Duration(sleep) * time.Second)
+	var lastNumber hexutil.Uint64
+	if err := b.client.Call(&lastNumber, "eth_blockNumber"); err != nil {
+		return nil, err
+	}
 	for time.Now().Before(deadline) {
 		var number hexutil.Uint64
-		err := b.client.Call(&number, "eth_blockNumber")
-		if err != nil {
+		if err := b.client.Call(&number, "eth_blockNumber"); err != nil {
 			return nil, err
 		}
 		if number != lastNumber {

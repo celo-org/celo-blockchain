@@ -94,7 +94,7 @@ with minimal requirements.
 On the `client` qube, we need to create a listener which will receive the request from the Dapp, and proxy it. 
 
 
-[qubes-client.py](qubes/client/qubes-client.py):
+[qubes-client.py](qubes/qubes-client.py):
 
 ```python
 
@@ -186,7 +186,7 @@ from other qubes.
 
 ## USBArmory
 
-The [USB armory](https://inversepath.com/usbarmory) is an open source hardware design with an 800 Mhz ARM processor. It is a pocket-size
+The [USB armory](https://inversepath.com/usbarmory) is an open source hardware design with an 800 MHz ARM processor. It is a pocket-size
 computer. When inserted into a laptop, it identifies itself as a USB network interface, basically adding another network
 to your computer. Over this new network interface, you can SSH into the device. 
 

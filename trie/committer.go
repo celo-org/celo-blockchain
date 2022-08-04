@@ -22,31 +22,30 @@ import (
 	"sync"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/celo-org/celo-blockchain/crypto"
 	"golang.org/x/crypto/sha3"
 )
 
 // leafChanSize is the size of the leafCh. It's a pretty arbitrary number, to allow
-// some paralellism but not incur too much memory overhead.
+// some parallelism but not incur too much memory overhead.
 const leafChanSize = 200
 
 // leaf represents a trie leaf value
 type leaf struct {
-	size   int         // size of the rlp data (estimate)
-	hash   common.Hash // hash of rlp data
-	node   node        // the node to commit
-	vnodes bool        // set to true if the node (possibly) contains a valueNode
+	size int         // size of the rlp data (estimate)
+	hash common.Hash // hash of rlp data
+	node node        // the node to commit
 }
 
 // committer is a type used for the trie Commit operation. A committer has some
 // internal preallocated temp space, and also a callback that is invoked when
 // leaves are committed. The leafs are passed through the `leafCh`,  to allow
-// some level of paralellism.
+// some level of parallelism.
 // By 'some level' of parallelism, it's still the case that all leaves will be
 // processed sequentially - onleaf will never be called in parallel or out of order.
 type committer struct {
 	tmp sliceBuffer
-	sha keccakState
+	sha crypto.KeccakState
 
 	onleaf LeafCallback
 	leafCh chan *leaf
@@ -57,7 +56,7 @@ var committerPool = sync.Pool{
 	New: func() interface{} {
 		return &committer{
 			tmp: make(sliceBuffer, 0, 550), // cap is as large as a full fullNode.
-			sha: sha3.NewLegacyKeccak256().(keccakState),
+			sha: sha3.NewLegacyKeccak256().(crypto.KeccakState),
 		}
 	},
 }
@@ -73,119 +72,119 @@ func returnCommitterToPool(h *committer) {
 	committerPool.Put(h)
 }
 
-// commitNeeded returns 'false' if the given node is already in sync with db
-func (c *committer) commitNeeded(n node) bool {
-	hash, dirty := n.cache()
-	return hash == nil || dirty
-}
-
-// commit collapses a node down into a hash node and inserts it into the database
-func (c *committer) Commit(n node, db *Database) (hashNode, error) {
+// Commit collapses a node down into a hash node and inserts it into the database
+func (c *committer) Commit(n node, db *Database) (hashNode, int, error) {
 	if db == nil {
-		return nil, errors.New("no db provided")
+		return nil, 0, errors.New("no db provided")
 	}
-	h, err := c.commit(n, db, true)
+	h, committed, err := c.commit(n, db)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return h.(hashNode), nil
+	return h.(hashNode), committed, nil
 }
 
 // commit collapses a node down into a hash node and inserts it into the database
-func (c *committer) commit(n node, db *Database, force bool) (node, error) {
+func (c *committer) commit(n node, db *Database) (node, int, error) {
 	// if this path is clean, use available cached data
 	hash, dirty := n.cache()
 	if hash != nil && !dirty {
-		return hash, nil
+		return hash, 0, nil
 	}
 	// Commit children, then parent, and remove remove the dirty flag.
 	switch cn := n.(type) {
 	case *shortNode:
 		// Commit child
 		collapsed := cn.copy()
-		if _, ok := cn.Val.(valueNode); !ok {
-			if childV, err := c.commit(cn.Val, db, false); err != nil {
-				return nil, err
-			} else {
-				collapsed.Val = childV
+
+		// If the child is fullNode, recursively commit,
+		// otherwise it can only be hashNode or valueNode.
+		var childCommitted int
+		if _, ok := cn.Val.(*fullNode); ok {
+			childV, committed, err := c.commit(cn.Val, db)
+			if err != nil {
+				return nil, 0, err
 			}
+			collapsed.Val, childCommitted = childV, committed
 		}
 		// The key needs to be copied, since we're delivering it to database
 		collapsed.Key = hexToCompact(cn.Key)
-		hashedNode := c.store(collapsed, db, force, true)
+		hashedNode := c.store(collapsed, db)
 		if hn, ok := hashedNode.(hashNode); ok {
-			return hn, nil
-		} else {
-			return collapsed, nil
+			return hn, childCommitted + 1, nil
 		}
+		return collapsed, childCommitted, nil
 	case *fullNode:
-		hashedKids, hasVnodes, err := c.commitChildren(cn, db, force)
+		hashedKids, childCommitted, err := c.commitChildren(cn, db)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		collapsed := cn.copy()
 		collapsed.Children = hashedKids
 
-		hashedNode := c.store(collapsed, db, force, hasVnodes)
+		hashedNode := c.store(collapsed, db)
 		if hn, ok := hashedNode.(hashNode); ok {
-			return hn, nil
-		} else {
-			return collapsed, nil
+			return hn, childCommitted + 1, nil
 		}
-	case valueNode:
-		return c.store(cn, db, force, false), nil
-	// hashnodes aren't stored
+		return collapsed, childCommitted, nil
 	case hashNode:
-		return cn, nil
+		return cn, 0, nil
+	default:
+		// nil, valuenode shouldn't be committed
+		panic(fmt.Sprintf("%T: invalid node: %v", n, n))
 	}
-	return hash, nil
 }
 
 // commitChildren commits the children of the given fullnode
-func (c *committer) commitChildren(n *fullNode, db *Database, force bool) ([17]node, bool, error) {
-	var children [17]node
-	var hasValueNodeChildren = false
-	for i, child := range n.Children {
+func (c *committer) commitChildren(n *fullNode, db *Database) ([17]node, int, error) {
+	var (
+		committed int
+		children  [17]node
+	)
+	for i := 0; i < 16; i++ {
+		child := n.Children[i]
 		if child == nil {
 			continue
 		}
-		hnode, err := c.commit(child, db, false)
+		// If it's the hashed child, save the hash value directly.
+		// Note: it's impossible that the child in range [0, 15]
+		// is a valueNode.
+		if hn, ok := child.(hashNode); ok {
+			children[i] = hn
+			continue
+		}
+		// Commit the child recursively and store the "hashed" value.
+		// Note the returned node can be some embedded nodes, so it's
+		// possible the type is not hashNode.
+		hashed, childCommitted, err := c.commit(child, db)
 		if err != nil {
-			return children, false, err
+			return children, 0, err
 		}
-		children[i] = hnode
-		if _, ok := hnode.(valueNode); ok {
-			hasValueNodeChildren = true
-		}
+		children[i] = hashed
+		committed += childCommitted
 	}
-	return children, hasValueNodeChildren, nil
+	// For the 17th child, it's possible the type is valuenode.
+	if n.Children[16] != nil {
+		children[16] = n.Children[16]
+	}
+	return children, committed, nil
 }
 
 // store hashes the node n and if we have a storage layer specified, it writes
 // the key/value pair to it and tracks any node->child references as well as any
 // node->external trie references.
-func (c *committer) store(n node, db *Database, force bool, hasVnodeChildren bool) node {
+func (c *committer) store(n node, db *Database) node {
 	// Larger nodes are replaced by their hash and stored in the database.
 	var (
 		hash, _ = n.cache()
 		size    int
 	)
 	if hash == nil {
-		if vn, ok := n.(valueNode); ok {
-			c.tmp.Reset()
-			if err := rlp.Encode(&c.tmp, vn); err != nil {
-				panic("encode error: " + err.Error())
-			}
-			size = len(c.tmp)
-			if size < 32 && !force {
-				return n // Nodes smaller than 32 bytes are stored inside their parent
-			}
-			hash = c.makeHashNode(c.tmp)
-		} else {
-			// This was not generated - must be a small node stored in the parent
-			// No need to do anything here
-			return n
-		}
+		// This was not generated - must be a small node stored in the parent.
+		// In theory, we should apply the leafCall here if it's not nil(embedded
+		// node usually contains value). But small value(less than 32bytes) is
+		// not our target.
+		return n
 	} else {
 		// We have the hash already, estimate the RLP encoding-size of the node.
 		// The size is used for mem tracking, does not need to be exact
@@ -195,10 +194,9 @@ func (c *committer) store(n node, db *Database, force bool, hasVnodeChildren boo
 	// The leaf channel will be active only when there an active leaf-callback
 	if c.leafCh != nil {
 		c.leafCh <- &leaf{
-			size:   size,
-			hash:   common.BytesToHash(hash),
-			node:   n,
-			vnodes: hasVnodeChildren,
+			size: size,
+			hash: common.BytesToHash(hash),
+			node: n,
 		}
 	} else if db != nil {
 		// No leaf-callback used, but there's still a database. Do serial
@@ -210,37 +208,37 @@ func (c *committer) store(n node, db *Database, force bool, hasVnodeChildren boo
 	return hash
 }
 
-// commitLoop does the actual insert + leaf callback for nodes
+// commitLoop does the actual insert + leaf callback for nodes.
 func (c *committer) commitLoop(db *Database) {
 	for item := range c.leafCh {
 		var (
-			hash      = item.hash
-			size      = item.size
-			n         = item.node
-			hasVnodes = item.vnodes
+			hash = item.hash
+			size = item.size
+			n    = item.node
 		)
 		// We are pooling the trie nodes into an intermediate memory cache
 		db.lock.Lock()
 		db.insert(hash, size, n)
 		db.lock.Unlock()
-		if c.onleaf != nil && hasVnodes {
+
+		if c.onleaf != nil {
 			switch n := n.(type) {
 			case *shortNode:
 				if child, ok := n.Val.(valueNode); ok {
-					c.onleaf(child, hash)
+					c.onleaf(nil, nil, child, hash)
 				}
 			case *fullNode:
-				for i := 0; i < 16; i++ {
-					if child, ok := n.Children[i].(valueNode); ok {
-						c.onleaf(child, hash)
-					}
+				// For children in range [0, 15], it's impossible
+				// to contain valueNode. Only check the 17th child.
+				if n.Children[16] != nil {
+					c.onleaf(nil, nil, n.Children[16].(valueNode), hash)
 				}
 			}
 		}
 	}
 }
 
-func (c *committer) makeHashNode(data []byte) hashNode {
+func (c *committer) makeHashNode(data []byte) hashNode { //nolint:unused
 	n := make(hashNode, c.sha.Size())
 	c.sha.Reset()
 	c.sha.Write(data)
@@ -264,7 +262,7 @@ func estimateSize(n node) int {
 			if child := n.Children[i]; child != nil {
 				s += estimateSize(child)
 			} else {
-				s += 1
+				s++
 			}
 		}
 		return s
@@ -274,6 +272,5 @@ func estimateSize(n node) int {
 		return 1 + len(n)
 	default:
 		panic(fmt.Sprintf("node type %T", n))
-
 	}
 }

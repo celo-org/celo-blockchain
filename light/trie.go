@@ -22,11 +22,16 @@ import (
 	"fmt"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/trie"
+)
+
+var (
+	sha3Nil = crypto.Keccak256Hash(nil)
 )
 
 func NewState(ctx context.Context, head *types.Header, odr OdrBackend) *state.StateDB {
@@ -70,7 +75,8 @@ func (db *odrDatabase) ContractCode(addrHash, codeHash common.Hash) ([]byte, err
 	if codeHash == sha3Nil {
 		return nil, nil
 	}
-	if code, err := db.backend.Database().Get(codeHash[:]); err == nil {
+	code := rawdb.ReadCode(db.backend.Database(), codeHash)
+	if len(code) != 0 {
 		return code, nil
 	}
 	id := *db.id
@@ -119,9 +125,9 @@ func (t *odrTrie) TryDelete(key []byte) error {
 	})
 }
 
-func (t *odrTrie) Commit(onleaf trie.LeafCallback) (common.Hash, error) {
+func (t *odrTrie) Commit(onleaf trie.LeafCallback) (common.Hash, int, error) {
 	if t.trie == nil {
-		return t.id.Root, nil
+		return t.id.Root, 0, nil
 	}
 	return t.trie.Commit(onleaf)
 }

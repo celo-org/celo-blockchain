@@ -24,7 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	vet "github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/replica"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
@@ -37,7 +37,7 @@ import (
 
 // API is a user facing RPC API to dump Istanbul state
 type API struct {
-	chain    consensus.ChainReader
+	chain    consensus.ChainHeaderReader
 	istanbul *Backend
 }
 
@@ -180,32 +180,37 @@ func (api *API) RemoveProxy(url string) (bool, error) {
 }
 
 // Retrieve the Validator Enode Table
-func (api *API) GetValEnodeTable() (map[string]*vet.ValEnodeEntryInfo, error) {
+func (api *API) GetValEnodeTable() (map[string]*announce.ValEnodeEntryInfo, error) {
 	return api.istanbul.valEnodeTable.ValEnodeTableInfo()
 }
 
-func (api *API) GetVersionCertificateTableInfo() (map[string]*vet.VersionCertificateEntryInfo, error) {
-	return api.istanbul.versionCertificateTable.Info()
+func (api *API) GetVersionCertificateTableInfo() (map[string]*announce.VersionCertificateEntryInfo, error) {
+	return api.istanbul.announceManager.GetVersionCertificateTableInfo()
 }
 
 // GetCurrentRoundState retrieves the current IBFT RoundState
 func (api *API) GetCurrentRoundState() (*core.RoundStateSummary, error) {
-	if !api.istanbul.coreStarted {
+	api.istanbul.coreMu.RLock()
+	defer api.istanbul.coreMu.RUnlock()
+
+	if !api.istanbul.isCoreStarted() {
 		return nil, istanbul.ErrStoppedEngine
 	}
 	return api.istanbul.core.CurrentRoundState().Summary(), nil
 }
 
-// GetCurrentRoundState retrieves the current IBFT RoundState
 func (api *API) ForceRoundChange() (bool, error) {
-	if !api.istanbul.coreStarted {
+	api.istanbul.coreMu.RLock()
+	defer api.istanbul.coreMu.RUnlock()
+
+	if !api.istanbul.isCoreStarted() {
 		return false, istanbul.ErrStoppedEngine
 	}
 	api.istanbul.core.ForceRoundChange()
 	return true, nil
 }
 
-// Proxies retrieves all the proxied validator's proxies' info
+// GetProxiesInfo retrieves all the proxied validator's proxies' info
 func (api *API) GetProxiesInfo() ([]*proxy.ProxyInfo, error) {
 	if api.istanbul.IsProxiedValidator() {
 		proxies, valAssignments, err := api.istanbul.proxiedValidatorEngine.GetProxiesAndValAssignments()

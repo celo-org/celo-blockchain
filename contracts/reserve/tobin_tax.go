@@ -24,13 +24,14 @@ func (r *Ratio) Apply(value *big.Int) *big.Int {
 	return new(big.Int).Div(new(big.Int).Mul(r.numerator, value), r.denominator)
 }
 
-func TobinTax(evm *vm.EVM, sender common.Address) (tax Ratio, reserveAddress common.Address, err error) {
-	reserveAddress, err = contracts.GetRegisteredAddress(evm, params.ReserveRegistryId)
+func TobinTax(vmRunner vm.EVMRunner, sender common.Address) (tax Ratio, reserveAddress common.Address, err error) {
+
+	reserveAddress, err = contracts.GetRegisteredAddress(vmRunner, params.ReserveRegistryId)
 	if err != nil {
 		return Ratio{}, common.ZeroAddress, err
 	}
 
-	ret, _, err := evm.Call(contracts.SystemCaller, reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
+	ret, err := vmRunner.ExecuteFrom(sender, reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
 	if err != nil {
 		return Ratio{}, common.ZeroAddress, err
 	}
@@ -51,8 +52,8 @@ func TobinTax(evm *vm.EVM, sender common.Address) (tax Ratio, reserveAddress com
 	return Ratio{numerator, denominator}, reserveAddress, nil
 }
 
-func ComputeTobinTax(evm *vm.EVM, sender common.Address, transferAmount *big.Int) (tax *big.Int, taxRecipient common.Address, err error) {
-	taxRatio, recipient, err := TobinTax(evm, sender)
+func ComputeTobinTax(vmRunner vm.EVMRunner, sender common.Address, transferAmount *big.Int) (tax *big.Int, taxRecipient common.Address, err error) {
+	taxRatio, recipient, err := TobinTax(vmRunner, sender)
 	if err != nil {
 		return nil, common.ZeroAddress, err
 	}

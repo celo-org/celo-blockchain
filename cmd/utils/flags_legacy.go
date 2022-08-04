@@ -18,9 +18,9 @@ package utils
 
 import (
 	"fmt"
-	"strings"
+	"math/big"
 
-	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/node"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -35,31 +35,23 @@ var ShowDeprecated = cli.Command{
 }
 
 var DeprecatedFlags = []cli.Flag{
+	LegacyTestnetFlag,
 	LegacyLightServFlag,
 	LegacyLightPeersFlag,
-	LegacyMinerThreadsFlag,
-	LegacyMinerGasTargetFlag,
-	LegacyMinerGasPriceFlag,
 	LegacyMinerExtraDataFlag,
+	LegacyMinerGasPriceFlag,
+	EtherbaseFlag,
+	LegacyProxyEnodeURLPairsFlag,
+	LegacyIstanbulRequestTimeoutFlag,
+	LegacyIstanbulBlockPeriodFlag,
+	LegacyIstanbulProposerPolicyFlag,
+	LegacyIstanbulLookbackWindowFlag,
+	LegacyEthStatsURLFlag,
+	NoUSBFlag,
 }
 
 var (
 	// (Deprecated April 2018)
-	LegacyMinerThreadsFlag = cli.IntFlag{
-		Name:  "minerthreads",
-		Usage: "Number of CPU threads to use for mining (deprecated, use --miner.threads)",
-		Value: 0,
-	}
-	LegacyMinerGasTargetFlag = cli.Uint64Flag{
-		Name:  "targetgaslimit",
-		Usage: "Target gas floor for mined blocks (deprecated, use --miner.gastarget)",
-		Value: eth.DefaultConfig.Miner.GasFloor,
-	}
-	LegacyMinerGasPriceFlag = BigFlag{
-		Name:  "gasprice",
-		Usage: "Minimum gas price for mining a transaction (deprecated, use --miner.gasprice)",
-		Value: eth.DefaultConfig.Miner.GasPrice,
-	}
 	LegacyMinerExtraDataFlag = cli.StringFlag{
 		Name:  "extradata",
 		Usage: "Block extra data set by the miner (default = client version, deprecated, use --miner.extradata)",
@@ -69,43 +61,24 @@ var (
 	LegacyLightServFlag = cli.IntFlag{
 		Name:  "lightserv",
 		Usage: "Maximum percentage of time allowed for serving LES requests (deprecated, use --light.serve)",
-		Value: eth.DefaultConfig.LightServ,
+		Value: ethconfig.Defaults.LightServ,
 	}
 	LegacyLightPeersFlag = cli.IntFlag{
 		Name:  "lightpeers",
 		Usage: "Maximum number of light clients to serve, or light servers to attach to  (deprecated, use --light.maxpeers)",
-		Value: eth.DefaultConfig.LightPeers,
+		Value: ethconfig.Defaults.LightPeers,
 	}
 
 	// (Deprecated April 2020)
-	LegacyRPCEnabledFlag = cli.BoolFlag{
-		Name:  "rpc",
-		Usage: "Enable the HTTP-RPC server (deprecated, use --http)",
+	LegacyTestnetFlag = cli.BoolFlag{ // TODO(q9f): Remove after Ropsten is discontinued.
+		Name:  "testnet",
+		Usage: "Pre-configured test network (Deprecated: Please choose one of --goerli, --rinkeby, or --ropsten.)",
 	}
-	LegacyRPCListenAddrFlag = cli.StringFlag{
-		Name:  "rpcaddr",
-		Usage: "HTTP-RPC server listening interface (deprecated, use --http.addr)",
-		Value: node.DefaultHTTPHost,
-	}
-	LegacyRPCPortFlag = cli.IntFlag{
-		Name:  "rpcport",
-		Usage: "HTTP-RPC server listening port (deprecated, use --http.port)",
-		Value: node.DefaultHTTPPort,
-	}
-	LegacyRPCCORSDomainFlag = cli.StringFlag{
-		Name:  "rpccorsdomain",
-		Usage: "Comma separated list of domains from which to accept cross origin requests (browser enforced) (deprecated, use --http.corsdomain)",
-		Value: "",
-	}
-	LegacyRPCVirtualHostsFlag = cli.StringFlag{
-		Name:  "rpcvhosts",
-		Usage: "Comma separated list of virtual hostnames from which to accept requests (server enforced). Accepts '*' wildcard. (deprecated, use --http.vhosts)",
-		Value: strings.Join(node.DefaultConfig.HTTPVirtualHosts, ","),
-	}
-	LegacyRPCApiFlag = cli.StringFlag{
-		Name:  "rpcapi",
-		Usage: "API's offered over the HTTP-RPC interface (deprecated, use --http.api)",
-		Value: "",
+
+	// (Deprecated May 2020, shown in aliased flags section)
+	NoUSBFlag = cli.BoolFlag{
+		Name:  "nousb",
+		Usage: "Disables monitoring for and managing USB hardware wallets (deprecated)",
 	}
 	LegacyWSListenAddrFlag = cli.StringFlag{
 		Name:  "wsaddr",
@@ -144,6 +117,7 @@ var (
 		Usage: "Public address for block mining rewards (deprecated, use --etherbase or both --tx-fee-recipient and --miner.validator)",
 		Value: "0",
 	}
+
 	LegacyIstanbulRequestTimeoutFlag = cli.Uint64Flag{
 		Name:  "istanbul.requesttimeout",
 		Usage: "Timeout for each Istanbul round in milliseconds (deprecated, value obtained from genesis config)",
@@ -164,15 +138,23 @@ var (
 		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score  (deprecated, value obtained from genesis config)",
 		Value: 0,
 	}
-	LegacyBootnodesV4Flag = cli.StringFlag{
-		Name:  "bootnodesv4",
-		Usage: "Comma separated enode URLs for P2P v4 discovery bootstrap (light server, full nodes) (deprecated, use --bootnodes)",
-		Value: "",
+
+	// Deprecated in celo-blockchain 1.4.0
+	LegacyMinerGasPriceFlag = BigFlag{
+		Name:  "miner.gasprice",
+		Usage: "Minimum gas price for mining a transaction",
+		Value: big.NewInt(1),
 	}
-	LegacyBootnodesV5Flag = cli.StringFlag{
-		Name:  "bootnodesv5",
-		Usage: "Comma separated enode URLs for P2P v5 discovery bootstrap (light server, light nodes) (deprecated, use --bootnodes)",
-		Value: "",
+
+	// (Deprecated July 2020, shown in aliased flags section)
+	LegacyGraphQLListenAddrFlag = cli.StringFlag{
+		Name:  "graphql.addr",
+		Usage: "GraphQL server listening interface (deprecated, graphql can only be enabled on the HTTP-RPC server endpoint, use --graphql)",
+	}
+	LegacyGraphQLPortFlag = cli.IntFlag{
+		Name:  "graphql.port",
+		Usage: "GraphQL server listening port (deprecated, graphql can only be enabled on the HTTP-RPC server endpoint, use --graphql)",
+		Value: node.DefaultHTTPPort,
 	}
 )
 
@@ -182,8 +164,8 @@ func showDeprecated(*cli.Context) {
 	fmt.Println("The following flags are deprecated and will be removed in the future!")
 	fmt.Println("--------------------------------------------------------------------")
 	fmt.Println()
-
 	for _, flag := range DeprecatedFlags {
 		fmt.Println(flag.String())
 	}
+	fmt.Println()
 }

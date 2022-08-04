@@ -370,9 +370,7 @@ var methodNormalizer = map[Lang]func(string) string{
 }
 
 // capitalise makes a camel-case string which starts with an upper case character.
-func capitalise(input string) string {
-	return abi.ToCamelCase(input)
-}
+var capitalise = abi.ToCamelCase
 
 // decapitalise makes a camel-case string which starts with a lower case character.
 func decapitalise(input string) string {

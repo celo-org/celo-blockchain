@@ -20,11 +20,13 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"math/big"
+	"reflect"
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/common/math"
+	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -82,7 +84,40 @@ var makeTest = function(tx, rewind) {
 }
 */
 
+// callTrace is the result of a callTracer run.
+type callTrace struct {
+	Type    string          `json:"type"`
+	From    common.Address  `json:"from"`
+	To      common.Address  `json:"to"`
+	Input   hexutil.Bytes   `json:"input"`
+	Output  hexutil.Bytes   `json:"output"`
+	Gas     *hexutil.Uint64 `json:"gas,omitempty"`
+	GasUsed *hexutil.Uint64 `json:"gasUsed,omitempty"`
+	Value   *hexutil.Big    `json:"value,omitempty"`
+	Error   string          `json:"error,omitempty"`
+	Calls   []callTrace     `json:"calls,omitempty"`
+}
+
+type callContext struct {
+	Number     math.HexOrDecimal64   `json:"number"`
+	Difficulty *math.HexOrDecimal256 `json:"difficulty"`
+	Time       math.HexOrDecimal64   `json:"timestamp"`
+	GasLimit   math.HexOrDecimal64   `json:"gasLimit"`
+	Miner      common.Address        `json:"miner"`
+}
+
+// nolint:deadcode // Used in commented out test
+// callTracerTest defines a single test to check the call tracer against.
+type callTracerTest struct {
+	Genesis *core.Genesis `json:"genesis"`
+	Context *callContext  `json:"context"`
+	Input   string        `json:"input"`
+	Result  *callTrace    `json:"result"`
+}
+
 func TestPrestateTracerCreate2(t *testing.T) {
+	celoMock := testutil.NewCeloMock()
+
 	unsignedTx := types.NewTransaction(1, common.HexToAddress("0x00000000000000000000000000000000deadbeef"), new(big.Int), 5000000, big.NewInt(1), nil, nil, nil, []byte{})
 
 	privateKeyECDSA, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
@@ -104,15 +139,17 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	    result: 0x60f3f640a8508fC6a86d45DF051962668E1e8AC7
 	*/
 	origin, _ := signer.Sender(tx)
-	context := vm.Context{
+	txContext := vm.TxContext{
+		Origin:   origin,
+		GasPrice: big.NewInt(1),
+	}
+	context := vm.BlockContext{
 		CanTransfer:          vmcontext.CanTransfer,
 		Transfer:             vmcontext.TobinTransfer,
-		Origin:               origin,
 		Coinbase:             common.Address{},
 		BlockNumber:          new(big.Int).SetUint64(8000000),
 		Time:                 new(big.Int).SetUint64(5),
-		GasPrice:             big.NewInt(1),
-		GetRegisteredAddress: contracts.GetRegisteredAddress,
+		GetRegisteredAddress: vmcontext.GetRegisteredAddress,
 	}
 	alloc := core.GenesisAlloc{}
 
@@ -131,17 +168,19 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), alloc, false)
 
 	// Create the tracer, the EVM environment and run it
-	tracer, err := New("prestateTracer")
+	tracer, err := New("prestateTracer", new(Context))
 	if err != nil {
 		t.Fatalf("failed to create call tracer: %v", err)
 	}
-	evm := vm.NewEVM(context, statedb, params.MainnetChainConfig, vm.Config{Debug: true, Tracer: tracer})
+	vmConfig := vm.Config{Debug: true, Tracer: tracer}
+	evm := vm.NewEVM(context, txContext, statedb, params.MainnetChainConfig, vmConfig)
 
-	msg, err := tx.AsMessage(signer)
+	msg, err := tx.AsMessage(signer, nil)
 	if err != nil {
 		t.Fatalf("failed to prepare transaction for tracing: %v", err)
 	}
-	st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()))
+
+	st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()), celoMock.Runner, nil)
 	if _, err = st.TransitionDb(); err != nil {
 		t.Fatalf("failed to execute transaction: %v", err)
 	}
@@ -194,28 +233,29 @@ func TestCallTracer(t *testing.T) {
 			}
 			signer := types.MakeSigner(test.Genesis.Config, new(big.Int).SetUint64(uint64(test.Context.Number)))
 			origin, _ := signer.Sender(tx)
-
-			context := vm.Context{
+			txContext := vm.TxContext{
+				Origin:   origin,
+				GasPrice: tx.GasPrice(),
+			}
+			context := vm.BlockContext{
 				CanTransfer: core.CanTransfer,
 				Transfer:    vm.Transfer,
-				Origin:      origin,
 				Coinbase:    test.Context.Miner,
 				BlockNumber: new(big.Int).SetUint64(uint64(test.Context.Number)),
 				Time:        new(big.Int).SetUint64(uint64(test.Context.Time)),
 				GasLimit:    uint64(test.Context.GasLimit),
-				GasPrice:    tx.GasPrice(),
 				GetRegisteredAddress: contracts.GetRegisteredAddress,
 			}
 			_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false)
 
 			// Create the tracer, the EVM environment and run it
-			tracer, err := New("callTracer")
+			tracer, err := New("callTracer", new(Context))
 			if err != nil {
 				t.Fatalf("failed to create call tracer: %v", err)
 			}
-			evm := vm.NewEVM(context, statedb, test.Genesis.Config, vm.Config{Debug: true, Tracer: tracer})
+			evm := vm.NewEVM(context, txContext, statedb, test.Genesis.Config, vm.Config{Debug: true, Tracer: tracer})
 
-			msg, err := tx.AsMessage(signer)
+			msg, err := tx.AsMessage(signer, nil)
 			if err != nil {
 				t.Fatalf("failed to prepare transaction for tracing: %v", err)
 			}
@@ -233,10 +273,110 @@ func TestCallTracer(t *testing.T) {
 				t.Fatalf("failed to unmarshal trace result: %v", err)
 			}
 
-			if !reflect.DeepEqual(ret, test.Result) {
+			if !jsonEqual(ret, test.Result) {
+				// uncomment this for easier debugging
+				//have, _ := json.MarshalIndent(ret, "", " ")
+				//want, _ := json.MarshalIndent(test.Result, "", " ")
+				//t.Fatalf("trace mismatch: \nhave %+v\nwant %+v", string(have), string(want))
 				t.Fatalf("trace mismatch: \nhave %+v\nwant %+v", ret, test.Result)
 			}
 		})
 	}
 }
 */
+
+// jsonEqual is similar to reflect.DeepEqual, but does a 'bounce' via json prior to
+// comparison
+func jsonEqual(x, y interface{}) bool {
+	xTrace := new(callTrace)
+	yTrace := new(callTrace)
+	if xj, err := json.Marshal(x); err == nil {
+		json.Unmarshal(xj, xTrace)
+	} else {
+		return false
+	}
+	if yj, err := json.Marshal(y); err == nil {
+		json.Unmarshal(yj, yTrace)
+	} else {
+		return false
+	}
+	return reflect.DeepEqual(xTrace, yTrace)
+}
+
+func BenchmarkTransactionTrace(b *testing.B) {
+	celoMock := testutil.NewCeloMock()
+	key, _ := crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+	from := crypto.PubkeyToAddress(key.PublicKey)
+	gas := uint64(1000000) // 1M gas
+	to := common.HexToAddress("0x00000000000000000000000000000000deadbeef")
+	signer := types.LatestSignerForChainID(big.NewInt(1337))
+	tx, err := types.SignNewTx(key, signer,
+		&types.LegacyTx{
+			Nonce:    1,
+			GasPrice: big.NewInt(500),
+			Gas:      gas,
+			To:       &to,
+		})
+	if err != nil {
+		b.Fatal(err)
+	}
+	txContext := vm.TxContext{
+		Origin:   from,
+		GasPrice: tx.GasPrice(),
+	}
+	context := vm.BlockContext{
+		CanTransfer: vmcontext.CanTransfer,
+		Transfer:    vmcontext.TobinTransfer,
+		Coinbase:    common.Address{},
+		BlockNumber: new(big.Int).SetUint64(uint64(5)),
+		Time:        new(big.Int).SetUint64(uint64(5)),
+	}
+
+	alloc := core.GenesisAlloc{}
+	// The code pushes 'deadbeef' into memory, then the other params, and calls CREATE2, then returns
+	// the address
+	loop := []byte{
+		byte(vm.JUMPDEST), //  [ count ]
+		byte(vm.PUSH1), 0, // jumpdestination
+		byte(vm.JUMP),
+	}
+	alloc[common.HexToAddress("0x00000000000000000000000000000000deadbeef")] = core.GenesisAccount{
+		Nonce:   1,
+		Code:    loop,
+		Balance: big.NewInt(1),
+	}
+	alloc[from] = core.GenesisAccount{
+		Nonce:   1,
+		Code:    []byte{},
+		Balance: big.NewInt(500000000000000),
+	}
+	_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), alloc, false)
+	// Create the tracer, the EVM environment and run it
+	tracer := vm.NewStructLogger(&vm.LogConfig{
+		Debug: false,
+		//DisableStorage: true,
+		//DisableMemory: true,
+		//DisableReturnData: true,
+	})
+	evm := vm.NewEVM(context, txContext, statedb, params.TestChainConfig, vm.Config{Debug: true, Tracer: tracer})
+	msg, err := tx.AsMessage(signer, nil)
+	if err != nil {
+		b.Fatalf("failed to prepare transaction for tracing: %v", err)
+	}
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		snap := statedb.Snapshot()
+		st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()), celoMock.Runner, nil)
+		_, err = st.TransitionDb()
+		if err != nil {
+			b.Fatal(err)
+		}
+		statedb.RevertToSnapshot(snap)
+		if have, want := len(tracer.StructLogs()), 244752; have != want {
+			b.Fatalf("trace wrong, want %d steps, have %d", want, have)
+		}
+		tracer.Reset()
+	}
+}

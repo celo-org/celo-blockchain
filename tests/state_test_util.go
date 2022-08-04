@@ -24,16 +24,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/celo-org/celo-blockchain/core/state/snapshot"
-
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/state/snapshot"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/params"
@@ -66,9 +66,11 @@ type stJSON struct {
 }
 
 type stPostState struct {
-	Root    common.UnprefixedHash `json:"hash"`
-	Logs    common.UnprefixedHash `json:"logs"`
-	Indexes struct {
+	Root            common.UnprefixedHash `json:"hash"`
+	Logs            common.UnprefixedHash `json:"logs"`
+	TxBytes         hexutil.Bytes         `json:"txbytes"`
+	ExpectException string                `json:"expectException"`
+	Indexes         struct {
 		Data  int `json:"data"`
 		Gas   int `json:"gas"`
 		Value int `json:"value"`
@@ -94,27 +96,32 @@ type stEnvMarshaling struct {
 //go:generate gencodec -type stTransaction -field-override stTransactionMarshaling -out gen_sttransaction.go
 
 type stTransaction struct {
-	GasPrice   *big.Int `json:"gasPrice"`
-	Nonce      uint64   `json:"nonce"`
-	To         string   `json:"to"`
-	Data       []string `json:"data"`
-	GasLimit   []uint64 `json:"gasLimit"`
-	Value      []string `json:"value"`
-	PrivateKey []byte   `json:"secretKey"`
+	GasPrice             *big.Int            `json:"gasPrice"`
+	MaxFeePerGas         *big.Int            `json:"maxFeePerGas"`
+	MaxPriorityFeePerGas *big.Int            `json:"maxPriorityFeePerGas"`
+	Nonce                uint64              `json:"nonce"`
+	To                   string              `json:"to"`
+	Data                 []string            `json:"data"`
+	AccessLists          []*types.AccessList `json:"accessLists,omitempty"`
+	GasLimit             []uint64            `json:"gasLimit"`
+	Value                []string            `json:"value"`
+	PrivateKey           []byte              `json:"secretKey"`
 }
 
 type stTransactionMarshaling struct {
-	GasPrice   *math.HexOrDecimal256
-	Nonce      math.HexOrDecimal64
-	GasLimit   []math.HexOrDecimal64
-	PrivateKey hexutil.Bytes
+	GasPrice             *math.HexOrDecimal256
+	MaxFeePerGas         *math.HexOrDecimal256
+	MaxPriorityFeePerGas *math.HexOrDecimal256
+	Nonce                math.HexOrDecimal64
+	GasLimit             []math.HexOrDecimal64
+	PrivateKey           hexutil.Bytes
 }
 
-// getVMConfig takes a fork definition and returns a chain config.
+// GetChainConfig takes a fork definition and returns a chain config.
 // The fork definition can be
 // - a plain forkname, e.g. `Byzantium`,
 // - a fork basename, and a list of EIPs to enable; e.g. `Byzantium+1884+1283`.
-func getVMConfig(forkString string) (baseConfig *params.ChainConfig, eips []int, err error) {
+func GetChainConfig(forkString string) (baseConfig *params.ChainConfig, eips []int, err error) {
 	var (
 		splitForks            = strings.Split(forkString, "+")
 		ok                    bool
@@ -127,6 +134,9 @@ func getVMConfig(forkString string) (baseConfig *params.ChainConfig, eips []int,
 		if eipNum, err := strconv.Atoi(eip); err != nil {
 			return nil, nil, fmt.Errorf("syntax error, invalid eip number %v", eipNum)
 		} else {
+			if !vm.ValidEip(eipNum) {
+				return nil, nil, fmt.Errorf("syntax error, invalid eip number %v", eipNum)
+			}
 			eips = append(eips, eipNum)
 		}
 	}
@@ -164,7 +174,7 @@ func (t *StateTest) Run(subtest StateSubtest, vmconfig vm.Config, snapshotter bo
 
 // RunNoVerify runs a specific subtest and returns the statedb and post-state root
 func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapshotter bool) (*snapshot.Tree, *state.StateDB, common.Hash, error) {
-	config, eips, err := getVMConfig(subtest.Fork)
+	config, eips, err := GetChainConfig(subtest.Fork)
 	if err != nil {
 		return nil, nil, common.Hash{}, UnsupportedForkError{subtest.Fork}
 	}
@@ -172,21 +182,50 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 	block := t.genesis(config).ToBlock(nil)
 	snaps, statedb := MakePreState(rawdb.NewMemoryDatabase(), t.json.Pre, snapshotter)
 
+	var baseFee *big.Int
+	if config.IsEspresso(new(big.Int)) {
+		// baseFee = t.json.Env.BaseFee ?
+		if baseFee == nil {
+			// Retesteth uses `0x10` for genesis baseFee. Therefore, it defaults to
+			// parent - 2 : 0xa as the basefee for 'this' context.
+			baseFee = big.NewInt(0x0a)
+		}
+	}
 	post := t.json.Post[subtest.Fork][subtest.Index]
-	msg, err := t.json.Tx.toMessage(post)
+	msg, err := t.json.Tx.toMessage(post, baseFee)
 	if err != nil {
 		return nil, nil, common.Hash{}, err
 	}
-	context := core.NewEVMContext(msg, block.Header(), nil, &t.json.Env.Coinbase)
-	context.GetHash = vmTestBlockHash
-	evm := vm.NewEVM(context, statedb, config, vmconfig)
 
-	gaspool := new(core.GasPool)
-	gaspool.AddGas(core.CalcGasLimit(block, statedb))
+	// Try to recover tx with current signer
+	if len(post.TxBytes) != 0 {
+		var ttx types.Transaction
+		err := ttx.UnmarshalBinary(post.TxBytes)
+		if err != nil {
+			return nil, nil, common.Hash{}, err
+		}
+
+		if _, err := types.Sender(types.LatestSigner(config), &ttx); err != nil {
+			return nil, nil, common.Hash{}, err
+		}
+	}
+
+	// Prepare the EVM.
+	txContext := core.NewEVMTxContext(msg)
+	context := core.NewEVMBlockContext(block.Header(), nil, &t.json.Env.Coinbase)
+	context.GetHash = vmTestBlockHash
+	context.BaseFee = baseFee
+	evm := vm.NewEVM(context, txContext, statedb, config, vmconfig)
+
+	// Execute the message.
 	snapshot := statedb.Snapshot()
-	if _, err := core.ApplyMessage(evm, msg, gaspool); err != nil {
+	gaspool := new(core.GasPool)
+	gaspool.AddGas(params.DefaultGasLimit)
+	vmRunner := vmcontext.NewEVMRunner(nil, block.Header(), statedb)
+	if _, err := core.ApplyMessage(evm, msg, gaspool, vmRunner, nil); err != nil {
 		statedb.RevertToSnapshot(snapshot)
 	}
+
 	// Commit block
 	statedb.Commit(config.IsEIP158(block.Number()))
 	// Add 0-value mining reward. This only makes a difference in the cases
@@ -220,7 +259,7 @@ func MakePreState(db ethdb.Database, accounts core.GenesisAlloc, snapshotter boo
 
 	var snaps *snapshot.Tree
 	if snapshotter {
-		snaps = snapshot.New(db, sdb.TrieDB(), 1, root, false)
+		snaps, _ = snapshot.New(db, sdb.TrieDB(), 1, root, false, true, false)
 	}
 	statedb, _ = state.New(root, sdb, snaps)
 	return snaps, statedb
@@ -236,7 +275,7 @@ func (t *StateTest) genesis(config *params.ChainConfig) *core.Genesis {
 	}
 }
 
-func (tx *stTransaction) toMessage(ps stPostState) (core.Message, error) {
+func (tx *stTransaction) toMessage(ps stPostState, baseFee *big.Int) (core.Message, error) {
 	// Derive sender from private key if present.
 	var from common.Address
 	if len(tx.PrivateKey) > 0 {
@@ -281,8 +320,31 @@ func (tx *stTransaction) toMessage(ps stPostState) (core.Message, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid tx data %q", dataHex)
 	}
+	var accessList types.AccessList
+	if tx.AccessLists != nil && tx.AccessLists[ps.Indexes.Data] != nil {
+		accessList = *tx.AccessLists[ps.Indexes.Data]
+	}
+	// If baseFee provided, set gasPrice to effectiveGasPrice.
+	gasPrice := tx.GasPrice
+	if baseFee != nil {
+		if tx.MaxFeePerGas == nil {
+			tx.MaxFeePerGas = gasPrice
+		}
+		if tx.MaxFeePerGas == nil {
+			tx.MaxFeePerGas = new(big.Int)
+		}
+		if tx.MaxPriorityFeePerGas == nil {
+			tx.MaxPriorityFeePerGas = tx.MaxFeePerGas
+		}
+		gasPrice = math.BigMin(new(big.Int).Add(tx.MaxPriorityFeePerGas, baseFee),
+			tx.MaxFeePerGas)
+	}
+	if gasPrice == nil {
+		return nil, fmt.Errorf("no gas price provided")
+	}
 
-	msg := types.NewMessage(from, to, tx.Nonce, value, gasLimit, tx.GasPrice, nil, nil, common.Big0, data, false, true)
+	msg := types.NewMessage(from, to, tx.Nonce, value, gasLimit, gasPrice,
+		tx.MaxFeePerGas, tx.MaxPriorityFeePerGas, nil, nil, nil, data, accessList, false, false)
 	return msg, nil
 }
 
@@ -291,4 +353,8 @@ func rlpHash(x interface{}) (h common.Hash) {
 	rlp.Encode(hw, x)
 	hw.Sum(h[:0])
 	return h
+}
+
+func vmTestBlockHash(n uint64) common.Hash {
+	return common.BytesToHash(crypto.Keccak256([]byte(big.NewInt(int64(n)).String())))
 }

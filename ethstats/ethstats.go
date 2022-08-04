@@ -38,16 +38,20 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	istanbulBackend "github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
-	"github.com/celo-org/celo-blockchain/contract_comm/validators"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contracts/validators"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
+	ethproto "github.com/celo-org/celo-blockchain/eth/protocols/eth"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/les"
 	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/miner"
+	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/rpc"
@@ -89,14 +93,30 @@ const (
 	actionStats    = "stats"
 )
 
-type txPool interface {
-	// SubscribeNewTxsEvent should return an event subscription of
-	// NewTxsEvent and send events to the given channel.
-	SubscribeNewTxsEvent(chan<- core.NewTxsEvent) event.Subscription
+// backend encompasses the bare-minimum functionality needed for ethstats reporting
+type backend interface {
+	SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription
+	SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription
+	CurrentHeader() *types.Header
+	HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Header, error)
+	GetTd(ctx context.Context, hash common.Hash) *big.Int
+	Stats() (pending int, queued int)
+	Downloader() *downloader.Downloader
+	AccountManager() *accounts.Manager
+	StateAndHeaderByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*state.StateDB, *types.Header, error)
+	NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner
 }
 
-type blockChain interface {
-	SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription
+// fullNodeBackend encompasses the functionality necessary for a full node
+// reporting to ethstats
+type fullNodeBackend interface {
+	backend
+	Miner() *miner.Miner
+	BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error)
+	CurrentBlock() *types.Block
+	SuggestPrice(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
+	CurrentGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
+	SuggestGasTipCap(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
 }
 
 // StatsPayload todo: document this
@@ -114,14 +134,13 @@ type DelegateSignMessage struct {
 // Service implements an Ethereum netstats reporting daemon that pushes local
 // chain statistics up to a monitoring server.
 type Service struct {
-	server        *p2p.Server              // Peer-to-peer server to retrieve networking infos
-	eth           *eth.Ethereum            // Full Ethereum service if monitoring a full node
-	les           *les.LightEthereum       // Light Ethereum service if monitoring a light node
-	engine        consensus.Engine         // Consensus engine to retrieve variadic block fields
-	backend       *istanbulBackend.Backend // Istanbul consensus backend
-	nodeName      string                   // Name of the node to display on the monitoring page
-	celostatsHost string                   // Remote address of the monitoring service
-	stopFn        context.CancelFunc       // Close ctx Done channel
+	server          *p2p.Server      // Peer-to-peer server to retrieve networking infos
+	engine          consensus.Engine // Consensus engine to retrieve variadic block fields
+	backend         backend
+	istanbulBackend *istanbulBackend.Backend // Istanbul consensus backend
+	nodeName        string                   // Name of the node to display on the monitoring page
+	celostatsHost   string                   // Remote address of the monitoring service
+	stopFn          context.CancelFunc       // Close ctx Done channel
 
 	pongCh chan struct{} // Pong notifications are fed into this channel
 	histCh chan []uint64 // History request block numbers are fed into this channel
@@ -172,64 +191,58 @@ func (w *connWrapper) Close() error {
 	return w.conn.Close()
 }
 
-func parseStatsConnectionURL(url string, name *string, host *string) error {
-	re := regexp.MustCompile("([^:@]*)?@(.+)")
-	parts := re.FindStringSubmatch(url)
-	if len(parts) != 3 {
-		return fmt.Errorf("invalid netstats url: \"%s\", should be nodename@host:port", url)
+// parseEthstatsURL parses the netstats connection url.
+// URL argument should be of the form <name@host:port>
+func parseEthstatsURL(url string, name *string, host *string) error {
+	err := fmt.Errorf("invalid netstats url: \"%s\", should be nodename@host:port", url)
+
+	hostIndex := strings.LastIndex(url, "@")
+	if hostIndex == -1 || hostIndex == len(url)-1 {
+		return err
 	}
-	*name = parts[1]
-	*host = parts[2]
+	*name = url[:hostIndex]
+	*host = url[hostIndex+1:]
+
 	return nil
 }
 
 // New returns a monitoring service ready for stats reporting.
-func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Service, error) {
+func New(node *node.Node, backend backend, engine consensus.Engine, url string) error {
 	// Assemble and return the stats service
 	var (
-		engine        consensus.Engine
 		name          string
 		celostatsHost string
 	)
-	if ethServ != nil {
-		engine = ethServ.Engine()
-	} else {
-		engine = lesServ.Engine()
-	}
+	istanbulBackend := engine.(*istanbulBackend.Backend)
 
-	backend := engine.(*istanbulBackend.Backend)
-	if !backend.IsProxiedValidator() {
+	if !istanbulBackend.IsProxiedValidator() {
 		// Parse the netstats connection url
-		if err := parseStatsConnectionURL(url, &name, &celostatsHost); err != nil {
-			return nil, err
+		if err := parseEthstatsURL(url, &name, &celostatsHost); err != nil {
+			return err
 		}
 	}
 
-	return &Service{
-		eth:           ethServ,
-		les:           lesServ,
-		engine:        engine,
-		backend:       backend,
-		nodeName:      name,
-		celostatsHost: celostatsHost,
-		stopFn:        nil,
-		pongCh:        make(chan struct{}),
-		histCh:        make(chan []uint64, 1),
-	}, nil
+	ethstats := &Service{
+		engine:          engine,
+		backend:         backend,
+		istanbulBackend: istanbulBackend,
+		server:          node.Server(),
+		nodeName:        name,
+		celostatsHost:   celostatsHost,
+		stopFn:          nil,
+		pongCh:          make(chan struct{}),
+		histCh:          make(chan []uint64, 1),
+	}
+	node.RegisterLifecycle(ethstats)
+	return nil
 }
 
 // Protocols implements node.Service, returning the P2P network protocols used
 // by the stats service (nil as it doesn't use the devp2p overlay network).
 func (s *Service) Protocols() []p2p.Protocol { return nil }
 
-// APIs implements node.Service, returning the RPC API endpoints provided by the
-// stats service (nil as it doesn't provide any user callable APIs).
-func (s *Service) APIs() []rpc.API { return nil }
-
 // Start implements node.Service, starting up the monitoring and reporting daemon.
-func (s *Service) Start(server *p2p.Server) error {
-	// TODO add lock to avoid starting twice or starting an already started service
-	s.server = server
+func (s *Service) Start() error {
 	go func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -241,7 +254,7 @@ func (s *Service) Start(server *p2p.Server) error {
 	return nil
 }
 
-// Stop implements node.Service, terminating the monitoring and reporting daemon.
+// Stop implements node.Lifecycle, terminating the monitoring and reporting daemon.
 func (s *Service) Stop() error {
 	// TODO don't stop if already stopped
 	// TODO use lock
@@ -257,17 +270,6 @@ func (s *Service) Stop() error {
 // loop keeps trying to connect to the netstats server, reporting chain events
 // until termination.
 func (s *Service) loop(ctx context.Context) {
-	// Subscribe to chain events to execute updates on
-	var blockchain blockChain
-	var txpool txPool
-	if s.eth != nil {
-		blockchain = s.eth.BlockChain()
-		txpool = s.eth.TxPool()
-	} else {
-		blockchain = s.les.BlockChain()
-		txpool = s.les.TxPool()
-	}
-
 	// Start a goroutine that exhausts the subscriptions to avoid events piling up
 	var (
 		headCh = make(chan *types.Block, 1)
@@ -278,15 +280,15 @@ func (s *Service) loop(ctx context.Context) {
 
 	group, ctxGroup := errgroup.WithContext(ctx)
 	group.Go(func() error { return s.handleDelegateSignEvents(ctxGroup, sendCh, signCh) })
-	group.Go(func() error { return s.handleNewTransactionEvents(ctxGroup, txCh, txpool) })
-	group.Go(func() error { return s.handleChainHeadEvents(ctxGroup, headCh, blockchain) })
+	group.Go(func() error { return s.handleNewTransactionEvents(ctxGroup, txCh) })
+	group.Go(func() error { return s.handleChainHeadEvents(ctxGroup, headCh) })
 
-	if s.backend.IsProxiedValidator() {
+	if s.istanbulBackend.IsProxiedValidator() {
 		group.Go(func() error {
 			for {
 				select {
 				case delegateSignMsg := <-signCh:
-					if s.backend.IsValidating() {
+					if s.istanbulBackend.IsValidating() {
 						s.fillWithValidatorInfo(&delegateSignMsg.Payload)
 						if err := s.handleDelegateSign(&delegateSignMsg.Payload, delegateSignMsg.PeerID); err != nil {
 							log.Warn("Delegate sign failed", "err", err)
@@ -354,6 +356,7 @@ func (s *Service) loop(ctx context.Context) {
 					if err = s.report(conn, sendCh); err != nil {
 						log.Warn("Initial stats report failed", "err", err)
 						conn.Close()
+						errTimer.Reset(0)
 						continue
 					}
 
@@ -420,17 +423,17 @@ func (s *Service) login(conn *connWrapper, sendCh chan *StatsPayload) error {
 	// Construct and send the login authentication
 	infos := s.server.NodeInfo()
 
-	var (
-		network  string
-		protocol string
-	)
+	var protocols []string
+	for _, proto := range s.server.Protocols {
+		protocols = append(protocols, fmt.Sprintf("%s/%d", proto.Name, proto.Version))
+	}
+	var network string
 	if info := infos.Protocols[istanbul.ProtocolName]; info != nil {
-		ethInfo, ok := info.(*eth.NodeInfo)
+		ethInfo, ok := info.(*ethproto.NodeInfo)
 		if !ok {
 			return errors.New("could not resolve NodeInfo")
 		}
 		network = fmt.Sprintf("%d", ethInfo.Network)
-		protocol = fmt.Sprintf("%s/%d", istanbul.ProtocolName, istanbul.ProtocolVersions[0])
 	} else {
 		lesProtocol, ok := infos.Protocols["les"]
 		if !ok {
@@ -441,16 +444,16 @@ func (s *Service) login(conn *connWrapper, sendCh chan *StatsPayload) error {
 			return errors.New("could not resolve NodeInfo")
 		}
 		network = fmt.Sprintf("%d", lesInfo.Network)
-		protocol = fmt.Sprintf("les/%d", les.ClientProtocolVersions[0])
 	}
+
 	auth := &authMsg{
-		ID: s.backend.ValidatorAddress().String(),
+		ID: s.istanbulBackend.ValidatorAddress().String(),
 		Info: nodeInfo{
 			Name:     s.nodeName,
 			Node:     infos.Name,
 			Port:     infos.Ports.Listener,
 			Network:  network,
-			Protocol: protocol,
+			Protocol: strings.Join(protocols, ", "),
 			API:      "No",
 			Os:       runtime.GOOS,
 			OsVer:    runtime.GOARCH,
@@ -463,7 +466,7 @@ func (s *Service) login(conn *connWrapper, sendCh chan *StatsPayload) error {
 		return err
 	}
 
-	if s.backend.IsProxy() {
+	if s.istanbulBackend.IsProxy() {
 		// Proxy needs a delegate send of a hello action here to get ACK
 		if err := s.waitAndDelegateMessageWithTimeout(conn, sendCh, actionHello); err != nil {
 			return err
@@ -566,7 +569,7 @@ func (s *Service) handleDelegateSign(messageToSign *StatsPayload, peerID enode.I
 	if err != nil {
 		return err
 	}
-	return s.backend.SendDelegateSignMsgToProxy(msg, peerID)
+	return s.istanbulBackend.SendDelegateSignMsgToProxy(msg, peerID)
 }
 
 func (s *Service) handleDelegateSend(conn *connWrapper, signedMessage *StatsPayload) error {
@@ -578,7 +581,7 @@ func (s *Service) handleDelegateSend(conn *connWrapper, signedMessage *StatsPayl
 
 func (s *Service) handleDelegateSignEvents(ctx context.Context, sendCh chan *StatsPayload, signCh chan *DelegateSignMessage) error {
 	ch := make(chan istanbul.MessageWithPeerIDEvent, istDelegateSignChanSize)
-	subscription := s.backend.SubscribeNewDelegateSignEvent(ch)
+	subscription := s.istanbulBackend.SubscribeNewDelegateSignEvent(ch)
 	defer subscription.Unsubscribe()
 
 	for {
@@ -589,13 +592,13 @@ func (s *Service) handleDelegateSignEvents(ctx context.Context, sendCh chan *Sta
 			if err := json.Unmarshal(msg.Payload, &delegateSignMessage.Payload); err != nil {
 				continue
 			}
-			if s.backend.IsProxy() {
+			if s.istanbulBackend.IsProxy() {
 				// proxy should send to websocket
 				select {
 				case sendCh <- &delegateSignMessage.Payload:
 				default:
 				}
-			} else if s.backend.IsProxiedValidator() {
+			} else if s.istanbulBackend.IsProxiedValidator() {
 				// proxied validator should sign
 				select {
 				case signCh <- &delegateSignMessage:
@@ -611,10 +614,14 @@ func (s *Service) handleDelegateSignEvents(ctx context.Context, sendCh chan *Sta
 	}
 }
 
-func (s *Service) handleNewTransactionEvents(ctx context.Context, txChan chan struct{}, txpool txPool) error {
+func (s *Service) handleNewTransactionEvents(ctx context.Context, txChan chan struct{}) error {
 	var lastTx mclock.AbsTime
 	ch := make(chan core.NewTxsEvent, txChanSize)
-	subscription := txpool.SubscribeNewTxsEvent(ch)
+	subscription := s.backend.SubscribeNewTxsEvent(ch)
+	if subscription == nil {
+		log.Error("Stats daemon stopped due to nil head subscription")
+		return errors.New("nil head subscription")
+	}
 	defer subscription.Unsubscribe()
 
 	for {
@@ -639,9 +646,13 @@ func (s *Service) handleNewTransactionEvents(ctx context.Context, txChan chan st
 	}
 }
 
-func (s *Service) handleChainHeadEvents(ctx context.Context, headCh chan *types.Block, blockchain blockChain) error {
+func (s *Service) handleChainHeadEvents(ctx context.Context, headCh chan *types.Block) error {
 	ch := make(chan core.ChainHeadEvent, chainHeadChanSize)
-	subscription := blockchain.SubscribeChainHeadEvent(ch)
+	subscription := s.backend.SubscribeChainHeadEvent(ch)
+	if subscription == nil {
+		log.Error("Stats daemon stopped due to nil head subscription")
+		return errors.New("nil head subscription")
+	}
 	defer subscription.Unsubscribe()
 
 	for {
@@ -666,14 +677,13 @@ func (s *Service) handleChainHeadEvents(ctx context.Context, headCh chan *types.
 // it, if they themselves are requests it initiates a reply, and lastly it drops
 // unknown packets.
 func (s *Service) readLoop(conn *connWrapper) {
-	// If the read loop exists, close the connection
+	// If the read loop exits, close the connection
 	defer conn.Close()
 
 	for {
 		// Retrieve the next generic network packet and bail out on error
 		var blob json.RawMessage
 		if err := conn.ReadJSON(&blob); err != nil {
-			// A closed connection from the server is also catched here
 			log.Warn("Failed to retrieve stats server message", "err", err)
 			return
 		}
@@ -686,7 +696,6 @@ func (s *Service) readLoop(conn *connWrapper) {
 			}
 			continue
 		}
-
 		// Not a system ping, try to decode an actual state message
 		var msg map[string]interface{}
 		if err := json.Unmarshal(blob, &msg); err != nil {
@@ -804,14 +813,14 @@ func (s *Service) reportLatency(conn *connWrapper, sendCh chan *StatsPayload) er
 	start := time.Now()
 
 	ping := map[string]interface{}{
-		"id":         s.backend.ValidatorAddress().String(),
+		"id":         s.istanbulBackend.ValidatorAddress().String(),
 		"clientTime": start.String(),
 	}
 	if err := s.sendStats(conn, actionNodePing, ping); err != nil {
 		return err
 	}
 	// Proxy needs a delegate send of a node-ping action here to get ACK
-	if s.backend.IsProxy() {
+	if s.istanbulBackend.IsProxy() {
 		if err := s.waitAndDelegateMessageWithTimeout(conn, sendCh, actionNodePing); err != nil {
 			return err
 		}
@@ -830,7 +839,7 @@ func (s *Service) reportLatency(conn *connWrapper, sendCh chan *StatsPayload) er
 	log.Trace("Sending measured latency to ethstats", "latency", latency)
 
 	stats := map[string]interface{}{
-		"id":      s.backend.ValidatorAddress().String(),
+		"id":      s.istanbulBackend.ValidatorAddress().String(),
 		"latency": latency,
 	}
 	return s.sendStats(conn, actionLatency, stats)
@@ -865,14 +874,10 @@ func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
 		return nil, err
 	}
 	msgHash := crypto.Keccak256Hash(msg)
-
-	validator, errValidator := s.eth.Validator()
-	if errValidator != nil {
-		return nil, errValidator
-	}
+	validator := s.istanbulBackend.ValidatorAddress()
 
 	account := accounts.Account{Address: validator}
-	wallet, errWallet := s.eth.AccountManager().Find(account)
+	wallet, errWallet := s.backend.AccountManager().Find(account)
 	if errWallet != nil {
 		return nil, errWallet
 	}
@@ -926,7 +931,7 @@ func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
 }
 
 func (s *Service) sendStats(conn *connWrapper, action string, stats interface{}) error {
-	if s.backend.IsProxy() {
+	if s.istanbulBackend.IsProxy() {
 		statsWithAction := map[string]interface{}{
 			"stats":  stats,
 			"action": action,
@@ -936,7 +941,7 @@ func (s *Service) sendStats(conn *connWrapper, action string, stats interface{})
 			return err
 		}
 		go func() {
-			err := s.backend.SendDelegateSignMsgToProxiedValidator(msg)
+			err := s.istanbulBackend.SendDelegateSignMsgToProxiedValidator(msg)
 			if err != nil {
 				log.Warn("Failed to delegate", "err", err)
 				conn.Close()
@@ -964,7 +969,7 @@ func (s *Service) reportBlock(conn *connWrapper, block *types.Block) error {
 	log.Trace("Sending new block to ethstats", "number", details.Number, "hash", details.Hash)
 
 	stats := map[string]interface{}{
-		"id":    s.backend.ValidatorAddress().String(),
+		"id":    s.istanbulBackend.ValidatorAddress().String(),
 		"block": details,
 	}
 	return s.sendStats(conn, actionBlock, stats)
@@ -975,21 +980,20 @@ func (s *Service) reportBlock(conn *connWrapper, block *types.Block) error {
 func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 	// Gather the block infos from the local blockchain
 	var (
-		header  *types.Header
-		stateDB *state.StateDB
-		td      *big.Int
-		txs     []txStats
-		valSet  validatorSet
+		header   *types.Header
+		td       *big.Int
+		txs      []txStats
+		valSet   validatorSet
+		gasLimit uint64
 	)
-	if s.eth != nil {
-		// Full nodes have all needed information available
+
+	// check if backend is a full node
+	fullBackend, ok := s.backend.(fullNodeBackend)
+	if ok {
 		if block == nil {
-			block = s.eth.BlockChain().CurrentBlock()
+			block = fullBackend.CurrentBlock()
 		}
 		header = block.Header()
-		stateDB, _ = s.eth.BlockChain().State()
-		td = s.eth.BlockChain().GetTd(header.Hash(), header.Number.Uint64())
-
 		txs = make([]txStats, len(block.Transactions()))
 		for i, tx := range block.Transactions() {
 			txs[i].Hash = tx.Hash()
@@ -999,25 +1003,33 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		if block != nil {
 			header = block.Header()
 		} else {
-			header = s.les.BlockChain().CurrentHeader()
+			header = s.backend.CurrentHeader()
 		}
-		stateDB, _ = s.les.BlockChain().State()
-		td = s.les.BlockChain().GetTd(header.Hash(), header.Number.Uint64())
 		txs = []txStats{}
 	}
+	td = s.backend.GetTd(context.Background(), header.Hash())
+
 	// Assemble and return the block stats
-	author, _ := s.backend.Author(header)
+	author, _ := s.engine.Author(header)
 
 	// Add epoch info
-	epochSize := s.eth.Config().Istanbul.Epoch
+	epochSize := s.engine.EpochSize()
 	blockRemain := epochSize - istanbul.GetNumberWithinEpoch(header.Number.Uint64(), epochSize)
 
-	// only assemble every valSetInterval blocks
-	if block != nil && block.Number().Uint64()%valSetInterval == 0 {
-		valSet = s.assembleValidatorSet(block, stateDB)
-	}
+	stateDB, _, err := s.backend.StateAndHeaderByNumberOrHash(context.Background(), rpc.BlockNumberOrHashWithHash(header.Hash(), true))
 
-	gasLimit := core.CalcGasLimit(block, stateDB)
+	if err != nil {
+		log.Warn("Block state unavailable for reporting block stats", "hash", header.Hash(), "number", header.Number.Uint64(), "err", err)
+	} else {
+
+		// only assemble every valSetInterval blocks
+		if block != nil && block.Number().Uint64()%valSetInterval == 0 {
+			valSet = s.assembleValidatorSet(block, stateDB)
+		}
+
+		vmRunner := s.backend.NewEVMRunner(header, stateDB)
+		gasLimit = blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
+	}
 
 	return &blockStats{
 		Number:      header.Number,
@@ -1058,11 +1070,13 @@ func (s *Service) assembleValidatorSet(block *types.Block, state vm.StateDB) val
 		valsElected    []common.Address
 	)
 
+	vmRunner := s.backend.NewEVMRunner(block.Header(), state)
+
 	// Add set of registered validators
-	valsRegisteredMap, _ := validators.RetrieveRegisteredValidators(s.eth.BlockChain().CurrentHeader(), state)
+	valsRegisteredMap, _ := validators.RetrieveRegisteredValidators(vmRunner)
 	valsRegistered = make([]validatorInfo, 0, len(valsRegisteredMap))
 	for _, address := range valsRegisteredMap {
-		valData, err := validators.GetValidator(s.eth.BlockChain().CurrentHeader(), state, address)
+		valData, err := validators.GetValidator(vmRunner, address)
 
 		if err != nil {
 			log.Warn("Validator data not found", "address", address.Hex(), "err", err)
@@ -1079,7 +1093,7 @@ func (s *Service) assembleValidatorSet(block *types.Block, state vm.StateDB) val
 	}
 
 	// Add addresses of elected validators
-	valsElectedList := s.backend.GetValidators(block.Number(), block.Hash())
+	valsElectedList := s.istanbulBackend.GetValidators(block.Number(), block.Hash())
 
 	valsElected = make([]common.Address, 0, len(valsElectedList))
 	for i := range valsElectedList {
@@ -1104,12 +1118,7 @@ func (s *Service) reportHistory(conn *connWrapper, list []uint64) error {
 		indexes = append(indexes, list...)
 	} else {
 		// No indexes requested, send back the top ones
-		var head int64
-		if s.eth != nil {
-			head = s.eth.BlockChain().CurrentHeader().Number.Int64()
-		} else {
-			head = s.les.BlockChain().CurrentHeader().Number.Int64()
-		}
+		head := s.backend.CurrentHeader().Number.Int64()
 		start := head - historyUpdateRange + 1
 		if start < 0 {
 			start = 0
@@ -1121,12 +1130,13 @@ func (s *Service) reportHistory(conn *connWrapper, list []uint64) error {
 	// Gather the batch of blocks to report
 	history := make([]*blockStats, len(indexes))
 	for i, number := range indexes {
+		fullBackend, ok := s.backend.(fullNodeBackend)
 		// Retrieve the next block if it's known to us
 		var block *types.Block
-		if s.eth != nil {
-			block = s.eth.BlockChain().GetBlockByNumber(number)
+		if ok {
+			block, _ = fullBackend.BlockByNumber(context.Background(), rpc.BlockNumber(number)) // TODO ignore error here ?
 		} else {
-			if header := s.les.BlockChain().GetHeaderByNumber(number); header != nil {
+			if header, _ := s.backend.HeaderByNumber(context.Background(), rpc.BlockNumber(number)); header != nil {
 				block = types.NewBlockWithHeader(header)
 			}
 		}
@@ -1146,7 +1156,7 @@ func (s *Service) reportHistory(conn *connWrapper, list []uint64) error {
 		log.Trace("No history to send to stats server")
 	}
 	stats := map[string]interface{}{
-		"id":      s.backend.ValidatorAddress().String(),
+		"id":      s.istanbulBackend.ValidatorAddress().String(),
 		"history": history,
 	}
 	return s.sendStats(conn, actionHistory, stats)
@@ -1161,17 +1171,12 @@ type pendStats struct {
 // it to the stats server.
 func (s *Service) reportPending(conn *connWrapper) error {
 	// Retrieve the pending count from the local blockchain
-	var pending int
-	if s.eth != nil {
-		pending, _ = s.eth.TxPool().Stats()
-	} else {
-		pending = s.les.TxPool().Stats()
-	}
+	pending, _ := s.backend.Stats()
 	// Assemble the transaction stats and send it to the server
 	log.Trace("Sending pending transactions to ethstats", "count", pending)
 
 	stats := map[string]interface{}{
-		"id": s.backend.ValidatorAddress().String(),
+		"id": s.istanbulBackend.ValidatorAddress().String(),
 		"stats": &pendStats{
 			Pending: pending,
 		},
@@ -1186,13 +1191,12 @@ type nodeStats struct {
 	Mining   bool `json:"mining"`
 	Proxy    bool `json:"proxy"`
 	Elected  bool `json:"elected"`
-	Hashrate int  `json:"hashrate"`
 	Peers    int  `json:"peers"`
 	GasPrice int  `json:"gasPrice"`
 	Uptime   int  `json:"uptime"`
 }
 
-// reportPending retrieves various stats about the node at the networking and
+// reportStats retrieves various stats about the node at the networking and
 // mining layer and reports it to the stats server.
 func (s *Service) reportStats(conn *connWrapper) error {
 	// Gather the syncing and mining infos from the local miner instance
@@ -1201,21 +1205,20 @@ func (s *Service) reportStats(conn *connWrapper) error {
 		mining           bool
 		proxy            bool
 		elected          bool
-		hashrate         int
 		syncing          bool
 		gasprice         int
 	)
-	// Eth will be nil only if it is a light client
-	if s.eth != nil {
-		validatorAddress = s.backend.ValidatorAddress()
-		block := s.eth.BlockChain().CurrentBlock()
+	// check if backend is a full node
+	fullBackend, ok := s.backend.(fullNodeBackend)
+	if ok {
+		validatorAddress = s.istanbulBackend.ValidatorAddress()
+		block := fullBackend.CurrentBlock()
 
-		proxy = s.backend.IsProxy()
-		mining = s.eth.Miner().Mining()
-		hashrate = int(s.eth.Miner().HashRate())
+		proxy = s.istanbulBackend.IsProxy()
+		mining = fullBackend.Miner().Mining()
 
 		elected = false
-		valsElected := s.backend.GetValidators(block.Number(), block.Hash())
+		valsElected := s.istanbulBackend.GetValidators(block.Number(), block.Hash())
 
 		for i := range valsElected {
 			if valsElected[i].Address() == validatorAddress {
@@ -1223,27 +1226,29 @@ func (s *Service) reportStats(conn *connWrapper) error {
 			}
 		}
 
-		sync := s.eth.Downloader().Progress()
-		syncing = s.eth.BlockChain().CurrentHeader().Number.Uint64() >= sync.HighestBlock
+		sync := fullBackend.Downloader().Progress()
+		syncing = fullBackend.CurrentHeader().Number.Uint64() >= sync.HighestBlock
 
-		price, _ := s.eth.APIBackend.SuggestPrice(context.Background())
+		price, _ := fullBackend.CurrentGasPriceMinimum(context.Background(), nil)
 		gasprice = int(price.Uint64())
+		tip, _ := fullBackend.SuggestGasTipCap(context.Background(), nil)
+		gasprice += int(tip.Uint64())
+
 	} else {
-		sync := s.les.Downloader().Progress()
-		syncing = s.les.BlockChain().CurrentHeader().Number.Uint64() >= sync.HighestBlock
+		sync := s.backend.Downloader().Progress()
+		syncing = s.backend.CurrentHeader().Number.Uint64() >= sync.HighestBlock
 	}
 	// Assemble the node stats and send it to the server
 	log.Trace("Sending node details to ethstats")
 
 	stats := map[string]interface{}{
-		"id":      s.backend.ValidatorAddress().String(),
+		"id":      s.istanbulBackend.ValidatorAddress().String(),
 		"address": validatorAddress,
 		"stats": &nodeStats{
 			Active:   true,
 			Mining:   mining,
 			Elected:  elected,
 			Proxy:    proxy,
-			Hashrate: hashrate,
 			Peers:    s.server.PeerCount(),
 			GasPrice: gasprice,
 			Syncing:  syncing,

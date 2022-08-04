@@ -18,6 +18,7 @@ package core
 
 import (
 	"reflect"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -88,6 +89,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			if err != nil {
 				return nil, err
 			}
+//<<<<<<< HEAD
 
 			num := preparedCertificate.Proposal.Number().Uint64()
 			if num > 0 && istanbul.IsLastBlockOfEpoch(num, c.config.Epoch) {
@@ -96,6 +98,12 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 					logger.Error("Epoch validator set seal seal did not contain signature from message signer.", "err", err)
 					return nil, err
 				}
+/*=======
+			err = c.verifyEpochValidatorSetSeal(commit, preparedCertificate.Proposal.Number().Uint64(), newValSet, src)
+			if err != nil {
+				logger.Error("Epoch validator set seal seal did not contain signature from message signer.", "err", err)
+				return nil, err
+>>>>>>> master*/
 			}
 
 			subject = commit.Subject
@@ -143,6 +151,7 @@ func (c *core) getViewFromVerifiedPreparedCertificate(preparedCertificate istanb
 }
 
 func (c *core) handlePrepare(msg *istanbul.Message) error {
+	defer c.handlePrepareTimer.UpdateSince(time.Now())
 	// Decode PREPARE message
 	prepare := msg.Prepare()
 	logger := c.newLogger("func", "handlePrepare", "tag", "handleMsg", "msg_round", prepare.View.Round, "msg_seq", prepare.View.Sequence, "msg_digest", prepare.Digest.String())
@@ -177,6 +186,10 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 			return err
 		}
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition")
+		// Update metrics.
+		if !c.consensusTimestamp.IsZero() {
+			c.consensusPrepareTimeGauge.Update(time.Since(c.consensusTimestamp).Nanoseconds())
+		}
 
 		// Process Backlog Messages
 		c.backlog.updateState(c.current.View(), c.current.State())

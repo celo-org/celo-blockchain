@@ -26,7 +26,7 @@ import (
 	"github.com/celo-org/celo-blockchain/ethdb"
 )
 
-// Iterator is a iterator to step over all the accounts or the specific
+// Iterator is an iterator to step over all the accounts or the specific
 // storage in a snapshot which may or may not be composed of multiple layers.
 type Iterator interface {
 	// Next steps the iterator forward one element, returning false if exhausted,
@@ -47,7 +47,7 @@ type Iterator interface {
 	Release()
 }
 
-// AccountIterator is a iterator to step over all the accounts in a snapshot,
+// AccountIterator is an iterator to step over all the accounts in a snapshot,
 // which may or may not be composed of multiple layers.
 type AccountIterator interface {
 	Iterator
@@ -57,7 +57,7 @@ type AccountIterator interface {
 	Account() []byte
 }
 
-// StorageIterator is a iterator to step over the specific storage in a snapshot,
+// StorageIterator is an iterator to step over the specific storage in a snapshot,
 // which may or may not be composed of multiple layers.
 type StorageIterator interface {
 	Iterator
@@ -133,7 +133,7 @@ func (it *diffAccountIterator) Hash() common.Hash {
 
 // Account returns the RLP encoded slim account the iterator is currently at.
 // This method may _fail_, if the underlying layer has been flattened between
-// the call to Next and Acccount. That type of error will set it.Err.
+// the call to Next and Account. That type of error will set it.Err.
 // This method assumes that flattening does not delete elements from
 // the accountdata mapping (writing nil into it is fine though), and will panic
 // if elements have been deleted.
@@ -243,14 +243,14 @@ type diffStorageIterator struct {
 }
 
 // StorageIterator creates a storage iterator over a single diff layer.
-// Execept the storage iterator is returned, there is an additional flag
+// Except the storage iterator is returned, there is an additional flag
 // "destructed" returned. If it's true then it means the whole storage is
 // destructed in this layer(maybe recreated too), don't bother deeper layer
 // for storage retrieval.
 func (dl *diffLayer) StorageIterator(account common.Hash, seek common.Hash) (StorageIterator, bool) {
 	// Create the storage for this account even it's marked
 	// as destructed. The iterator is for the new one which
-	// just has the same adddress as the deleted one.
+	// just has the same address as the deleted one.
 	hashes, destructed := dl.StorageList(account)
 	index := sort.Search(len(hashes), func(i int) bool {
 		return bytes.Compare(seek[:], hashes[i][:]) <= 0
@@ -385,7 +385,7 @@ func (it *diskStorageIterator) Hash() common.Hash {
 	return common.BytesToHash(it.it.Key()) // The prefix will be truncated
 }
 
-// Slot returns the raw strorage slot content the iterator is currently at.
+// Slot returns the raw storage slot content the iterator is currently at.
 func (it *diskStorageIterator) Slot() []byte {
 	return it.it.Value()
 }

@@ -1,0 +1,36 @@
+[
+	{
+		"Input":         "",
+		"Expected":      "invalid input length",
+		"Name":          "input_invalid_empty",
+		"ErrorExpected": true
+	},
+	{
+		"Input":         "0000000000000000000000000000000000000000000000000000000000000000",
+		"Expected":      "block number out of bounds",
+		"Name":          "invalid_genesis_block",
+		"ErrorExpected": true
+	},
+	{
+		"Input":         "0000000000000000000000000000000000000000000000000000000000002580",
+		"Expected":      "block number out of bounds",
+		"Name":          "invalid_outside_history_limit",
+		"ErrorExpected": true
+	},
+	{
+		"Input":    "0000000000000000000000000000000000000000000000000000000000002581",
+		"Expected": "000000000000000000000000000000000000000000000000000000000000645c",
+		"Name":     "correct_last_block_in_history_limit"
+	},
+	{
+		"Input":         "0000000000000000000000000000000000000000000000000000000000002711",
+		"Expected":      "block number out of bounds",
+		"Name":          "invalid_chain_head_child",
+		"ErrorExpected": true
+	},
+	{
+		"Input":    "0000000000000000000000000000000000000000000000000000000000002710",
+		"Expected": "0000000000000000000000000000000000000000000000000000000000007ff0",
+		"Name":     "correct_chain_head"
+	}
+]

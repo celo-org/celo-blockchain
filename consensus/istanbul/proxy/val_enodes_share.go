@@ -66,6 +66,8 @@ func (pv *proxiedValidatorEngine) generateValEnodesShareMsg(remoteValidators []c
 	return msg, nil
 }
 
+// sendValEnodesShareMsg generates and then sends a ValEnodesShare message to the proxy
+// This is a no-op for replica validators.
 func (pv *proxiedValidatorEngine) sendValEnodesShareMsg(proxyPeer consensus.Peer, remoteValidators []common.Address) error {
 	logger := pv.logger.New("func", "sendValEnodesShareMsg")
 

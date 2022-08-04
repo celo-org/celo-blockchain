@@ -18,16 +18,13 @@
 package consensus
 
 import (
-	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
 
 // Broadcaster defines the interface to enqueue blocks to fetcher, find peer
 type Broadcaster interface {
-	// Enqueue add a block into fetcher queue
-	Enqueue(id string, block *types.Block)
-	// FindPeers retrives peers by addresses
+	// FindPeers retrieves peers by addresses
 	FindPeers(targets map[enode.ID]bool, purpose p2p.PurposeFlag) map[enode.ID]Peer
 }
 
@@ -52,7 +49,7 @@ type Peer interface {
 	// Node returns the peer's enode
 	Node() *enode.Node
 	// Version returns the peer's version
-	Version() int
+	Version() uint
 	// Blocks until a message is read directly from the peer.
 	// This should only be used during a handshake.
 	ReadMsg() (p2p.Msg, error)

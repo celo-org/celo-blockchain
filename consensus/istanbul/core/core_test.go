@@ -32,7 +32,10 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/types"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	elog "github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/trie"
+	"github.com/celo-org/celo-bls-go/bls"
 )
 
 func makeBlock(number int64) *types.Block {
@@ -41,7 +44,7 @@ func makeBlock(number int64) *types.Block {
 		GasUsed: 0,
 		Time:    uint64(0),
 	}
-	return types.NewBlock(header, nil, nil, nil)
+	return types.NewBlock(header, nil, nil, nil, new(trie.Trie))
 }
 
 func newTestProposalWithNum(num int64) istanbul.Proposal {
@@ -102,7 +105,7 @@ func TestVerifyProposal(t *testing.T) {
 	testCases := []struct {
 		name             string
 		proposal         istanbul.Proposal
-		verifyImpl       func(proposal istanbul.Proposal) (time.Duration, error)
+		verifyImpl       func(proposal istanbul.Proposal) (*StateProcessResult, time.Duration, error)
 		expectedErr      error
 		expectedDuration time.Duration
 	}{

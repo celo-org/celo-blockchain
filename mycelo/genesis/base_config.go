@@ -138,7 +138,6 @@ func BaseConfig() *Config {
 			Version:                 Version{1, 0, 0},
 			GasForNonGoldCurrencies: 50000,
 			BlockGasLimit:           13000000,
-			UptimeLookbackWindow:    12,
 		},
 		DoubleSigningSlasher: DoubleSigningSlasherParameters{
 			Reward:  bigIntStr("1000000000000000000000"), // 1000 cGLD
@@ -147,7 +146,7 @@ func BaseConfig() *Config {
 		DowntimeSlasher: DowntimeSlasherParameters{
 			Reward:            bigIntStr("10000000000000000000"),  // 10 cGLD
 			Penalty:           bigIntStr("100000000000000000000"), // 100 cGLD
-			SlashableDowntime: 60,                                 // Should be overridden on public testnets
+			SlashableDowntime: 4,                                  // make it small so it works with small epoch sizes, e.g. 10
 		},
 		Governance: GovernanceParameters{
 			UseMultiSig:             true,

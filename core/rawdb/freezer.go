@@ -35,6 +35,10 @@ import (
 )
 
 var (
+	// errReadOnly is returned if the freezer is opened in read only mode. All the
+	// mutations are disallowed.
+	errReadOnly = errors.New("read only")
+
 	// errUnknownTable is returned if the user attempts to read from a table that is
 	// not tracked by the freezer.
 	errUnknownTable = errors.New("unknown table")
@@ -73,18 +77,20 @@ type freezer struct {
 	frozen    uint64 // Number of blocks already frozen
 	threshold uint64 // Number of recent blocks not to freeze (params.FullImmutabilityThreshold apart from tests)
 
+	readonly     bool
 	tables       map[string]*freezerTable // Data tables for storing everything
 	instanceLock fileutil.Releaser        // File-system lock to prevent double opens
 
 	trigger chan chan struct{} // Manual blocking freeze trigger, test determinism
 
 	quit      chan struct{}
+	wg        sync.WaitGroup
 	closeOnce sync.Once
 }
 
 // newFreezer creates a chain freezer that moves ancient chain data into
 // append-only flat file containers.
-func newFreezer(datadir string, namespace string) (*freezer, error) {
+func newFreezer(datadir string, namespace string, readonly bool) (*freezer, error) {
 	// Create the initial freezer object
 	var (
 		readMeter  = metrics.NewRegisteredMeter(namespace+"ancient/read", nil)
@@ -106,13 +112,14 @@ func newFreezer(datadir string, namespace string) (*freezer, error) {
 	}
 	// Open all the supported data tables
 	freezer := &freezer{
+		readonly:     readonly,
 		threshold:    params.FullImmutabilityThreshold,
 		tables:       make(map[string]*freezerTable),
 		instanceLock: lock,
 		trigger:      make(chan chan struct{}),
 		quit:         make(chan struct{}),
 	}
-	for name, disableSnappy := range freezerNoSnappy {
+	for name, disableSnappy := range FreezerNoSnappy {
 		table, err := newTable(datadir, name, readMeter, writeMeter, sizeGauge, disableSnappy)
 		if err != nil {
 			for _, table := range freezer.tables {
@@ -130,7 +137,7 @@ func newFreezer(datadir string, namespace string) (*freezer, error) {
 		lock.Release()
 		return nil, err
 	}
-	log.Info("Opened ancient database", "database", datadir)
+	log.Info("Opened ancient database", "database", datadir, "readonly", readonly)
 	return freezer, nil
 }
 
@@ -138,7 +145,9 @@ func newFreezer(datadir string, namespace string) (*freezer, error) {
 func (f *freezer) Close() error {
 	var errs []error
 	f.closeOnce.Do(func() {
-		f.quit <- struct{}{}
+		close(f.quit)
+		// Wait for any background freezing to stop
+		f.wg.Wait()
 		for _, table := range f.tables {
 			if err := table.Close(); err != nil {
 				errs = append(errs, err)
@@ -171,6 +180,18 @@ func (f *freezer) Ancient(kind string, number uint64) ([]byte, error) {
 	return nil, errUnknownTable
 }
 
+// ReadAncients retrieves multiple items in sequence, starting from the index 'start'.
+// It will return
+//  - at most 'max' items,
+//  - at least 1 item (even if exceeding the maxByteSize), but will otherwise
+//   return as many items as fit into maxByteSize.
+func (f *freezer) ReadAncients(kind string, start, count, maxBytes uint64) ([][]byte, error) {
+	if table := f.tables[kind]; table != nil {
+		return table.RetrieveItems(start, count, maxBytes)
+	}
+	return nil, errUnknownTable
+}
+
 // Ancients returns the length of the frozen items.
 func (f *freezer) Ancients() (uint64, error) {
 	return atomic.LoadUint64(&f.frozen), nil
@@ -191,6 +212,9 @@ func (f *freezer) AncientSize(kind string) (uint64, error) {
 // injection will be rejected. But if two injections with same number happen at
 // the same time, we can get into the trouble.
 func (f *freezer) AppendAncient(number uint64, hash, header, body, receipts, td []byte) (err error) {
+	if f.readonly {
+		return errReadOnly
+	}
 	// Ensure the binary blobs we are appending is continuous with freezer.
 	if atomic.LoadUint64(&f.frozen) != number {
 		return errOutOrderInsertion
@@ -231,8 +255,11 @@ func (f *freezer) AppendAncient(number uint64, hash, header, body, receipts, td 
 	return nil
 }
 
-// Truncate discards any recent data above the provided threshold number.
+// TruncateAncients discards any recent data above the provided threshold number.
 func (f *freezer) TruncateAncients(items uint64) error {
+	if f.readonly {
+		return errReadOnly
+	}
 	if atomic.LoadUint64(&f.frozen) <= items {
 		return nil
 	}
@@ -245,7 +272,7 @@ func (f *freezer) TruncateAncients(items uint64) error {
 	return nil
 }
 
-// sync flushes all data tables to disk.
+// Sync flushes all data tables to disk.
 func (f *freezer) Sync() error {
 	var errs []error
 	for _, table := range f.tables {
@@ -333,7 +360,7 @@ func (f *freezer) freeze(db ethdb.KeyValueStore) {
 		var (
 			start    = time.Now()
 			first    = f.frozen
-			ancients = make([]common.Hash, 0, limit)
+			ancients = make([]common.Hash, 0, limit-f.frozen)
 		)
 		for f.frozen <= limit {
 			// Retrieves all the components of the canonical block
@@ -387,7 +414,7 @@ func (f *freezer) freeze(db ethdb.KeyValueStore) {
 		}
 		batch.Reset()
 
-		// Wipe out side chains also and track dangling side chians
+		// Wipe out side chains also and track dangling side chains
 		var dangling []common.Hash
 		for number := first; number < f.frozen; number++ {
 			// Always keep the genesis block in active database

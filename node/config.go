@@ -26,10 +26,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/celo-org/celo-blockchain/accounts"
-	"github.com/celo-org/celo-blockchain/accounts/external"
 	"github.com/celo-org/celo-blockchain/accounts/keystore"
-	"github.com/celo-org/celo-blockchain/accounts/usbwallet"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/log"
@@ -93,21 +90,30 @@ type Config struct {
 	// scrypt KDF at the expense of security.
 	UseLightweightKDF bool `toml:",omitempty"`
 
+	// UsePlaintextKeystore stores keys in plain text without any encryption,
+	// this should only be used for testing.
+	UsePlaintextKeystore bool `toml:",omitempty"`
+
 	// InsecureUnlockAllowed allows user to unlock accounts in unsafe http environment.
 	InsecureUnlockAllowed bool `toml:",omitempty"`
 
 	// NoUSB disables hardware wallet monitoring and connectivity.
+	// Deprecated: USB monitoring is disabled by default and must be enabled explicitly.
 	NoUSB bool `toml:",omitempty"`
+
+	// TODO: USB hw wallet is no. Does Celo suppor this?
+	// USB enables hardware wallet monitoring and connectivity.
+	USB bool `toml:",omitempty"`
 
 	// IPCPath is the requested location to place the IPC endpoint. If the path is
 	// a simple file name, it is placed inside the data directory (or on the root
 	// pipe path on Windows), whereas if it's a resolvable path name (absolute or
 	// relative), then that specific path is enforced. An empty path disables IPC.
-	IPCPath string `toml:",omitempty"`
+	IPCPath string
 
 	// HTTPHost is the host interface on which to start the HTTP RPC server. If this
 	// field is empty, no HTTP API endpoint will be started.
-	HTTPHost string `toml:",omitempty"`
+	HTTPHost string
 
 	// HTTPPort is the TCP port number on which to start the HTTP RPC server. The
 	// default zero value is/ valid and will pick a port number randomly (useful
@@ -131,20 +137,26 @@ type Config struct {
 	// HTTPModules is a list of API modules to expose via the HTTP RPC interface.
 	// If the module list is empty, all RPC API endpoints designated public will be
 	// exposed.
-	HTTPModules []string `toml:",omitempty"`
+	HTTPModules []string
 
 	// HTTPTimeouts allows for customization of the timeout values used by the HTTP RPC
 	// interface.
 	HTTPTimeouts rpc.HTTPTimeouts
 
+	// HTTPPathPrefix specifies a path prefix on which http-rpc is to be served.
+	HTTPPathPrefix string `toml:",omitempty"`
+
 	// WSHost is the host interface on which to start the websocket RPC server. If
 	// this field is empty, no websocket API endpoint will be started.
-	WSHost string `toml:",omitempty"`
+	WSHost string
 
 	// WSPort is the TCP port number on which to start the websocket RPC server. The
 	// default zero value is/ valid and will pick a port number randomly (useful for
 	// ephemeral nodes).
 	WSPort int `toml:",omitempty"`
+
+	// WSPathPrefix specifies a path prefix on which ws-rpc is to be served.
+	WSPathPrefix string `toml:",omitempty"`
 
 	// WSOrigins is the list of domain to accept websocket requests from. Please be
 	// aware that the server can only act upon the HTTP request the client sends and
@@ -154,7 +166,7 @@ type Config struct {
 	// WSModules is a list of API modules to expose via the websocket RPC interface.
 	// If the module list is empty, all RPC API endpoints designated public will be
 	// exposed.
-	WSModules []string `toml:",omitempty"`
+	WSModules []string
 
 	// WSExposeAll exposes all API modules via the WebSocket RPC interface rather
 	// than just the public ones.
@@ -162,15 +174,6 @@ type Config struct {
 	// *WARNING* Only set this if the node is running in a trusted network, exposing
 	// private APIs to untrusted users is a major security risk.
 	WSExposeAll bool `toml:",omitempty"`
-
-	// GraphQLHost is the host interface on which to start the GraphQL server. If this
-	// field is empty, no GraphQL API endpoint will be started.
-	GraphQLHost string `toml:",omitempty"`
-
-	// GraphQLPort is the TCP port number on which to start the GraphQL server. The
-	// default zero value is/ valid and will pick a port number randomly (useful
-	// for ephemeral nodes).
-	GraphQLPort int `toml:",omitempty"`
 
 	// GraphQLCors is the Cross-Origin Resource Sharing header to send to requesting
 	// clients. Please be aware that CORS is a browser enforced security, it's fully
@@ -192,6 +195,9 @@ type Config struct {
 	staticNodesWarning     bool
 	trustedNodesWarning    bool
 	oldGethResourceWarning bool
+
+	// // AllowUnprotectedTxs allows non EIP-155 protected transactions to be send over RPC.
+	// AllowUnprotectedTxs bool `toml:",omitempty"`
 }
 
 // IPCEndpoint resolves an IPC endpoint based on a configured value, taking into
@@ -256,15 +262,6 @@ func (c *Config) HTTPEndpoint() string {
 	return fmt.Sprintf("%s:%d", c.HTTPHost, c.HTTPPort)
 }
 
-// GraphQLEndpoint resolves a GraphQL endpoint based on the configured host interface
-// and port parameters.
-func (c *Config) GraphQLEndpoint() string {
-	if c.GraphQLHost == "" {
-		return ""
-	}
-	return fmt.Sprintf("%s:%d", c.GraphQLHost, c.GraphQLPort)
-}
-
 // DefaultHTTPEndpoint returns the HTTP endpoint used by default.
 func DefaultHTTPEndpoint() string {
 	config := &Config{HTTPHost: DefaultHTTPHost, HTTPPort: DefaultHTTPPort}
@@ -289,7 +286,7 @@ func DefaultWSEndpoint() string {
 // ExtRPCEnabled returns the indicator whether node enables the external
 // RPC(http, ws or graphql).
 func (c *Config) ExtRPCEnabled() bool {
-	return c.HTTPHost != "" || c.WSHost != "" || c.GraphQLHost != ""
+	return c.HTTPHost != "" || c.WSHost != ""
 }
 
 // NodeName returns the devp2p node identifier.
@@ -442,15 +439,43 @@ func (c *Config) parsePersistentNodes(w *bool, path string) []*enode.Node {
 	return nodes
 }
 
-// AccountConfig determines the settings for scrypt and keydirectory
-func (c *Config) AccountConfig() (int, int, string, error) {
-	scryptN := keystore.StandardScryptN
-	scryptP := keystore.StandardScryptP
-	if c.UseLightweightKDF {
-		scryptN = keystore.LightScryptN
-		scryptP = keystore.LightScryptP
+// GetKeyStore returns a keystore, and if no keystore path was provided in the
+// config, it returns the ephemeral path that has been generated for this keystore.
+func (c *Config) GetKeyStore() (store *keystore.KeyStore, ephemeralPath string, err error) {
+	path, err := c.KeyDirConfig()
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get the path for the keystore: %v", err)
+	}
+	if path == "" {
+		// There is no datadir, make an ephemeral one
+		path, err = ioutil.TempDir("", "go-ethereum-keystore")
+		if err != nil {
+			return nil, "", fmt.Errorf("failed make the keystore directory: %v", err)
+		}
+		ephemeralPath = path
+	} else {
+		err = os.MkdirAll(path, 0700)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed make the keystore directory: %v", err)
+		}
 	}
 
+	switch {
+	case c.UseLightweightKDF:
+		return keystore.NewKeyStore(path, keystore.LightScryptN, keystore.LightScryptP), ephemeralPath, nil
+	case c.UsePlaintextKeystore:
+		return keystore.NewPlaintextKeyStore(path), ephemeralPath, nil
+	}
+	return keystore.NewKeyStore(path, keystore.StandardScryptN, keystore.StandardScryptP), ephemeralPath, nil
+
+}
+
+// KeyDirConfig determines the settings for keydirectory
+//
+// returns the absolute path of the keystore, if KeyStoreDir is
+// not set this function will generae a path from the data dir. If neither are
+// set this function will return the empty string.
+func (c *Config) KeyDirConfig() (string, error) {
 	var (
 		keydir string
 		err    error
@@ -467,63 +492,31 @@ func (c *Config) AccountConfig() (int, int, string, error) {
 	case c.KeyStoreDir != "":
 		keydir, err = filepath.Abs(c.KeyStoreDir)
 	}
-	return scryptN, scryptP, keydir, err
+	return keydir, err
 }
 
-func makeAccountManager(conf *Config) (*accounts.Manager, string, error) {
-	scryptN, scryptP, keydir, err := conf.AccountConfig()
-	var ephemeral string
+// getKeyStoreDir retrieves the key directory and will create
+// and ephemeral one if necessary.
+func getKeyStoreDir(conf *Config) (string, bool, error) {
+	keydir, err := conf.KeyDirConfig()
+	if err != nil {
+		return "", false, err
+	}
+	isEphemeral := false
 	if keydir == "" {
 		// There is no datadir.
 		keydir, err = ioutil.TempDir("", "go-ethereum-keystore")
-		ephemeral = keydir
+		isEphemeral = true
 	}
 
 	if err != nil {
-		return nil, "", err
+		return "", false, err
 	}
 	if err := os.MkdirAll(keydir, 0700); err != nil {
-		return nil, "", err
-	}
-	// Assemble the account manager and supported backends
-	var backends []accounts.Backend
-	if len(conf.ExternalSigner) > 0 {
-		log.Info("Using external signer", "url", conf.ExternalSigner)
-		if extapi, err := external.NewExternalBackend(conf.ExternalSigner); err == nil {
-			backends = append(backends, extapi)
-		} else {
-			return nil, "", fmt.Errorf("error connecting to external signer: %v", err)
-		}
-	}
-	if len(backends) == 0 {
-		// For now, we're using EITHER external signer OR local signers.
-		// If/when we implement some form of lockfile for USB and keystore wallets,
-		// we can have both, but it's very confusing for the user to see the same
-		// accounts in both externally and locally, plus very racey.
-		backends = append(backends, keystore.NewKeyStore(keydir, scryptN, scryptP))
-		if !conf.NoUSB {
-			// Start a USB hub for Ledger hardware wallets
-			if ledgerhub, err := usbwallet.NewLedgerHub(); err != nil {
-				log.Warn(fmt.Sprintf("Failed to start Ledger hub, disabling: %v", err))
-			} else {
-				backends = append(backends, ledgerhub)
-			}
-			// Start a USB hub for Trezor hardware wallets (HID version)
-			if trezorhub, err := usbwallet.NewTrezorHubWithHID(); err != nil {
-				log.Warn(fmt.Sprintf("Failed to start HID Trezor hub, disabling: %v", err))
-			} else {
-				backends = append(backends, trezorhub)
-			}
-			// Start a USB hub for Trezor hardware wallets (WebUSB version)
-			if trezorhub, err := usbwallet.NewTrezorHubWithWebUSB(); err != nil {
-				log.Warn(fmt.Sprintf("Failed to start WebUSB Trezor hub, disabling: %v", err))
-			} else {
-				backends = append(backends, trezorhub)
-			}
-		}
+		return "", false, err
 	}
 
-	return accounts.NewManager(&accounts.Config{InsecureUnlockAllowed: conf.InsecureUnlockAllowed}, backends...), ephemeral, nil
+	return keydir, isEphemeral, nil
 }
 
 var warnLock sync.Mutex

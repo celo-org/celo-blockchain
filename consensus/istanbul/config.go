@@ -67,6 +67,9 @@ type Config struct {
 	AnnounceQueryEnodeGossipPeriod                 uint64 `toml:",omitempty"` // Time duration (in seconds) between gossiped query enode messages
 	AnnounceAggressiveQueryEnodeGossipOnEnablement bool   `toml:",omitempty"` // Specifies if this node should aggressively query enodes on announce enablement
 	AnnounceAdditionalValidatorsToGossip           int64  `toml:",omitempty"` // Specifies the number of additional non-elected validators to gossip an announce
+
+	// Load test config
+	LoadTestCSVFile string `toml:",omitempty"` // If non-empty, specifies the file to write out csv metrics about the block production cycle to.
 }
 
 // ProxyConfig represents the configuration for validator's proxies
@@ -96,6 +99,7 @@ var DefaultConfig = &Config{
 	AnnounceQueryEnodeGossipPeriod: 300, // 5 minutes
 	AnnounceAggressiveQueryEnodeGossipOnEnablement: true,
 	AnnounceAdditionalValidatorsToGossip:           10,
+	LoadTestCSVFile:                                "", // disable by default
 }
 
 //ApplyParamsChainConfigToConfig applies the istanbul config values from params.chainConfig to the istanbul.Config config

@@ -26,8 +26,8 @@ import (
 	"strings"
 
 	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/ethclient"
 	"github.com/celo-org/celo-blockchain/ethstats"
 	"github.com/celo-org/celo-blockchain/internal/debug"
@@ -36,7 +36,6 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/nat"
 	"github.com/celo-org/celo-blockchain/params"
-	whisper "github.com/celo-org/celo-blockchain/whisper/whisperv6"
 )
 
 // I am intentionally duplicating these constants different from downloader.SyncMode integer values, to ensure the
@@ -110,9 +109,6 @@ type NodeConfig struct {
 	// exposed.
 	HTTPModules string
 
-	// WhisperEnabled specifies whether the node should run the Whisper protocol.
-	WhisperEnabled bool
-
 	// Listening address of pprof server.
 	PprofAddress string
 
@@ -150,6 +146,22 @@ func NewNodeConfig() *NodeConfig {
 	return &config
 }
 
+// AddBootstrapNode adds an additional bootstrap node to the node config.
+func (conf *NodeConfig) AddBootstrapNode(node *Enode) {
+	conf.BootstrapNodes.Append(node)
+}
+
+// EncodeJSON encodes a NodeConfig into a JSON data dump.
+func (conf *NodeConfig) EncodeJSON() (string, error) {
+	data, err := json.Marshal(conf)
+	return string(data), err
+}
+
+// String returns a printable representation of the node config.
+func (conf *NodeConfig) String() string {
+	return encodeOrError(conf)
+}
+
 // Node represents a Geth Ethereum node instance.
 type Node struct {
 	node *node.Node
@@ -177,7 +189,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 	}
 
 	if config.PprofAddress != "" {
-		debug.StartPProf(config.PprofAddress)
+		debug.StartPProf(config.PprofAddress, true)
 	}
 
 	// Create the empty networking stack
@@ -234,7 +246,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 	}
 	// Register the Ethereum protocol if requested
 	if config.EthereumEnabled {
-		ethConf := eth.DefaultConfig
+		ethConf := ethconfig.Defaults
 		ethConf.Genesis = genesis
 
 		ethConf.SyncMode = getSyncMode(config.SyncMode)
@@ -247,29 +259,16 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		ethConf.Istanbul.VersionCertificateDBPath = ""
 		// Use an in memory DB for roundState table
 		ethConf.Istanbul.RoundStateDBPath = ""
-		if err := rawStack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
-			nodeResponse.les, err = les.New(ctx, &ethConf)
-			return nodeResponse.les, err
-		}); err != nil {
+		lesBackend, err := les.New(rawStack, &ethConf)
+		if err != nil {
 			return nil, fmt.Errorf("ethereum init: %v", err)
 		}
+		nodeResponse.les = lesBackend
 		// If netstats reporting is requested, do it
 		if config.EthereumNetStats != "" {
-			if err := rawStack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
-				var lesServ *les.LightEthereum
-				ctx.Service(&lesServ)
-				return ethstats.New(config.EthereumNetStats, nil, lesServ)
-			}); err != nil {
+			if err := ethstats.New(rawStack, lesBackend.ApiBackend, lesBackend.Engine(), config.EthereumNetStats); err != nil {
 				return nil, fmt.Errorf("netstats init: %v", err)
 			}
-		}
-	}
-	// Register the Whisper protocol if requested
-	if config.WhisperEnabled {
-		if err := rawStack.Register(func(*node.ServiceContext) (node.Service, error) {
-			return whisper.New(&whisper.DefaultConfig), nil
-		}); err != nil {
-			return nil, fmt.Errorf("whisper init: %v", err)
 		}
 	}
 	return &nodeResponse, nil
@@ -296,21 +295,24 @@ func getSyncMode(syncMode int) downloader.SyncMode {
 	}
 }
 
-// Close terminates a running node along with all it's services, tearing internal
-// state doen too. It's not possible to restart a closed node.
+// Close terminates a running node along with all it's services, tearing internal state
+// down. It is not possible to restart a closed node.
 func (n *Node) Close() error {
 	return n.node.Close()
 }
 
 // Start creates a live P2P node and starts running it.
 func (n *Node) Start() error {
+	// TODO: recreate the node so it can be started multiple times
 	return n.node.Start()
 }
 
-// Stop terminates a running node along with all it's services. If the node was
-// not started, an error is returned.
+// Stop terminates a running node along with all its services. If the node was not started,
+// an error is returned. It is not possible to restart a stopped node.
+//
+// Deprecated: use Close()
 func (n *Node) Stop() error {
-	return n.node.Stop()
+	return n.node.Close()
 }
 
 // GetEthereumClient retrieves a client to access the Ethereum subsystem.
@@ -327,7 +329,7 @@ func (n *Node) GetNodeInfo() *NodeInfo {
 	return &NodeInfo{n.node.Server().NodeInfo()}
 }
 
-// GetPeersInfo returns an array of metadata objects describing connected peers.
+// GetPeerInfos returns an array of metadata objects describing connected peers.
 func (n *Node) GetPeerInfos() *PeerInfos {
 	return &PeerInfos{n.node.Server().PeersInfo()}
 }

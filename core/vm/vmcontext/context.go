@@ -4,16 +4,35 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/reserve"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
+// chainContext defines methods required to build a context
+// a copy of this exist on core.ChainContext (needed to break dependency)
+type chainContext interface {
+	// Engine retrieves the blockchain's consensus engine.
+	Engine() consensus.Engine
+
+	// GetHeader returns the hash corresponding to the given hash and number.
+	GetHeader(common.Hash, uint64) *types.Header
+
+	// GetHeaderByNumber returns the hash corresponding number.
+	// in the correct fork.
+	GetHeaderByNumber(uint64) *types.Header
+
+	// Config returns the blockchain's chain configuration
+	Config() *params.ChainConfig
+}
+
 // New creates a new context for use in the EVM.
-func New(from common.Address, gasPrice *big.Int, header *types.Header, chain vm.ChainContext, txFeeRecipient *common.Address) vm.Context {
+func NewBlockContext(header *types.Header, chain chainContext, txFeeRecipient *common.Address) vm.BlockContext {
 	// If we don't have an explicit txFeeRecipient (i.e. not mining), extract from the header
 	// The only call that fills the txFeeRecipient, is the ApplyTransaction from the state processor
 	// All the other calls, assume that will be retrieved from the header
@@ -24,18 +43,16 @@ func New(from common.Address, gasPrice *big.Int, header *types.Header, chain vm.
 		beneficiary = *txFeeRecipient
 	}
 
-	ctx := vm.Context{
+	ctx := vm.BlockContext{
 		CanTransfer: CanTransfer,
 		Transfer:    TobinTransfer,
 		GetHash:     GetHashFn(header, chain),
 		VerifySeal:  VerifySealFn(header, chain),
-		Origin:      from,
 		Coinbase:    beneficiary,
 		BlockNumber: new(big.Int).Set(header.Number),
 		Time:        new(big.Int).SetUint64(header.Time),
-		GasPrice:    new(big.Int).Set(gasPrice),
 
-		GetRegisteredAddress: contracts.GetRegisteredAddress,
+		GetRegisteredAddress: GetRegisteredAddress,
 	}
 
 	if chain != nil {
@@ -49,8 +66,13 @@ func New(from common.Address, gasPrice *big.Int, header *types.Header, chain vm.
 	return ctx
 }
 
+func GetRegisteredAddress(evm *vm.EVM, registryId common.Hash) (common.Address, error) {
+	caller := &SharedEVMRunner{evm}
+	return contracts.GetRegisteredAddress(caller, registryId)
+}
+
 // GetHashFn returns a GetHashFunc which retrieves header hashes by number
-func GetHashFn(ref *types.Header, chain vm.ChainContext) func(uint64) common.Hash {
+func GetHashFn(ref *types.Header, chain chainContext) func(uint64) common.Hash {
 	// Cache will initially contain [refHash.parent],
 	// Then fill up with [refHash.p, refHash.pp, refHash.ppp, ...]
 	var cache []common.Hash
@@ -96,7 +118,7 @@ func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) 
 }
 
 // VerifySealFn returns a function which returns true when the given header has a verifiable seal.
-func VerifySealFn(ref *types.Header, chain vm.ChainContext) func(*types.Header) bool {
+func VerifySealFn(ref *types.Header, chain chainContext) func(*types.Header) bool {
 	return func(header *types.Header) bool {
 		// If the block is later than the unsealed reference block, return false.
 		if header.Number.Cmp(ref.Number) > 0 {
@@ -112,7 +134,7 @@ func VerifySealFn(ref *types.Header, chain vm.ChainContext) func(*types.Header) 
 		}
 
 		// Submit the header to the engine's seal verification function.
-		return chain.Engine().VerifySeal(nil, header) == nil
+		return chain.Engine().VerifySeal(header) == nil
 	}
 }
 
@@ -127,7 +149,8 @@ func TobinTransfer(evm *vm.EVM, sender, recipient common.Address, amount *big.In
 	}
 
 	if amount.Cmp(big.NewInt(0)) != 0 {
-		tax, taxRecipient, err := reserve.ComputeTobinTax(evm, sender, amount)
+		caller := &SharedEVMRunner{evm}
+		tax, taxRecipient, err := reserve.ComputeTobinTax(caller, sender, amount)
 		if err == nil {
 			Transfer(evm.StateDB, sender, recipient, new(big.Int).Sub(amount, tax))
 			Transfer(evm.StateDB, sender, taxRecipient, tax)

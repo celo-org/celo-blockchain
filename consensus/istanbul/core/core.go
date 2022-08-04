@@ -61,11 +61,11 @@ type CoreBackend interface {
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
-	Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error
+	Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal, stateProcessResult *StateProcessResult) error
 
 	// Verify verifies the proposal. If a consensus.ErrFutureBlock error is returned,
 	// the time difference of the proposal and current time is also returned.
-	Verify(istanbul.Proposal) (time.Duration, error)
+	Verify(istanbul.Proposal) (*StateProcessResult, time.Duration, error)
 
 	// Sign signs input data with the backend's private key
 	Sign([]byte) ([]byte, error)
@@ -113,9 +113,12 @@ type core struct {
 	finalCommittedSub *event.TypeMuxSubscription
 	timeoutSub        *event.TypeMuxSubscription
 
-	futurePreprepareTimer         *time.Timer
-	resendRoundChangeMessageTimer *time.Timer
-	roundChangeTimer              *time.Timer
+	futurePreprepareTimer           *time.Timer
+	resendRoundChangeMessageTimer   *time.Timer
+	resendRoundChangeMessageTimerMu sync.Mutex
+
+	roundChangeTimer   *time.Timer
+	roundChangeTimerMu sync.RWMutex
 
 	validateFn func([]byte, []byte) (common.Address, error)
 
@@ -123,6 +126,7 @@ type core struct {
 
 	rsdb      RoundStateDB
 	current   RoundState
+	currentMu sync.RWMutex
 	handlerWg *sync.WaitGroup
 
 	roundChangeSet *roundChangeSet
@@ -132,8 +136,15 @@ type core struct {
 
 	consensusTimestamp time.Time
 
-	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
-	consensusTimer metrics.Timer
+	// Time from accepting a pre-prepare (after block verifcation) to preparing or committing
+	consensusPrepareTimeGauge metrics.Gauge
+	consensusCommitTimeGauge  metrics.Gauge
+	// Time to verify blocks. Only records cache misses.
+	verifyGauge metrics.Gauge
+	// Historgram of the time to handle each message type
+	handlePrePrepareTimer metrics.Timer
+	handlePrepareTimer    metrics.Timer
+	handleCommitTimer     metrics.Timer
 }
 
 // New creates an Istanbul consensus core
@@ -144,17 +155,22 @@ func New(backend CoreBackend, config *istanbul.Config) Engine {
 	}
 
 	c := &core{
-		config:             config,
-		address:            backend.Address(),
-		logger:             log.New(),
-		selectProposer:     validator.GetProposerSelector(config.ProposerPolicy),
-		handlerWg:          new(sync.WaitGroup),
-		backend:            backend,
-		pendingRequests:    prque.New(nil),
-		pendingRequestsMu:  new(sync.Mutex),
-		consensusTimestamp: time.Time{},
-		rsdb:               rsdb,
-		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
+		config:                    config,
+		address:                   backend.Address(),
+		logger:                    log.New(),
+		selectProposer:            validator.GetProposerSelector(config.ProposerPolicy),
+		handlerWg:                 new(sync.WaitGroup),
+		backend:                   backend,
+		pendingRequests:           prque.New(nil),
+		pendingRequestsMu:         new(sync.Mutex),
+		consensusTimestamp:        time.Time{},
+		rsdb:                      rsdb,
+		consensusPrepareTimeGauge: metrics.NewRegisteredGauge("consensus/istanbul/core/consensus_prepare", nil),
+		consensusCommitTimeGauge:  metrics.NewRegisteredGauge("consensus/istanbul/core/consensus_commit", nil),
+		verifyGauge:               metrics.NewRegisteredGauge("consensus/istanbul/core/verify", nil),
+		handlePrePrepareTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/handle_preprepare", nil),
+		handlePrepareTimer:        metrics.NewRegisteredTimer("consensus/istanbul/core/handle_prepare", nil),
+		handleCommitTimer:         metrics.NewRegisteredTimer("consensus/istanbul/core/handle_commit", nil),
 	}
 	msgBacklog := newMsgBacklog(
 		func(msg *istanbul.Message) {
@@ -164,14 +180,6 @@ func New(backend CoreBackend, config *istanbul.Config) Engine {
 		}, c.checkMessage)
 	c.backlog = msgBacklog
 	c.validateFn = c.checkValidatorSignature
-	c.logger = istanbul.NewIstLogger(
-		func() *big.Int {
-			if c != nil && c.current != nil {
-				return c.current.Round()
-			}
-			return common.Big0
-		},
-	)
 	return c
 }
 
@@ -183,6 +191,11 @@ func (c *core) SetAddress(address common.Address) {
 }
 
 func (c *core) CurrentView() *istanbul.View {
+	// CurrentView is called by Prepare which is called by miner.worker the
+	// main loop, we need to synchronise this access with the write which occurs
+	// in Stop, which is called from the miner's update loop.
+	c.currentMu.RLock()
+	defer c.currentMu.RUnlock()
 	if c.current == nil {
 		return nil
 	}
@@ -192,6 +205,11 @@ func (c *core) CurrentView() *istanbul.View {
 func (c *core) CurrentRoundState() RoundState { return c.current }
 
 func (c *core) ParentCommits() MessageSet {
+	// ParentCommits is called by Prepare which is called by miner.worker the
+	// main loop, we need to synchronise this access with the write which
+	// occurs in Stop, which is called from the miner's update loop.
+	c.currentMu.RLock()
+	defer c.currentMu.RUnlock()
 	if c.current == nil {
 		return nil
 	}
@@ -204,6 +222,79 @@ func (c *core) ForceRoundChange() {
 	c.sendEvent(timeoutAndMoveToNextRoundEvent{view})
 }
 
+/*<<<<<<< HEAD
+=======
+// PrepareCommittedSeal returns a committed seal for the given hash and round number.
+func PrepareCommittedSeal(hash common.Hash, round *big.Int) []byte {
+	var buf bytes.Buffer
+	buf.Write(hash.Bytes())
+	buf.Write(round.Bytes())
+	buf.Write([]byte{byte(istanbul.MsgCommit)})
+	return buf.Bytes()
+}
+
+// GetAggregatedSeal aggregates all the given seals for a given message set to a bls aggregated
+// signature and bitmap
+func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregatedSeal, error) {
+	bitmap := big.NewInt(0)
+	committedSeals := make([][]byte, seals.Size())
+	for i, v := range seals.Values() {
+		committedSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
+		commit := v.Commit()
+		copy(committedSeals[i][:], commit.CommittedSeal[:])
+
+		j, err := seals.GetAddressIndex(v.Address)
+		if err != nil {
+			return types.IstanbulAggregatedSeal{}, err
+		}
+		bitmap.SetBit(bitmap, int(j), 1)
+	}
+
+	asig, err := blscrypto.AggregateSignatures(committedSeals)
+	if err != nil {
+		return types.IstanbulAggregatedSeal{}, err
+	}
+	return types.IstanbulAggregatedSeal{Bitmap: bitmap, Signature: asig, Round: round}, nil
+}
+
+// UnionOfSeals combines a BLS aggregated signature with an array of signatures. Accounts for
+// double aggregating the same signature by only adding aggregating if the
+// validator was not found in the previous bitmap.
+// This function assumes that the provided seals' validator set is the same one
+// which produced the provided bitmap
+func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals MessageSet) (types.IstanbulAggregatedSeal, error) {
+	// TODO(asa): Check for round equality...
+	// Check who already has signed the message
+	newBitmap := new(big.Int).Set(aggregatedSignature.Bitmap)
+	committedSeals := [][]byte{}
+	committedSeals = append(committedSeals, aggregatedSignature.Signature)
+	for _, v := range seals.Values() {
+		valIndex, err := seals.GetAddressIndex(v.Address)
+		if err != nil {
+			return types.IstanbulAggregatedSeal{}, err
+		}
+
+		// if the bit was not set, this means we should add this signature to
+		// the batch
+		if newBitmap.Bit(int(valIndex)) == 0 {
+			newBitmap.SetBit(newBitmap, (int(valIndex)), 1)
+			committedSeals = append(committedSeals, v.Commit().CommittedSeal)
+		}
+	}
+
+	asig, err := blscrypto.AggregateSignatures(committedSeals)
+	if err != nil {
+		return types.IstanbulAggregatedSeal{}, err
+	}
+
+	return types.IstanbulAggregatedSeal{
+		Bitmap:    newBitmap,
+		Signature: asig,
+		Round:     aggregatedSignature.Round,
+	}, nil
+}
+
+>>>>>>> master*/
 // Appends the current view and state to the given context.
 func (c *core) newLogger(ctx ...interface{}) log.Logger {
 	var seq, round, desired *big.Int
@@ -275,10 +366,17 @@ func (c *core) commit(aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpo
 		return err
 	}
 
+	// Update metrics.
+	if !c.consensusTimestamp.IsZero() {
+		c.consensusCommitTimeGauge.Update(time.Since(c.consensusTimestamp).Nanoseconds())
+		c.consensusTimestamp = time.Time{}
+	}
+
 	// Process Backlog Messages
 	c.backlog.updateState(c.current.View(), c.current.State())
 
 	proposal := c.current.Proposal()
+//<<<<<<< HEAD
 	if proposal == nil {
 		return nil
 	}
@@ -288,12 +386,68 @@ func (c *core) commit(aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpo
 		logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
 		c.waitForDesiredRound(nextRound)
 		return nil
+/*=======
+	if proposal != nil {
+		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits(), c.current.Round())
+		if err != nil {
+			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+			logger.Warn("Error on commit, waiting for desired round", "reason", "getAggregatedSeal", "err", err, "desired_round", nextRound)
+			c.waitForDesiredRound(nextRound)
+			return nil
+		}
+		aggregatedEpochValidatorSetSeal, err := GetAggregatedEpochValidatorSetSeal(proposal.Number().Uint64(), c.config.Epoch, c.current.Commits())
+		if err != nil {
+			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+			c.logger.Warn("Error on commit, waiting for desired round", "reason", "GetAggregatedEpochValidatorSetSeal", "err", err, "desired_round", nextRound)
+			c.waitForDesiredRound(nextRound)
+			return nil
+		}
+
+		// Query the StateProcessResult cache, nil if it's cache miss
+		result := c.current.GetStateProcessResult(proposal.Hash())
+		if err := c.backend.Commit(proposal, aggregatedSeal, aggregatedEpochValidatorSetSeal, result); err != nil {
+			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+			logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
+			c.waitForDesiredRound(nextRound)
+			return nil
+		}
+>>>>>>> master*/
 	}
 
 	logger.Info("Committed")
 	return nil
 }
 
+/*<<<<<<< HEAD
+=======
+// GetAggregatedEpochValidatorSetSeal aggregates all the given seals for the SNARK-friendly epoch encoding
+// to a bls aggregated signature. Returns an empty signature on a non-epoch block.
+func GetAggregatedEpochValidatorSetSeal(blockNumber, epoch uint64, seals MessageSet) (types.IstanbulEpochValidatorSetSeal, error) {
+	if !istanbul.IsLastBlockOfEpoch(blockNumber, epoch) {
+		return types.IstanbulEpochValidatorSetSeal{}, nil
+	}
+	bitmap := big.NewInt(0)
+	epochSeals := make([][]byte, seals.Size())
+	for i, v := range seals.Values() {
+		epochSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
+
+		copy(epochSeals[i], v.Commit().EpochValidatorSetSeal[:])
+
+		j, err := seals.GetAddressIndex(v.Address)
+		if err != nil {
+			return types.IstanbulEpochValidatorSetSeal{}, err
+		}
+		bitmap.SetBit(bitmap, int(j), 1)
+	}
+
+	asig, err := blscrypto.AggregateSignatures(epochSeals)
+	if err != nil {
+		return types.IstanbulEpochValidatorSetSeal{}, err
+	}
+	return types.IstanbulEpochValidatorSetSeal{Bitmap: bitmap, Signature: asig}, nil
+}
+
+>>>>>>> master*/
 // Generates the next preprepare request and associated round change certificate
 func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbul.Request, istanbul.RoundChangeCertificate, error) {
 	logger := c.newLogger("func", "getPreprepareWithRoundChangeCertificate", "for_round", round)
@@ -397,11 +551,6 @@ func (c *core) startNewSequence() error {
 		// This function is called on a final committed event which should occur once the block is inserted into the chain.
 		return nil
 	}
-	// Update metrics.
-	if !c.consensusTimestamp.IsZero() {
-		c.consensusTimer.UpdateSince(c.consensusTimestamp)
-		c.consensusTimestamp = time.Time{}
-	}
 
 	// Generate next view and preprepare
 	newView := &istanbul.View{
@@ -448,7 +597,7 @@ func (c *core) startNewSequence() error {
 func (c *core) waitForDesiredRound(r *big.Int) error {
 	logger := c.newLogger("func", "waitForDesiredRound", "new_desired_round", r)
 
-	// Don't wait for an older round
+	// Don't wait for an older or equal round
 	if c.current.DesiredRound().Cmp(r) >= 0 {
 		logger.Trace("New desired round not greater than current desired round")
 		return nil
@@ -552,13 +701,17 @@ func (c *core) stopFuturePreprepareTimer() {
 }
 
 func (c *core) stopRoundChangeTimer() {
+	c.roundChangeTimerMu.Lock()
 	if c.roundChangeTimer != nil {
 		c.roundChangeTimer.Stop()
 		c.roundChangeTimer = nil
 	}
+	c.roundChangeTimerMu.Unlock()
 }
 
 func (c *core) stopResendRoundChangeTimer() {
+	c.resendRoundChangeMessageTimerMu.Lock()
+	defer c.resendRoundChangeMessageTimerMu.Unlock()
 	if c.resendRoundChangeMessageTimer != nil {
 		c.resendRoundChangeMessageTimer.Stop()
 		c.resendRoundChangeMessageTimer = nil
@@ -572,14 +725,40 @@ func (c *core) stopAllTimers() {
 }
 
 func (c *core) getRoundChangeTimeout() time.Duration {
+	/*
+		- Prior to Espresso:
+		Round 0 = baseTimeout + block time
+		Round n = baseTimeout + 2^n * backoff factor
+
+		- After Espresso:
+		Round 0 = baseTimeout + block time
+		Round n = baseTimeout + block time + 2^n * backoff factor
+
+		- Compare:
+		Round     before E     after E
+		0         8            8
+		1         5            10
+		2         7            12
+		3         11           16
+		4         19	       24
+		5         35           40
+		6         67           72
+		7         131          136
+		8         259	       264
+		9         515	       520
+		10        1027	       1032
+	*/
 	baseTimeout := time.Duration(c.config.RequestTimeout) * time.Millisecond
+	blockTime := time.Duration(c.config.BlockPeriod) * time.Second
 	round := c.current.DesiredRound().Uint64()
 	if round == 0 {
-		// timeout for first round takes into account expected block period
-		return baseTimeout + time.Duration(c.config.BlockPeriod)*time.Second
+		return baseTimeout + blockTime
 	} else {
-		// timeout for subsequent rounds adds an exponential backoff.
-		return baseTimeout + time.Duration(math.Pow(2, float64(round)))*time.Duration(c.config.TimeoutBackoffFactor)*time.Millisecond
+		if c.backend.ChainConfig().IsEspresso(c.current.Sequence()) {
+			return baseTimeout + blockTime + time.Duration(math.Pow(2, float64(round)))*time.Duration(c.config.TimeoutBackoffFactor)*time.Millisecond
+		} else {
+			return baseTimeout + time.Duration(math.Pow(2, float64(round)))*time.Duration(c.config.TimeoutBackoffFactor)*time.Millisecond
+		}
 	}
 }
 
@@ -593,9 +772,11 @@ func (c *core) resetRoundChangeTimer() {
 
 	view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
 	timeout := c.getRoundChangeTimeout()
+	c.roundChangeTimerMu.Lock()
 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
 		c.sendEvent(timeoutAndMoveToNextRoundEvent{view})
 	})
+	c.roundChangeTimerMu.Unlock()
 
 	if c.current.DesiredRound().Cmp(common.Big1) > 0 {
 		logger := c.newLogger("func", "resetRoundChangeTimer")
@@ -620,6 +801,8 @@ func (c *core) resetResendRoundChangeTimer() {
 			resendTimeout = maxResendTimeout
 		}
 		view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
+		c.resendRoundChangeMessageTimerMu.Lock()
+		defer c.resendRoundChangeMessageTimerMu.Unlock()
 		c.resendRoundChangeMessageTimer = time.AfterFunc(resendTimeout, func() {
 			c.sendEvent(resendRoundChangeEvent{view})
 		})
@@ -649,13 +832,18 @@ func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error)
 		return 0, verificationStatus
 	} else {
 		logger.Trace("verification status cache miss")
+		defer func(start time.Time) { c.verifyGauge.Update(time.Since(start).Nanoseconds()) }(time.Now())
 
-		duration, err := c.backend.Verify(proposal)
+		result, duration, err := c.backend.Verify(proposal)
 		logger.Trace("proposal verify return values", "duration", duration, "err", err)
 
 		// Don't cache the verification status if it's a future block
 		if err != consensus.ErrFutureBlock {
 			c.current.SetProposalVerificationStatus(proposal.Hash(), err)
+		}
+		// If err is nil, then result is non-nil, only then we set the cache
+		if err == nil {
+			c.current.SetStateProcessResult(proposal.Hash(), result)
 		}
 
 		return duration, err

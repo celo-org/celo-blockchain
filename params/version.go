@@ -20,9 +20,13 @@ import (
 	"fmt"
 )
 
+// On master, the version should be the UPCOMING one and "unstable"
+// e.g. if the latest release was v1.3.2, master should be 1.4.0-unstable
+// On release branches, it should be a beta or stable.  For example:
+// "1.3.0-beta", "1.3.0-beta.2", etc. and then "1.3.0-stable", "1.3.1-stable", etc.
 const (
 	VersionMajor = 1          // Major version component of the current release
-	VersionMinor = 0          // Minor version component of the current release
+	VersionMinor = 6          // Minor version component of the current release
 	VersionPatch = 0          // Patch version component of the current release
 	VersionMeta  = "unstable" // Version metadata to append to the version string
 )

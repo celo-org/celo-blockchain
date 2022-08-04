@@ -20,10 +20,7 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/params"
 )
 
 // StateDB is an EVM database for full state querying.
@@ -60,6 +57,16 @@ type StateDB interface {
 	// is defined according to EIP161 (balance = nonce = code = 0).
 	Empty(common.Address) bool
 
+	PrepareAccessList(sender common.Address, dest *common.Address, precompiles []common.Address, txAccesses types.AccessList)
+	AddressInAccessList(addr common.Address) bool
+	SlotInAccessList(addr common.Address, slot common.Hash) (addressOk bool, slotOk bool)
+	// AddAddressToAccessList adds the given address to the access list. This operation is safe to perform
+	// even if the feature/fork is not active yet
+	AddAddressToAccessList(addr common.Address)
+	// AddSlotToAccessList adds the given (address,slot) to the access list. This operation is safe to perform
+	// even if the feature/fork is not active yet
+	AddSlotToAccessList(addr common.Address, slot common.Hash)
+
 	RevertToSnapshot(int)
 	Snapshot() int
 
@@ -84,28 +91,28 @@ type CallContext interface {
 	Create(env *EVM, me ContractRef, data []byte, gas, value *big.Int) ([]byte, common.Address, error)
 }
 
-// ChainContext supports retrieving chain data and consensus parameters
-// from the blockchain to be used during transaction processing.
-type ChainContext interface {
-	// Engine retrieves the blockchain's consensus engine.
-	Engine() consensus.Engine
+// EVMRunner provides a simplified API to run EVM calls
+// EVM's sender, gasPrice, txFeeRecipient and state are set by the runner on each call
+// This object can be re-used many times in contrast to the EVM's single use behaviour.
+type EVMRunner interface {
+	// Execute performs a potentially write operation over the runner's state
+	// It can be seen as a message (input,value) from sender to recipient that returns `ret`
+	Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error)
 
-	// GetHeader returns the hash corresponding to the given hash and number.
-	GetHeader(common.Hash, uint64) *types.Header
+	// ExecuteFrom is like Execute, but lets you specify the sender to use for the EVM call.
+	// It exists only for use in the Tobin tax calculation done as part of TobinTransfer, because that
+	// originally used the transaction's sender instead of the zero address.
+	ExecuteFrom(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error)
 
-	// GetHeaderByNumber returns the hash corresponding number.
-	// FIXME: Use of this function, as implemented, in the EVM context produces undefined behavior
-	// in the pressence of forks. A new method needs to be created to retrieve a header by number
-	// in the correct fork.
-	GetHeaderByNumber(uint64) *types.Header
+	// Query performs a read operation over the runner's state
+	// It can be seen as a message (input,value) from sender to recipient that returns `ret`
+	Query(recipient common.Address, input []byte, gas uint64) (ret []byte, err error)
 
-	// GetVMConfig returns the node's vm configuration
-	GetVMConfig() *Config
+	// StopGasMetering backward compatibility method to stop gas metering
+	// Deprecated. DO NOT USE
+	StopGasMetering()
 
-	CurrentHeader() *types.Header
-
-	State() (*state.StateDB, error)
-
-	// Config returns the blockchain's chain configuration
-	Config() *params.ChainConfig
+	// StartGasMetering backward compatibility method to start gas metering
+	// Deprecated. DO NOT USE
+	StartGasMetering()
 }

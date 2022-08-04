@@ -34,6 +34,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
@@ -114,7 +115,7 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 		if header := bc.GetHeaderByHash(hash); header != nil {
 			log.Error("Found bad hash, rewinding chain", "number", header.Number, "hash", header.ParentHash)
 			bc.SetHead(header.Number.Uint64() - 1)
-			log.Error("Chain rewind was successful, resuming normal operation")
+			log.Info("Chain rewind was successful, resuming normal operation")
 		}
 	}
 	return bc, nil
@@ -157,7 +158,11 @@ func (lc *LightChain) loadLastState() error {
 		// Corrupt or empty database, init from scratch
 		lc.Reset()
 	} else {
-		if header := lc.GetHeaderByHash(head); header != nil {
+		header := lc.GetHeaderByHash(head)
+		if header == nil {
+			// Corrupt or empty database, init from scratch
+			lc.Reset()
+		} else {
 			lc.hc.SetCurrentHeader(header)
 		}
 	}
@@ -165,7 +170,6 @@ func (lc *LightChain) loadLastState() error {
 	header := lc.hc.CurrentHeader()
 	headerTd := lc.GetTd(header.Hash(), header.Number.Uint64())
 	log.Info("Loaded most recent local header", "number", header.Number, "hash", header.Hash(), "td", headerTd, "age", common.PrettyAge(time.Unix(int64(header.Time), 0)))
-
 	return nil
 }
 
@@ -294,7 +298,9 @@ func (lc *LightChain) GetBlockByHash(ctx context.Context, hash common.Hash) (*ty
 	number := lc.hc.GetBlockNumber(hash)
 	if number == nil {
 		header, err := GetHeaderByHash(ctx, lc.odr, hash)
-		if err != nil {
+		// Header may be nil, indicating the hash doesn't match any known blocks,
+		// which is a valid response to the ODR request.
+		if err != nil || header == nil {
 			return nil, errors.New("unknown block")
 		}
 		return lc.GetBlock(ctx, hash, header.Number.Uint64())
@@ -319,10 +325,16 @@ func (lc *LightChain) Stop() {
 		return
 	}
 	close(lc.quit)
-	atomic.StoreInt32(&lc.procInterrupt, 1)
-
+	lc.StopInsert()
 	lc.wg.Wait()
-	log.Info("Blockchain manager stopped")
+	log.Info("Blockchain stopped")
+}
+
+// StopInsert interrupts all insertion methods, causing them to return
+// errInsertionInterrupted as soon as possible. Insertion is permanently disabled after
+// calling this method.
+func (lc *LightChain) StopInsert() {
+	atomic.StoreInt32(&lc.procInterrupt, 1)
 }
 
 // Rollback is designed to remove a chain of links from the database that aren't
@@ -401,27 +413,26 @@ func (lc *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int, co
 	lc.wg.Add(1)
 	defer lc.wg.Done()
 
-	var events []interface{}
-	whFunc := func(header *types.Header) error {
-		status, err := lc.hc.WriteHeader(header)
-
-		switch status {
-		case core.CanonStatTy:
-			log.Debug("Inserted new header", "number", header.Number, "hash", header.Hash())
-			events = append(events, core.ChainEvent{Block: types.NewBlockWithHeader(header), Hash: header.Hash()})
-
-		case core.SideStatTy:
-			log.Debug("Inserted forked header", "number", header.Number, "hash", header.Hash())
-			events = append(events, core.ChainSideEvent{Block: types.NewBlockWithHeader(header)})
-		}
-		return err
+	status, err := lc.hc.InsertHeaderChain(chain, start)
+	if err != nil || len(chain) == 0 {
+		return 0, err
 	}
-	i, err := lc.hc.InsertHeaderChain(chain, whFunc, start)
+
+	// Create chain event for the new head block of this insertion.
+	var (
+		events     = make([]interface{}, 0, 1)
+		lastHeader = chain[len(chain)-1]
+		block      = types.NewBlockWithHeader(lastHeader)
+	)
+	switch status {
+	case core.CanonStatTy:
+		events = append(events, core.ChainEvent{Block: block, Hash: block.Hash()})
+	case core.SideStatTy:
+		events = append(events, core.ChainSideEvent{Block: block})
+	}
 	lc.postChainEvents(events)
-	if err != nil {
-		log.Debug("InsertHeaderChain", "failing index number", i, "err", err)
-	}
-	return i, err
+
+	return 0, err
 }
 
 // CurrentHeader retrieves the current head header of the canonical chain. The
@@ -440,6 +451,17 @@ func (lc *LightChain) GetTd(hash common.Hash, number uint64) *big.Int {
 // database by hash, caching it if found.
 func (lc *LightChain) GetTdByHash(hash common.Hash) *big.Int {
 	return lc.hc.GetTdByHash(hash)
+}
+
+// GetHeaderByNumberOdr retrieves the total difficult from the database or
+// network by hash and number, caching it (associated with its hash) if found.
+func (lc *LightChain) GetTdOdr(ctx context.Context, hash common.Hash, number uint64) *big.Int {
+	td := lc.GetTd(hash, number)
+	if td != nil {
+		return td
+	}
+	td, _ = GetTd(ctx, lc.odr, hash, number)
+	return td
 }
 
 // GetHeader retrieves a block header from the database by hash and number,
@@ -495,8 +517,20 @@ func (lc *LightChain) GetHeaderByNumberOdr(ctx context.Context, number uint64) (
 	return GetHeaderByNumber(ctx, lc.odr, number)
 }
 
-func (self *LightChain) GetVMConfig() *vm.Config {
+func (lc *LightChain) GetVMConfig() *vm.Config {
 	return &vm.Config{}
+}
+
+// NewEVMRunner creates the System's EVMRunner for given header & sttate
+func (lc *LightChain) NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return vmcontext.NewEVMRunner(lc, header, state)
+}
+
+// NewEVMRunnerForCurrentBlock creates the System's EVMRunner for current block & state
+func (lc *LightChain) NewEVMRunnerForCurrentBlock() (vm.EVMRunner, error) {
+	header := lc.CurrentHeader()
+	state := NewState(context.Background(), header, lc.odr)
+	return vmcontext.NewEVMRunner(lc, header, state), nil
 }
 
 // Config retrieves the header chain's chain configuration.

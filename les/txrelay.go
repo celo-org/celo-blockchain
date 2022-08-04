@@ -19,6 +19,7 @@ package les
 import (
 	"context"
 	"errors"
+	"math/rand"
 	"sync"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -32,7 +33,7 @@ type lesTxRelay struct {
 	txSent    map[common.Hash]*types.Transaction
 	txPending map[common.Hash]struct{}
 	peerList  []*serverPeer
-	lock      sync.RWMutex
+	lock      sync.Mutex
 	stop      chan struct{}
 
 	retriever *retrieveManager
@@ -107,8 +108,7 @@ func (ltrx *lesTxRelay) send(txs types.Transactions) {
 		list := types.Transactions{tx}
 		enc, _ := rlp.EncodeToBytes(list)
 
-		// Assemble the request object with callbacks for the distributor.
-		reqID := genReqID()
+		reqID := rand.Uint64()
 		rq := &distReq{
 			getCost: func(dp distPeer) uint64 {
 				return dp.(*serverPeer).getTxRelayCost(len(list), len(enc))

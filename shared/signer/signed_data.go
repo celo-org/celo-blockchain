@@ -68,7 +68,7 @@ func (t *Type) isReferenceType() bool {
 	if len(t.Type) == 0 {
 		return false
 	}
-	// Reference types must have a leading uppercase characer
+	// Reference types must have a leading uppercase character
 	return unicode.IsUpper([]rune(t.Type)[0])
 }
 
@@ -170,8 +170,8 @@ func (typedData *TypedData) EncodeData(primaryType string, data map[string]inter
 	buffer := bytes.Buffer{}
 
 	// Verify extra data
-	if len(typedData.Types[primaryType]) < len(data) {
-		return nil, errors.New("there is extra data provided in the message")
+	if exp, got := len(typedData.Types[primaryType]), len(data); exp < got {
+		return nil, fmt.Errorf("there is extra data provided in the message (%d < %d)", exp, got)
 	}
 
 	// Add typehash
@@ -229,6 +229,24 @@ func (typedData *TypedData) EncodeData(primaryType string, data map[string]inter
 		}
 	}
 	return buffer.Bytes(), nil
+}
+
+// Attempt to parse bytes in different formats: byte array, hex string, hexutil.Bytes.
+func parseBytes(encType interface{}) ([]byte, bool) {
+	switch v := encType.(type) {
+	case []byte:
+		return v, true
+	case hexutil.Bytes:
+		return v, true
+	case string:
+		bytes, err := hexutil.Decode(v)
+		if err != nil {
+			return nil, false
+		}
+		return bytes, true
+	default:
+		return nil, false
+	}
 }
 
 func parseInteger(encType string, encValue interface{}) (*big.Int, error) {
@@ -310,7 +328,7 @@ func (typedData *TypedData) EncodePrimitiveValue(encType string, encValue interf
 		}
 		return crypto.Keccak256([]byte(strVal)), nil
 	case "bytes":
-		bytesValue, ok := encValue.([]byte)
+		bytesValue, ok := parseBytes(encValue)
 		if !ok {
 			return nil, dataMismatchError(encType, encValue)
 		}
@@ -325,10 +343,13 @@ func (typedData *TypedData) EncodePrimitiveValue(encType string, encValue interf
 		if length < 0 || length > 32 {
 			return nil, fmt.Errorf("invalid size on bytes: %d", length)
 		}
-		if byteValue, ok := encValue.(hexutil.Bytes); !ok {
+		if byteValue, ok := parseBytes(encValue); !ok || len(byteValue) != length {
 			return nil, dataMismatchError(encType, encValue)
 		} else {
-			return math.PaddedBigBytes(new(big.Int).SetBytes(byteValue), 32), nil
+			// Right-pad the bits
+			dst := make([]byte, 32)
+			copy(dst, byteValue)
+			return dst, nil
 		}
 	}
 	if strings.HasPrefix(encType, "int") || strings.HasPrefix(encType, "uint") {
@@ -498,7 +519,11 @@ func (nvt *NameValueType) Pprint(depth int) string {
 			output.WriteString(sublevel)
 		}
 	} else {
-		output.WriteString(fmt.Sprintf("%q\n", nvt.Value))
+		if nvt.Value != nil {
+			output.WriteString(fmt.Sprintf("%q\n", nvt.Value))
+		} else {
+			output.WriteString("\n")
+		}
 	}
 	return output.String()
 }
@@ -650,11 +675,7 @@ func isPrimitiveTypeValid(primitiveType string) bool {
 // validate checks if the given domain is valid, i.e. contains at least
 // the minimum viable keys and values
 func (domain *TypedDataDomain) validate() error {
-	if domain.ChainId == nil {
-		return errors.New("chainId must be specified according to EIP-155")
-	}
-
-	if len(domain.Name) == 0 && len(domain.Version) == 0 && len(domain.VerifyingContract) == 0 && len(domain.Salt) == 0 {
+	if domain.ChainId == nil && len(domain.Name) == 0 && len(domain.Version) == 0 && len(domain.VerifyingContract) == 0 && len(domain.Salt) == 0 {
 		return errors.New("domain is undefined")
 	}
 

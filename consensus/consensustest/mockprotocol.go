@@ -19,7 +19,6 @@ package consensustest
 import (
 	"crypto/ecdsa"
 	"errors"
-	"fmt"
 	"math/big"
 	"net"
 	"runtime"
@@ -31,13 +30,11 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/rpc"
-	"golang.org/x/crypto/sha3"
+	"github.com/celo-org/celo-blockchain/trie"
 )
 
 var (
@@ -107,7 +104,7 @@ func (mp *MockPeer) Node() *enode.Node {
 	return mp.node
 }
 
-func (mp *MockPeer) Version() int {
+func (mp *MockPeer) Version() uint {
 	return 0
 }
 
@@ -133,6 +130,10 @@ type MockEngine struct {
 
 	fakeFail  uint64        // Block number which fails consensus even in fake mode
 	fakeDelay time.Duration // Time delay to sleep for before returning from verify
+
+	processBlock        func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
+	validateState       func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
+	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)
 }
 
 const (
@@ -190,24 +191,24 @@ func (e *MockEngine) accumulateRewards(config *params.ChainConfig, state *state.
 	state.AddBalance(header.Coinbase, reward)
 }
 
-func (e *MockEngine) Finalize(chain consensus.ChainReader, header *types.Header, statedb *state.StateDB, txs []*types.Transaction) {
+func (e *MockEngine) Finalize(chain consensus.ChainHeaderReader, header *types.Header, statedb *state.StateDB, txs []*types.Transaction) {
 	e.accumulateRewards(chain.Config(), statedb, header)
 	header.Root = statedb.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 }
 
-func (e *MockEngine) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, statedb *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+func (e *MockEngine) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, statedb *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 	e.accumulateRewards(chain.Config(), statedb, header)
 	header.Root = statedb.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 
 	// Header seems complete, assemble into a block and return
-	return types.NewBlock(header, txs, receipts, randomness), nil
+	return types.NewBlock(header, txs, receipts, randomness, new(trie.Trie)), nil
 }
 
 func (e *MockEngine) Author(header *types.Header) (common.Address, error) {
 	return header.Coinbase, nil
 }
 
-func (e *MockEngine) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
+func (e *MockEngine) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
 	if e.mode == FullFake {
 		return nil
 	}
@@ -217,7 +218,7 @@ func (e *MockEngine) VerifyHeader(chain consensus.ChainReader, header *types.Hea
 		return nil
 	}
 	parent := chain.GetHeader(header.ParentHash, number-1)
-	if parent == nil {
+	if parent == nil && chain.Config().FullHeaderChainAvailable {
 		return consensus.ErrUnknownAncestor
 	}
 	// Sanity checks passed, do a proper verification
@@ -225,36 +226,38 @@ func (e *MockEngine) VerifyHeader(chain consensus.ChainReader, header *types.Hea
 }
 
 // verifyHeader checks whether a header conforms to the consensus rules
-func (e *MockEngine) verifyHeader(chain consensus.ChainReader, header, parent *types.Header, seal bool) error {
-	// Ensure that the header's extra-data section is of a reasonable size
-	if uint64(len(header.Extra)) > params.MaximumExtraDataSize {
-		return fmt.Errorf("extra-data too long: %d > %d", len(header.Extra), params.MaximumExtraDataSize)
+func (e *MockEngine) verifyHeader(chain consensus.ChainHeaderReader, header, parent *types.Header, seal bool) error {
+	// Ensure that the extra data format is satisfied
+	if _, err := types.ExtractIstanbulExtra(header); err != nil {
+		return errors.New("invalid extra data format")
 	}
 	// Verify the header's timestamp
 	if header.Time > uint64(time.Now().Add(allowedFutureBlockTime).Unix()) {
 		return consensus.ErrFutureBlock
 	}
-	if header.Time <= parent.Time {
-		return errZeroBlockTime
-	}
-	// Verify that the block number is parent's +1
-	if diff := new(big.Int).Sub(header.Number, parent.Number); diff.Cmp(big.NewInt(1)) != 0 {
-		return consensus.ErrInvalidNumber
+	if parent != nil {
+		if header.Time <= parent.Time {
+			return errZeroBlockTime
+		}
+		// Verify that the block number is parent's +1
+		if diff := new(big.Int).Sub(header.Number, parent.Number); diff.Cmp(big.NewInt(1)) != 0 {
+			return consensus.ErrInvalidNumber
+		}
 	}
 	// Verify the engine specific seal securing the block
 	if seal {
-		if err := e.VerifySeal(chain, header); err != nil {
+		if err := e.VerifySeal(header); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (e *MockEngine) VerifySeal(chain consensus.ChainReader, header *types.Header) error {
-	return e.verifySeal(chain, header)
+func (e *MockEngine) VerifySeal(header *types.Header) error {
+	return e.verifySeal(header)
 }
 
-func (e *MockEngine) verifySeal(chain consensus.ChainReader, header *types.Header) error {
+func (e *MockEngine) verifySeal(header *types.Header) error {
 	time.Sleep(e.fakeDelay)
 	if e.fakeFail == header.Number.Uint64() {
 		return errFakeFail
@@ -265,7 +268,7 @@ func (e *MockEngine) verifySeal(chain consensus.ChainReader, header *types.Heade
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
 // concurrently. The method returns a quit channel to abort the operations and
 // a results channel to retrieve the async verifications.
-func (e *MockEngine) VerifyHeaders(chain consensus.ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
+func (e *MockEngine) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
 	if e.mode == FullFake || len(headers) == 0 {
 		abort, results := make(chan struct{}), make(chan error, len(headers))
 		for i := 0; i < len(headers); i++ {
@@ -326,14 +329,14 @@ func (e *MockEngine) VerifyHeaders(chain consensus.ChainReader, headers []*types
 	return abort, errorsOut
 }
 
-func (e *MockEngine) verifyHeaderWorker(chain consensus.ChainReader, headers []*types.Header, seals []bool, index int) error {
+func (e *MockEngine) verifyHeaderWorker(chain consensus.ChainHeaderReader, headers []*types.Header, seals []bool, index int) error {
 	var parent *types.Header
 	if index == 0 {
 		parent = chain.GetHeader(headers[0].ParentHash, headers[0].Number.Uint64()-1)
 	} else if headers[index-1].Hash() == headers[index].ParentHash {
 		parent = headers[index-1]
 	}
-	if parent == nil {
+	if parent == nil && chain.Config().FullHeaderChainAvailable {
 		return consensus.ErrUnknownAncestor
 	}
 	if chain.GetHeader(headers[index].Hash(), headers[index].Number.Uint64()) != nil {
@@ -342,46 +345,49 @@ func (e *MockEngine) verifyHeaderWorker(chain consensus.ChainReader, headers []*
 	return e.verifyHeader(chain, headers[index], parent, seals[index])
 }
 
-func (e *MockEngine) Prepare(chain consensus.ChainReader, header *types.Header) error {
+func (e *MockEngine) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
 	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
+
+	// Matches delay in consensus/istanbul/backend/engine.go:386 in (*Backend).Prepare
+	delay := time.Until(time.Unix(int64(header.Time), 0))
+	if delay > 0 {
+		time.Sleep(delay)
+	}
+
 	return nil
 }
 
-// SealHash returns the hash of a block prior to it being sealed.
-func (e *MockEngine) SealHash(header *types.Header) (hash common.Hash) {
-	hasher := sha3.NewLegacyKeccak256()
-
-	rlp.Encode(hasher, []interface{}{
-		header.ParentHash,
-		header.Coinbase,
-		header.Root,
-		header.TxHash,
-		header.ReceiptHash,
-		header.Bloom,
-		header.Number,
-		header.GasUsed,
-		header.Time,
-		header.Extra,
-	})
-	hasher.Sum(hash[:0])
-	return hash
+type fullChain interface {
+	CurrentBlock() *types.Block
+	StateAt(common.Hash) (*state.StateDB, error)
 }
 
-func (e *MockEngine) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+func (e *MockEngine) Seal(chain consensus.ChainHeaderReader, block *types.Block) error {
 	header := block.Header()
-	select {
-	case results <- block.WithSeal(header):
-	default:
-		log.Warn("Sealing result is not read by miner", "mode", "fake", "sealhash", e.SealHash(header))
+	finalBlock := block.WithHeader(header)
+	c := chain.(fullChain)
+
+	parent := c.CurrentBlock()
+
+	state, err := c.StateAt(parent.Root())
+	if err != nil {
+		return err
 	}
+
+	receipts, logs, _, err := e.processBlock(finalBlock, state)
+	if err != nil {
+		return err
+	}
+	e.onNewConsensusBlock(block, receipts, logs, state)
+
 	return nil
 }
 
 // APIs implements consensus.Engine, returning the user facing RPC APIs.
-func (e *MockEngine) APIs(chain consensus.ChainReader) []rpc.API {
+func (e *MockEngine) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 	return []rpc.API{}
 }
 
@@ -393,4 +399,17 @@ func (e *MockEngine) Close() error {
 // EpochSize size of the epoch
 func (e *MockEngine) EpochSize() uint64 {
 	return 100
+}
+
+// SetCallBacks sets call back functions
+func (e *MockEngine) SetCallBacks(hasBadBlock func(common.Hash) bool,
+	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
+	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
+	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)) error {
+	e.processBlock = processBlock
+	e.validateState = validateState
+	e.onNewConsensusBlock = onNewConsensusBlock
+
+	return nil
+
 }

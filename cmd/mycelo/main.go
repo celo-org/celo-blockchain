@@ -10,9 +10,9 @@ import (
 
 	"github.com/celo-org/celo-blockchain/ethclient"
 	"github.com/celo-org/celo-blockchain/internal/fileutils"
+	"github.com/celo-org/celo-blockchain/internal/flags"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/internal/debug"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/mycelo/cluster"
@@ -62,7 +62,7 @@ func init() {
 		loadBotCommand,
 		envCommand,
 	}
-	cli.CommandHelpTemplate = utils.OriginCommandHelpTemplate
+	cli.CommandHelpTemplate = flags.OriginCommandHelpTemplate
 }
 
 func main() {
@@ -94,6 +94,11 @@ var loadTestMaxPendingFlag = cli.UintFlag{
 var loadTestSkipGasEstimationFlag = cli.BoolFlag{
 	Name:  "skipgasestimation",
 	Usage: "Skips estimating gas if true and instead hardcodes a value for the cUSD transfer",
+}
+
+var loadTestMixFeeCurrencyFlag = cli.BoolFlag{
+	Name:  "mixfeecurrency",
+	Usage: "Switches between paying for gas in cUSD and CELO",
 }
 
 var initValidatorsCommand = cli.Command{
@@ -137,7 +142,11 @@ var loadBotCommand = cli.Command{
 	Usage:     "Runs the load bot on the environment",
 	ArgsUsage: "[envdir]",
 	Action:    loadBot,
-	Flags:     []cli.Flag{loadTestTPSFlag, loadTestMaxPendingFlag, loadTestSkipGasEstimationFlag},
+	Flags: []cli.Flag{
+		loadTestTPSFlag,
+		loadTestMaxPendingFlag,
+		loadTestSkipGasEstimationFlag,
+		loadTestMixFeeCurrencyFlag},
 }
 
 func readWorkdir(ctx *cli.Context) (string, error) {
@@ -153,16 +162,16 @@ func readWorkdir(ctx *cli.Context) (string, error) {
 }
 
 func readGethPath(ctx *cli.Context) (string, error) {
-	buildpath := ctx.String(gethPathFlag.Name)
-	if buildpath == "" {
-		buildpath = path.Join(os.Getenv("CELO_BLOCKCHAIN"), "build/bin/geth")
-		if fileutils.FileExists(buildpath) {
-			log.Info("Missing --geth flag, using CELO_BLOCKCHAIN derived path", "geth", buildpath)
+	gethPath := ctx.String(gethPathFlag.Name)
+	if gethPath == "" {
+		gethPath = path.Join(os.Getenv("CELO_BLOCKCHAIN"), "build/bin/geth")
+		if fileutils.FileExists(gethPath) {
+			log.Info("Missing --geth flag, using CELO_BLOCKCHAIN derived path", "geth", gethPath)
 		} else {
 			return "", fmt.Errorf("Missing --geth flag")
 		}
 	}
-	return buildpath, nil
+	return gethPath, nil
 }
 
 func readEnv(ctx *cli.Context) (*env.Environment, error) {
@@ -281,6 +290,7 @@ func loadBot(ctx *cli.Context) error {
 	}
 
 	return loadbot.Start(runCtx, &loadbot.Config{
+		ChainID:               env.Config.ChainID,
 		Accounts:              env.Accounts().DeveloperAccounts(),
 		Amount:                big.NewInt(10000000),
 		TransactionsPerSecond: ctx.Int(loadTestTPSFlag.Name),
@@ -288,5 +298,6 @@ func loadBot(ctx *cli.Context) error {
 		Verbose:               verbose,
 		MaxPending:            ctx.Uint64(loadTestMaxPendingFlag.Name),
 		SkipGasEstimation:     ctx.GlobalBool(loadTestSkipGasEstimationFlag.Name),
+		MixFeeCurrency:        ctx.GlobalBool(loadTestMixFeeCurrencyFlag.Name),
 	})
 }
