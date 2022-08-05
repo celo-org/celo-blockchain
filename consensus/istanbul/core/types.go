@@ -29,11 +29,23 @@ type Engine interface {
 	CurrentView() *istanbul.View
 	// CurrentRoundState returns the current roundState or nil if none
 	CurrentRoundState() RoundState
+	// CurrentRoundChangeSet returns the current round change set summary:
+	// a collection of the latest round change messages from all other
+	// validators.
+	CurrentRoundChangeSet() *RoundChangeSetSummary
+
 	SetAddress(common.Address)
 	// Validator -> CommittedSeal from Parent Block
 	ParentCommits() MessageSet
 	// ForceRoundChange will force round change to the current desiredRound + 1
 	ForceRoundChange()
+
+	// ResendPreprepare sends again the preprepare message.
+	ResendPreprepare() error
+	// GossipPrepares gossips to other validators all the prepares received in the current round.
+	GossipPrepares() error
+	// GossipCommits gossips to other validators all the commits received in the current round.
+	GossipCommits() error
 }
 
 // State represents the IBFT state

@@ -199,6 +199,17 @@ func (api *API) GetCurrentRoundState() (*core.RoundStateSummary, error) {
 	return api.istanbul.core.CurrentRoundState().Summary(), nil
 }
 
+// GetCurrentRoundChangeSet retrieves the current round change set
+func (api *API) GetCurrentRoundChangeSet() (*core.RoundChangeSetSummary, error) {
+	api.istanbul.coreMu.RLock()
+	defer api.istanbul.coreMu.RUnlock()
+
+	if !api.istanbul.isCoreStarted() {
+		return nil, istanbul.ErrStoppedEngine
+	}
+	return api.istanbul.core.CurrentRoundChangeSet(), nil
+}
+
 func (api *API) ForceRoundChange() (bool, error) {
 	api.istanbul.coreMu.RLock()
 	defer api.istanbul.coreMu.RUnlock()
@@ -293,4 +304,19 @@ func (api *API) GetLookbackWindow(number *rpc.BlockNumber) (uint64, error) {
 	}
 
 	return api.istanbul.LookbackWindow(header, state), nil
+}
+
+// ResendPreprepare sends again the preprepare message
+func (api *API) ResendPreprepare() error {
+	return api.istanbul.core.ResendPreprepare()
+}
+
+// GossipPrepares gossips the prepare messages
+func (api *API) GossipPrepares() error {
+	return api.istanbul.core.GossipPrepares()
+}
+
+// GossipCommits gossips the commit messages
+func (api *API) GossipCommits() error {
+	return api.istanbul.core.GossipCommits()
 }
