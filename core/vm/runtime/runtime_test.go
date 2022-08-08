@@ -780,45 +780,51 @@ func TestRuntimeJSTracer(t *testing.T) {
 			},
 			results: []string{`"1,1,4294935766,6,13"`, `"1,1,4294935766,6,0"`},
 		},
-		// TODO: fix tests. upstream tests commented: not working as-is.
-		// {
-		// 	// CALL
-		// 	code: []byte{
-		// 		// outsize, outoffset, insize, inoffset
-		// 		byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
-		// 		byte(vm.PUSH1), 0, // value
-		// 		byte(vm.PUSH1), 0xbb, //address
-		// 		byte(vm.GAS), // gas
-		// 		byte(vm.CALL),
-		// 		byte(vm.POP),
-		// 	},
-		// 	results: []string{`"1,1,4294964716,6,13"`, `"1,1,4294964716,6,0"`},
-		// },
-		// {
-		// 	// CALLCODE
-		// 	code: []byte{
-		// 		// outsize, outoffset, insize, inoffset
-		// 		byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
-		// 		byte(vm.PUSH1), 0, // value
-		// 		byte(vm.PUSH1), 0xcc, //address
-		// 		byte(vm.GAS), // gas
-		// 		byte(vm.CALLCODE),
-		// 		byte(vm.POP),
-		// 	},
-		// 	results: []string{`"1,1,4294964716,6,13"`, `"1,1,4294964716,6,0"`},
-		// },
-		// {
-		// 	// STATICCALL
-		// 	code: []byte{
-		// 		// outsize, outoffset, insize, inoffset
-		// 		byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
-		// 		byte(vm.PUSH1), 0xdd, //address
-		// 		byte(vm.GAS), // gas
-		// 		byte(vm.STATICCALL),
-		// 		byte(vm.POP),
-		// 	},
-		// 	results: []string{`"1,1,4294964719,6,12"`, `"1,1,4294964719,6,0"`},
-		// },
+		{
+			// CALL
+			code: []byte{
+				// outsize, outoffset, insize, inoffset
+				byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
+				byte(vm.PUSH1), 0, // value
+				byte(vm.PUSH1), 0xbb, //address
+				byte(vm.GAS), // gas
+				byte(vm.CALL),
+				byte(vm.POP),
+			},
+			// Different gas value from upstream due to (#1712):
+			// Links: https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
+			results: []string{`"1,1,4294966390,6,13"`, `"1,1,4294966390,6,0"`},
+		},
+		{
+			// CALLCODE
+			code: []byte{
+				// outsize, outoffset, insize, inoffset
+				byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
+				byte(vm.PUSH1), 0, // value
+				byte(vm.PUSH1), 0xcc, //address
+				byte(vm.GAS), // gas
+				byte(vm.CALLCODE),
+				byte(vm.POP),
+			},
+			// Different gas value from upstream due to (#1712):
+			// Links: https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
+			results: []string{`"1,1,4294966390,6,13"`, `"1,1,4294966390,6,0"`},
+		},
+		{
+			// STATICCALL
+			code: []byte{
+				// outsize, outoffset, insize, inoffset
+				byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
+				byte(vm.PUSH1), 0xdd, //address
+				byte(vm.GAS), // gas
+				byte(vm.STATICCALL),
+				byte(vm.POP),
+			},
+			// Different gas value from upstream due to (#1712):
+			// Links: https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
+			results: []string{`"1,1,4294966393,6,12"`, `"1,1,4294966393,6,0"`},
+		},
+		// FIXME
 		// {
 		// 	// DELEGATECALL
 		// 	code: []byte{
