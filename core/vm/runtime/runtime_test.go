@@ -824,7 +824,7 @@ func TestRuntimeJSTracer(t *testing.T) {
 			// Links: https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
 			results: []string{`"1,1,4294966393,6,12"`, `"1,1,4294966393,6,0"`},
 		},
-		// FIXME
+		// Fixme
 		// {
 		// 	// DELEGATECALL
 		// 	code: []byte{
@@ -835,7 +835,9 @@ func TestRuntimeJSTracer(t *testing.T) {
 		// 		byte(vm.DELEGATECALL),
 		// 		byte(vm.POP),
 		// 	},
-		// 	results: []string{`"1,1,4294964719,6,12"`, `"1,1,4294964719,6,0"`},
+		// 	// Different gas value from upstream due to (#1712):
+		// 	// Links: https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
+		// 	results: []string{`"1,1,4294966393,6,12"`, `"1,1,4294966393,6,0"`},
 		// },
 		{
 			// CALL self-destructing contract
