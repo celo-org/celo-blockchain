@@ -786,7 +786,7 @@ func TestRuntimeJSTracer(t *testing.T) {
 				// outsize, outoffset, insize, inoffset
 				byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
 				byte(vm.PUSH1), 0, // value
-				byte(vm.PUSH1), 0xbb, //address
+				byte(vm.PUSH1), 0xab, //address
 				byte(vm.GAS), // gas
 				byte(vm.CALL),
 				byte(vm.POP),
@@ -801,7 +801,7 @@ func TestRuntimeJSTracer(t *testing.T) {
 				// outsize, outoffset, insize, inoffset
 				byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
 				byte(vm.PUSH1), 0, // value
-				byte(vm.PUSH1), 0xcc, //address
+				byte(vm.PUSH1), 0xac, //address
 				byte(vm.GAS), // gas
 				byte(vm.CALLCODE),
 				byte(vm.POP),
@@ -815,7 +815,7 @@ func TestRuntimeJSTracer(t *testing.T) {
 			code: []byte{
 				// outsize, outoffset, insize, inoffset
 				byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
-				byte(vm.PUSH1), 0xdd, //address
+				byte(vm.PUSH1), 0xad, //address
 				byte(vm.GAS), // gas
 				byte(vm.STATICCALL),
 				byte(vm.POP),
@@ -824,28 +824,27 @@ func TestRuntimeJSTracer(t *testing.T) {
 			// Links: https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
 			results: []string{`"1,1,4294966393,6,12"`, `"1,1,4294966393,6,0"`},
 		},
-		// Fixme
-		// {
-		// 	// DELEGATECALL
-		// 	code: []byte{
-		// 		// outsize, outoffset, insize, inoffset
-		// 		byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
-		// 		byte(vm.PUSH1), 0xee, //address
-		// 		byte(vm.GAS), // gas
-		// 		byte(vm.DELEGATECALL),
-		// 		byte(vm.POP),
-		// 	},
-		// 	// Different gas value from upstream due to (#1712):
-		// 	// Links: https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
-		// 	results: []string{`"1,1,4294966393,6,12"`, `"1,1,4294966393,6,0"`},
-		// },
+		{
+			// DELEGATECALL
+			code: []byte{
+				// outsize, outoffset, insize, inoffset
+				byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
+				byte(vm.PUSH1), 0xae, //address
+				byte(vm.GAS), // gas
+				byte(vm.DELEGATECALL),
+				byte(vm.POP),
+			},
+			// Different gas value from upstream due to (#1712):
+			// Links: https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
+			results: []string{`"1,1,4294966393,6,12"`, `"1,1,4294966393,6,0"`},
+		},
 		{
 			// CALL self-destructing contract
 			code: []byte{
 				// outsize, outoffset, insize, inoffset
 				byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
 				byte(vm.PUSH1), 0, // value
-				byte(vm.PUSH1), 0xff, //address
+				byte(vm.PUSH1), 0xaf, //address
 				byte(vm.GAS), // gas
 				byte(vm.CALL),
 				byte(vm.POP),
@@ -867,11 +866,13 @@ func TestRuntimeJSTracer(t *testing.T) {
 		for j, tc := range tests {
 			statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 			statedb.SetCode(main, tc.code)
-			statedb.SetCode(common.HexToAddress("0xbb"), calleeCode)
-			statedb.SetCode(common.HexToAddress("0xcc"), calleeCode)
-			statedb.SetCode(common.HexToAddress("0xdd"), calleeCode)
-			statedb.SetCode(common.HexToAddress("0xee"), calleeCode)
-			statedb.SetCode(common.HexToAddress("0xff"), depressedCode)
+			// Addresses changed from upstream to avoid colliding with the
+			// celo precompiled contracts.
+			statedb.SetCode(common.HexToAddress("0xab"), calleeCode)
+			statedb.SetCode(common.HexToAddress("0xac"), calleeCode)
+			statedb.SetCode(common.HexToAddress("0xad"), calleeCode)
+			statedb.SetCode(common.HexToAddress("0xae"), calleeCode)
+			statedb.SetCode(common.HexToAddress("0xaf"), depressedCode)
 
 			tracer, err := tracers.New(jsTracer, new(tracers.Context))
 			if err != nil {
