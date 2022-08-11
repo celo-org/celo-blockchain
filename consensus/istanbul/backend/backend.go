@@ -709,7 +709,7 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
 	w := sb.wallets()
 	return w.Bls.Sign(data, extra, useComposite, cip22)
-//>>>>>>> master*/
+//>>>>>>> master
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature
