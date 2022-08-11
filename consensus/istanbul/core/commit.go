@@ -17,13 +17,15 @@
 package core
 
 import (
+	"errors"
 	"math/big"
 	"reflect"
-//	"time"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/types"
+	//blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 )
 
 // maxValidators represents the maximum number of validators the SNARK circuit supports
@@ -259,5 +261,43 @@ func (c *core) verifyCommit(commit *istanbul.CommittedSubject) error {
 		return errInconsistentSubject
 	}
 
+	return nil
+}
+
+// verifyCommittedSeal verifies the commit seal in the received COMMIT message
+/*func (c *core) verifyCommittedSeal(comSub *istanbul.CommittedSubject, src istanbul.Validator) error {
+	seal := PrepareCommittedSeal(comSub.Subject.Digest, comSub.Subject.View.Round)
+	return blscrypto.VerifySignature(src.BLSPublicKey(), seal, []byte{}, comSub.CommittedSeal, false, false)
+}*/
+
+// verifyEpochValidatorSetSeal verifies the epoch validator set seal in the received COMMIT message
+/*func (c *core) verifyEpochValidatorSetSeal(comSub *istanbul.CommittedSubject, blockNumber uint64, newValSet istanbul.ValidatorSet, src istanbul.Validator) error {
+	if blockNumber == 0 {
+		return nil
+	}
+	epochData, epochExtraData, cip22, err := c.generateEpochValidatorSetData(blockNumber, uint8(comSub.Subject.View.Round.Uint64()), comSub.Subject.Digest, newValSet)
+	if err != nil {
+		if err == errNotLastBlockInEpoch {
+			return nil
+		}
+		return err
+	}
+	return blscrypto.VerifySignature(src.BLSPublicKey(), epochData, epochExtraData, comSub.EpochValidatorSetSeal, true, cip22)
+}*/
+
+// GossipCommits gossips to other validators all the commits received in the current round.
+func (c *core) GossipCommits() error {
+	logger := c.newLogger("func", "gossipCommits")
+	st := c.current.State()
+	if st != StatePreprepared && st != StatePrepared && st != StateCommitted {
+		return errors.New("Cant gossip commits if not in preprepared, prepared, or committed state")
+	}
+	commits := c.current.Commits().Values()
+	logger.Debug("Gossipping commits", "len", len(commits))
+	for _, commit := range commits {
+		c.gossip(commit)
+		// let the bandwidth breathe a little
+		time.Sleep(10 * time.Millisecond)
+	}
 	return nil
 }
