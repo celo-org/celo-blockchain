@@ -688,8 +688,11 @@ func newFullLogRLP(l *types.Log) *fullLogRLP {
 	}
 }
 
+func TestReadLogsCommonBlock(t *testing.T) { testReadLogs(t, false) }
+func TestReadLogsIBFTBlock(t *testing.T)   { testReadLogs(t, true) }
+
 // Tests that logs associated with a single block can be retrieved.
-func TestReadLogs(t *testing.T) {
+func testReadLogs(t *testing.T, ibftBlock bool) {
 	db := NewMemoryDatabase()
 
 	// Create a live block since we need metadata to reconstruct the receipt
@@ -727,6 +730,21 @@ func TestReadLogs(t *testing.T) {
 	receipts := []*types.Receipt{receipt1, receipt2}
 
 	hash := common.BytesToHash([]byte{0x03, 0x14})
+	if ibftBlock {
+		receipt3 := types.NewReceipt(nil, false, 0)
+		receipt3.Logs = []*types.Log{
+			{Address: common.BytesToAddress([]byte{0x33})},
+			{Address: common.BytesToAddress([]byte{0x03, 0x33})},
+		}
+		receipt3.Bloom = types.CreateBloom(types.Receipts{receipt3})
+		for i := range receipt3.Logs {
+			receipt3.Logs[i].TxIndex = uint(len(receipts))
+			receipt3.Logs[i].TxHash = hash
+			receipt3.Logs[i].BlockHash = hash
+		}
+		receipts = append(receipts, receipt3)
+	}
+
 	// Check that no receipt entries are in a pristine database
 	if rs := ReadReceipts(db, hash, 0, params.TestChainConfig); len(rs) != 0 {
 		t.Fatalf("non existent receipts returned: %v", rs)
@@ -741,7 +759,7 @@ func TestReadLogs(t *testing.T) {
 	if len(logs) == 0 {
 		t.Fatalf("no logs returned")
 	}
-	if have, want := len(logs), 2; have != want {
+	if have, want := len(logs), len(receipts); have != want {
 		t.Fatalf("unexpected number of logs returned, have %d want %d", have, want)
 	}
 	if have, want := len(logs[0]), 2; have != want {
@@ -749,6 +767,11 @@ func TestReadLogs(t *testing.T) {
 	}
 	if have, want := len(logs[1]), 2; have != want {
 		t.Fatalf("unexpected number of logs[1] returned, have %d want %d", have, want)
+	}
+	if ibftBlock {
+		if have, want := len(logs[2]), 2; have != want {
+			t.Fatalf("unexpected number of logs[2] returned, have %d want %d", have, want)
+		}
 	}
 
 	// Fill in log fields so we can compare their rlp encoding
