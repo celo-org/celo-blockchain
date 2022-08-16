@@ -192,6 +192,8 @@ func (b *EthAPIBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*typ
 	}
 	logs := rawdb.ReadLogs(db, hash, *number)
 	if logs == nil {
+		// Even if this changes the behaviour of the old rpc call (was returning an empty list, not an error) which we try to avoid
+		// we decided to keep the error to maintain tooling compatibility with upstream
 		return nil, errors.New("failed to get logs for block")
 	}
 	return logs, nil
