@@ -43,17 +43,17 @@ var (
 	timeout = 20 * time.Second
 )
 
-// Is_66 checks if the node supports the eth66 protocol version,
+// Is_67 checks if the node supports the celo67 (eth66) protocol version,
 // and if not, exists the test suite
-func (s *Suite) Is_66(t *utesting.T) {
-	conn, err := s.dial66()
+func (s *Suite) Is_67(t *utesting.T) {
+	conn, err := s.dial67()
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)
 	}
 	if err := conn.handshake(); err != nil {
 		t.Fatalf("handshake failed: %v", err)
 	}
-	if conn.negotiatedProtoVersion < 66 {
+	if conn.negotiatedProtoVersion < 67 {
 		t.Fail()
 	}
 }
@@ -77,22 +77,22 @@ func (s *Suite) dial() (*Conn, error) {
 	// set default p2p capabilities
 	conn.caps = []p2p.Cap{
 		{Name: "istanbul", Version: 65},
-		{Name: "istanbul", Version: 65},
+		{Name: "istanbul", Version: 66},
 	}
-	conn.ourHighestProtoVersion = 65
+	conn.ourHighestProtoVersion = 66
 	return &conn, nil
 }
 
 // dial66 attempts to dial the given node and perform a handshake,
-// returning the created Conn with additional eth66 capabilities if
+// returning the created Conn with additional celo67 (eth66) capabilities if
 // successful
-func (s *Suite) dial66() (*Conn, error) {
+func (s *Suite) dial67() (*Conn, error) {
 	conn, err := s.dial()
 	if err != nil {
 		return nil, fmt.Errorf("dial failed: %v", err)
 	}
-	conn.caps = append(conn.caps, p2p.Cap{Name: "istanbul", Version: 66})
-	conn.ourHighestProtoVersion = 66
+	conn.caps = append(conn.caps, p2p.Cap{Name: "istanbul", Version: 67})
+	conn.ourHighestProtoVersion = 67
 	return conn, nil
 }
 
@@ -212,18 +212,18 @@ loop:
 
 // createSendAndRecvConns creates two connections, one for sending messages to the
 // node, and one for receiving messages from the node.
-func (s *Suite) createSendAndRecvConns(isEth66 bool) (*Conn, *Conn, error) {
+func (s *Suite) createSendAndRecvConns(isCelo67 bool) (*Conn, *Conn, error) {
 	var (
 		sendConn *Conn
 		recvConn *Conn
 		err      error
 	)
-	if isEth66 {
-		sendConn, err = s.dial66()
+	if isCelo67 {
+		sendConn, err = s.dial67()
 		if err != nil {
 			return nil, nil, fmt.Errorf("dial failed: %v", err)
 		}
-		recvConn, err = s.dial66()
+		recvConn, err = s.dial67()
 		if err != nil {
 			sendConn.Close()
 			return nil, nil, fmt.Errorf("dial failed: %v", err)
@@ -243,16 +243,16 @@ func (s *Suite) createSendAndRecvConns(isEth66 bool) (*Conn, *Conn, error) {
 }
 
 func (c *Conn) readAndServe(chain *Chain, timeout time.Duration) Message {
-	if c.negotiatedProtoVersion == 66 {
-		_, msg := c.readAndServe66(chain, timeout)
+	if c.negotiatedProtoVersion == 67 {
+		_, msg := c.readAndServe67(chain, timeout)
 		return msg
 	}
-	return c.readAndServe65(chain, timeout)
+	return c.readAndServe66(chain, timeout)
 }
 
 // readAndServe serves GetBlockHeaders requests while waiting
 // on another message from the node.
-func (c *Conn) readAndServe65(chain *Chain, timeout time.Duration) Message {
+func (c *Conn) readAndServe66(chain *Chain, timeout time.Duration) Message {
 	start := time.Now()
 	for time.Since(start) < timeout {
 		c.SetReadDeadline(time.Now().Add(5 * time.Second))
@@ -275,14 +275,14 @@ func (c *Conn) readAndServe65(chain *Chain, timeout time.Duration) Message {
 	return errorf("no message received within %v", timeout)
 }
 
-// readAndServe66 serves eth66 GetBlockHeaders requests while waiting
+// readAndServe67 serves celo67 (eth66) GetBlockHeaders requests while waiting
 // on another message from the node.
-func (c *Conn) readAndServe66(chain *Chain, timeout time.Duration) (uint64, Message) {
+func (c *Conn) readAndServe67(chain *Chain, timeout time.Duration) (uint64, Message) {
 	start := time.Now()
 	for time.Since(start) < timeout {
 		c.SetReadDeadline(time.Now().Add(10 * time.Second))
 
-		reqID, msg := c.Read66()
+		reqID, msg := c.Read67()
 
 		switch msg := msg.(type) {
 		case *Ping:
@@ -296,7 +296,7 @@ func (c *Conn) readAndServe66(chain *Chain, timeout time.Duration) (uint64, Mess
 				RequestId:          reqID,
 				BlockHeadersPacket: eth.BlockHeadersPacket(headers),
 			}
-			if err := c.Write66(resp, BlockHeaders{}.Code()); err != nil {
+			if err := c.Write67(resp, BlockHeaders{}.Code()); err != nil {
 				return 0, errorf("could not write to connection: %v", err)
 			}
 		default:
@@ -307,12 +307,12 @@ func (c *Conn) readAndServe66(chain *Chain, timeout time.Duration) (uint64, Mess
 }
 
 // headersRequest executes the given `GetBlockHeaders` request.
-func (c *Conn) headersRequest(request *GetBlockHeaders, chain *Chain, isEth66 bool, reqID uint64) (BlockHeaders, error) {
+func (c *Conn) headersRequest(request *GetBlockHeaders, chain *Chain, isCelo67 bool, reqID uint64) (BlockHeaders, error) {
 	defer c.SetReadDeadline(time.Time{})
 	c.SetReadDeadline(time.Now().Add(20 * time.Second))
-	// if on eth66 connection, perform eth66 GetBlockHeaders request
-	if isEth66 {
-		return getBlockHeaders66(chain, c, request, reqID)
+	// if on celo67 (eth66) connection, perform celo67 GetBlockHeaders request
+	if isCelo67 {
+		return getBlockHeaders67(chain, c, request, reqID)
 	}
 	if err := c.Write(request); err != nil {
 		return nil, err
@@ -325,15 +325,15 @@ func (c *Conn) headersRequest(request *GetBlockHeaders, chain *Chain, isEth66 bo
 	}
 }
 
-// getBlockHeaders66 executes the given `GetBlockHeaders` request over the eth66 protocol.
-func getBlockHeaders66(chain *Chain, conn *Conn, request *GetBlockHeaders, id uint64) (BlockHeaders, error) {
+// getBlockHeaders67 executes the given `GetBlockHeaders` request over the celo67 (eth66) protocol.
+func getBlockHeaders67(chain *Chain, conn *Conn, request *GetBlockHeaders, id uint64) (BlockHeaders, error) {
 	// write request
 	packet := eth.GetBlockHeadersPacket(*request)
 	req := &eth.GetBlockHeadersPacket67{
 		RequestId:             id,
 		GetBlockHeadersPacket: &packet,
 	}
-	if err := conn.Write66(req, GetBlockHeaders{}.Code()); err != nil {
+	if err := conn.Write67(req, GetBlockHeaders{}.Code()); err != nil {
 		return nil, fmt.Errorf("could not write to connection: %v", err)
 	}
 	// wait for response
@@ -354,7 +354,7 @@ func headersMatch(expected BlockHeaders, headers BlockHeaders) bool {
 // request ID is received.
 func (c *Conn) waitForResponse(chain *Chain, timeout time.Duration, requestID uint64) Message {
 	for {
-		id, msg := c.readAndServe66(chain, timeout)
+		id, msg := c.readAndServe67(chain, timeout)
 		if id == requestID {
 			return msg
 		}
@@ -363,9 +363,9 @@ func (c *Conn) waitForResponse(chain *Chain, timeout time.Duration, requestID ui
 
 // sendNextBlock broadcasts the next block in the chain and waits
 // for the node to propagate the block and import it into its chain.
-func (s *Suite) sendNextBlock(isEth66 bool) error {
+func (s *Suite) sendNextBlock(isCelo67 bool) error {
 	// set up sending and receiving connections
-	sendConn, recvConn, err := s.createSendAndRecvConns(isEth66)
+	sendConn, recvConn, err := s.createSendAndRecvConns(isCelo67)
 	if err != nil {
 		return err
 	}
@@ -388,7 +388,7 @@ func (s *Suite) sendNextBlock(isEth66 bool) error {
 		return fmt.Errorf("failed to announce block: %v", err)
 	}
 	// wait for client to update its chain
-	if err = s.waitForBlockImport(recvConn, nextBlock, isEth66); err != nil {
+	if err = s.waitForBlockImport(recvConn, nextBlock, isCelo67); err != nil {
 		return fmt.Errorf("failed to receive confirmation of block import: %v", err)
 	}
 	// update test suite chain
@@ -433,7 +433,7 @@ func (s *Suite) waitAnnounce(conn *Conn, blockAnnouncement *NewBlock) error {
 	}
 }
 
-func (s *Suite) waitForBlockImport(conn *Conn, block *types.Block, isEth66 bool) error {
+func (s *Suite) waitForBlockImport(conn *Conn, block *types.Block, isCelo67 bool) error {
 	defer conn.SetReadDeadline(time.Time{})
 	conn.SetReadDeadline(time.Now().Add(20 * time.Second))
 	// create request
@@ -450,11 +450,11 @@ func (s *Suite) waitForBlockImport(conn *Conn, block *types.Block, isEth66 bool)
 			headers BlockHeaders
 			err     error
 		)
-		if isEth66 {
+		if isCelo67 {
 			requestID := uint64(54)
-			headers, err = conn.headersRequest(req, s.chain, eth66, requestID)
+			headers, err = conn.headersRequest(req, s.chain, celo67, requestID)
 		} else {
-			headers, err = conn.headersRequest(req, s.chain, eth65, 0)
+			headers, err = conn.headersRequest(req, s.chain, celo66, 0)
 		}
 		if err != nil {
 			return fmt.Errorf("GetBlockHeader request failed: %v", err)
@@ -471,8 +471,8 @@ func (s *Suite) waitForBlockImport(conn *Conn, block *types.Block, isEth66 bool)
 	}
 }
 
-func (s *Suite) oldAnnounce(isEth66 bool) error {
-	sendConn, receiveConn, err := s.createSendAndRecvConns(isEth66)
+func (s *Suite) oldAnnounce(isCelo67 bool) error {
+	sendConn, receiveConn, err := s.createSendAndRecvConns(isCelo67)
 	if err != nil {
 		return err
 	}
@@ -518,13 +518,13 @@ func (s *Suite) oldAnnounce(isEth66 bool) error {
 	return nil
 }
 
-func (s *Suite) maliciousHandshakes(t *utesting.T, isEth66 bool) error {
+func (s *Suite) maliciousHandshakes(t *utesting.T, isCelo67 bool) error {
 	var (
 		conn *Conn
 		err  error
 	)
-	if isEth66 {
-		conn, err = s.dial66()
+	if isCelo67 {
+		conn, err = s.dial67()
 		if err != nil {
 			return fmt.Errorf("dial failed: %v", err)
 		}
@@ -541,38 +541,38 @@ func (s *Suite) maliciousHandshakes(t *utesting.T, isEth66 bool) error {
 		{
 			Version: 5,
 			Caps: []p2p.Cap{
-				{Name: largeString(2), Version: 65},
+				{Name: largeString(2), Version: 66},
 			},
 			ID: pub0,
 		},
 		{
 			Version: 5,
 			Caps: []p2p.Cap{
-				{Name: "istanbul", Version: 65},
 				{Name: "istanbul", Version: 66},
+				{Name: "istanbul", Version: 67},
 			},
 			ID: append(pub0, byte(0)),
 		},
 		{
 			Version: 5,
 			Caps: []p2p.Cap{
-				{Name: "istanbul", Version: 65},
 				{Name: "istanbul", Version: 66},
+				{Name: "istanbul", Version: 67},
 			},
 			ID: append(pub0, pub0...),
 		},
 		{
 			Version: 5,
 			Caps: []p2p.Cap{
-				{Name: "istanbul", Version: 65},
 				{Name: "istanbul", Version: 66},
+				{Name: "istanbul", Version: 67},
 			},
 			ID: largeBuffer(2),
 		},
 		{
 			Version: 5,
 			Caps: []p2p.Cap{
-				{Name: largeString(2), Version: 65},
+				{Name: largeString(2), Version: 66},
 			},
 			ID: largeBuffer(2),
 		},
@@ -595,8 +595,8 @@ func (s *Suite) maliciousHandshakes(t *utesting.T, isEth66 bool) error {
 			}
 		}
 		// dial for the next round
-		if isEth66 {
-			conn, err = s.dial66()
+		if isCelo67 {
+			conn, err = s.dial67()
 			if err != nil {
 				return fmt.Errorf("dial failed: %v", err)
 			}
@@ -643,9 +643,9 @@ func (s *Suite) maliciousStatus(conn *Conn) error {
 	}
 }
 
-func (s *Suite) hashAnnounce(isEth66 bool) error {
+func (s *Suite) hashAnnounce(isCelo67 bool) error {
 	// create connections
-	sendConn, recvConn, err := s.createSendAndRecvConns(isEth66)
+	sendConn, recvConn, err := s.createSendAndRecvConns(isCelo67)
 	if err != nil {
 		return fmt.Errorf("failed to create connections: %v", err)
 	}
@@ -674,8 +674,8 @@ func (s *Suite) hashAnnounce(isEth66 bool) error {
 		msg            Message
 		blockHeaderReq GetBlockHeaders
 	)
-	if isEth66 {
-		id, msg = sendConn.Read66()
+	if isCelo67 {
+		id, msg = sendConn.Read67()
 		switch msg := msg.(type) {
 		case GetBlockHeaders:
 			blockHeaderReq = msg
@@ -690,7 +690,7 @@ func (s *Suite) hashAnnounce(isEth66 bool) error {
 				pretty.Sdump(announcement),
 				pretty.Sdump(blockHeaderReq))
 		}
-		if err := sendConn.Write66(&eth.BlockHeadersPacket67{
+		if err := sendConn.Write67(&eth.BlockHeadersPacket67{
 			RequestId: id,
 			BlockHeadersPacket: eth.BlockHeadersPacket{
 				nextBlock.Header(),
@@ -748,7 +748,7 @@ func (s *Suite) hashAnnounce(isEth66 bool) error {
 		return fmt.Errorf("unexpected: %s", pretty.Sdump(msg))
 	}
 	// confirm node imported block
-	if err := s.waitForBlockImport(recvConn, nextBlock, isEth66); err != nil {
+	if err := s.waitForBlockImport(recvConn, nextBlock, isCelo67); err != nil {
 		return fmt.Errorf("error waiting for node to import new block: %v", err)
 	}
 	// update the chain

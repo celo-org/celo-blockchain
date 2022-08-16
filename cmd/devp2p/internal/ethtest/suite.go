@@ -53,37 +53,37 @@ func (s *Suite) AllEthTests() []utesting.Test {
 	return []utesting.Test{
 		// status
 		{Name: "TestStatus", Fn: s.TestStatus},
-		{Name: "TestStatus66", Fn: s.TestStatus66},
+		{Name: "TestStatus67", Fn: s.TestStatus67},
 		// get block headers
 		{Name: "TestGetBlockHeaders", Fn: s.TestGetBlockHeaders},
-		{Name: "TestGetBlockHeaders66", Fn: s.TestGetBlockHeaders66},
-		{Name: "TestSimultaneousRequests66", Fn: s.TestSimultaneousRequests66},
-		{Name: "TestSameRequestID66", Fn: s.TestSameRequestID66},
-		{Name: "TestZeroRequestID66", Fn: s.TestZeroRequestID66},
+		{Name: "TestGetBlockHeaders67", Fn: s.TestGetBlockHeaders67},
+		{Name: "TestSimultaneousRequests67", Fn: s.TestSimultaneousRequests67},
+		{Name: "TestSameRequestID67", Fn: s.TestSameRequestID67},
+		{Name: "TestZeroRequestID67", Fn: s.TestZeroRequestID67},
 		// get block bodies
 		{Name: "TestGetBlockBodies", Fn: s.TestGetBlockBodies},
-		{Name: "TestGetBlockBodies66", Fn: s.TestGetBlockBodies66},
+		{Name: "TestGetBlockBodies67", Fn: s.TestGetBlockBodies67},
 		// broadcast
 		{Name: "TestBroadcast", Fn: s.TestBroadcast},
-		{Name: "TestBroadcast66", Fn: s.TestBroadcast66},
+		{Name: "TestBroadcast67", Fn: s.TestBroadcast67},
 		{Name: "TestLargeAnnounce", Fn: s.TestLargeAnnounce},
-		{Name: "TestLargeAnnounce66", Fn: s.TestLargeAnnounce66},
+		{Name: "TestLargeAnnounce67", Fn: s.TestLargeAnnounce67},
 		{Name: "TestOldAnnounce", Fn: s.TestOldAnnounce},
-		{Name: "TestOldAnnounce66", Fn: s.TestOldAnnounce66},
+		{Name: "TestOldAnnounce67", Fn: s.TestOldAnnounce67},
 		{Name: "TestBlockHashAnnounce", Fn: s.TestBlockHashAnnounce},
-		{Name: "TestBlockHashAnnounce66", Fn: s.TestBlockHashAnnounce66},
+		{Name: "TestBlockHashAnnounce67", Fn: s.TestBlockHashAnnounce67},
 		// malicious handshakes + status
 		{Name: "TestMaliciousHandshake", Fn: s.TestMaliciousHandshake},
 		{Name: "TestMaliciousStatus", Fn: s.TestMaliciousStatus},
-		{Name: "TestMaliciousHandshake66", Fn: s.TestMaliciousHandshake66},
-		{Name: "TestMaliciousStatus66", Fn: s.TestMaliciousStatus66},
+		{Name: "TestMaliciousHandshake67", Fn: s.TestMaliciousHandshake67},
+		{Name: "TestMaliciousStatus67", Fn: s.TestMaliciousStatus67},
 		// test transactions
 		{Name: "TestTransaction", Fn: s.TestTransaction},
-		{Name: "TestTransaction66", Fn: s.TestTransaction66},
+		{Name: "TestTransaction67", Fn: s.TestTransaction67},
 		{Name: "TestMaliciousTx", Fn: s.TestMaliciousTx},
-		{Name: "TestMaliciousTx66", Fn: s.TestMaliciousTx66},
-		{Name: "TestLargeTxRequest66", Fn: s.TestLargeTxRequest66},
-		{Name: "TestNewPooledTxs66", Fn: s.TestNewPooledTxs66},
+		{Name: "TestMaliciousTx67", Fn: s.TestMaliciousTx67},
+		{Name: "TestLargeTxRequest67", Fn: s.TestLargeTxRequest67},
+		{Name: "TestNewPooledTxs67", Fn: s.TestNewPooledTxs67},
 	}
 }
 
@@ -103,31 +103,31 @@ func (s *Suite) EthTests() []utesting.Test {
 	}
 }
 
-func (s *Suite) Eth66Tests() []utesting.Test {
+func (s *Suite) Eth67Tests() []utesting.Test {
 	return []utesting.Test{
-		// only proceed with eth66 test suite if node supports eth 66 protocol
-		{Name: "TestStatus66", Fn: s.TestStatus66},
-		{Name: "TestGetBlockHeaders66", Fn: s.TestGetBlockHeaders66},
-		{Name: "TestSimultaneousRequests66", Fn: s.TestSimultaneousRequests66},
-		{Name: "TestSameRequestID66", Fn: s.TestSameRequestID66},
-		{Name: "TestZeroRequestID66", Fn: s.TestZeroRequestID66},
-		{Name: "TestGetBlockBodies66", Fn: s.TestGetBlockBodies66},
-		{Name: "TestBroadcast66", Fn: s.TestBroadcast66},
-		{Name: "TestLargeAnnounce66", Fn: s.TestLargeAnnounce66},
-		{Name: "TestOldAnnounce66", Fn: s.TestOldAnnounce66},
-		{Name: "TestBlockHashAnnounce66", Fn: s.TestBlockHashAnnounce66},
-		{Name: "TestMaliciousHandshake66", Fn: s.TestMaliciousHandshake66},
-		{Name: "TestMaliciousStatus66", Fn: s.TestMaliciousStatus66},
-		{Name: "TestTransaction66", Fn: s.TestTransaction66},
-		{Name: "TestMaliciousTx66", Fn: s.TestMaliciousTx66},
-		{Name: "TestLargeTxRequest66", Fn: s.TestLargeTxRequest66},
-		{Name: "TestNewPooledTxs66", Fn: s.TestNewPooledTxs66},
+		// only proceed with celo67 (eth66) test suite if node supports celo 67 protocol
+		{Name: "TestStatus67", Fn: s.TestStatus67},
+		{Name: "TestGetBlockHeaders67", Fn: s.TestGetBlockHeaders67},
+		{Name: "TestSimultaneousRequests67", Fn: s.TestSimultaneousRequests67},
+		{Name: "TestSameRequestID67", Fn: s.TestSameRequestID67},
+		{Name: "TestZeroRequestID67", Fn: s.TestZeroRequestID67},
+		{Name: "TestGetBlockBodies67", Fn: s.TestGetBlockBodies67},
+		{Name: "TestBroadcast67", Fn: s.TestBroadcast67},
+		{Name: "TestLargeAnnounce67", Fn: s.TestLargeAnnounce67},
+		{Name: "TestOldAnnounce67", Fn: s.TestOldAnnounce67},
+		{Name: "TestBlockHashAnnounce67", Fn: s.TestBlockHashAnnounce67},
+		{Name: "TestMaliciousHandshake67", Fn: s.TestMaliciousHandshake67},
+		{Name: "TestMaliciousStatus67", Fn: s.TestMaliciousStatus67},
+		{Name: "TestTransaction67", Fn: s.TestTransaction67},
+		{Name: "TestMaliciousTx67", Fn: s.TestMaliciousTx67},
+		{Name: "TestLargeTxRequest67", Fn: s.TestLargeTxRequest67},
+		{Name: "TestNewPooledTxs67", Fn: s.TestNewPooledTxs67},
 	}
 }
 
 var (
-	eth66 = true  // indicates whether suite should negotiate eth66 connection
-	eth65 = false // indicates whether suite should negotiate eth65 connection or below.
+	celo67 = true  // indicates whether suite should negotiate celo67 (eth66) connection
+	celo66 = false // indicates whether suite should negotiate celo66 (eth65) connection or below.
 )
 
 // TestStatus attempts to connect to the given node and exchange
@@ -143,10 +143,10 @@ func (s *Suite) TestStatus(t *utesting.T) {
 	}
 }
 
-// TestStatus66 attempts to connect to the given node and exchange
-// a status message with it on the eth66 protocol.
-func (s *Suite) TestStatus66(t *utesting.T) {
-	conn, err := s.dial66()
+// TestStatus67 attempts to connect to the given node and exchange
+// a status message with it on the celo67 (eth66) protocol.
+func (s *Suite) TestStatus67(t *utesting.T) {
+	conn, err := s.dial67()
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)
 	}
@@ -176,7 +176,7 @@ func (s *Suite) TestGetBlockHeaders(t *utesting.T) {
 		Skip:    1,
 		Reverse: false,
 	}
-	headers, err := conn.headersRequest(req, s.chain, eth65, 0)
+	headers, err := conn.headersRequest(req, s.chain, celo66, 0)
 	if err != nil {
 		t.Fatalf("GetBlockHeaders request failed: %v", err)
 	}
@@ -190,10 +190,10 @@ func (s *Suite) TestGetBlockHeaders(t *utesting.T) {
 	}
 }
 
-// TestGetBlockHeaders66 tests whether the given node can respond to
-// an eth66 `GetBlockHeaders` request and that the response is accurate.
-func (s *Suite) TestGetBlockHeaders66(t *utesting.T) {
-	conn, err := s.dial66()
+// TestGetBlockHeaders67 tests whether the given node can respond to
+// an celo67 (eth66) `GetBlockHeaders` request and that the response is accurate.
+func (s *Suite) TestGetBlockHeaders67(t *utesting.T) {
+	conn, err := s.dial67()
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)
 	}
@@ -210,7 +210,7 @@ func (s *Suite) TestGetBlockHeaders66(t *utesting.T) {
 		Skip:    1,
 		Reverse: false,
 	}
-	headers, err := conn.headersRequest(req, s.chain, eth66, 33)
+	headers, err := conn.headersRequest(req, s.chain, celo67, 33)
 	if err != nil {
 		t.Fatalf("could not get block headers: %v", err)
 	}
@@ -224,12 +224,12 @@ func (s *Suite) TestGetBlockHeaders66(t *utesting.T) {
 	}
 }
 
-// TestSimultaneousRequests66 sends two simultaneous `GetBlockHeader` requests from
+// TestSimultaneousRequests67 sends two simultaneous `GetBlockHeader` requests from
 // the same connection with different request IDs and checks to make sure the node
 // responds with the correct headers per request.
-func (s *Suite) TestSimultaneousRequests66(t *utesting.T) {
+func (s *Suite) TestSimultaneousRequests67(t *utesting.T) {
 	// create a connection
-	conn, err := s.dial66()
+	conn, err := s.dial67()
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)
 	}
@@ -261,11 +261,11 @@ func (s *Suite) TestSimultaneousRequests66(t *utesting.T) {
 		},
 	}
 	// write the first request
-	if err := conn.Write66(req1, GetBlockHeaders{}.Code()); err != nil {
+	if err := conn.Write67(req1, GetBlockHeaders{}.Code()); err != nil {
 		t.Fatalf("failed to write to connection: %v", err)
 	}
 	// write the second request
-	if err := conn.Write66(req2, GetBlockHeaders{}.Code()); err != nil {
+	if err := conn.Write67(req2, GetBlockHeaders{}.Code()); err != nil {
 		t.Fatalf("failed to write to connection: %v", err)
 	}
 	// wait for responses
@@ -296,10 +296,10 @@ func (s *Suite) TestSimultaneousRequests66(t *utesting.T) {
 	}
 }
 
-// TestSameRequestID66 sends two requests with the same request ID to a
+// TestSameRequestID_67 sends two requests with the same request ID to a
 // single node.
-func (s *Suite) TestSameRequestID66(t *utesting.T) {
-	conn, err := s.dial66()
+func (s *Suite) TestSameRequestID67(t *utesting.T) {
+	conn, err := s.dial67()
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)
 	}
@@ -328,10 +328,10 @@ func (s *Suite) TestSameRequestID66(t *utesting.T) {
 		},
 	}
 	// write the requests
-	if err = conn.Write66(request1, GetBlockHeaders{}.Code()); err != nil {
+	if err = conn.Write67(request1, GetBlockHeaders{}.Code()); err != nil {
 		t.Fatalf("failed to write to connection: %v", err)
 	}
-	if err = conn.Write66(request2, GetBlockHeaders{}.Code()); err != nil {
+	if err = conn.Write67(request2, GetBlockHeaders{}.Code()); err != nil {
 		t.Fatalf("failed to write to connection: %v", err)
 	}
 	// wait for responses
@@ -362,10 +362,10 @@ func (s *Suite) TestSameRequestID66(t *utesting.T) {
 	}
 }
 
-// TestZeroRequestID_66 checks that a message with a request ID of zero is still handled
+// TestZeroRequestID_67 checks that a message with a request ID of zero is still handled
 // by the node.
-func (s *Suite) TestZeroRequestID66(t *utesting.T) {
-	conn, err := s.dial66()
+func (s *Suite) TestZeroRequestID67(t *utesting.T) {
+	conn, err := s.dial67()
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)
 	}
@@ -379,7 +379,7 @@ func (s *Suite) TestZeroRequestID66(t *utesting.T) {
 		},
 		Amount: 2,
 	}
-	headers, err := conn.headersRequest(req, s.chain, eth66, 0)
+	headers, err := conn.headersRequest(req, s.chain, celo67, 0)
 	if err != nil {
 		t.Fatalf("failed to get block headers: %v", err)
 	}
@@ -424,11 +424,11 @@ func (s *Suite) TestGetBlockBodies(t *utesting.T) {
 	}
 }
 
-// TestGetBlockBodies66 tests whether the given node can respond to
+// TestGetBlockBodies67 tests whether the given node can respond to
 // a `GetBlockBodies` request and that the response is accurate over
-// the eth66 protocol.
-func (s *Suite) TestGetBlockBodies66(t *utesting.T) {
-	conn, err := s.dial66()
+// the celo67 (eth66) protocol.
+func (s *Suite) TestGetBlockBodies67(t *utesting.T) {
+	conn, err := s.dial67()
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)
 	}
@@ -444,7 +444,7 @@ func (s *Suite) TestGetBlockBodies66(t *utesting.T) {
 			s.chain.blocks[75].Hash(),
 		},
 	}
-	if err := conn.Write66(req, GetBlockBodies{}.Code()); err != nil {
+	if err := conn.Write67(req, GetBlockBodies{}.Code()); err != nil {
 		t.Fatalf("could not write to connection: %v", err)
 	}
 	// wait for block bodies response
@@ -463,15 +463,15 @@ func (s *Suite) TestGetBlockBodies66(t *utesting.T) {
 // TestBroadcast tests whether a block announcement is correctly
 // propagated to the given node's peer(s).
 func (s *Suite) TestBroadcast(t *utesting.T) {
-	if err := s.sendNextBlock(eth65); err != nil {
+	if err := s.sendNextBlock(celo66); err != nil {
 		t.Fatalf("block broadcast failed: %v", err)
 	}
 }
 
-// TestBroadcast66 tests whether a block announcement is correctly
-// propagated to the given node's peer(s) on the eth66 protocol.
-func (s *Suite) TestBroadcast66(t *utesting.T) {
-	if err := s.sendNextBlock(eth66); err != nil {
+// TestBroadcast67 tests whether a block announcement is correctly
+// propagated to the given node's peer(s) on the celo67 (eth66) protocol.
+func (s *Suite) TestBroadcast67(t *utesting.T) {
+	if err := s.sendNextBlock(celo67); err != nil {
 		t.Fatalf("block broadcast failed: %v", err)
 	}
 }
@@ -517,14 +517,14 @@ func (s *Suite) TestLargeAnnounce(t *utesting.T) {
 		conn.Close()
 	}
 	// Test the last block as a valid block
-	if err := s.sendNextBlock(eth65); err != nil {
+	if err := s.sendNextBlock(celo66); err != nil {
 		t.Fatalf("failed to broadcast next block: %v", err)
 	}
 }
 
-// TestLargeAnnounce66 tests the announcement mechanism with a large
-// block over the eth66 protocol.
-func (s *Suite) TestLargeAnnounce66(t *utesting.T) {
+// TestLargeAnnounce67 tests the announcement mechanism with a large
+// block over the celo67 (eth66) protocol.
+func (s *Suite) TestLargeAnnounce67(t *utesting.T) {
 	nextBlock := len(s.chain.blocks)
 	blocks := []*NewBlock{
 		{
@@ -543,7 +543,7 @@ func (s *Suite) TestLargeAnnounce66(t *utesting.T) {
 
 	for i, blockAnnouncement := range blocks[0:3] {
 		t.Logf("Testing malicious announcement: %v\n", i)
-		conn, err := s.dial66()
+		conn, err := s.dial67()
 		if err != nil {
 			t.Fatalf("dial failed: %v", err)
 		}
@@ -564,22 +564,22 @@ func (s *Suite) TestLargeAnnounce66(t *utesting.T) {
 		conn.Close()
 	}
 	// Test the last block as a valid block
-	if err := s.sendNextBlock(eth66); err != nil {
+	if err := s.sendNextBlock(celo67); err != nil {
 		t.Fatalf("failed to broadcast next block: %v", err)
 	}
 }
 
 // TestOldAnnounce tests the announcement mechanism with an old block.
 func (s *Suite) TestOldAnnounce(t *utesting.T) {
-	if err := s.oldAnnounce(eth65); err != nil {
+	if err := s.oldAnnounce(celo66); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// TestOldAnnounce66 tests the announcement mechanism with an old block,
-// over the eth66 protocol.
-func (s *Suite) TestOldAnnounce66(t *utesting.T) {
-	if err := s.oldAnnounce(eth66); err != nil {
+// TestOldAnnounce67 tests the announcement mechanism with an old block,
+// over the celo67 (eth66) protocol.
+func (s *Suite) TestOldAnnounce67(t *utesting.T) {
+	if err := s.oldAnnounce(celo67); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -587,29 +587,29 @@ func (s *Suite) TestOldAnnounce66(t *utesting.T) {
 // TestBlockHashAnnounce sends a new block hash announcement and expects
 // the node to perform a `GetBlockHeaders` request.
 func (s *Suite) TestBlockHashAnnounce(t *utesting.T) {
-	if err := s.hashAnnounce(eth65); err != nil {
+	if err := s.hashAnnounce(celo66); err != nil {
 		t.Fatalf("block hash announcement failed: %v", err)
 	}
 }
 
-// TestBlockHashAnnounce66 sends a new block hash announcement and expects
+// TestBlockHashAnnounce67 sends a new block hash announcement and expects
 // the node to perform a `GetBlockHeaders` request.
-func (s *Suite) TestBlockHashAnnounce66(t *utesting.T) {
-	if err := s.hashAnnounce(eth66); err != nil {
+func (s *Suite) TestBlockHashAnnounce67(t *utesting.T) {
+	if err := s.hashAnnounce(celo67); err != nil {
 		t.Fatalf("block hash announcement failed: %v", err)
 	}
 }
 
 // TestMaliciousHandshake tries to send malicious data during the handshake.
 func (s *Suite) TestMaliciousHandshake(t *utesting.T) {
-	if err := s.maliciousHandshakes(t, eth65); err != nil {
+	if err := s.maliciousHandshakes(t, celo66); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// TestMaliciousHandshake66 tries to send malicious data during the handshake.
-func (s *Suite) TestMaliciousHandshake66(t *utesting.T) {
-	if err := s.maliciousHandshakes(t, eth66); err != nil {
+// TestMaliciousHandshake67 tries to send malicious data during the handshake.
+func (s *Suite) TestMaliciousHandshake67(t *utesting.T) {
+	if err := s.maliciousHandshakes(t, celo67); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -627,10 +627,10 @@ func (s *Suite) TestMaliciousStatus(t *utesting.T) {
 	}
 }
 
-// TestMaliciousStatus66 sends a status package with a large total
-// difficulty over the eth66 protocol.
-func (s *Suite) TestMaliciousStatus66(t *utesting.T) {
-	conn, err := s.dial66()
+// TestMaliciousStatus67 sends a status package with a large total
+// difficulty over the celo67 (eth66) protocol.
+func (s *Suite) TestMaliciousStatus67(t *utesting.T) {
+	conn, err := s.dial67()
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)
 	}
@@ -644,15 +644,15 @@ func (s *Suite) TestMaliciousStatus66(t *utesting.T) {
 // TestTransaction sends a valid transaction to the node and
 // checks if the transaction gets propagated.
 func (s *Suite) TestTransaction(t *utesting.T) {
-	if err := s.sendSuccessfulTxs(t, eth65); err != nil {
+	if err := s.sendSuccessfulTxs(t, celo66); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// TestTransaction66 sends a valid transaction to the node and
+// TestTransaction67 sends a valid transaction to the node and
 // checks if the transaction gets propagated.
-func (s *Suite) TestTransaction66(t *utesting.T) {
-	if err := s.sendSuccessfulTxs(t, eth66); err != nil {
+func (s *Suite) TestTransaction67(t *utesting.T) {
+	if err := s.sendSuccessfulTxs(t, celo67); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -660,25 +660,25 @@ func (s *Suite) TestTransaction66(t *utesting.T) {
 // TestMaliciousTx sends several invalid transactions and tests whether
 // the node will propagate them.
 func (s *Suite) TestMaliciousTx(t *utesting.T) {
-	if err := s.sendMaliciousTxs(t, eth65); err != nil {
+	if err := s.sendMaliciousTxs(t, celo66); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// TestMaliciousTx66 sends several invalid transactions and tests whether
+// TestMaliciousTx67 sends several invalid transactions and tests whether
 // the node will propagate them.
-func (s *Suite) TestMaliciousTx66(t *utesting.T) {
-	if err := s.sendMaliciousTxs(t, eth66); err != nil {
+func (s *Suite) TestMaliciousTx67(t *utesting.T) {
+	if err := s.sendMaliciousTxs(t, celo67); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// TestLargeTxRequest66 tests whether a node can fulfill a large GetPooledTransactions
+// TestLargeTxRequest67 tests whether a node can fulfill a large GetPooledTransactions
 // request.
-func (s *Suite) TestLargeTxRequest66(t *utesting.T) {
+func (s *Suite) TestLargeTxRequest67(t *utesting.T) {
 	// send the next block to ensure the node is no longer syncing and
 	// is able to accept txs
-	if err := s.sendNextBlock(eth66); err != nil {
+	if err := s.sendNextBlock(celo67); err != nil {
 		t.Fatalf("failed to send next block: %v", err)
 	}
 	// send 2000 transactions to the node
@@ -691,7 +691,7 @@ func (s *Suite) TestLargeTxRequest66(t *utesting.T) {
 	}
 	// set up connection to receive to ensure node is peered with the receiving connection
 	// before tx request is sent
-	conn, err := s.dial66()
+	conn, err := s.dial67()
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)
 	}
@@ -708,7 +708,7 @@ func (s *Suite) TestLargeTxRequest66(t *utesting.T) {
 		RequestId:                   1234,
 		GetPooledTransactionsPacket: hashes,
 	}
-	if err = conn.Write66(getTxReq, GetPooledTransactions{}.Code()); err != nil {
+	if err = conn.Write67(getTxReq, GetPooledTransactions{}.Code()); err != nil {
 		t.Fatalf("could not write to conn: %v", err)
 	}
 	// check that all received transactions match those that were sent to node
@@ -724,12 +724,12 @@ func (s *Suite) TestLargeTxRequest66(t *utesting.T) {
 	}
 }
 
-// TestNewPooledTxs_66 tests whether a node will do a GetPooledTransactions
+// TestNewPooledTxs67 tests whether a node will do a GetPooledTransactions
 // request upon receiving a NewPooledTransactionHashes announcement.
-func (s *Suite) TestNewPooledTxs66(t *utesting.T) {
+func (s *Suite) TestNewPooledTxs67(t *utesting.T) {
 	// send the next block to ensure the node is no longer syncing and
 	// is able to accept txs
-	if err := s.sendNextBlock(eth66); err != nil {
+	if err := s.sendNextBlock(celo67); err != nil {
 		t.Fatalf("failed to send next block: %v", err)
 	}
 
@@ -747,7 +747,7 @@ func (s *Suite) TestNewPooledTxs66(t *utesting.T) {
 	announce := NewPooledTransactionHashes(hashes)
 
 	// send announcement
-	conn, err := s.dial66()
+	conn, err := s.dial67()
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)
 	}
@@ -761,7 +761,7 @@ func (s *Suite) TestNewPooledTxs66(t *utesting.T) {
 
 	// wait for GetPooledTxs request
 	for {
-		_, msg := conn.readAndServe66(s.chain, timeout)
+		_, msg := conn.readAndServe67(s.chain, timeout)
 		switch msg := msg.(type) {
 		case GetPooledTransactions:
 			if len(msg) != len(hashes) {
