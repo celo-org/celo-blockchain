@@ -106,22 +106,30 @@ func (c *core) verifyProposalPrepareOrCommitMessage(proposal istanbul.Proposal, 
 	return subject.View, nil
 }
 
+func (c *core) verifyPCV2WithProposal(pcV2 istanbul.PreparedCertificateV2, proposal istanbul.Proposal) (*istanbul.View, error) {
+	return c.verifyProposalAndPCMessages(proposal, pcV2.PrepareOrCommitMessages)
+}
+
 // Verify a prepared certificate and return the view that all of its messages pertain to.
 func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) (*istanbul.View, error) {
+	return c.verifyProposalAndPCMessages(preparedCertificate.Proposal, preparedCertificate.PrepareOrCommitMessages)
+}
+
+func (c *core) verifyProposalAndPCMessages(proposal istanbul.Proposal, pCMessages []istanbul.Message) (*istanbul.View, error) {
 	// Validate the attached proposal
-	if _, err := c.verifyProposal(preparedCertificate.Proposal); err != nil {
+	if _, err := c.verifyProposal(proposal); err != nil {
 		return nil, errInvalidPreparedCertificateProposal
 	}
 
-	if len(preparedCertificate.PrepareOrCommitMessages) > c.current.ValidatorSet().Size() || len(preparedCertificate.PrepareOrCommitMessages) < c.current.ValidatorSet().MinQuorumSize() {
+	if len(pCMessages) > c.current.ValidatorSet().Size() || len(pCMessages) < c.current.ValidatorSet().MinQuorumSize() {
 		return nil, errInvalidPreparedCertificateNumMsgs
 	}
 
 	seen := make(map[common.Address]bool)
 
 	var view *istanbul.View
-	for _, message := range preparedCertificate.PrepareOrCommitMessages {
-		messageView, err := c.verifyProposalPrepareOrCommitMessage(preparedCertificate.Proposal, message, seen)
+	for _, message := range pCMessages {
+		messageView, err := c.verifyProposalPrepareOrCommitMessage(proposal, message, seen)
 		if err != nil {
 			return nil, err
 		}
