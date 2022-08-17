@@ -20,11 +20,12 @@ func (pp *PreprepareV2) EncodeRLP(w io.Writer) error {
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
 func (rcc *PreprepareV2) DecodeRLP(s *rlp.Stream) error {
-	var decodable PreprepareV2
-	if err := s.Decode(&decodable); err != nil {
+	type decodable PreprepareV2
+	var d decodable
+	if err := s.Decode(&d); err != nil {
 		return err
 	}
-	*rcc = PreprepareV2(decodable)
+	*rcc = PreprepareV2(d)
 	return nil
 }
 
@@ -44,11 +45,12 @@ func (pc *PreparedCertificateV2) EncodeRLP(w io.Writer) error {
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
 func (pc *PreparedCertificateV2) DecodeRLP(s *rlp.Stream) error {
-	var decodable PreparedCertificateV2
-	if err := s.Decode(&decodable); err != nil {
+	type decodable PreparedCertificateV2
+	var d decodable
+	if err := s.Decode(&d); err != nil {
 		return err
 	}
-	*pc = PreparedCertificateV2(decodable)
+	*pc = PreparedCertificateV2(d)
 	return nil
 }
 
@@ -68,11 +70,12 @@ func (rcr *RoundChangeRequest) EncodeRLP(w io.Writer) error {
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
 func (rcr *RoundChangeRequest) DecodeRLP(s *rlp.Stream) error {
-	var decodable RoundChangeRequest
-	if err := s.Decode(&decodable); err != nil {
+	type decodable RoundChangeRequest
+	var d decodable
+	if err := s.Decode(&d); err != nil {
 		return err
 	}
-	*rcr = RoundChangeRequest(decodable)
+	*rcr = RoundChangeRequest(d)
 	return nil
 }
 
@@ -100,11 +103,12 @@ func (rc *RoundChangeV2) EncodeRLP(w io.Writer) error {
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
 func (rc *RoundChangeV2) DecodeRLP(s *rlp.Stream) error {
-	var decodable RoundChangeV2
-	if err := s.Decode(&decodable); err != nil {
+	type decodable RoundChangeV2
+	var d decodable
+	if err := s.Decode(&d); err != nil {
 		return err
 	}
-	*rc = RoundChangeV2(decodable)
+	*rc = RoundChangeV2(d)
 	return nil
 }
 
@@ -138,10 +142,11 @@ func (rcc *RoundChangeCertificateV2) EncodeRLP(w io.Writer) error {
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
 func (rcc *RoundChangeCertificateV2) DecodeRLP(s *rlp.Stream) error {
-	var decodable RoundChangeCertificateV2
-	if err := s.Decode(&decodable); err != nil {
+	type decodable RoundChangeCertificateV2
+	var d decodable
+	if err := s.Decode(&d); err != nil {
 		return err
 	}
-	*rcc = RoundChangeCertificateV2(decodable)
+	*rcc = RoundChangeCertificateV2(d)
 	return nil
 }
