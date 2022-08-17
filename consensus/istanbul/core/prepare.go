@@ -31,10 +31,83 @@ func (c *core) sendPrepare() {
 	c.broadcast(istanbul.NewPrepareMessage(c.current.Subject(), c.address))
 }
 
+func (c *core) verifySignedPrepareOrCommitMessage(message istanbul.Message, seen map[common.Address]bool) (*common.Address, error) {
+	data, err := message.PayloadNoSig()
+	if err != nil {
+		return nil, err
+	}
+	// Verify message signed by a validator
+	signer, err := c.validateFn(data, message.Signature)
+	if err != nil {
+		return nil, err
+	}
+
+	if signer != message.Address {
+		return nil, errInvalidPreparedCertificateMsgSignature
+	}
+
+	// Check for duplicate messages
+	if seen[signer] {
+		return nil, errInvalidPreparedCertificateDuplicate
+	}
+	seen[signer] = true
+
+	// Check that the message is a PREPARE or COMMIT message
+	if message.Code != istanbul.MsgPrepare && message.Code != istanbul.MsgCommit {
+		return nil, errInvalidPreparedCertificateMsgCode
+	}
+	return &signer, nil
+}
+
+func (c *core) verifyProposalPrepareOrCommitMessage(proposal istanbul.Proposal, message istanbul.Message, seen map[common.Address]bool) (*istanbul.View, error) {
+	logger := c.newLogger("func", "verifyProposalPrepareOrCommitMessage", "proposal_number", proposal.Number(), "proposal_hash", proposal.Hash().String())
+	signer, err := c.verifySignedPrepareOrCommitMessage(message, seen)
+	if err != nil {
+		return nil, err
+	}
+	// Assume prepare but overwrite if commit
+	subject := message.Prepare()
+	if message.Code == istanbul.MsgCommit {
+		commit := message.Commit()
+		// Verify the committedSeal
+		src := c.current.GetValidatorByAddress(*signer)
+		err = c.verifyCommittedSeal(commit, src)
+		if err != nil {
+			logger.Error("Commit seal did not contain signature from message signer.", "err", err)
+			return nil, err
+		}
+
+		newValSet, err := c.backend.NextBlockValidators(proposal)
+		if err != nil {
+			return nil, err
+		}
+		err = c.verifyEpochValidatorSetSeal(commit, proposal.Number().Uint64(), newValSet, src)
+		if err != nil {
+			logger.Error("Epoch validator set seal seal did not contain signature from message signer.", "err", err)
+			return nil, err
+		}
+
+		subject = commit.Subject
+	}
+
+	msgLogger := logger.New("msg_round", subject.View.Round, "msg_seq", subject.View.Sequence, "msg_digest", subject.Digest.String())
+	msgLogger.Trace("Decoded message in prepared certificate", "code", message.Code)
+
+	// Verify message for the proper sequence.
+	if subject.View.Sequence.Cmp(c.current.Sequence()) != 0 {
+		return nil, errInvalidPreparedCertificateMsgView
+	}
+
+	// Verify message for the proper proposal.
+	if subject.Digest != proposal.Hash() {
+		return nil, errInvalidPreparedCertificateDigestMismatch
+	}
+
+	return subject.View, nil
+}
+
 // Verify a prepared certificate and return the view that all of its messages pertain to.
 func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) (*istanbul.View, error) {
-	logger := c.newLogger("func", "verifyPreparedCertificate", "proposal_number", preparedCertificate.Proposal.Number(), "proposal_hash", preparedCertificate.Proposal.Hash().String())
-
 	// Validate the attached proposal
 	if _, err := c.verifyProposal(preparedCertificate.Proposal); err != nil {
 		return nil, errInvalidPreparedCertificateProposal
@@ -48,74 +121,15 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 
 	var view *istanbul.View
 	for _, message := range preparedCertificate.PrepareOrCommitMessages {
-		data, err := message.PayloadNoSig()
+		messageView, err := c.verifyProposalPrepareOrCommitMessage(preparedCertificate.Proposal, message, seen)
 		if err != nil {
 			return nil, err
 		}
-		// Verify message signed by a validator
-		signer, err := c.validateFn(data, message.Signature)
-		if err != nil {
-			return nil, err
-		}
-
-		if signer != message.Address {
-			return nil, errInvalidPreparedCertificateMsgSignature
-		}
-
-		// Check for duplicate messages
-		if seen[signer] {
-			return nil, errInvalidPreparedCertificateDuplicate
-		}
-		seen[signer] = true
-
-		// Check that the message is a PREPARE or COMMIT message
-		if message.Code != istanbul.MsgPrepare && message.Code != istanbul.MsgCommit {
-			return nil, errInvalidPreparedCertificateMsgCode
-		}
-
-		// Assume prepare but overwrite if commit
-		subject := message.Prepare()
-		if message.Code == istanbul.MsgCommit {
-			commit := message.Commit()
-			// Verify the committedSeal
-			src := c.current.GetValidatorByAddress(signer)
-			err = c.verifyCommittedSeal(commit, src)
-			if err != nil {
-				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
-				return nil, err
-			}
-
-			newValSet, err := c.backend.NextBlockValidators(preparedCertificate.Proposal)
-			if err != nil {
-				return nil, err
-			}
-			err = c.verifyEpochValidatorSetSeal(commit, preparedCertificate.Proposal.Number().Uint64(), newValSet, src)
-			if err != nil {
-				logger.Error("Epoch validator set seal seal did not contain signature from message signer.", "err", err)
-				return nil, err
-			}
-
-			subject = commit.Subject
-		}
-
-		msgLogger := logger.New("msg_round", subject.View.Round, "msg_seq", subject.View.Sequence, "msg_digest", subject.Digest.String())
-		msgLogger.Trace("Decoded message in prepared certificate", "code", message.Code)
-
-		// Verify message for the proper sequence.
-		if subject.View.Sequence.Cmp(c.current.Sequence()) != 0 {
-			return nil, errInvalidPreparedCertificateMsgView
-		}
-
-		// Verify message for the proper proposal.
-		if subject.Digest != preparedCertificate.Proposal.Hash() {
-			return nil, errInvalidPreparedCertificateDigestMismatch
-		}
-
 		// Verify that the view is the same for all of the messages
 		if view == nil {
-			view = subject.View
+			view = messageView
 		} else {
-			if view.Cmp(subject.View) != 0 {
+			if view.Cmp(messageView) != 0 {
 				return nil, errInvalidPreparedCertificateInconsistentViews
 			}
 		}
