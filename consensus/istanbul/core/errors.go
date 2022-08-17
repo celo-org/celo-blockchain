@@ -51,6 +51,8 @@ var (
 	errInvalidRoundChangeViewMismatch = errors.New("View for PREPARED certificate is greater than the view in the round change message")
 	// errInvalidPreparedCertificateInconsistentViews is returned when the PREPARED certificate view is inconsistent among it's messages
 	errInvalidPreparedCertificateInconsistentViews = errors.New("View is inconsistent among the PREPARED certificate messages")
+	// errProposalHashMismatch is returned when the proposal hash of a round change prepared certificate does not match the proposal's hash.
+	errProposalHashMismatch = errors.New("Proposal hash mismatch in round change message")
 
 	// errInvalidRoundChangeCertificateNumMsgs is returned when the ROUND CHANGE certificate has an incorrect number of ROUND CHANGE messages.
 	errInvalidRoundChangeCertificateNumMsgs = errors.New("invalid number of ROUND CHANGE messages in certificate")

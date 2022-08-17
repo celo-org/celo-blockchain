@@ -131,7 +131,8 @@ type core struct {
 	currentMu sync.RWMutex
 	handlerWg *sync.WaitGroup
 
-	roundChangeSet *roundChangeSet
+	roundChangeSet   *roundChangeSet
+	roundChangeSetV2 *roundChangeSetV2
 
 	pendingRequests   *prque.Prque
 	pendingRequestsMu *sync.Mutex
@@ -572,6 +573,7 @@ func (c *core) startNewSequence() error {
 	}
 	valSet := c.backend.Validators(headBlock)
 	c.roundChangeSet = newRoundChangeSet(valSet)
+	c.roundChangeSetV2 = newRoundChangeSetV2(valSet)
 
 	// Inform the backend that a new sequence has started & bail if the backed stopped the core
 	if primary := c.backend.IsPrimaryForSeq(newView.Sequence); !primary {

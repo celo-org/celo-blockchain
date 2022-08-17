@@ -630,6 +630,7 @@ const (
 	MsgPrepare
 	MsgCommit
 	MsgRoundChange
+	MsgRoundChangeV2
 )
 
 // Message is a wrapper used for all istanbul communication. It encapsulates
@@ -657,6 +658,7 @@ type Message struct {
 	prePrepare          *Preprepare
 	prepare             *Subject
 	roundChange         *RoundChange
+	roundChangeV2       *RoundChangeV2
 	queryEnode          *QueryEnodeData
 	forwardMessage      *ForwardMessage
 	enodeCertificate    *EnodeCertificate
@@ -710,6 +712,13 @@ func (m *Message) DecodeMessage() error {
 			return err
 		}
 		m.roundChange = p
+	case MsgRoundChangeV2:
+		var p *RoundChangeV2
+		err = m.decode(&p)
+		if err != nil {
+			return err
+		}
+		m.roundChangeV2 = p
 	case QueryEnodeMsg:
 		var q *QueryEnodeData
 		err = m.decode(&q)
@@ -835,6 +844,11 @@ func (m *Message) TryRoundChange() (*RoundChange, error) {
 // Prepare returns round change if this is a round change message.
 func (m *Message) RoundChange() *RoundChange {
 	return m.roundChange
+}
+
+// Prepare returns round change if this is a round change message.
+func (m *Message) RoundChangeV2() *RoundChangeV2 {
+	return m.roundChangeV2
 }
 
 // QueryEnode returns query enode data if this is a query enode message.
