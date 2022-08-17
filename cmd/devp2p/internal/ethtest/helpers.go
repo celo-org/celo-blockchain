@@ -83,7 +83,7 @@ func (s *Suite) dial() (*Conn, error) {
 	return &conn, nil
 }
 
-// dial66 attempts to dial the given node and perform a handshake,
+// dial67 attempts to dial the given node and perform a handshake,
 // returning the created Conn with additional celo67 (eth66) capabilities if
 // successful
 func (s *Suite) dial67() (*Conn, error) {
