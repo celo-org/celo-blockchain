@@ -705,14 +705,21 @@ func (r *receiptLogs) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
+func isBlockReceipt(receipt *receiptLogs) bool {
+	return len(receipt.Logs) > 0 && receipt.Logs[0].TxHash == receipt.Logs[0].BlockHash
+}
+
 // DeriveLogFields fills the logs in receiptLogs with information such as block number, txhash, etc.
 func deriveLogFields(receipts []*receiptLogs, hash common.Hash, number uint64, txs types.Transactions) error {
 	logIndex := uint(0)
-	// The receipts may include an additional "block finalization" receipt (only IBFT)
-	if !(len(txs) == len(receipts) || len(txs)+1 == len(receipts)) {
-		return errors.New("transaction and receipt count mismatch")
+	if len(txs) != len(receipts) {
+		// The receipts may include an additional "block finalization" receipt (only IBFT)
+		if len(txs)+1 != len(receipts) || !isBlockReceipt(receipts[len(receipts)-1]) {
+			return errors.New("transaction and receipt count mismatch")
+		}
 	}
-	// len(r) is not always strictly equal to len(txs) because of the block finalization receipt (IBFT)
+	// len(receipts) is not always strictly equal to len(txs) because of the block finalization receipt (IBFT)
+	// which is always the last receipt
 	for i := 0; i < len(txs); i++ {
 		txHash := txs[i].Hash()
 		// The derived log fields can simply be set from the block and transaction
