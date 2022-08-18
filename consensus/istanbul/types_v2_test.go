@@ -1,6 +1,7 @@
 package istanbul
 
 import (
+	"math/big"
 	"reflect"
 	"testing"
 
@@ -63,6 +64,51 @@ func TestRoundChangeCertificateV2RLPEncoding(t *testing.T) {
 
 	if !reflect.DeepEqual(o1.PreparedCertificateV2, r1.PreparedCertificateV2) {
 		t.Fatalf("RLP Encode/Decode mismatch at first PreparedCertificateV2")
+	}
+
+	if !reflect.DeepEqual(original, result) {
+		t.Fatalf("RLP Encode/Decode mismatch. Got %v, expected %v", result, original)
+	}
+}
+
+func TestRoundChangeRequestRLPEncoding(t *testing.T) {
+	var result, original *RoundChangeRequest
+	original = &RoundChangeRequest{
+		Address: common.BigToAddress(big.NewInt(3)),
+		View: View{
+			Round:    common.Big1,
+			Sequence: common.Big256,
+		},
+		PreparedCertificateV2: PreparedCertificateV2{
+			PrepareOrCommitMessages: []Message{},
+		},
+		Signature: []byte{3, 2},
+	}
+
+	rawVal, err := rlp.EncodeToBytes(original)
+	if err != nil {
+		t.Fatalf("Error %v", err)
+	}
+
+	if err = rlp.DecodeBytes(rawVal, &result); err != nil {
+		t.Fatalf("Error %v", err)
+	}
+	o1 := original
+	r1 := result
+	if !reflect.DeepEqual(o1.Address, r1.Address) {
+		t.Fatalf("RLP Encode/Decode mismatch at first Address")
+	}
+
+	if !reflect.DeepEqual(o1.Signature, r1.Signature) {
+		t.Fatalf("RLP Encode/Decode mismatch at first Signature")
+	}
+
+	if !reflect.DeepEqual(o1.View, r1.View) {
+		t.Fatalf("RLP Encode/Decode mismatch at first View")
+	}
+
+	if !reflect.DeepEqual(o1.PreparedCertificateV2, r1.PreparedCertificateV2) {
+		t.Fatalf("RLP Encode/Decode mismatch at first PreparedCertificateV2. Got %v, expected %v", result, original)
 	}
 
 	if !reflect.DeepEqual(original, result) {
