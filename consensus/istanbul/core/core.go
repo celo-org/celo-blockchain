@@ -462,7 +462,7 @@ func GetAggregatedEpochValidatorSetSeal(blockNumber, epoch uint64, seals Message
 	return types.IstanbulEpochValidatorSetSeal{Bitmap: bitmap, Signature: asig}, nil
 }
 
-// Generates the next preprepare request and associated round change certificate
+// getPreprepareWithRoundChangeCertificate Generates the next preprepare request and associated round change certificate
 func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbul.Request, istanbul.RoundChangeCertificate, error) {
 	logger := c.newLogger("func", "getPreprepareWithRoundChangeCertificate", "for_round", round)
 
@@ -498,6 +498,35 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 	return request, roundChangeCertificate, nil
 }
 
+// getPreprepareWithRoundChangeCertificateV2 Generates the next preprepare request and associated round change certificate
+func (c *core) getPreprepareWithRoundChangeCertificateV2(round *big.Int) (*istanbul.Request, istanbul.RoundChangeCertificateV2, error) {
+	logger := c.newLogger("func", "getPreprepareWithRoundChangeCertificate", "for_round", round)
+
+	roundChangeCertificateV2, proposals, err := c.roundChangeSetV2.getCertificate(round, c.current.ValidatorSet().MinQuorumSize())
+	if err != nil {
+		return &istanbul.Request{}, istanbul.RoundChangeCertificateV2{}, err
+	}
+	// Start with pending request
+	request := c.current.PendingRequest()
+	// Search for a valid request in round change messages.
+	// The proposal must come from the prepared certificate with the highest round number.
+	// All prepared certificates from the same round are assumed to be the same proposal or no proposal (guaranteed by quorum intersection)
+	maxPC := roundChangeCertificateV2.HighestRoundPreparedCertificate()
+	if maxPC == nil {
+		return request, roundChangeCertificateV2, nil
+	}
+
+	if proposal, ok := proposals[maxPC.ProposalHash]; ok {
+		return &istanbul.Request{
+			Proposal: proposal,
+		}, roundChangeCertificateV2, nil
+	} else {
+		logger.Error("Proposal not found from roundChangeSetV2.getCertificate")
+	}
+
+	return request, roundChangeCertificateV2, nil
+}
+
 // startNewRound starts a new round with the desired round
 func (c *core) startNewRound(round *big.Int) error {
 	logger := c.newLogger("func", "startNewRound", "tag", "stateTransition")
@@ -517,10 +546,21 @@ func (c *core) startNewRound(round *big.Int) error {
 	}
 
 	var err error
-	request, roundChangeCertificate, err := c.getPreprepareWithRoundChangeCertificate(round)
-	if err != nil {
-		logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
-		return nil
+	var request *istanbul.Request
+	var roundChangeCertificate istanbul.RoundChangeCertificate
+	var roundChangeCertificateV2 istanbul.RoundChangeCertificateV2
+	if c.isConsensusFork(newView.Sequence) {
+		request, roundChangeCertificateV2, err = c.getPreprepareWithRoundChangeCertificateV2(round)
+		if err != nil {
+			logger.Error("Unable to produce round change certificate v2", "err", err, "new_round", round)
+			return nil
+		}
+	} else {
+		request, roundChangeCertificate, err = c.getPreprepareWithRoundChangeCertificate(round)
+		if err != nil {
+			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
+			return nil
+		}
 	}
 
 	// Calculate new proposer
@@ -538,7 +578,11 @@ func (c *core) startNewRound(round *big.Int) error {
 	c.backlog.updateState(c.current.View(), c.current.State())
 
 	if c.isProposer() && request != nil {
-		c.sendPreprepare(request, roundChangeCertificate)
+		if c.isConsensusFork(newView.Sequence) {
+			c.sendPreprepareV2(request, roundChangeCertificateV2)
+		} else {
+			c.sendPreprepare(request, roundChangeCertificate)
+		}
 	}
 	c.resetRoundChangeTimer()
 

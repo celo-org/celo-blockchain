@@ -180,9 +180,13 @@ func (rcs *roundChangeSetV2) String() string {
 
 // Gets a round change certificate for a specific round. Includes quorumSize messages of that round or later.
 // If the total is less than quorumSize, returns an empty cert and errFailedCreateRoundChangeCertificate.
-func (rcs *roundChangeSetV2) getCertificate(minRound *big.Int, quorumSize int) (istanbul.RoundChangeCertificateV2, error) {
+func (rcs *roundChangeSetV2) getCertificate(minRound *big.Int,
+	quorumSize int) (istanbul.RoundChangeCertificateV2, map[common.Hash]istanbul.Proposal, error) {
+
 	rcs.mu.Lock()
 	defer rcs.mu.Unlock()
+
+	proposals := make(map[common.Hash]istanbul.Proposal)
 
 	// Sort rounds descending
 	var sortedRounds []uint64
@@ -197,17 +201,26 @@ func (rcs *roundChangeSetV2) getCertificate(minRound *big.Int, quorumSize int) (
 			break
 		}
 		for _, message := range rcs.msgsForRound[r].Values() {
-			requests = append(requests, message.RoundChangeV2().Request)
-
+			rv2 := message.RoundChangeV2()
+			if rv2.Request.HasPreparedCertificate() {
+				if rv2.Request.PreparedCertificateV2.ProposalHash != rv2.PreparedProposal.Hash() {
+					// This should never happen, since it should have been checked when
+					// received in handleRoundChangeV2
+					// Still, makes sense as an extra sanity check.
+					return istanbul.RoundChangeCertificateV2{}, nil, errRoundChangeProposalHashMismatch
+				}
+				proposals[rv2.Request.PreparedCertificateV2.ProposalHash] = rv2.PreparedProposal
+			}
+			requests = append(requests, rv2.Request)
 			// Stop when we've added a quorum of the highest-round messages.
 			if len(requests) >= quorumSize {
 				return istanbul.RoundChangeCertificateV2{
 					Requests: requests,
-				}, nil
+				}, proposals, nil
 			}
 		}
 	}
 
 	// Didn't find a quorum of messages. Return an empty certificate with error.
-	return istanbul.RoundChangeCertificateV2{}, errFailedCreateRoundChangeCertificate
+	return istanbul.RoundChangeCertificateV2{}, nil, errFailedCreateRoundChangeCertificate
 }
