@@ -511,11 +511,10 @@ func (c *core) getPreprepareWithRoundChangeCertificateV2(round *big.Int) (*istan
 	// Search for a valid request in round change messages.
 	// The proposal must come from the prepared certificate with the highest round number.
 	// All prepared certificates from the same round are assumed to be the same proposal or no proposal (guaranteed by quorum intersection)
-	maxPC := roundChangeCertificateV2.HighestRoundPreparedCertificate()
+	maxPC, _ := roundChangeCertificateV2.HighestRoundPreparedCertificate()
 	if maxPC == nil {
 		return request, roundChangeCertificateV2, nil
 	}
-
 	if proposal, ok := proposals[maxPC.ProposalHash]; ok {
 		return &istanbul.Request{
 			Proposal: proposal,
@@ -523,7 +522,6 @@ func (c *core) getPreprepareWithRoundChangeCertificateV2(round *big.Int) (*istan
 	} else {
 		logger.Error("Proposal not found from roundChangeSetV2.getCertificate")
 	}
-
 	return request, roundChangeCertificateV2, nil
 }
 
@@ -545,30 +543,32 @@ func (c *core) startNewRound(round *big.Int) error {
 		Round:    new(big.Int).Set(round),
 	}
 
-	var err error
-	var request *istanbul.Request
-	var roundChangeCertificate istanbul.RoundChangeCertificate
-	var roundChangeCertificateV2 istanbul.RoundChangeCertificateV2
-	if c.isConsensusFork(newView.Sequence) {
-		request, roundChangeCertificateV2, err = c.getPreprepareWithRoundChangeCertificateV2(round)
-		if err != nil {
-			logger.Error("Unable to produce round change certificate v2", "err", err, "new_round", round)
-			return nil
-		}
-	} else {
-		request, roundChangeCertificate, err = c.getPreprepareWithRoundChangeCertificate(round)
-		if err != nil {
-			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
-			return nil
-		}
-	}
-
 	// Calculate new proposer
 	prevProposer := c.current.Proposer()
 	prevBlock := c.current.Sequence().Uint64() - 1
 	blockAuthor := c.backend.AuthorForBlock(prevBlock)
 	valSet := c.current.ValidatorSet()
 	nextProposer := c.selectProposer(valSet, blockAuthor, newView.Round.Uint64())
+
+	var err error
+	var request *istanbul.Request
+	var roundChangeCertificate istanbul.RoundChangeCertificate
+	var roundChangeCertificateV2 istanbul.RoundChangeCertificateV2
+	if c.address == nextProposer.Address() {
+		if c.isConsensusFork(newView.Sequence) {
+			request, roundChangeCertificateV2, err = c.getPreprepareWithRoundChangeCertificateV2(round)
+			if err != nil {
+				logger.Error("Unable to produce round change certificate v2", "err", err, "new_round", round)
+				return nil
+			}
+		} else {
+			request, roundChangeCertificate, err = c.getPreprepareWithRoundChangeCertificate(round)
+			if err != nil {
+				logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
+				return nil
+			}
+		}
+	}
 
 	// Update the roundstate db
 	c.current.StartNewRound(round, valSet, nextProposer)

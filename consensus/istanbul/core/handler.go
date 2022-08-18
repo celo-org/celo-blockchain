@@ -201,6 +201,8 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	switch msg.Code {
 	case istanbul.MsgPreprepare:
 		return catchFutureMessages(c.handlePreprepare(msg))
+	case istanbul.MsgPreprepareV2:
+		return catchFutureMessages(c.handlePreprepareV2(msg))
 	case istanbul.MsgPrepare:
 		return catchFutureMessages(c.handlePrepare(msg))
 	case istanbul.MsgCommit:
