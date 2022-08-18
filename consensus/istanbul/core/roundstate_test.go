@@ -23,7 +23,7 @@ func TestRoundStateRLPEncoding(t *testing.T) {
 			{Address: common.HexToAddress("4"), BLSPublicKey: blscrypto.SerializedPublicKey{3, 1, 4}},
 		})
 		view := &istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(2)}
-		return newRoundState(view, valSet, valSet.GetByIndex(0))
+		return newRoundState(view, valSet, valSet.GetByIndex(0), false)
 	}
 
 	t.Run("With nil fields", func(t *testing.T) {
@@ -105,7 +105,7 @@ func TestRoundStateSummary(t *testing.T) {
 		}
 		valSet := validator.NewSet(valData)
 
-		rs := newRoundState(view, valSet, valSet.GetByIndex(0))
+		rs := newRoundState(view, valSet, valSet.GetByIndex(0), false)
 
 		// Add a few prepares
 		rs.AddPrepare(&istanbul.Message{
