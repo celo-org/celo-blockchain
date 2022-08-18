@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/les/downloader"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
