@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
 
@@ -67,12 +68,18 @@ func (pp *PreprepareV2) EncodeRLP(w io.Writer) error {
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
 func (pp *PreprepareV2) DecodeRLP(s *rlp.Stream) error {
-	type decodable PreprepareV2
-	var d decodable
-	if err := s.Decode(&d); err != nil {
+	var prep2 struct {
+		View                     *View
+		Proposal                 *types.Block
+		RoundChangeCertificateV2 RoundChangeCertificateV2
+	}
+
+	if err := s.Decode(&prep2); err != nil {
 		return err
 	}
-	*pp = PreprepareV2(d)
+	pp.View = prep2.View
+	pp.RoundChangeCertificateV2 = prep2.RoundChangeCertificateV2
+	pp.Proposal = prep2.Proposal
 	return nil
 }
 
