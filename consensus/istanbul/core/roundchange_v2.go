@@ -89,6 +89,69 @@ func (c *core) buildSignedRoundChangeMsgV2(round *big.Int) (*istanbul.Message, e
 	return istanbul.NewRoundChangeV2Message(roundChangeV2, c.address), nil
 }
 
+func (c *core) handleRoundChangeCertificateV2(proposal istanbul.Subject, roundChangeCertificateV2 istanbul.RoundChangeCertificateV2, actualProposal istanbul.Proposal) error {
+	logger := c.newLogger("func", "handleRoundChangeCertificateV2", "proposal_round", proposal.View.Round, "proposal_seq", proposal.View.Sequence, "proposal_digest", proposal.Digest.String())
+
+	if len(roundChangeCertificateV2.Requests) > c.current.ValidatorSet().Size() || len(roundChangeCertificateV2.Requests) < c.current.ValidatorSet().MinQuorumSize() {
+		return errInvalidRoundChangeCertificateNumMsgs
+	}
+
+	seen := make(map[common.Address]bool)
+	for i := range roundChangeCertificateV2.Requests {
+		// use a different variable each time since we'll store a pointer to the variable
+		request := roundChangeCertificateV2.Requests[i]
+
+		// Verify message signed by a validator
+		if err := istanbul.CheckSignedBy(&request, request.Signature,
+			request.Address, errInvalidRoundChangeCertificateMsgSignature, c.validateFn); err != nil {
+			return err
+		}
+
+		// Check for duplicate ROUND CHANGE messages
+		if seen[request.Address] {
+			return errInvalidRoundChangeCertificateDuplicate
+		}
+		seen[request.Address] = true
+
+		if request.View.Sequence == nil || request.View.Round == nil {
+			return errInvalidRoundChangeCertificateMsgView
+		}
+
+		msgLogger := logger.New("msg_round", request.View.Round, "msg_seq", request.View.Sequence)
+
+		// Verify ROUND CHANGE message is for the same sequence AND an equal or subsequent round as the proposal.
+		// We have already called checkMessage by this point and checked the proposal's and PREPREPARE's sequence match.
+		if request.View.Sequence.Cmp(proposal.View.Sequence) != 0 || request.View.Round.Cmp(proposal.View.Round) < 0 {
+			msgLogger.Error("Round change request in certificate for a different sequence or an earlier round")
+			return errInvalidRoundChangeCertificateMsgView
+		}
+	}
+	pc, _ := roundChangeCertificateV2.HighestRoundPreparedCertificate()
+	if pc != nil {
+		if pc.ProposalHash != proposal.Digest {
+			return errInvalidPreparedCertificateDigestMismatch
+		}
+		preparedView, err := c.verifyPCV2WithProposal(*pc, actualProposal)
+		if err != nil {
+			return err
+		}
+		// We must use the proposal in the prepared certificate with the highest round number. (See OSDI 99, Section 4.4)
+		// Older prepared certificates may be generated, but if no node committed, there is no guarantee that
+		// it will be the next pre-prepare. If one node committed, that block is guaranteed (by quorum intersection)
+		// to be the next pre-prepare. That (higher view) prepared cert should override older perpared certs for
+		// blocks that were not committed.
+		// Also reject round change messages where the prepared view is greater than the round change view.
+		if preparedView == nil || preparedView.Round.Cmp(proposal.View.Round) > 0 {
+			return errInvalidRoundChangeViewMismatch
+		}
+	}
+
+	// May have already moved to this round based on quorum round change messages.
+	logger.Trace("Trying to move to round change certificate's round", "target round", proposal.View.Round)
+
+	return c.startNewRound(proposal.View.Round)
+}
+
 func (c *core) handleRoundChangeV2(msg *istanbul.Message) error {
 	logger := c.newLogger("func", "handleRoundChangeV2", "tag", "handleMsg", "from", msg.Address)
 
@@ -112,7 +175,7 @@ func (c *core) handleRoundChangeV2(msg *istanbul.Message) error {
 	logger = logger.New("msg_round", rc.Request.View.Round, "msg_seq", rc.Request.View.Sequence)
 
 	// Must be same sequence and future round.
-	err := c.checkMessage(istanbul.MsgRoundChange, &rc.Request.View)
+	err := c.checkMessage(istanbul.MsgRoundChangeV2, &rc.Request.View)
 
 	// If the RC message is for the current sequence but a prior round, help the sender fast forward
 	// by sending back to it (not broadcasting) a round change message for our desired round.
