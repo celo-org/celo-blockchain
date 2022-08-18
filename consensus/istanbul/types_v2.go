@@ -214,9 +214,6 @@ func (rc *RoundChangeV2) HasPreparedCertificate() bool {
 }
 
 func (rc *RoundChangeV2) ProposalMatch() bool {
-	if !rc.HasPreparedCertificate() {
-		return rc.PreparedProposal == nil && len(rc.Request.PreparedCertificateV2.ProposalHash) == 0
-	}
 	return rc.PreparedProposal.Hash() == rc.Request.PreparedCertificateV2.ProposalHash
 }
 
