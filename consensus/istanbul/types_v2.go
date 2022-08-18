@@ -2,6 +2,7 @@ package istanbul
 
 import (
 	"io"
+	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/rlp"
@@ -73,6 +74,10 @@ func (pp *PreprepareV2) DecodeRLP(s *rlp.Stream) error {
 	}
 	*pp = PreprepareV2(d)
 	return nil
+}
+
+func (pp *PreprepareV2) HasRoundChangeCertificateV2() bool {
+	return !pp.RoundChangeCertificateV2.IsEmpty()
 }
 
 func (pp *PreprepareV2) Summary() *PreprepareSummary {
@@ -214,9 +219,13 @@ type RoundChangeCertificateV2 struct {
 	Requests []RoundChangeRequest
 }
 
-func (rcc *RoundChangeCertificateV2) HighestRoundPreparedCertificate() *PreparedCertificateV2 {
+func (rcc *RoundChangeCertificateV2) IsEmpty() bool {
+	return len(rcc.Requests) == 0
+}
+
+func (rcc *RoundChangeCertificateV2) HighestRoundPreparedCertificate() (*PreparedCertificateV2, *big.Int) {
 	var hrpc *PreparedCertificateV2
-	var maxRound int64 = -1
+	var maxRound *big.Int = big.NewInt(-1)
 	for _, req := range rcc.Requests {
 		if !req.HasPreparedCertificate() {
 			continue
@@ -224,13 +233,13 @@ func (rcc *RoundChangeCertificateV2) HighestRoundPreparedCertificate() *Prepared
 		if req.View.Round == nil {
 			continue
 		}
-		round := req.View.Round.Int64()
-		if hrpc == nil || round > maxRound {
+		round := req.View.Round
+		if hrpc == nil || round.Cmp(maxRound) > 0 {
 			hrpc = &req.PreparedCertificateV2
 			maxRound = round
 		}
 	}
-	return hrpc
+	return hrpc, maxRound
 }
 
 // EncodeRLP serializes rcc into the Ethereum RLP format.
