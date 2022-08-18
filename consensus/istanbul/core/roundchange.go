@@ -24,18 +24,8 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 )
 
-// sendRoundChange broadcasts a ROUND CHANGE message with the current desired round.
-func (c *core) sendRoundChange() {
-	c.broadcast(c.buildRoundChangeMsg(c.current.DesiredRound()))
-}
-
-// sendRoundChange sends a ROUND CHANGE message for the current desired round back to a single address
-func (c *core) sendRoundChangeAgain(addr common.Address) {
-	c.unicast(c.buildRoundChangeMsg(c.current.DesiredRound()), addr)
-}
-
 // buildRoundChangeMsg creates a round change msg for the given round
-func (c *core) buildRoundChangeMsg(round *big.Int) *istanbul.Message {
+func (c *core) buildRoundChangeMsgV1(round *big.Int) *istanbul.Message {
 	nextView := &istanbul.View{
 		Round:    new(big.Int).Set(round),
 		Sequence: new(big.Int).Set(c.current.View().Sequence),

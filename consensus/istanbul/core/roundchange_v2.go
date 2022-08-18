@@ -18,9 +18,76 @@ package core
 
 import (
 	"errors"
+	"math/big"
 
+	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 )
+
+// sendRoundChange broadcasts a ROUND CHANGE message with the current desired round.
+func (c *core) sendRoundChange() {
+	if c.isConsensusFork(c.current.Sequence()) {
+		msg, err := c.buildSignedRoundChangeMsgV2(c.current.DesiredRound())
+		if err != nil {
+			logger := c.newLogger("func", "sendRoundChange")
+			logger.Warn("Cannot build signed roundChangeV2 message", "error", err)
+			return
+		}
+		c.broadcast(msg)
+	} else {
+		c.broadcast(c.buildRoundChangeMsgV1(c.current.DesiredRound()))
+	}
+}
+
+// sendRoundChange sends a ROUND CHANGE message for the current desired round back to a single address
+func (c *core) sendRoundChangeAgain(addr common.Address) {
+	if c.isConsensusFork(c.current.Sequence()) {
+		msg, err := c.buildSignedRoundChangeMsgV2(c.current.DesiredRound())
+		if err != nil {
+			logger := c.newLogger("func", "sendRoundChangeAgain", "addr", addr)
+			logger.Warn("Cannot build signed roundChangeV2 message", "error", err)
+			return
+		}
+		c.unicast(msg, addr)
+	} else {
+		c.unicast(c.buildRoundChangeMsgV1(c.current.DesiredRound()), addr)
+	}
+}
+
+// buildRoundChangeV2 builds a roundChangeV2 instance with an empty prepared certificate
+func buildRoundChangeV2(addr common.Address, view *istanbul.View) *istanbul.RoundChangeV2 {
+	return &istanbul.RoundChangeV2{
+		Request: istanbul.RoundChangeRequest{
+			Address: addr,
+			View:    *view,
+		},
+		PreparedProposal: nil,
+	}
+}
+
+// buildSignedRoundChangeMsgV2 builds a roundChangeV2 istanbul.Message, with the inner
+// roundChangeRequest properly signed, ready to be broadcast/unicast.
+func (c *core) buildSignedRoundChangeMsgV2(round *big.Int) (*istanbul.Message, error) {
+	nextView := &istanbul.View{
+		Round:    new(big.Int).Set(round),
+		Sequence: new(big.Int).Set(c.current.View().Sequence),
+	}
+	roundChangeV2 := buildRoundChangeV2(c.address, nextView)
+	pc := c.current.PreparedCertificate()
+	if !pc.IsEmpty() {
+		// Add prepare certificate proposal and votes
+		roundChangeV2.Request.PreparedCertificateV2 = istanbul.PreparedCertificateV2{
+			ProposalHash:            pc.Proposal.Hash(),
+			PrepareOrCommitMessages: pc.PrepareOrCommitMessages,
+		}
+		roundChangeV2.PreparedProposal = pc.Proposal
+	}
+	// Sign the round change request
+	if err := roundChangeV2.Request.Sign(c.backend.Sign); err != nil {
+		return nil, err
+	}
+	return istanbul.NewRoundChangeV2Message(roundChangeV2, c.address), nil
+}
 
 func (c *core) handleRoundChangeV2(msg *istanbul.Message) error {
 	logger := c.newLogger("func", "handleRoundChangeV2", "tag", "handleMsg", "from", msg.Address)
