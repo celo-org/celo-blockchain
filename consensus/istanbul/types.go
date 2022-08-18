@@ -631,6 +631,7 @@ const (
 	MsgCommit
 	MsgRoundChange
 	MsgRoundChangeV2
+	MsgPreprepareV2
 )
 
 // Message is a wrapper used for all istanbul communication. It encapsulates
@@ -656,6 +657,7 @@ type Message struct {
 	// Message.FromPayload, or at message construction time.
 	committedSubject    *CommittedSubject
 	prePrepare          *Preprepare
+	prePrepareV2        *PreprepareV2
 	prepare             *Subject
 	roundChange         *RoundChange
 	roundChangeV2       *RoundChangeV2
@@ -697,6 +699,13 @@ func (m *Message) DecodeMessage() error {
 			return err
 		}
 		m.prePrepare = p
+	case MsgPreprepareV2:
+		var p *PreprepareV2
+		err = m.decode(&p)
+		if err != nil {
+			return err
+		}
+		m.prePrepareV2 = p
 	case MsgPrepare:
 		var p *Subject
 		err = m.decode(&p)
@@ -810,6 +819,11 @@ func (m *Message) Commit() *CommittedSubject {
 // Preprepare returns preprepare if this is a preprepare message.
 func (m *Message) Preprepare() *Preprepare {
 	return m.prePrepare
+}
+
+// Preprepare returns preprepare if this is a preprepare message.
+func (m *Message) PreprepareV2() *PreprepareV2 {
+	return m.prePrepareV2
 }
 
 // Prepare returns prepare if this is a prepare message.
