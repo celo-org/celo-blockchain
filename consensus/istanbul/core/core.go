@@ -741,7 +741,7 @@ func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.Valida
 		headBlock := c.backend.GetCurrentHeadBlock()
 		newParentCommits = newMessageSet(c.backend.ParentBlockValidators(headBlock))
 	}
-	return c.current.StartNewSequence(view.Sequence, validatorSet, nextProposer, newParentCommits)
+	return c.current.StartNewSequence(view.Sequence, validatorSet, nextProposer, newParentCommits, c.isConsensusFork(view.Sequence))
 
 }
 
