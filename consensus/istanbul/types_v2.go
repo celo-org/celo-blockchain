@@ -117,7 +117,11 @@ func (pc *PreparedCertificateV2) IsEmpty() bool {
 
 // EncodeRLP serializes pc into the Ethereum RLP format.
 func (pc *PreparedCertificateV2) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{pc.ProposalHash, pc.PrepareOrCommitMessages})
+	var messages []Message = pc.PrepareOrCommitMessages
+	if messages == nil {
+		messages = []Message{}
+	}
+	return rlp.Encode(w, []interface{}{pc.ProposalHash, messages})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
@@ -128,6 +132,9 @@ func (pc *PreparedCertificateV2) DecodeRLP(s *rlp.Stream) error {
 		return err
 	}
 	*pc = PreparedCertificateV2(d)
+	if pc.PrepareOrCommitMessages == nil {
+		pc.PrepareOrCommitMessages = []Message{}
+	}
 	return nil
 }
 
@@ -213,12 +220,16 @@ func (rc *RoundChangeV2) EncodeRLP(w io.Writer) error {
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
 func (rc *RoundChangeV2) DecodeRLP(s *rlp.Stream) error {
-	type decodable RoundChangeV2
-	var d decodable
-	if err := s.Decode(&d); err != nil {
+	var rc_decoded struct {
+		Request          RoundChangeRequest
+		PreparedProposal *types.Block
+	}
+
+	if err := s.Decode(&rc_decoded); err != nil {
 		return err
 	}
-	*rc = RoundChangeV2(d)
+	rc.PreparedProposal = rc_decoded.PreparedProposal
+	rc.Request = rc_decoded.Request
 	return nil
 }
 
