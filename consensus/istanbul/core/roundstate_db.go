@@ -47,7 +47,7 @@ type RoundStateDB interface {
 	// GetOldestValidView returns the oldest valid view that can be stored on the db
 	// it might or might not be present on the db
 	GetOldestValidView() (*istanbul.View, error)
-	GetRoundStateFor(view *istanbul.View) (RoundState, error)
+	GetRoundStateFor(view *istanbul.View, consensusForked bool) (RoundState, error)
 	UpdateLastRoundState(rs RoundState) error
 	Close() error
 }
@@ -216,7 +216,7 @@ func (rsdb *roundStateDBImpl) GetOldestValidView() (*istanbul.View, error) {
 	return &istanbul.View{Sequence: oldestValidSequence, Round: common.Big0}, nil
 }
 
-func (rsdb *roundStateDBImpl) GetRoundStateFor(view *istanbul.View) (RoundState, error) {
+func (rsdb *roundStateDBImpl) GetRoundStateFor(view *istanbul.View, consensusForked bool) (RoundState, error) {
 	viewKey := view2Key(view)
 	rawEntry, err := rsdb.db.Get(viewKey, nil)
 	if err != nil {
@@ -224,6 +224,7 @@ func (rsdb *roundStateDBImpl) GetRoundStateFor(view *istanbul.View) (RoundState,
 	}
 
 	var entry roundStateImpl
+	entry.forked = consensusForked
 	if err = rlp.DecodeBytes(rawEntry, &entry); err != nil {
 		return nil, err
 	}
