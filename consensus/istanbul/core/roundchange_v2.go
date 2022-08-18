@@ -60,6 +60,9 @@ func buildRoundChangeV2(addr common.Address, view *istanbul.View) *istanbul.Roun
 		Request: istanbul.RoundChangeRequest{
 			Address: addr,
 			View:    *view,
+			PreparedCertificateV2: istanbul.PreparedCertificateV2{
+				PrepareOrCommitMessages: []istanbul.Message{},
+			},
 		},
 		PreparedProposal: nil,
 	}
