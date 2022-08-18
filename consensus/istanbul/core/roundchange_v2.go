@@ -56,15 +56,14 @@ func (c *core) sendRoundChangeAgain(addr common.Address) {
 
 // buildRoundChangeV2 builds a roundChangeV2 instance with an empty prepared certificate
 func buildRoundChangeV2(addr common.Address, view *istanbul.View) *istanbul.RoundChangeV2 {
+	pc := istanbul.EmptyPreparedCertificate()
 	return &istanbul.RoundChangeV2{
 		Request: istanbul.RoundChangeRequest{
-			Address: addr,
-			View:    *view,
-			PreparedCertificateV2: istanbul.PreparedCertificateV2{
-				PrepareOrCommitMessages: []istanbul.Message{},
-			},
+			Address:               addr,
+			View:                  *view,
+			PreparedCertificateV2: istanbul.PCV2FromPCV1(pc),
 		},
-		PreparedProposal: nil,
+		PreparedProposal: pc.Proposal,
 	}
 }
 
@@ -79,10 +78,7 @@ func (c *core) buildSignedRoundChangeMsgV2(round *big.Int) (*istanbul.Message, e
 	pc := c.current.PreparedCertificate()
 	if !pc.IsEmpty() {
 		// Add prepare certificate proposal and votes
-		roundChangeV2.Request.PreparedCertificateV2 = istanbul.PreparedCertificateV2{
-			ProposalHash:            pc.Proposal.Hash(),
-			PrepareOrCommitMessages: pc.PrepareOrCommitMessages,
-		}
+		roundChangeV2.Request.PreparedCertificateV2 = istanbul.PCV2FromPCV1(pc)
 		roundChangeV2.PreparedProposal = pc.Proposal
 	}
 	// Sign the round change request
