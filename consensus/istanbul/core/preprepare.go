@@ -17,7 +17,6 @@
 package core
 
 import (
-	"errors"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -38,22 +37,6 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 		logger.Debug("Sending preprepare", "m", m)
 		c.broadcast(m)
 	}
-}
-
-// ResendPreprepare sends again the preprepare message.
-func (c *core) ResendPreprepare() error {
-	logger := c.newLogger("func", "resendPreprepare")
-	if !c.isProposer() {
-		return errors.New("Cant resend preprepare if not proposer")
-	}
-	st := c.current.State()
-	if st != StatePreprepared && st != StatePrepared && st != StateCommitted {
-		return errors.New("Cant resend preprepare if not in preprepared, prepared, or committed state")
-	}
-	m := istanbul.NewPreprepareMessage(c.current.Preprepare(), c.address)
-	logger.Debug("Re-Sending preprepare", "m", m)
-	c.broadcast(m)
-	return nil
 }
 
 func (c *core) handlePreprepare(msg *istanbul.Message) error {
