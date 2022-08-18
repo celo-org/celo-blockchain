@@ -115,3 +115,38 @@ func TestRoundChangeRequestRLPEncoding(t *testing.T) {
 		t.Fatalf("RLP Encode/Decode mismatch. Got %v, expected %v", result, original)
 	}
 }
+
+func TestRoundChangeV2RLPEncoding(t *testing.T) {
+	var result, original *RoundChangeV2
+	pc := EmptyPreparedCertificate()
+	request := RoundChangeRequest{
+		Address: common.BigToAddress(big.NewInt(3)),
+		View: View{
+			Round:    common.Big1,
+			Sequence: common.Big256,
+		},
+		PreparedCertificateV2: PCV2FromPCV1(pc),
+		Signature:             []byte{3, 2},
+	}
+	original = &RoundChangeV2{
+		Request:          request,
+		PreparedProposal: pc.Proposal,
+	}
+
+	rawVal, err := rlp.EncodeToBytes(original)
+	if err != nil {
+		t.Fatalf("Error %v", err)
+	}
+
+	if err = rlp.DecodeBytes(rawVal, &result); err != nil {
+		t.Fatalf("Error %v", err)
+	}
+
+	if !reflect.DeepEqual(original.PreparedProposal.Number(), result.PreparedProposal.Number()) {
+		t.Fatalf("RLP Encode/Decode mismatch. Got %v, expected %v", result.PreparedProposal.Number(), original.PreparedProposal.Number())
+	}
+
+	if !reflect.DeepEqual(original.Request, result.Request) {
+		t.Fatalf("RLP Encode/Decode mismatch. Got %v, expected %v", result.Request, original.Request)
+	}
+}

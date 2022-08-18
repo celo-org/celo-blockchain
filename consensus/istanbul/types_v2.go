@@ -111,6 +111,13 @@ type PreparedCertificateV2 struct {
 	PrepareOrCommitMessages []Message
 }
 
+func PCV2FromPCV1(pc PreparedCertificate) PreparedCertificateV2 {
+	return PreparedCertificateV2{
+		ProposalHash:            pc.Proposal.Hash(),
+		PrepareOrCommitMessages: pc.PrepareOrCommitMessages,
+	}
+}
+
 func (pc *PreparedCertificateV2) IsEmpty() bool {
 	return len(pc.PrepareOrCommitMessages) == 0
 }
