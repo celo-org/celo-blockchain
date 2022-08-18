@@ -218,6 +218,7 @@ func (args *t9nInput) get(base string) []string {
 }
 
 func TestT9n(t *testing.T) {
+	t.Skip() // TODO: T8n not yet ready in CELO
 	tt := new(testT8n)
 	tt.TestCmd = cmdtest.NewTestCmd(t, tt)
 	for i, tc := range []struct {
@@ -226,30 +227,30 @@ func TestT9n(t *testing.T) {
 		expExitCode int
 		expOut      string
 	}{
-		// { // London txs on homestead
-		// 	base: "./testdata/15",
-		// 	input: t9nInput{
-		// 		inTxs:  "signed_txs.rlp",
-		// 		stFork: "Homestead",
-		// 	},
-		// 	expOut: "exp.json",
-		// },
-		// { // London txs on homestead
-		// 	base: "./testdata/15",
-		// 	input: t9nInput{
-		// 		inTxs:  "signed_txs.rlp",
-		// 		stFork: "London",
-		// 	},
-		// 	expOut: "exp2.json",
-		// },
-		// { // An RLP list (a blockheader really)
-		// 	base: "./testdata/15",
-		// 	input: t9nInput{
-		// 		inTxs:  "blockheader.rlp",
-		// 		stFork: "London",
-		// 	},
-		// 	expOut: "exp3.json",
-		// },
+		{ // London txs on homestead
+			base: "./testdata/15",
+			input: t9nInput{
+				inTxs:  "signed_txs.rlp",
+				stFork: "Homestead",
+			},
+			expOut: "exp.json",
+		},
+		{ // London txs on homestead
+			base: "./testdata/15",
+			input: t9nInput{
+				inTxs:  "signed_txs.rlp",
+				stFork: "London",
+			},
+			expOut: "exp2.json",
+		},
+		{ // An RLP list (a blockheader really)
+			base: "./testdata/15",
+			input: t9nInput{
+				inTxs:  "blockheader.rlp",
+				stFork: "London",
+			},
+			expOut: "exp3.json",
+		},
 	} {
 
 		args := []string{"t9n"}
