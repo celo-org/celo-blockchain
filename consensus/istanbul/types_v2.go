@@ -7,6 +7,10 @@ import (
 	"github.com/celo-org/celo-blockchain/rlp"
 )
 
+type PayloadNoSig interface {
+	PayloadNoSig() ([]byte, error)
+}
+
 type PreprepareV2 struct {
 	View                     *View
 	Proposal                 Proposal
@@ -55,8 +59,10 @@ func (pc *PreparedCertificateV2) DecodeRLP(s *rlp.Stream) error {
 }
 
 type RoundChangeRequest struct {
+	Address               common.Address
 	View                  View
 	PreparedCertificateV2 PreparedCertificateV2
+	Signature             []byte
 }
 
 func (rcr *RoundChangeRequest) HasPreparedCertificate() bool {
@@ -65,7 +71,7 @@ func (rcr *RoundChangeRequest) HasPreparedCertificate() bool {
 
 // EncodeRLP serializes rcr into the Ethereum RLP format.
 func (rcr *RoundChangeRequest) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{rcr.View, rcr.PreparedCertificateV2})
+	return rlp.Encode(w, []interface{}{rcr.Address, rcr.View, rcr.PreparedCertificateV2, rcr.Signature})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
@@ -79,9 +85,17 @@ func (rcr *RoundChangeRequest) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
+func (rcr *RoundChangeRequest) PayloadNoSig() ([]byte, error) {
+	return rlp.EncodeToBytes(&RoundChangeRequest{
+		Address:               rcr.Address,
+		View:                  rcr.View,
+		PreparedCertificateV2: rcr.PreparedCertificateV2,
+		Signature:             []byte{},
+	})
+}
+
 type RoundChangeV2 struct {
 	Request          RoundChangeRequest
-	RequestSignature []byte
 	PreparedProposal Proposal
 }
 
@@ -98,7 +112,7 @@ func (rc *RoundChangeV2) ProposalMatch() bool {
 
 // EncodeRLP serializes rc into the Ethereum RLP format.
 func (rc *RoundChangeV2) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{rc.Request, rc.RequestSignature, rc.PreparedProposal})
+	return rlp.Encode(w, []interface{}{rc.Request, rc.PreparedProposal})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
