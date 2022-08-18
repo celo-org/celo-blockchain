@@ -24,6 +24,15 @@ func (c *core) handleRoundChangeV2(msg *istanbul.Message) error {
 	logger := c.newLogger("func", "handleRoundChange", "tag", "handleMsg", "from", msg.Address)
 
 	rc := msg.RoundChangeV2()
+	// Check signature of the internal Request
+	if err := istanbul.CheckSignedBy(&rc.Request, rc.Request.Signature,
+		rc.Request.Address, errInvalidRoundChangeRequestSignature, c.validateFn); err != nil {
+		return err
+	}
+	// Check message address and request address is the same
+	if msg.Address != rc.Request.Address {
+		return errRoundChangeRequestAddressMismatch
+	}
 	logger = logger.New("msg_round", rc.Request.View.Round, "msg_seq", rc.Request.View.Sequence)
 
 	// Must be same sequence and future round.
@@ -39,12 +48,12 @@ func (c *core) handleRoundChangeV2(msg *istanbul.Message) error {
 		logger.Debug("Check round change message failed", "err", err)
 		return err
 	}
-
+	// Verify that it has a proposal only if and only if a prepared certificate is available
+	if !rc.ProposalMatch() {
+		return errRoundChangeProposalHashMismatch
+	}
 	// Verify the PREPARED certificate if present.
 	if rc.HasPreparedCertificate() {
-		if !rc.ProposalMatch() {
-			return errProposalHashMismatch
-		}
 		preparedView, err := c.verifyPCV2WithProposal(rc.Request.PreparedCertificateV2, rc.PreparedProposal)
 		if err != nil {
 			return err
