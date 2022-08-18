@@ -765,7 +765,7 @@ func (m *Message) DecodeRLP(stream *rlp.Stream) error {
 // FromPayload decodes b into a Message instance it will set one of the private
 // fields committedSubject, prePrepare, prepare or roundChange depending on the
 // type of the message.
-func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.Address, error)) error {
+func (m *Message) FromPayload(b []byte, validateFn ValidateFn) error {
 	// Decode Message
 	err := rlp.DecodeBytes(b, &m)
 	if err != nil {
@@ -774,18 +774,8 @@ func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.
 
 	// Validate message (on a message without Signature)
 	if validateFn != nil {
-		var payload []byte
-		payload, err = m.PayloadNoSig()
-		if err != nil {
+		if err := CheckSignedBy(m, m.Signature, m.Address, ErrInvalidSigner, validateFn); err != nil {
 			return err
-		}
-
-		signed_val_addr, err := validateFn(payload, m.Signature)
-		if err != nil {
-			return err
-		}
-		if signed_val_addr != m.Address {
-			return ErrInvalidSigner
 		}
 	}
 	return nil

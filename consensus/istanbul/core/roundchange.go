@@ -61,7 +61,10 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		message := roundChangeCertificate.RoundChangeMessages[i]
 
 		// Verify message signed by a validator
-		c.checkSignedBy(&message, message.Signature, message.Address, errInvalidRoundChangeCertificateMsgSignature)
+		if err := istanbul.CheckSignedBy(&message, message.Signature,
+			message.Address, errInvalidRoundChangeCertificateMsgSignature, c.validateFn); err != nil {
+			return err
+		}
 
 		// Check for duplicate ROUND CHANGE messages
 		if seen[message.Address] {
