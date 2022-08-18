@@ -33,8 +33,10 @@ func (c *core) sendPrepare() {
 
 func (c *core) verifySignedPrepareOrCommitMessage(message istanbul.Message, seen map[common.Address]bool) (*common.Address, error) {
 	// Verify message signed by a validator
-	c.checkSignedBy(&message, message.Signature, message.Address, errInvalidPreparedCertificateMsgSignature)
-
+	if err := istanbul.CheckSignedBy(&message, message.Signature,
+		message.Address, errInvalidPreparedCertificateMsgSignature, c.validateFn); err != nil {
+		return nil, err
+	}
 	// Check for duplicate messages
 	if seen[message.Address] {
 		return nil, errInvalidPreparedCertificateDuplicate
