@@ -53,6 +53,12 @@ func (c *core) handlePreprepareV2(msg *istanbul.Message) error {
 	logger.Trace("Got preprepareV2 message", "m", msg)
 
 	preprepareV2 := msg.PreprepareV2()
+	// Check consensus fork
+	if !c.isConsensusFork(preprepareV2.View.Sequence) {
+		logger.Info("Received PreprepareV2 for unforked block sequence", "sequence", preprepareV2.View.Sequence.Uint64())
+		return errors.New("Received PreprepareV2 for not forked block")
+	}
+
 	logger = logger.New("msg_num", preprepareV2.Proposal.Number(), "msg_hash",
 		preprepareV2.Proposal.Hash(), "msg_seq", preprepareV2.View.Sequence, "msg_round", preprepareV2.View.Round)
 
