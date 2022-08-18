@@ -332,6 +332,35 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 	return payload, nil
 }
 
+// gossip broadcasts an already existing & signed message.
+func (c *core) gossip(msg *istanbul.Message) {
+	c.gossipTo(msg, istanbul.MapValidatorsToAddresses(c.current.ValidatorSet().List()))
+}
+
+// gossipTo broadcasts an already existing & signed message to the specified addresses.
+func (c *core) gossipTo(msg *istanbul.Message, addresses []common.Address) {
+	logger := c.newLogger("func", "gossipTo")
+
+	if len(msg.Signature) == 0 {
+		// should use broadcast() instead
+		logger.Error("Tried to gossip unsigned istanbul message", "m", msg)
+		return
+	}
+	logger.Trace("Gossipping message", "msg.Address", msg.Address.Hex(), "msg.Code", msg.Code)
+	// Convert to payload
+	payload, err := msg.Payload()
+	if err != nil {
+		logger.Error("Failed to convert message to payload", "m", msg, "err", err)
+		return
+	}
+
+	// Send payload to the specified addresses
+	if err := c.backend.Multicast(addresses, payload, istanbul.ConsensusMsg, true); err != nil {
+		logger.Error("Failed to send message", "m", msg, "err", err)
+		return
+	}
+}
+
 // Send message to all current validators
 func (c *core) broadcast(msg *istanbul.Message) {
 	c.sendMsgTo(msg, istanbul.MapValidatorsToAddresses(c.current.ValidatorSet().List()))
@@ -581,7 +610,7 @@ func (c *core) startNewSequence() error {
 func (c *core) waitForDesiredRound(r *big.Int) error {
 	logger := c.newLogger("func", "waitForDesiredRound", "new_desired_round", r)
 
-	// Don't wait for an older round
+	// Don't wait for an older or equal round
 	if c.current.DesiredRound().Cmp(r) >= 0 {
 		logger.Trace("New desired round not greater than current desired round")
 		return nil

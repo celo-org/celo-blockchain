@@ -59,30 +59,35 @@ The Celo blockchain client comes with several wrappers/executables found in the 
 ## Running tests
 
 Prior to running tests you will need to run `make prepare-system-contracts`.
-This will checkout the celo-monorepo and compile the system contracts for use
-in full network tests. The rule will copy the compiled contracts from
-celo-monorepo to `compiled-system-contracts`. If you subsequently edit the
-system contracts source, running the make rule again will re-compile them and
-copy them into place.
-
-This make rule will shallow checkout
+This will shallow checkout the
 [celo-monorepo](https://github.com/celo-org/celo-monorepo) under
-`../.celo-blockchain-monorepo-checkout` relative to this project's root, and it
-will checkout the commit defined in the variable MONOREPO_COMMIT in the
-Makefile. 
+`../.celo-blockchain-monorepo-checkout` relative to this project's root at the
+commit defined in the file `monorepo_commit`. Then it will compile the system
+contracts for use in full network tests. The rule will copy the compiled
+contracts from celo-monorepo to `compiled-system-contracts`. If you
+subsequently edit the system contracts source or `monorepo_commit`, running the
+make rule again will re-checkout the monorepo, re-compile the contracts and
+copy them into place. 
 
-These values can be overridden if required, by setting those variables in the
-make command, for example:
-```
-make prepare-system-contracts MONOREPO_COMMIT=master MONOREPO_PATH=../alt-monorepo
-```
+`monorepo_commit` may contain a commit hash or a tag, branch names are
+forbidden.
 
-Without first running this make rule, certain tests will fail with errors such
-as:
+In the case that you would like to change the default monorepo checkout
+location, or that you would like to have multipe checkouts of the monorepo (at
+different versions) you can set the `MONOREPO_PATH` variable in the make
+command, for example:
 
 ```
-panic: Can't read bytecode for monorepo/packages/protocol/build/contracts/FixidityLib.json: open
+make prepare-system-contracts MONOREPO_PATH=../alt-monorepo
+
 ```
+Note that `MONOREPO_PATH` should not be set to point at checkouts other than
+those checked out by the `prepare-system-contracts` rule, and the checkouts
+created by the `prepare-system-contracts` rule should not be manually modifed,
+aside from changing the contract source.
+
+
+Without first running this make rule, certain tests will fail.
 
 ## Running Celo
 

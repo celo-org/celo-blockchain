@@ -120,7 +120,8 @@ func (eth *Ethereum) stateAtBlock(block *types.Block, reexec uint64, base *state
 		// Finalize the state so any modifications are written to the trie
 		root, err := statedb.Commit(eth.blockchain.Config().IsEIP158(current.Number()))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("stateAtBlock commit failed, number %d root %v: %w",
+				current.NumberU64(), current.Root().Hex(), err)
 		}
 		statedb, err = state.New(root, database, nil)
 		if err != nil {
@@ -163,7 +164,7 @@ func (eth *Ethereum) stateAtTransaction(block *types.Block, txIndex int, reexec 
 	var sysCtx *core.SysContractCallCtx
 	espresso := eth.blockchain.Config().IsEspresso(block.Number())
 	if espresso {
-		sysCtx = core.NewSysContractCallCtx(eth.blockchain.NewEVMRunner(block.Header(), statedb))
+		sysCtx = core.NewSysContractCallCtx(block.Header(), statedb, eth.blockchain)
 	}
 	// Recompute transactions up to the target index.
 	signer := types.MakeSigner(eth.blockchain.Config(), block.Number())

@@ -87,7 +87,7 @@ func (h Hash) String() string {
 }
 
 // Format implements fmt.Formatter.
-// Hash supports the %v, %s, %v, %x, %X and %d format verbs.
+// Hash supports the %v, %s, %q, %x, %X and %d format verbs.
 func (h Hash) Format(s fmt.State, c rune) {
 	hexb := make([]byte, 2+len(h)*2)
 	copy(hexb, "0x")
@@ -271,7 +271,7 @@ func (a Address) hex() []byte {
 }
 
 // Format implements fmt.Formatter.
-// Address supports the %v, %s, %v, %x, %X and %d format verbs.
+// Address supports the %v, %s, %q, %x, %X and %d format verbs.
 func (a Address) Format(s fmt.State, c rune) {
 	switch c {
 	case 'v', 's':

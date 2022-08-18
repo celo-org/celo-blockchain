@@ -21,6 +21,7 @@ import (
 	"errors"
 	"math/big"
 
+	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
@@ -32,7 +33,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
@@ -185,13 +185,16 @@ func (b *EthAPIBackend) GetReceipts(ctx context.Context, hash common.Hash) (type
 }
 
 func (b *EthAPIBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*types.Log, error) {
-	receipts := b.eth.blockchain.GetReceiptsByHash(hash)
-	if receipts == nil {
-		return nil, nil
+	db := b.eth.ChainDb()
+	number := rawdb.ReadHeaderNumber(db, hash)
+	if number == nil {
+		return nil, errors.New("failed to get block number from hash")
 	}
-	logs := make([][]*types.Log, len(receipts))
-	for i, receipt := range receipts {
-		logs[i] = receipt.Logs
+	logs := rawdb.ReadLogs(db, hash, *number)
+	if logs == nil {
+		// Even if this changes the behaviour of the old rpc call (was returning an empty list, not an error) which we try to avoid
+		// we decided to keep the error to maintain tooling compatibility with upstream
+		return nil, errors.New("failed to get logs for block")
 	}
 	return logs, nil
 }
@@ -283,8 +286,8 @@ func (b *EthAPIBackend) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.S
 	return b.eth.TxPool().SubscribeNewTxsEvent(ch)
 }
 
-func (b *EthAPIBackend) Downloader() *downloader.Downloader {
-	return b.eth.Downloader()
+func (b *EthAPIBackend) SyncProgress() ethereum.SyncProgress {
+	return b.eth.Downloader().Progress()
 }
 
 func (b *EthAPIBackend) SuggestGasTipCap(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
@@ -417,8 +420,4 @@ func (b *EthAPIBackend) StateAtBlock(ctx context.Context, block *types.Block, re
 
 func (b *EthAPIBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, vm.EVMRunner, *state.StateDB, error) {
 	return b.eth.stateAtTransaction(block, txIndex, reexec)
-}
-
-func (b *EthAPIBackend) VmRunnerAtHeader(header *types.Header, state *state.StateDB) vm.EVMRunner {
-	return b.eth.blockchain.NewEVMRunner(header, state)
 }

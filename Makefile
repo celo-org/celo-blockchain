@@ -7,7 +7,7 @@
 .PHONY: geth-linux-arm geth-linux-arm-5 geth-linux-arm-6 geth-linux-arm-7 geth-linux-arm64
 .PHONY: geth-darwin geth-darwin-amd64
 .PHONY: geth-windows geth-windows-386 geth-windows-amd64
-.PHONY: prepare-system-contracts $(MONOREPO_PATH)
+.PHONY: prepare-system-contracts
 
 GOBIN = ./build/bin
 GO ?= latest
@@ -21,8 +21,6 @@ ifeq ("$(LSB_exists)","")
 else
 	OS = linux
 endif
-
-MONOREPO_COMMIT=celo-core-contracts-v3.rc0
 
 # We checkout the monorepo as a sibling to the celo-blockchain dir because the
 # huge amount of files in the monorepo interferes with tooling such as gopls,
@@ -47,8 +45,8 @@ geth:
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
-# This rule checks out celo-monorepo under MONOREPO_PATH at commit
-# MONOREPO_COMMIT and compiles the system solidty contracts. It then copies the
+# This rule checks out celo-monorepo under MONOREPO_PATH at the commit contained in
+# monorepo_commit and compiles the system solidity contracts. It then copies the
 # compiled contracts from the monorepo to the compiled-system-contracts, so
 # that this repo can always access the contracts at a consistent path.
 prepare-system-contracts: $(MONOREPO_PATH)/packages/protocol/build
@@ -59,37 +57,49 @@ prepare-system-contracts: $(MONOREPO_PATH)/packages/protocol/build
 # build dir or the build dir does not exist then we remove the build dir, yarn
 # install and rebuild the contracts.
 $(MONOREPO_PATH)/packages/protocol/build: $(CONTRACT_SOURCE_FILES)
-	@node --version | grep "^v10" || (echo "node v10 is required to build the monorepo (nvm use 10)" && exit 1)
+	@node --version | grep "^v12" || (echo "node v12 is required to build the monorepo (nvm use 12)" && exit 1)
 	@echo Running yarn install and compiling contracts
 	@cd $(MONOREPO_PATH) && rm -rf packages/protocol/build && yarn && cd packages/protocol && yarn run build:sol
 
 
-# The source files depend on the MONOREPO_PATH rule to ensure that the monorepo is
-# checked out before we try to build.
+# This target serves as an intermediate step to avoid running the
+# $(MONOREPO_PATH) target once per contract source file.  This could also be
+# achieved by using the group targets separator '&:' instead of just ':', but
+# that functionality was added in make version 4.3 which doesn't seem to be
+# readily available on most systems yet. So although this rule will be run once
+# for each source file, since it is empty that is very quick. $(MONOREPO_PATH)
+# as a prerequisite of this will be run at most once.
 $(CONTRACT_SOURCE_FILES): $(MONOREPO_PATH)
 
 # Clone the monorepo.
 #
-# If the repo has not been cloned then clone it at the MONOREPO_COMMIT and
-# store that commit in a file.  Otherwise if the repo has been cloned and
-# MONOREPO_COMMIT doesn't match the contents of current_commit then checkout
-# the new commit, and update the file that stores the current commit.  This
-# will fail if there are local changes.
-$(MONOREPO_PATH):
+# If the repo has not been cloned then clone it at the commit contained in
+# monorepo_commit and store that commit in a file.  Otherwise if the repo has
+# been cloned and the commit contained in monorepo_commit doesn't match the
+# contents of current_commit then checkout the new commit, and update the file
+# that stores the current commit.  This will fail if there are local changes.
+$(MONOREPO_PATH): monorepo_commit
 	@set -e; \
+	mc=`cat monorepo_commit`; \
+	echo "monorepo_commit is $${mc}"; \
+	if git show-ref --verify refs/heads/$${mc} > /dev/null 2>&1; \
+	then \
+		echo "Expected commit hash or tag in 'monorepo_commit' instead found branch name '$${mc}'"; \
+		exit 1; \
+	fi; \
 	if  [ ! -e $(MONOREPO_PATH) ]; \
 	then \
-		echo "Cloning monorepo at $(MONOREPO_COMMIT)"; \
-		git clone --quiet --depth 1 --branch $(MONOREPO_COMMIT) https://github.com/celo-org/celo-monorepo.git $(MONOREPO_PATH); \
-		echo $(MONOREPO_COMMIT) > $(MONOREPO_PATH)/current_commit; \
-	elif [ $(MONOREPO_COMMIT) != $(shell cat $(MONOREPO_PATH)/current_commit 2>/dev/null || echo "") ]; \
+		echo "Cloning monorepo at $${mc}"; \
+		git clone --quiet --depth 1 --branch $${mc} https://github.com/celo-org/celo-monorepo.git $(MONOREPO_PATH); \
+		echo $${mc} > $(MONOREPO_PATH)/current_commit; \
+	elif [ $${mc} != $(shell cat $(MONOREPO_PATH)/current_commit 2>/dev/null || echo "") ]; \
 	then \
-		echo "Checking out monorepo at $(MONOREPO_COMMIT)"; \
+		echo "Checking out monorepo at $${mc}"; \
 		cd $(MONOREPO_PATH); \
-		git fetch --quiet --depth 1 origin $(MONOREPO_COMMIT); \
+		git fetch --quiet --depth 1 origin $${mc}; \
 		git checkout FETCH_HEAD; \
 		sleep 0.5; \
-		echo $(MONOREPO_COMMIT) > current_commit; \
+		echo $${mc} > current_commit; \
 	fi
 
 

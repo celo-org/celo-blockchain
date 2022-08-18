@@ -1,3 +1,4 @@
+//go:build (amd64 && !generic)
 // +build amd64,!generic
 
 package bls12381

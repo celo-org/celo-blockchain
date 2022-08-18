@@ -17,6 +17,7 @@
 package core
 
 import (
+	"errors"
 	"reflect"
 	"time"
 
@@ -198,5 +199,22 @@ func (c *core) verifyPrepare(prepare *istanbul.Subject) error {
 		return errInconsistentSubject
 	}
 
+	return nil
+}
+
+// GossipPrepares gossips to other validators all the prepares received in the current round.
+func (c *core) GossipPrepares() error {
+	logger := c.newLogger("func", "gossipPrepares")
+	st := c.current.State()
+	if st != StatePreprepared && st != StatePrepared && st != StateCommitted {
+		return errors.New("Cant gossip prepares if not in preprepared, prepared, or committed state")
+	}
+	prepares := c.current.Prepares().Values()
+	logger.Debug("Gossipping prepares", "len", len(prepares))
+	for _, prepare := range prepares {
+		c.gossip(prepare)
+		// let the bandwidth breathe a little
+		time.Sleep(10 * time.Millisecond)
+	}
 	return nil
 }

@@ -190,7 +190,8 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'stacks',
 			call: 'debug_stacks',
-			params: 0,
+			params: 1,
+			inputFormatter: [null],
 			outputFormatter: console.log
 		}),
 		new web3._extend.Method({
@@ -299,6 +300,12 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'standardTraceBadBlockToFile',
 			call: 'debug_standardTraceBadBlockToFile',
+			params: 2,
+			inputFormatter: [null, null]
+		}),
+		new web3._extend.Method({
+			name: 'intermediateRoots',
+			call: 'debug_intermediateRoots',
 			params: 2,
 			inputFormatter: [null, null]
 		}),
@@ -728,6 +735,21 @@ web3._extend({
 			call: 'istanbul_stopValidating',
 			params: 0,
 		}),
+		new web3._extend.Method({
+			name: 'resendPreprepare',
+			call: 'istanbul_resendPreprepare',
+			params: 0,
+		}),
+		new web3._extend.Method({
+			name: 'gossipPrepares',
+			call: 'istanbul_gossipPrepares',
+			params: 0,
+		}),
+		new web3._extend.Method({
+			name: 'gossipCommits',
+			call: 'istanbul_gossipCommits',
+			params: 0,
+		}),
 		new web3._extend.Property({
 			name: 'valEnodeTableInfo',
 			getter: 'istanbul_getValEnodeTable',
@@ -739,6 +761,10 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'currentRoundState',
 			getter: 'istanbul_getCurrentRoundState',
+		}),
+		new web3._extend.Property({
+			name: 'currentRoundChangeSet',
+			getter: 'istanbul_getCurrentRoundChangeSet',
 		}),
 		new web3._extend.Property({
 			name: 'proxies',

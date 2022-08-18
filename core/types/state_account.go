@@ -1,4 +1,4 @@
-// Copyright 2018 The go-ethereum Authors
+// Copyright 2021 The go-ethereum Authors
 // This file is part of the go-ethereum library.
 //
 // The go-ethereum library is free software: you can redistribute it and/or modify
@@ -14,22 +14,19 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-// +build !windows
-
-package metrics
+package types
 
 import (
-	syscall "golang.org/x/sys/unix"
+	"math/big"
 
-	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/common"
 )
 
-// getProcessCPUTime retrieves the process' CPU time since program startup.
-func getProcessCPUTime() int64 {
-	var usage syscall.Rusage
-	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &usage); err != nil {
-		log.Warn("Failed to retrieve CPU time", "err", err)
-		return 0
-	}
-	return int64(usage.Utime.Sec+usage.Stime.Sec)*100 + int64(usage.Utime.Usec+usage.Stime.Usec)/10000 //nolint:unconvert
+// StateAccount is the Ethereum consensus representation of accounts.
+// These objects are stored in the main account trie.
+type StateAccount struct {
+	Nonce    uint64
+	Balance  *big.Int
+	Root     common.Hash // merkle root of the storage trie
+	CodeHash []byte
 }
