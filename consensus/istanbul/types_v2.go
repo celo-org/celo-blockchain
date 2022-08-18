@@ -121,6 +121,29 @@ func (rcr *RoundChangeRequest) PayloadNoSig() ([]byte, error) {
 	})
 }
 
+func (rcr *RoundChangeRequest) Sign(signingFn func(data []byte) ([]byte, error)) error {
+	// Construct and encode a round change request with no signature
+	payloadNoSig, err := rcr.PayloadNoSig()
+	if err != nil {
+		return err
+	}
+	rcr.Signature, err = signingFn(payloadNoSig)
+	return err
+}
+
+// NewRoundChangeV2Message constructs a Message instance with the given sender and
+// roundChangeV2. Both the roundChangeV2 instance and the serialized bytes of
+// roundChange are part of the returned Message.
+func NewRoundChangeV2Message(roundChangeV2 *RoundChangeV2, sender common.Address) *Message {
+	message := &Message{
+		Address:       sender,
+		Code:          MsgRoundChangeV2,
+		roundChangeV2: roundChangeV2,
+	}
+	setMessageBytes(message, roundChangeV2)
+	return message
+}
+
 type RoundChangeV2 struct {
 	Request          RoundChangeRequest
 	PreparedProposal Proposal
