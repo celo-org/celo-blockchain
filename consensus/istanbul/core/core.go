@@ -122,7 +122,7 @@ type core struct {
 	roundChangeTimer   *time.Timer
 	roundChangeTimerMu sync.RWMutex
 
-	validateFn func([]byte, []byte) (common.Address, error)
+	validateFn istanbul.ValidateFn
 
 	backlog MsgBacklog
 
@@ -838,31 +838,6 @@ func (c *core) resendRoundChangeMessage() {
 
 func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
 	return istanbul.CheckValidatorSignature(c.current.ValidatorSet(), data, sig)
-}
-
-func (c *core) getSignerFromSignature(p istanbul.PayloadNoSig, signature []byte) (common.Address, error) {
-	data, err := p.PayloadNoSig()
-	if err != nil {
-		return common.Address{}, err
-	}
-
-	signer, err := c.validateFn(data, signature)
-	if err != nil {
-		return common.Address{}, err
-	}
-	return signer, nil
-}
-
-func (c *core) checkSignedBy(p istanbul.PayloadNoSig, signature []byte, signer common.Address, wrongSignatureError error) error {
-	extractedSigner, err := c.getSignerFromSignature(p, signature)
-	if err != nil {
-		return err
-	}
-
-	if extractedSigner != signer {
-		return wrongSignatureError
-	}
-	return nil
 }
 
 func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {

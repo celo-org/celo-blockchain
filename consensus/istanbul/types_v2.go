@@ -11,6 +11,33 @@ type PayloadNoSig interface {
 	PayloadNoSig() ([]byte, error)
 }
 
+type ValidateFn func([]byte, []byte) (common.Address, error)
+
+func GetSignerFromSignature(p PayloadNoSig, signature []byte, validateFn ValidateFn) (common.Address, error) {
+	data, err := p.PayloadNoSig()
+	if err != nil {
+		return common.Address{}, err
+	}
+
+	signer, err := validateFn(data, signature)
+	if err != nil {
+		return common.Address{}, err
+	}
+	return signer, nil
+}
+
+func CheckSignedBy(p PayloadNoSig, signature []byte, signer common.Address, wrongSignatureError error, validateFn ValidateFn) error {
+	extractedSigner, err := GetSignerFromSignature(p, signature, validateFn)
+	if err != nil {
+		return err
+	}
+
+	if extractedSigner != signer {
+		return wrongSignatureError
+	}
+	return nil
+}
+
 type PreprepareV2 struct {
 	View                     *View
 	Proposal                 Proposal
