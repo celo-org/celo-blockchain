@@ -61,25 +61,13 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		message := roundChangeCertificate.RoundChangeMessages[i]
 
 		// Verify message signed by a validator
-		data, err := message.PayloadNoSig()
-		if err != nil {
-			return err
-		}
-
-		signer, err := c.validateFn(data, message.Signature)
-		if err != nil {
-			return err
-		}
-
-		if signer != message.Address {
-			return errInvalidRoundChangeCertificateMsgSignature
-		}
+		c.checkSignedBy(&message, message.Signature, message.Address, errInvalidRoundChangeCertificateMsgSignature)
 
 		// Check for duplicate ROUND CHANGE messages
-		if seen[signer] {
+		if seen[message.Address] {
 			return errInvalidRoundChangeCertificateDuplicate
 		}
-		seen[signer] = true
+		seen[message.Address] = true
 
 		// Check that the message is a ROUND CHANGE message
 		if istanbul.MsgRoundChange != message.Code {
@@ -96,7 +84,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		// Verify ROUND CHANGE message is for the same sequence AND an equal or subsequent round as the proposal.
 		// We have already called checkMessage by this point and checked the proposal's and PREPREPARE's sequence match.
 		if roundChange.View.Sequence.Cmp(proposal.View.Sequence) != 0 || roundChange.View.Round.Cmp(proposal.View.Round) < 0 {
-			msgLogger.Error("Round change in certificate for a different sequence or an earlier round", "err", err)
+			msgLogger.Error("Round change in certificate for a different sequence or an earlier round")
 			return errInvalidRoundChangeCertificateMsgView
 		}
 

@@ -32,31 +32,20 @@ func (c *core) sendPrepare() {
 }
 
 func (c *core) verifySignedPrepareOrCommitMessage(message istanbul.Message, seen map[common.Address]bool) (*common.Address, error) {
-	data, err := message.PayloadNoSig()
-	if err != nil {
-		return nil, err
-	}
 	// Verify message signed by a validator
-	signer, err := c.validateFn(data, message.Signature)
-	if err != nil {
-		return nil, err
-	}
-
-	if signer != message.Address {
-		return nil, errInvalidPreparedCertificateMsgSignature
-	}
+	c.checkSignedBy(&message, message.Signature, message.Address, errInvalidPreparedCertificateMsgSignature)
 
 	// Check for duplicate messages
-	if seen[signer] {
+	if seen[message.Address] {
 		return nil, errInvalidPreparedCertificateDuplicate
 	}
-	seen[signer] = true
+	seen[message.Address] = true
 
 	// Check that the message is a PREPARE or COMMIT message
 	if message.Code != istanbul.MsgPrepare && message.Code != istanbul.MsgCommit {
 		return nil, errInvalidPreparedCertificateMsgCode
 	}
-	return &signer, nil
+	return &message.Address, nil
 }
 
 func (c *core) verifyProposalPrepareOrCommitMessage(proposal istanbul.Proposal, message istanbul.Message, seen map[common.Address]bool) (*istanbul.View, error) {
