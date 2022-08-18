@@ -188,9 +188,16 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 
 // CurrentRoundChangeSet returns the current round change set summary.
 func (c *core) CurrentRoundChangeSet() *RoundChangeSetSummary {
-	rcs := c.roundChangeSet
-	if rcs != nil {
-		return rcs.Summary()
+	if c.isConsensusFork(c.current.Sequence()) {
+		rcs := c.roundChangeSetV2
+		if rcs != nil {
+			return rcs.Summary()
+		}
+	} else {
+		rcs := c.roundChangeSet
+		if rcs != nil {
+			return rcs.Summary()
+		}
 	}
 	return nil
 }
