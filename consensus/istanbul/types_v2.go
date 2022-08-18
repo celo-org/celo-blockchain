@@ -38,6 +38,21 @@ func CheckSignedBy(p PayloadNoSig, signature []byte, signer common.Address, wron
 	return nil
 }
 
+// ## PreprepareV2 ##############################################################
+
+// NewPreprepareV2Message constructs a Message instance with the given sender and
+// prePrepare. Both the prePrepare instance and the serialized bytes of
+// prePrepare are part of the returned Message.
+func NewPreprepareV2Message(prePrepareV2 *PreprepareV2, sender common.Address) *Message {
+	message := &Message{
+		Address:      sender,
+		Code:         MsgPreprepare,
+		prePrepareV2: prePrepareV2,
+	}
+	setMessageBytes(message, prePrepareV2)
+	return message
+}
+
 type PreprepareV2 struct {
 	View                     *View
 	Proposal                 Proposal
