@@ -47,7 +47,7 @@ func CheckSignedBy(p PayloadNoSig, signature []byte, signer common.Address, wron
 func NewPreprepareV2Message(prePrepareV2 *PreprepareV2, sender common.Address) *Message {
 	message := &Message{
 		Address:      sender,
-		Code:         MsgPreprepare,
+		Code:         MsgPreprepareV2,
 		prePrepareV2: prePrepareV2,
 	}
 	setMessageBytes(message, prePrepareV2)
