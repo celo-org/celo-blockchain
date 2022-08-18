@@ -44,7 +44,7 @@ func TestRSDBRoundStateDB(t *testing.T) {
 		rs := dummyRoundState()
 		err := rsdb.UpdateLastRoundState(rs)
 		finishOnError(t, err)
-		rs.StartNewSequence(common.Big32, rs.ValidatorSet(), rs.ValidatorSet().GetByIndex(1), rs.ParentCommits())
+		rs.StartNewSequence(common.Big32, rs.ValidatorSet(), rs.ValidatorSet().GetByIndex(1), rs.ParentCommits(), false)
 		err = rsdb.UpdateLastRoundState(rs)
 		finishOnError(t, err)
 
