@@ -207,6 +207,8 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 		return catchFutureMessages(c.handleCommit(msg))
 	case istanbul.MsgRoundChange:
 		return catchFutureMessages(c.handleRoundChange(msg))
+	case istanbul.MsgRoundChangeV2:
+		return catchFutureMessages(c.handleRoundChangeV2(msg))
 	default:
 		logger.Error("Invalid message", "m", msg)
 	}

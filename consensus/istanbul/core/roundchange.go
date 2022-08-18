@@ -17,6 +17,7 @@
 package core
 
 import (
+	"errors"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -133,6 +134,13 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	logger := c.newLogger("func", "handleRoundChange", "tag", "handleMsg", "from", msg.Address)
 
 	rc := msg.RoundChange()
+
+	// Check consensus fork
+	if c.isConsensusFork(rc.View.Sequence) {
+		logger.Info("Received RoundChange (V1) for forked block sequence", "sequence", rc.View.Sequence.Uint64())
+		return errors.New("Received RoundChange (V1) for forked block")
+	}
+
 	logger = logger.New("msg_round", rc.View.Round, "msg_seq", rc.View.Sequence)
 
 	// Must be same sequence and future round.
