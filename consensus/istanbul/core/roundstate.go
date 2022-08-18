@@ -41,7 +41,8 @@ var (
 type RoundState interface {
 	// mutation functions
 	StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) error
-	StartNewSequence(nextSequence *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet) error
+	StartNewSequence(nextSequence *big.Int, validatorSet istanbul.ValidatorSet,
+		nextProposer istanbul.Validator, parentCommits MessageSet, consensusFork bool) error
 	TransitionToPreprepared(preprepare *istanbul.Preprepare) error
 	TransitionToPrepreparedV2(preprepareV2 *istanbul.PreprepareV2) error
 	TransitionToWaitingForNewRound(r *big.Int, nextProposer istanbul.Validator) error
@@ -333,11 +334,13 @@ func (rs *roundStateImpl) StartNewRound(nextRound *big.Int, validatorSet istanbu
 	return nil
 }
 
-func (rs *roundStateImpl) StartNewSequence(nextSequence *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, parentCommits MessageSet) error {
+func (rs *roundStateImpl) StartNewSequence(nextSequence *big.Int, validatorSet istanbul.ValidatorSet,
+	nextProposer istanbul.Validator, parentCommits MessageSet, consensusFork bool) error {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 	logger := rs.newLogger()
 
+	rs.forked = consensusFork
 	rs.validatorSet = validatorSet
 
 	rs.changeRound(big.NewInt(0), validatorSet, nextProposer)
