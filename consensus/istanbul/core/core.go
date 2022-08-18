@@ -708,10 +708,10 @@ func (c *core) createRoundState() (RoundState, error) {
 		}
 		valSet := c.backend.Validators(headBlock)
 		proposer := c.selectProposer(valSet, headAuthor, 0)
-		roundState = newRoundState(&istanbul.View{Sequence: nextSequence, Round: common.Big0}, valSet, proposer)
+		roundState = newRoundState(&istanbul.View{Sequence: nextSequence, Round: common.Big0}, valSet, proposer, c.isConsensusFork(nextSequence))
 	} else {
 		logger.Info("Retrieving stored RoundState", "stored_view", lastStoredView, "requested_seq", nextSequence)
-		roundState, err = c.rsdb.GetRoundStateFor(lastStoredView)
+		roundState, err = c.rsdb.GetRoundStateFor(lastStoredView, c.isConsensusFork(lastStoredView.Sequence))
 
 		if err != nil {
 			logger.Error("Failed to fetch lastStoredRoundState", "err", err)

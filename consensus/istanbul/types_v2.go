@@ -65,14 +65,33 @@ func (pp *PreprepareV2) EncodeRLP(w io.Writer) error {
 }
 
 // DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
-func (rcc *PreprepareV2) DecodeRLP(s *rlp.Stream) error {
+func (pp *PreprepareV2) DecodeRLP(s *rlp.Stream) error {
 	type decodable PreprepareV2
 	var d decodable
 	if err := s.Decode(&d); err != nil {
 		return err
 	}
-	*rcc = PreprepareV2(d)
+	*pp = PreprepareV2(d)
 	return nil
+}
+
+func (pp *PreprepareV2) Summary() *PreprepareSummary {
+	return &PreprepareSummary{
+		View:                          pp.View,
+		ProposalHash:                  pp.Proposal.Hash(),
+		RoundChangeCertificateSenders: MapRoundChangeRequestsToSenders(pp.RoundChangeCertificateV2.Requests),
+	}
+}
+
+// MapRoundChangeRequestsToSenders map a list of RoundChangeRequest to the list of the sender addresses
+func MapRoundChangeRequestsToSenders(requests []RoundChangeRequest) []common.Address {
+	returnList := make([]common.Address, len(requests))
+
+	for i, r := range requests {
+		returnList[i] = r.Address
+	}
+
+	return returnList
 }
 
 type PreparedCertificateV2 struct {

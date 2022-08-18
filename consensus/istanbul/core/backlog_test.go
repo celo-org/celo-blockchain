@@ -43,7 +43,7 @@ func TestCheckMessage(t *testing.T) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(2),
 			Round:    big.NewInt(2),
-		}, valSet, valSet.GetByIndex(0)),
+		}, valSet, valSet.GetByIndex(0), false),
 	}
 
 	t.Run("invalid view format", func(t *testing.T) {
