@@ -33,8 +33,10 @@ type Config struct {
 	Reserve                    ReserveParameters
 	StableToken                StableTokenParameters
 	StableTokenEUR             StableTokenParameters
+	StableTokenBRL             StableTokenParameters
 	Exchange                   ExchangeParameters
 	ExchangeEUR                ExchangeParameters
+	ExchangeBRL                ExchangeParameters
 	LockedGold                 LockedGoldParameters
 	GoldToken                  GoldTokenParameters
 	Validators                 ValidatorsParameters
