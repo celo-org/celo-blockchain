@@ -910,6 +910,11 @@ func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error)
 }
 
 func (c *core) isConsensusFork(blockNumber *big.Int) bool {
-	// Define block number for fork
-	return false
+	if c.config.V2Block == nil {
+		// Default: no fork
+		return false
+	}
+	// Assume blockNumber is never nil
+	// V2 Activated for blockNumber if greater or equal than V2Block
+	return c.config.V2Block.Cmp(blockNumber) <= 0
 }
