@@ -100,10 +100,11 @@ func TestGethClient(t *testing.T) {
 		name string
 		test func(t *testing.T)
 	}{
+		// {
+		// 	"TestAccessList",
+		// 	func(t *testing.T) { testAccessList(t, client) },
+		// },
 		{
-			"TestAccessList",
-			func(t *testing.T) { testAccessList(t, client) },
-		}, {
 			"TestGetProof",
 			func(t *testing.T) { testGetProof(t, client) },
 		}, {
