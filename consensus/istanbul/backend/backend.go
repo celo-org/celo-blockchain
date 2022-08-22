@@ -697,18 +697,18 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 }
 
 // Sign implements istanbul.Backend.SignBLS
-/*func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) ([]byte, error) {
+func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) ([]byte, error) {
 	if sb.signBLSFn == nil {
 		return nil, errInvalidSigningFn
 	}
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()
 	sig, err := sb.signBLSFn(accounts.Account{Address: sb.blsAddress}, data, extra, useComposite, cip22)
-	return sig[:], err*/
+	return sig[:], err
 //=======
-func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
+/*func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
 	w := sb.wallets()
-	return w.Bls.Sign(data, extra, useComposite, cip22)
+	return w.Bls.Sign(data, extra, useComposite, cip22)*/
 //>>>>>>> master
 }
 
