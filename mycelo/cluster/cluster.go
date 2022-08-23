@@ -76,12 +76,15 @@ func (cl *Cluster) ensureNodes() []*Node {
 		for i, validator := range validators {
 			nodeConfig := &NodeConfig{
 				GethPath:              cl.config.GethPath,
+				GethParams:            cl.env.GethParams(),
 				ExtraFlags:            cl.config.ExtraFlags,
 				Number:                i,
 				Account:               validator,
 				TxFeeRecipientAccount: txFeeRecipients[i],
 				Datadir:               cl.env.ValidatorDatadir(i),
 				ChainID:               cl.env.Config.ChainID,
+				NodeStartPort:         cl.env.Config.NodePort,
+				RPCStartPort:          cl.env.Config.RPCPort,
 			}
 			cl.nodes[i] = NewNode(nodeConfig)
 		}

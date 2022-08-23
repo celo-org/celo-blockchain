@@ -39,6 +39,12 @@ func (e localEnv) createEnv(workdir string) (*env.Environment, error) {
 			NumDeveloperAccounts: 10,
 		},
 		ChainID: big.NewInt(1000 * (1 + rand.Int63n(9999))),
+		GethParams: env.GethParamsConfig{
+			HTTPAddr: "127.0.0.1",
+			HTTPAPI:  "eth,net,web3,debug,admin,personal,istanbul,txpool",
+		},
+		NodePort: 30303,
+		RPCPort:  8545,
 	}
 	env, err := env.New(workdir, envCfg)
 	if err != nil {
@@ -75,6 +81,12 @@ func (e loadtestEnv) createEnv(workdir string) (*env.Environment, error) {
 			NumDeveloperAccounts: 10000,
 		},
 		ChainID: big.NewInt(9099000),
+		GethParams: env.GethParamsConfig{
+			HTTPAddr: "127.0.0.1",
+			HTTPAPI:  "eth,net,web3,debug,admin,personal,istanbul,txpool",
+		},
+		NodePort: 30303,
+		RPCPort:  8545,
 	}
 
 	env, err := env.New(workdir, envCfg)
@@ -121,6 +133,12 @@ func (e monorepoEnv) createEnv(workdir string) (*env.Environment, error) {
 			UseValidatorAsAdmin:  true, // monorepo doesn't use the admin account type, uses first validator instead
 		},
 		ChainID: big.NewInt(1000 * (1 + rand.Int63n(9999))),
+		GethParams: env.GethParamsConfig{
+			HTTPAddr: "127.0.0.1",
+			HTTPAPI:  "eth,net,web3,debug,admin,personal,istanbul,txpool",
+		},
+		NodePort: 30303,
+		RPCPort:  8545,
 	}
 	env, err := env.New(workdir, envCfg)
 	if err != nil {

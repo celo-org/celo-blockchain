@@ -43,11 +43,15 @@ mycelo genesis --template=[local|loadtest|monorepo]
 Additionally, you can override template options via command line, chedk `mycelo genesis --help` for options:
 
 ```bash
-   --validators value    Number of Validators (default: 0)
-   --dev.accounts value  Number of developer accounts (default: 0)
-   --blockperiod value   Seconds between each block (default: 0)
-   --epoch value         Epoch size (default: 0)
-   --mnemonic value      Mnemonic to generate accounts
+   --validators value     Number of Validators (default: 0)
+   --dev.accounts value   Number of developer accounts (default: 0)
+   --blockperiod value    Seconds between each block (default: 0)
+   --epoch value          Epoch size (default: 0)
+   --mnemonic value       Mnemonic to generate accounts
+   --node.port value      First Node port (default: 30303)
+   --rpc.port value       First Node RPC port (default: 8545)
+   --geth.http.addr value `--http.addr` option of geth command (default: "127.0.0.1")
+   --geth.http.api value  `--http.api` option of geth command (default: "eth,net,web3,debug,admin,personal,istanbul,txpool")   
 ```
 
 ### Configuring Genesis (Advanced)

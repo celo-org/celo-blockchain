@@ -26,6 +26,7 @@ import (
 // NodeConfig represents the configuration of a celo-blockchain node runner
 type NodeConfig struct {
 	GethPath              string
+	GethParams            *env.GethParamsConfig
 	ExtraFlags            string
 	ChainID               *big.Int
 	Number                int
@@ -33,16 +34,18 @@ type NodeConfig struct {
 	TxFeeRecipientAccount env.Account
 	OtherAccounts         []env.Account
 	Datadir               string
+	NodeStartPort         int
+	RPCStartPort          int
 }
 
 // RPCPort is the rpc port this node will use
 func (nc *NodeConfig) RPCPort() int64 {
-	return int64(8545 + nc.Number)
+	return int64(nc.RPCStartPort + nc.Number)
 }
 
 // NodePort is the node port this node will use
 func (nc *NodeConfig) NodePort() int64 {
-	return int64(30303 + nc.Number)
+	return int64(nc.NodeStartPort + nc.Number)
 }
 
 // Node represents a Node runner
@@ -161,10 +164,10 @@ func (n *Node) Run(ctx context.Context) error {
 		"--nodiscover",
 		"--nat", "extip:127.0.0.1",
 		"--port", strconv.FormatInt(n.NodePort(), 10),
-		"--rpc",
-		"--rpcaddr", "127.0.0.1",
-		"--rpcport", strconv.FormatInt(n.RPCPort(), 10),
-		"--rpcapi", "eth,net,web3,debug,admin,personal,istanbul,txpool",
+		"--http",
+		"--http.addr", n.GethParams.HTTPAddr,
+		"--http.port", strconv.FormatInt(n.RPCPort(), 10),
+		"--http.api", n.GethParams.HTTPAPI,
 		// "--nodiscover", "--nousb ",
 		"--unlock", addressToUnlock,
 		"--password", n.pwdFile(),

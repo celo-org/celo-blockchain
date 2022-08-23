@@ -51,6 +51,9 @@ func (env *Environment) Save() error {
 // Accounts retrieves accounts config
 func (env *Environment) Accounts() *AccountsConfig { return &env.Config.Accounts }
 
+// GethParams retrieves geth parameter config
+func (env *Environment) GethParams() *GethParamsConfig { return &env.Config.GethParams }
+
 // GenesisPath returns the paths to the genesis.json file (if present on the environment)
 func (env *Environment) GenesisPath() string { return env.paths.genesisJSON() }
 

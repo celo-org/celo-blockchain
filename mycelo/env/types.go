@@ -6,8 +6,11 @@ import (
 
 // Config represents mycelo environment parameters
 type Config struct {
-	ChainID  *big.Int       `json:"chainId"`  // chainId identifies the current chain and is used for replay protection
-	Accounts AccountsConfig `json:"accounts"` // Accounts configuration for the environment
+	ChainID    *big.Int         `json:"chainId"`    // chainId identifies the current chain and is used for replay protection
+	Accounts   AccountsConfig   `json:"accounts"`   // Accounts configuration for the environment
+	GethParams GethParamsConfig `json:"gethParams"` // Geth parameter configuration for the environment
+	NodePort   int              `json:"nodePort"`   // Default value of Node port
+	RPCPort    int              `json:"rpcPort"`    // Default value of RPC port
 }
 
 // AccountsConfig represents accounts configuration for the environment
@@ -17,6 +20,12 @@ type AccountsConfig struct {
 	ValidatorsPerGroup   int    `json:"validatorsPerGroup"`  // Number of validators per group in the initial set
 	NumDeveloperAccounts int    `json:"developerAccounts"`   // Number of developers accounts
 	UseValidatorAsAdmin  bool   `json:"useValidatorAsAdmin"` // Whether to use the first validator as the admin (for compatibility with monorepo)
+}
+
+// GethParamsConfig represents geth parameters configuration for the geth parameter
+type GethParamsConfig struct {
+	HTTPAddr string `json:"http.addr"` // Value of --http.addr option
+	HTTPAPI  string `json:"http.api"`  // Value of --http.api option
 }
 
 // ValidatorGroup represents a group plus its validators members
