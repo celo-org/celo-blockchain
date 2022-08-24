@@ -32,6 +32,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/console/prompt"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
@@ -39,6 +40,7 @@ import (
 	"github.com/celo-org/celo-blockchain/internal/debug"
 	"github.com/celo-org/celo-blockchain/internal/ethapi"
 	"github.com/celo-org/celo-blockchain/internal/flags"
+	lesDownloader "github.com/celo-org/celo-blockchain/les/downloader"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/node"
@@ -387,19 +389,26 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend) {
 	// close the node when synchronization is complete if user required.
 	if ctx.GlobalBool(utils.ExitWhenSyncedFlag.Name) {
 		go func() {
-			sub := stack.EventMux().Subscribe(downloader.DoneEvent{})
+			// Subscribing to both events since les has its own downloader
+			sub := stack.EventMux().Subscribe(downloader.DoneEvent{}, lesDownloader.DoneEvent{})
 			defer sub.Unsubscribe()
 			for {
 				event := <-sub.Chan()
 				if event == nil {
 					continue
 				}
-				done, ok := event.Data.(downloader.DoneEvent)
-				if !ok {
+				var latest *types.Header
+				if done, ok := event.Data.(downloader.DoneEvent); ok {
+					latest = done.Latest
+				}
+				if lesDone, ok := event.Data.(lesDownloader.DoneEvent); ok {
+					latest = lesDone.Latest
+				}
+				if latest == nil {
 					continue
 				}
-				if timestamp := time.Unix(int64(done.Latest.Time), 0); time.Since(timestamp) < 10*time.Minute {
-					log.Info("Synchronisation completed", "latestnum", done.Latest.Number, "latesthash", done.Latest.Hash(),
+				if timestamp := time.Unix(int64(latest.Time), 0); time.Since(timestamp) < 10*time.Minute {
+					log.Info("Synchronisation completed", "latestnum", latest.Number, "latesthash", latest.Hash(),
 						"age", common.PrettyAge(timestamp))
 					stack.Close()
 				}

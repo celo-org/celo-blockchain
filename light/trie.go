@@ -27,6 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/trie"
 )
 
@@ -109,6 +110,17 @@ func (t *odrTrie) TryGet(key []byte) ([]byte, error) {
 		return err
 	})
 	return res, err
+}
+
+func (t *odrTrie) TryUpdateAccount(key []byte, acc *types.StateAccount) error {
+	key = crypto.Keccak256(key)
+	value, err := rlp.EncodeToBytes(acc)
+	if err != nil {
+		return fmt.Errorf("decoding error in account update: %w", err)
+	}
+	return t.do(key, func() error {
+		return t.trie.TryUpdate(key, value)
+	})
 }
 
 func (t *odrTrie) TryUpdate(key, value []byte) error {

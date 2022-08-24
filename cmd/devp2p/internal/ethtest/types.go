@@ -181,8 +181,8 @@ func (c *Conn) Read() Message {
 	return msg
 }
 
-// Read66 reads an eth66 packet from the connection.
-func (c *Conn) Read66() (uint64, Message) {
+// Read67 reads an celo67 (eth66) packet from the connection.
+func (c *Conn) Read67() (uint64, Message) {
 	code, rawData, _, err := c.Conn.Read()
 	if err != nil {
 		return 0, errorf("could not read from connection: %v", err)
@@ -272,8 +272,8 @@ func (c *Conn) Write(msg Message) error {
 	return err
 }
 
-// Write66 writes an eth66 packet to the connection.
-func (c *Conn) Write66(req eth.Packet, code int) error {
+// Write67 writes an celo67 (eth66) packet to the connection.
+func (c *Conn) Write67(req eth.Packet, code int) error {
 	payload, err := rlp.EncodeToBytes(req)
 	if err != nil {
 		return err
