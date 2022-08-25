@@ -45,7 +45,6 @@ func TestMalformedMessageDecoding(t *testing.T) {
 		},
 		Digest: common.BytesToHash([]byte("1234567890")),
 	}, v0.Address())
-//<<<<<<< HEAD
 
 	// with a matched payload. istanbul.MsgPreprepare should match with *istanbul.Preprepare in normal case.
 	m.Code = istanbul.MsgPreprepare
@@ -57,27 +56,12 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	assert.Error(t, err)
 
 	m = istanbul.NewMessage(&istanbul.Preprepare{
-/*=======
-
-	// Prepare message but preprepare message code
-	m.Code = istanbul.MsgPreprepare
-
-	payload, err := m.Payload()
-	require.NoError(t, err)
-
-	msg := &istanbul.Message{}
-	err = msg.FromPayload(payload, r0.validateFn)
-	assert.Error(t, err)
-
-	m = istanbul.NewPreprepareMessage(&istanbul.Preprepare{
->>>>>>> master*/
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
 		},
 		Proposal: makeBlock(1),
 	}, v0.Address())
-//<<<<<<< HEAD
 
 	// with a unmatched payload. istanbul.MsgPrepare should match with *istanbul.Subject in normal case.
 	m.Code = istanbul.MsgPrepare
@@ -89,7 +73,6 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	assert.Error(t, err)
 
 	m = istanbul.NewMessage(&istanbul.Preprepare{
-/*=======
 
 	// Preprepare message but prepare message code
 	m.Code = istanbul.MsgPrepare
@@ -109,7 +92,6 @@ func TestMalformedMessageDecoding(t *testing.T) {
 		},
 		Proposal: makeBlock(2),
 	}, v0.Address())
-//<<<<<<< HEAD
 
 	// with a unmatched payload. istanbul.MsgCommit should match with *istanbul.Subject in normal case.
 	m.Code = istanbul.MsgCommit
@@ -121,27 +103,12 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	assert.Error(t, err)
 
 	m = istanbul.NewMessage(&istanbul.Preprepare{
-/*=======
-
-	// Preprepare message but commit message code
-	m.Code = istanbul.MsgCommit
-
-	payload, err = m.Payload()
-	require.NoError(t, err)
-
-	msg = &istanbul.Message{}
-	err = msg.FromPayload(payload, r0.validateFn)
-	assert.Error(t, err)
-
-	m = istanbul.NewPreprepareMessage(&istanbul.Preprepare{
->>>>>>> master*/
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
 		},
 		Proposal: makeBlock(3),
 	}, v0.Address())
-//<<<<<<< HEAD
 
 	// invalid message code. message code is not exists in list
 	m.Code = uint64(99)
@@ -153,7 +120,6 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	assert.Error(t, err)
 
 	// with malicious payload
-/*=======
 
 	// invalid message code. message code is not exists in list
 	m.Code = uint64(99)
@@ -166,7 +132,6 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	assert.Error(t, err)
 
 	// check fails with garbage message
->>>>>>> master*/
 	err = r0.handleMsg([]byte{1})
 	assert.Error(t, err)
 }

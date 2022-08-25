@@ -224,79 +224,6 @@ func (c *core) ForceRoundChange() {
 	c.sendEvent(timeoutAndMoveToNextRoundEvent{view})
 }
 
-/*<<<<<<< HEAD
-=======
-// PrepareCommittedSeal returns a committed seal for the given hash and round number.
-func PrepareCommittedSeal(hash common.Hash, round *big.Int) []byte {
-	var buf bytes.Buffer
-	buf.Write(hash.Bytes())
-	buf.Write(round.Bytes())
-	buf.Write([]byte{byte(istanbul.MsgCommit)})
-	return buf.Bytes()
-}
-
-// GetAggregatedSeal aggregates all the given seals for a given message set to a bls aggregated
-// signature and bitmap
-func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregatedSeal, error) {
-	bitmap := big.NewInt(0)
-	committedSeals := make([][]byte, seals.Size())
-	for i, v := range seals.Values() {
-		committedSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
-		commit := v.Commit()
-		copy(committedSeals[i][:], commit.CommittedSeal[:])
-
-		j, err := seals.GetAddressIndex(v.Address)
-		if err != nil {
-			return types.IstanbulAggregatedSeal{}, err
-		}
-		bitmap.SetBit(bitmap, int(j), 1)
-	}
-
-	asig, err := blscrypto.AggregateSignatures(committedSeals)
-	if err != nil {
-		return types.IstanbulAggregatedSeal{}, err
-	}
-	return types.IstanbulAggregatedSeal{Bitmap: bitmap, Signature: asig, Round: round}, nil
-}
-
-// UnionOfSeals combines a BLS aggregated signature with an array of signatures. Accounts for
-// double aggregating the same signature by only adding aggregating if the
-// validator was not found in the previous bitmap.
-// This function assumes that the provided seals' validator set is the same one
-// which produced the provided bitmap
-func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals MessageSet) (types.IstanbulAggregatedSeal, error) {
-	// TODO(asa): Check for round equality...
-	// Check who already has signed the message
-	newBitmap := new(big.Int).Set(aggregatedSignature.Bitmap)
-	committedSeals := [][]byte{}
-	committedSeals = append(committedSeals, aggregatedSignature.Signature)
-	for _, v := range seals.Values() {
-		valIndex, err := seals.GetAddressIndex(v.Address)
-		if err != nil {
-			return types.IstanbulAggregatedSeal{}, err
-		}
-
-		// if the bit was not set, this means we should add this signature to
-		// the batch
-		if newBitmap.Bit(int(valIndex)) == 0 {
-			newBitmap.SetBit(newBitmap, (int(valIndex)), 1)
-			committedSeals = append(committedSeals, v.Commit().CommittedSeal)
-		}
-	}
-
-	asig, err := blscrypto.AggregateSignatures(committedSeals)
-	if err != nil {
-		return types.IstanbulAggregatedSeal{}, err
-	}
-
-	return types.IstanbulAggregatedSeal{
-		Bitmap:    newBitmap,
-		Signature: asig,
-		Round:     aggregatedSignature.Round,
-	}, nil
-}
-
->>>>>>> master*/
 // Appends the current view and state to the given context.
 func (c *core) newLogger(ctx ...interface{}) log.Logger {
 	var seq, round, desired *big.Int
@@ -407,33 +334,6 @@ func (c *core) commit(aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpo
 	c.backlog.updateState(c.current.View(), c.current.State())
 
 	proposal := c.current.Proposal()
-/*<<<<<<< HEAD
-	if proposal == nil {
-		return nil
-	}
-
-	if err := c.backend.Commit(proposal, aggregatedSeal, aggregatedEpochValidatorSetSeal); err != nil {
-		nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-		logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
-		c.waitForDesiredRound(nextRound)
-		return nil
-=======*/
-	/*if proposal != nil {
-		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits(), c.current.Round())
-		if err != nil {
-			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-			logger.Warn("Error on commit, waiting for desired round", "reason", "getAggregatedSeal", "err", err, "desired_round", nextRound)
-			c.waitForDesiredRound(nextRound)
-			return nil
-		}
-		aggregatedEpochValidatorSetSeal, err := GetAggregatedEpochValidatorSetSeal(proposal.Number().Uint64(), c.config.Epoch, c.current.Commits())
-		if err != nil {
-			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-			c.logger.Warn("Error on commit, waiting for desired round", "reason", "GetAggregatedEpochValidatorSetSeal", "err", err, "desired_round", nextRound)
-			c.waitForDesiredRound(nextRound)
-			return nil
-		}*/
-
 		// Query the StateProcessResult cache, nil if it's cache miss
 		result := c.current.GetStateProcessResult(proposal.Hash())
 		if err := c.backend.Commit(proposal, aggregatedSeal, aggregatedEpochValidatorSetSeal, result); err != nil {
@@ -441,44 +341,12 @@ func (c *core) commit(aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpo
 			logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
 			c.waitForDesiredRound(nextRound)
 			return nil
-	//	}
-//>>>>>>> master
 	}
 
 	logger.Info("Committed")
 	return nil
 }
 
-/*<<<<<<< HEAD
-=======
-// GetAggregatedEpochValidatorSetSeal aggregates all the given seals for the SNARK-friendly epoch encoding
-// to a bls aggregated signature. Returns an empty signature on a non-epoch block.
-func GetAggregatedEpochValidatorSetSeal(blockNumber, epoch uint64, seals MessageSet) (types.IstanbulEpochValidatorSetSeal, error) {
-	if !istanbul.IsLastBlockOfEpoch(blockNumber, epoch) {
-		return types.IstanbulEpochValidatorSetSeal{}, nil
-	}
-	bitmap := big.NewInt(0)
-	epochSeals := make([][]byte, seals.Size())
-	for i, v := range seals.Values() {
-		epochSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
-
-		copy(epochSeals[i], v.Commit().EpochValidatorSetSeal[:])
-
-		j, err := seals.GetAddressIndex(v.Address)
-		if err != nil {
-			return types.IstanbulEpochValidatorSetSeal{}, err
-		}
-		bitmap.SetBit(bitmap, int(j), 1)
-	}
-
-	asig, err := blscrypto.AggregateSignatures(epochSeals)
-	if err != nil {
-		return types.IstanbulEpochValidatorSetSeal{}, err
-	}
-	return types.IstanbulEpochValidatorSetSeal{Bitmap: bitmap, Signature: asig}, nil
-}
-
->>>>>>> master*/
 // Generates the next preprepare request and associated round change certificate
 func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbul.Request, istanbul.RoundChangeCertificate, error) {
 	logger := c.newLogger("func", "getPreprepareWithRoundChangeCertificate", "for_round", round)

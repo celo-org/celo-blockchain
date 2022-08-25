@@ -368,13 +368,8 @@ func EmptyPreparedCertificate() PreparedCertificate {
 	block = block.WithEpochSnarkData(&types.EmptyEpochSnarkData)
 
 	return PreparedCertificate{
-//<<<<<<< HEAD
 		Proposal:        block.WithSeal(emptyHeader),
 		PrepareMessages: []Message{},
-/*=======
-		Proposal:                block.WithHeader(emptyHeader),
-		PrepareOrCommitMessages: []Message{},
->>>>>>> master*/
 	}
 }
 
@@ -565,7 +560,6 @@ type ForwardMessage struct {
 //
 // define the IstanbulQueryEnode message format, the QueryEnodeMsgCache entries, the queryEnode send function (both the gossip version and the "retrieve from cache" version), and the announce get function
 
-//<<<<<<< HEAD
 //=======
 // NewQueryEnodeMessage constructs a Message instance with the given sender and
 // queryEnode. Both the queryEnode instance and the serialized bytes of
@@ -580,7 +574,6 @@ func NewQueryEnodeMessage(queryEnode *QueryEnodeData, sender common.Address) *Me
 	return message
 }
 
-//>>>>>>> master
 type EncryptedEnodeURL struct {
 	DestAddress       common.Address
 	EncryptedEnodeURL []byte
@@ -618,7 +611,6 @@ func (qed *QueryEnodeData) HasDuplicates() (bool, common.Address) {
 	return false, common.Address{}
 }
 
-//>>>>>>> master
 // ==============================================
 //
 // define the functions that needs to be provided for rlp Encoder/Decoder.
@@ -1129,8 +1121,6 @@ func (ae *AddressEntry) GetAddress() common.Address {
 
 // ## VersionCertificate ######################################################################
 
-//<<<<<<< HEAD
-//=======
 // NewVersionCeritifcatesMessage constructs a Message instance with the given sender
 // and versionCertificates. Both the versionCertificates instance and the serialized
 // bytes of versionCertificates are part of the returned Message.
@@ -1144,7 +1134,6 @@ func NewVersionCeritifcatesMessage(versionCertificates []*VersionCertificate, se
 	return message
 }
 
-//>>>>>>> master
 // VersionCertificate is an entry in the VersionCertificateDB.
 // It's a signed message from a registered or active validator indicating
 // the most recent version of its enode.
@@ -1155,12 +1144,9 @@ type VersionCertificate struct {
 	pubKey    *ecdsa.PublicKey
 }
 
-/*<<<<<<< HEAD
-=======
 // NewVersionCeritifcate constructs a VersionCertificate instance with the
 // given version.  It uses the signingFn to generate a version signature and
 // then builds a version certificate from the version and its signature.
->>>>>>> master*/
 func NewVersionCertificate(version uint, signingFn func([]byte) ([]byte, error)) (*VersionCertificate, error) {
 	vc := &VersionCertificate{Version: version}
 	payloadToSign, err := vc.signaturePayload()
@@ -1171,15 +1157,7 @@ func NewVersionCertificate(version uint, signingFn func([]byte) ([]byte, error))
 	if err != nil {
 		return nil, err
 	}
-//<<<<<<< HEAD
 	return vc, vc.recoverAddressAndPubKey()
-/*=======
-	err = vc.recoverAddressAndPubKey()
-	if err != nil {
-		return nil, err
-	}
-
-	return vc, nil*/
 }
 
 // NewVersionCeritifcateFrom fields constructs a VersionCertificate instance
@@ -1195,7 +1173,6 @@ func NewVersionCertificateFromFields(version uint, signature []byte, address com
 		address:   address,
 		pubKey:    key,
 	}
-//>>>>>>> master*/
 }
 
 // Used as a salt when signing versionCertificate. This is to account for
@@ -1360,4 +1337,3 @@ type Wallets struct {
 	Ecdsa EcdsaInfo
 	Bls   BlsInfo
 }
-//>>>>>>> master*/

@@ -31,11 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/rlp"
-//<<<<<<< HEAD
 	"github.com/stretchr/testify/assert"
-//=======
-//	. "github.com/onsi/gomega"
-//>>>>>>> master
 )
 
 func stopEngine(engine *Backend) {
@@ -158,19 +154,13 @@ func TestVerifySeal(t *testing.T) {
 	genesis := chain.Genesis()
 
 	// cannot verify genesis
-//<<<<<<< HEAD
-//	err := engine.VerifySeal(chain, genesis.Header())
-//	assert.Error(t, err)
-//=======
 	err := engine.VerifySeal(genesis.Header())
 	g.Expect(err).Should(BeIdenticalTo(errUnknownBlock))
-//>>>>>>> master
 
 	// should verify
 	block, err := makeBlock(nodeKeys, chain, engine, genesis)
 	g.Expect(err).ToNot(HaveOccurred())
 	header := block.Header()
-/*<<<<<<< HEAD
 	err = engine.VerifySeal(chain, header)
 	assert.NoError(t, err)
 
@@ -178,7 +168,6 @@ func TestVerifySeal(t *testing.T) {
 	header.Number = big.NewInt(4)
 	err = engine.VerifySeal(chain, header)
 	assert.Error(t, err)
-=======*/
 	err = engine.VerifySeal(header)
 	g.Expect(err).ToNot(HaveOccurred())
 
@@ -186,23 +175,18 @@ func TestVerifySeal(t *testing.T) {
 	header.Number = big.NewInt(4)
 	err = engine.VerifySeal(header)
 	g.Expect(err).Should(BeIdenticalTo(errInvalidSignature))
-//>>>>>>> master
 
 	// delete istanbul extra data and expect invalid extra data format
 	header = block.Header()
 	header.Extra = nil
-/*<<<<<<< HEAD
 	err = engine.VerifySeal(chain, header)
 	assert.Error(t, err)
-=======*/
 	err = engine.VerifySeal(header)
 	g.Expect(err).Should(BeIdenticalTo(errInvalidExtraDataFormat))
-//>>>>>>> master
 
 	// modify seal bitmap and expect to fail the quorum check
 	header = block.Header()
 	extra, err := types.ExtractIstanbulExtra(header)
-/*<<<<<<< HEAD
 	assert.NoError(t, err)
 
 	extra.AggregatedSeal.Bitmap = big.NewInt(0)
@@ -216,7 +200,6 @@ func TestVerifySeal(t *testing.T) {
 	// verifiy the seal on the unmodified block.
 	err = engine.VerifySeal(chain, block.Header())
 	assert.NoError(t, err)
-=======*/
 	g.Expect(err).ToNot(HaveOccurred())
 	extra.AggregatedSeal.Bitmap = big.NewInt(0)
 	encoded, err := rlp.EncodeToBytes(extra)
@@ -228,7 +211,6 @@ func TestVerifySeal(t *testing.T) {
 	// verifiy the seal on the unmodified block.
 	err = engine.VerifySeal(block.Header())
 	g.Expect(err).ToNot(HaveOccurred())
-//>>>>>>> master
 }
 
 func TestVerifyHeaders(t *testing.T) {
