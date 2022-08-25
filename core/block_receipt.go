@@ -26,9 +26,10 @@ import (
 // of block processing outside of transactions.  If there are any, it creates a receipt for
 // them (the so-called "block receipt") and appends it to receipts
 func AddBlockReceipt(receipts types.Receipts, statedb *state.StateDB, blockHash common.Hash) types.Receipts {
-	if len(statedb.GetLogs(common.Hash{}, blockHash)) > 0 {
+	blockLogs := statedb.GetLogs(common.Hash{}, blockHash)
+	if len(blockLogs) > 0 {
 		receipt := types.NewReceipt(nil, false, 0)
-		receipt.Logs = statedb.GetLogs(common.Hash{}, blockHash)
+		receipt.Logs = blockLogs
 		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
 		for i := range receipt.Logs {
 			receipt.Logs[i].TxIndex = uint(len(receipts))
