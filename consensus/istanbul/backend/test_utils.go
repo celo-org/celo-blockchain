@@ -338,13 +338,6 @@ func SignBLSFn(key *ecdsa.PrivateKey) istanbul.BLSSignerFn {
 	}
 }
 
-func signerFn(key *ecdsa.PrivateKey) func(data, extraData []byte, compositeHasher, cip22 bool) ([]byte, error) {
-	return func(data []byte, extraData []byte, useComposite, cip22 bool) ([]byte, error) {
-		sig, err := SignBLSFn(key)(accounts.Account{}, data, extraData, useComposite, cip22)
-		return sig[:], err
-	}
-}
-
 func SignHashFn(key *ecdsa.PrivateKey) istanbul.HashSignerFn {
 	if key == nil {
 		key, _ = generatePrivateKey()

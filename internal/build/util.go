@@ -151,6 +151,10 @@ func FindMainPackages(dir string) []string {
 		log.Fatal(err)
 	}
 	for _, cmd := range cmds {
+		//TODO, DO NOT MERGE (michael): Remove this conditional
+		if cmd.Name() == ".DS_Store" {
+			continue
+		}
 		pkgdir := filepath.Join(dir, cmd.Name())
 		pkgs, err := parser.ParseDir(token.NewFileSet(), pkgdir, nil, parser.PackageClauseOnly)
 		if err != nil {
