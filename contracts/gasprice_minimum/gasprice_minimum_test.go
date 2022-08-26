@@ -16,7 +16,7 @@ func TestGetGasPriceSuggestion(t *testing.T) {
 	gpmAddress := common.HexToAddress("0x090")
 
 	t.Run("should return gas price minimum multiplied by 5", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		runner := testutil.NewMockEVMRunner()
 		registry := testutil.NewRegistryMock()
@@ -42,7 +42,7 @@ func TestGetGasPriceMinimum(t *testing.T) {
 	gpmAddress := common.HexToAddress("0x090")
 
 	t.Run("should fail when vmRunner is failing", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		runner := testutil.FailingVmRunner{}
 
@@ -58,7 +58,7 @@ func TestGetGasPriceMinimum(t *testing.T) {
 	})
 
 	t.Run("should return fallback price when registry is not deployed", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		runner := testutil.NewMockEVMRunner()
 
@@ -69,7 +69,7 @@ func TestGetGasPriceMinimum(t *testing.T) {
 	})
 
 	t.Run("should return fallback price when goldToken is not deployed", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		runner := testutil.NewMockEVMRunner()
 		registry := testutil.NewRegistryMock()
@@ -82,7 +82,7 @@ func TestGetGasPriceMinimum(t *testing.T) {
 	})
 
 	t.Run("should return fallback price when gasPriceMinimum is not deployed", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		runner := testutil.NewMockEVMRunner()
 		registry := testutil.NewRegistryMock()
@@ -102,7 +102,7 @@ func TestGetGasPriceMinimum(t *testing.T) {
 	})
 
 	t.Run("should return gasPriceMinimum for CELO", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		runner := testutil.NewMockEVMRunner()
 		registry := testutil.NewRegistryMock()
@@ -122,7 +122,7 @@ func TestGetGasPriceMinimum(t *testing.T) {
 	})
 
 	t.Run("should return gasPriceMinimum for CELO", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		runner := testutil.NewMockEVMRunner()
 		registry := testutil.NewRegistryMock()
@@ -145,7 +145,7 @@ func TestGetGasPriceMinimum(t *testing.T) {
 }
 func TestUpdateGasPriceMinimum(t *testing.T) {
 	t.Run("should update gasPriceMinimum with current blockGasLimit", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		var (
 			gpmAddress                         = common.HexToAddress("0x99")

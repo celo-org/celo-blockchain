@@ -147,8 +147,8 @@ func dummyRoundChangeMessage() *Message {
 			Sequence: common.Big2,
 		},
 		PreparedCertificate: PreparedCertificate{
-			PrepareOrCommitMessages: []Message{},
-			Proposal:                dummyBlock(2),
+			PrepareMessages: []Message{},
+			Proposal:        dummyBlock(2),
 		},
 	}
 	setMessageBytes(msg, roundChange)

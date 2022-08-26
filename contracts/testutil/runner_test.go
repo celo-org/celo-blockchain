@@ -9,7 +9,7 @@ import (
 )
 
 func TestRunnerWorks(t *testing.T) {
-	g := NewGomegaWithT(t)
+	g := NewWithT(t)
 
 	celo := NewCeloMock()
 

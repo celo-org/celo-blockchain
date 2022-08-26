@@ -24,11 +24,6 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
-	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
-	"github.com/celo-org/celo-bls-go/bls"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -36,6 +31,8 @@ import (
 	elog "github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/trie"
 	"github.com/celo-org/celo-bls-go/bls"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func makeBlock(number int64) *types.Block {

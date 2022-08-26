@@ -49,7 +49,7 @@ func TestCurrencyManager(t *testing.T) {
 	oneToTwo := MustNewExchangeRate(common.Big2, common.Big1)
 
 	t.Run("should not call getExchange rate if both currencies are gold", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 		mock := getExchangeRateMock{}
 		manager := newManager(mock.getExchangeRate, nil)
 
@@ -59,7 +59,7 @@ func TestCurrencyManager(t *testing.T) {
 	})
 
 	t.Run("should not call getExchange rate if both currencies are the same", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 		mock := getExchangeRateMock{}
 		manager := newManager(mock.getExchangeRate, nil)
 
@@ -69,7 +69,7 @@ func TestCurrencyManager(t *testing.T) {
 	})
 
 	t.Run("should not call getExchange rate on goldToken currency", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		mock := getExchangeRateMock{}
 
@@ -84,7 +84,7 @@ func TestCurrencyManager(t *testing.T) {
 	})
 
 	t.Run("should use returned exchange rate", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		mock := getExchangeRateMock{}
 		manager := newManager(mock.getExchangeRate, nil)
@@ -107,7 +107,7 @@ func TestCurrencyManager(t *testing.T) {
 	})
 
 	t.Run("should work with zero values", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		mock := getExchangeRateMock{}
 		manager := newManager(mock.getExchangeRate, nil)
@@ -123,7 +123,7 @@ func TestCurrencyManager(t *testing.T) {
 	})
 
 	t.Run("should compare value if first get exchange rate fails", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		mock := getExchangeRateMock{}
 		mock.nextReturn(twoToOne, nil)
@@ -134,7 +134,7 @@ func TestCurrencyManager(t *testing.T) {
 	})
 
 	t.Run("should compare value if second get exchange rate fails", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		mock := getExchangeRateMock{}
 		mock.nextReturn(nil, errors.New("boom!"))
@@ -145,7 +145,7 @@ func TestCurrencyManager(t *testing.T) {
 	})
 
 	t.Run("should cache exchange rate on subsequent calls", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		mock := getExchangeRateMock{}
 		mock.nextReturn(twoToOne, nil)
@@ -164,7 +164,7 @@ func TestCurrencyManager(t *testing.T) {
 	})
 
 	t.Run("should NOT cache exchange rate on errors", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		mock := getExchangeRateMock{}
 		// default return is an error
@@ -197,7 +197,7 @@ func EqualBigInt(n int64) OmegaMatcher {
 func TestExchangeRate(t *testing.T) {
 
 	t.Run("can't create with numerator <= 0", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		_, err := NewExchangeRate(common.Big0, common.Big1)
 		g.Expect(err).Should((HaveOccurred()))
@@ -207,7 +207,7 @@ func TestExchangeRate(t *testing.T) {
 	})
 
 	t.Run("can't create with denominator <= 0", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		_, err := NewExchangeRate(common.Big1, common.Big0)
 		g.Expect(err).Should((HaveOccurred()))
@@ -217,7 +217,7 @@ func TestExchangeRate(t *testing.T) {
 	})
 
 	t.Run("should convert to base and back", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 		twoToOne := MustNewExchangeRate(common.Big2, common.Big1)
 
 		g.Expect(twoToOne.FromBase(common.Big1)).Should(EqualBigInt(2))
@@ -229,7 +229,7 @@ func TestExchangeRate(t *testing.T) {
 func TestCurrency(t *testing.T) {
 
 	t.Run("should compare with another currency values", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		// 1 gold => 2 expensiveToken
 		expensiveToken := MustNewExchangeRate(common.Big2, common.Big1)

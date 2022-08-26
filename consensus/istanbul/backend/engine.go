@@ -286,6 +286,24 @@ func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainHeaderReader, head
 		return err
 	}
 
+	if emptyAggregatedseal {
+		// The length of Committed seals should be exactly 0 (preprepare proposal check)
+		if len(extra.AggregatedSeal.Signature) != 0 {
+			return errNonEmptyAggregatedSeal
+		}
+		// Should we also verify that the bitmap and round are nil?
+	} else {
+		// The length of Committed seals should be larger than 0
+		if len(extra.AggregatedSeal.Signature) == 0 {
+			return errEmptyAggregatedSeal
+		}
+
+		err = istanbulCore.IstanbulAggregatedSeal(extra.ParentAggregatedSeal).Verify(header.Hash(), validators)
+		if err != nil {
+			return err
+		}
+	}
+
 	// The genesis block is skipped since it has no parents.
 	// The first block is also skipped, since its parent
 	// is the genesis block which contains no parent signatures.

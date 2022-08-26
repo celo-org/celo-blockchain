@@ -15,7 +15,7 @@ func TestIsFrozen(t *testing.T) {
 	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, IsFrozen, params.BlockchainParametersRegistryId)
 
 	t.Run("should indicate if contract is frozen", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		var (
 			freezerAddress    = common.HexToAddress("0x01")

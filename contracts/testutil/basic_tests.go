@@ -27,7 +27,7 @@ func TestFailOnFailingRunner(t *testing.T, fn interface{}, args ...interface{}) 
 
 	t.Run("should fail if vmRunner fails", func(t *testing.T) {
 		t.Parallel()
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 		fnValue := reflect.ValueOf(fn)
 
 		argsValues := vmRunnerArguments(FailingVmRunner{}, args...)
@@ -55,7 +55,7 @@ func TestReturnsDefaultOnFailingRunner(t *testing.T, defaultValue interface{}, f
 
 	t.Run("should returns default if vmRunner fails", func(t *testing.T) {
 		t.Parallel()
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 		fnValue := reflect.ValueOf(fn)
 
 		argsValues := vmRunnerArguments(FailingVmRunner{}, args...)
@@ -84,7 +84,7 @@ func TestFailsWhenContractNotDeployed(t *testing.T, expectedError error, fn inte
 
 	t.Run("should fail when contract not deployed", func(t *testing.T) {
 		t.Parallel()
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 		fnValue := reflect.ValueOf(fn)
 
 		vmRunner := NewMockEVMRunner()

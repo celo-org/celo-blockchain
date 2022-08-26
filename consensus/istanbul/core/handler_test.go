@@ -52,7 +52,8 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	payload, err := m.Payload()
 	require.NoError(t, err)
 
-	err = r0.handleMsg(payload)
+	msg := &istanbul.Message{}
+	err = msg.FromPayload(payload, r0.validateFn)
 	assert.Error(t, err)
 
 	m = istanbul.NewMessage(&istanbul.Preprepare{
@@ -69,23 +70,11 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	payload, err = m.Payload()
 	require.NoError(t, err)
 
-	err = r0.handleMsg(payload)
-	assert.Error(t, err)
-
-	m = istanbul.NewMessage(&istanbul.Preprepare{
-
-	// Preprepare message but prepare message code
-	m.Code = istanbul.MsgPrepare
-
-	payload, err = m.Payload()
-	require.NoError(t, err)
-
 	msg = &istanbul.Message{}
 	err = msg.FromPayload(payload, r0.validateFn)
 	assert.Error(t, err)
 
-	m = istanbul.NewPreprepareMessage(&istanbul.Preprepare{
->>>>>>> master*/
+	m = istanbul.NewMessage(&istanbul.Preprepare{
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
@@ -99,7 +88,8 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	payload, err = m.Payload()
 	require.NoError(t, err)
 
-	err = r0.handleMsg(payload)
+	msg = &istanbul.Message{}
+	err = msg.FromPayload(payload, r0.validateFn)
 	assert.Error(t, err)
 
 	m = istanbul.NewMessage(&istanbul.Preprepare{
@@ -109,17 +99,6 @@ func TestMalformedMessageDecoding(t *testing.T) {
 		},
 		Proposal: makeBlock(3),
 	}, v0.Address())
-
-	// invalid message code. message code is not exists in list
-	m.Code = uint64(99)
-
-	payload, err = m.Payload()
-	require.NoError(t, err)
-
-	err = r0.handleMsg(payload)
-	assert.Error(t, err)
-
-	// with malicious payload
 
 	// invalid message code. message code is not exists in list
 	m.Code = uint64(99)

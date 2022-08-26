@@ -13,17 +13,17 @@ import (
 
 func TestIsRunning(t *testing.T) {
 	t.Run("should be False if runner fails", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 		g.Expect(IsRunning(testutil.FailingVmRunner{})).To(BeFalse())
 	})
 	t.Run("should be False if Registry Not deployed", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 		vmrunner := testutil.NewMockEVMRunner()
 		g.Expect(IsRunning(vmrunner)).To(BeFalse())
 
 	})
 	t.Run("should be False if Random Not deployed", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 		vmrunner := testutil.NewMockEVMRunner()
 		registry := testutil.NewRegistryMock()
 		vmrunner.RegisterContract(params.RegistrySmartContractAddress, registry)
@@ -31,7 +31,7 @@ func TestIsRunning(t *testing.T) {
 
 	})
 	t.Run("should be True if Random is deployed", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 		vmrunner := testutil.NewMockEVMRunner()
 		registry := testutil.NewRegistryMock()
 		vmrunner.RegisterContract(params.RegistrySmartContractAddress, registry)
@@ -49,7 +49,7 @@ func TestGetLastCommitment(t *testing.T) {
 	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, GetLastCommitment, validatorAddress)
 
 	t.Run("should retrieve last commitment", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 		vmrunner := testutil.NewSingleMethodRunner(params.RandomRegistryId, "commitments", func(validator common.Address) common.Hash {
 			g.Expect(validator).To(Equal(validatorAddress))
 			return someCommitment
@@ -69,7 +69,7 @@ func TestComputeCommitment(t *testing.T) {
 	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, ComputeCommitment, someRandomness)
 
 	t.Run("should compute commitment", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 		vmrunner := testutil.NewSingleMethodRunner(params.RandomRegistryId, "computeCommitment", func(randomness common.Hash) common.Hash {
 			g.Expect(randomness).To(Equal(someRandomness))
 			return someCommitment
@@ -82,7 +82,7 @@ func TestComputeCommitment(t *testing.T) {
 }
 func TestRevealAndCommit(t *testing.T) {
 	t.Run("should reveal and commit", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		var (
 			someRandomness = common.HexToHash("0x077777")
@@ -108,7 +108,7 @@ func TestRandom(t *testing.T) {
 	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, Random)
 
 	t.Run("should retrieve current randomness", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 		vmrunner := testutil.NewSingleMethodRunner(params.RandomRegistryId, "random", func() common.Hash {
 			return someRandomness
 		})
@@ -127,7 +127,7 @@ func TestBlockRandomness(t *testing.T) {
 	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, BlockRandomness, blockNumber)
 
 	t.Run("should retrieve randomness for block", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 		vmrunner := testutil.NewSingleMethodRunner(params.RandomRegistryId, "getBlockRandomness", func(block *big.Int) common.Hash {
 			g.Expect(block.Uint64()).To(Equal(blockNumber))
 			return someRandomness

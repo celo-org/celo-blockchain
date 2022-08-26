@@ -1266,8 +1266,6 @@ func (sd *ValEnodesShareData) DecodeRLP(s *rlp.Stream) error {
 	sd.ValEnodes = msg.ValEnodes
 	return nil
 }
-//<<<<<<< HEAD
-//=======
 
 var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.

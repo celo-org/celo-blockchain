@@ -31,7 +31,8 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/stretchr/testify/assert"
+
+	. "github.com/onsi/gomega"
 )
 
 func stopEngine(engine *Backend) {
@@ -40,7 +41,7 @@ func stopEngine(engine *Backend) {
 }
 
 func TestPrepare(t *testing.T) {
-	g := NewGomegaWithT(t)
+	g := NewWithT(t)
 
 	chain, engine := newBlockChain(1, true)
 	defer stopEngine(engine)
@@ -55,7 +56,7 @@ func TestPrepare(t *testing.T) {
 }
 
 func TestMakeBlockWithSignature(t *testing.T) {
-	g := NewGomegaWithT(t)
+	g := NewWithT(t)
 
 	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
@@ -106,7 +107,7 @@ func TestSealCommitted(t *testing.T) {
 }
 
 func TestVerifyHeader(t *testing.T) {
-	g := NewGomegaWithT(t)
+	g := NewWithT(t)
 	chain, engine := newBlockChain(1, true)
 	defer stopEngine(engine)
 	defer chain.Stop()
@@ -144,7 +145,7 @@ func TestVerifyHeader(t *testing.T) {
 }
 
 func TestVerifySeal(t *testing.T) {
-	g := NewGomegaWithT(t)
+	g := NewWithT(t)
 	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
@@ -161,13 +162,6 @@ func TestVerifySeal(t *testing.T) {
 	block, err := makeBlock(nodeKeys, chain, engine, genesis)
 	g.Expect(err).ToNot(HaveOccurred())
 	header := block.Header()
-	err = engine.VerifySeal(chain, header)
-	assert.NoError(t, err)
-
-	// change header content and expect to invalidate signature
-	header.Number = big.NewInt(4)
-	err = engine.VerifySeal(chain, header)
-	assert.Error(t, err)
 	err = engine.VerifySeal(header)
 	g.Expect(err).ToNot(HaveOccurred())
 
@@ -179,34 +173,21 @@ func TestVerifySeal(t *testing.T) {
 	// delete istanbul extra data and expect invalid extra data format
 	header = block.Header()
 	header.Extra = nil
-	err = engine.VerifySeal(chain, header)
-	assert.Error(t, err)
 	err = engine.VerifySeal(header)
 	g.Expect(err).Should(BeIdenticalTo(errInvalidExtraDataFormat))
 
 	// modify seal bitmap and expect to fail the quorum check
 	header = block.Header()
 	extra, err := types.ExtractIstanbulExtra(header)
-	assert.NoError(t, err)
+	g.Expect(err).ToNot(HaveOccurred())
 
 	extra.AggregatedSeal.Bitmap = big.NewInt(0)
 	encoded, err := rlp.EncodeToBytes(extra)
-	assert.NoError(t, err)
-
-	header.Extra = append(header.Extra[:types.IstanbulExtraVanity], encoded...)
-	err = engine.VerifySeal(chain, header)
-	assert.Error(t, err)
-
-	// verifiy the seal on the unmodified block.
-	err = engine.VerifySeal(chain, block.Header())
-	assert.NoError(t, err)
 	g.Expect(err).ToNot(HaveOccurred())
-	extra.AggregatedSeal.Bitmap = big.NewInt(0)
-	encoded, err := rlp.EncodeToBytes(extra)
-	g.Expect(err).ToNot(HaveOccurred())
+
 	header.Extra = append(header.Extra[:types.IstanbulExtraVanity], encoded...)
 	err = engine.VerifySeal(header)
-	g.Expect(err).Should(BeIdenticalTo(errInsufficientSeals))
+	g.Expect(err).Should(HaveOccurred())
 
 	// verifiy the seal on the unmodified block.
 	err = engine.VerifySeal(block.Header())
@@ -330,7 +311,7 @@ func TestVerifyHeaderWithoutFullChain(t *testing.T) {
 	defer chain.Stop()
 
 	t.Run("should allow future block without full chain available", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 		block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 		header := block.Header()
 		header.Time = uint64(now().Unix() + 3)
@@ -339,7 +320,7 @@ func TestVerifyHeaderWithoutFullChain(t *testing.T) {
 	})
 
 	t.Run("should reject future block without full chain available", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 		block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 		header := block.Header()
 		header.Time = uint64(now().Unix() + 10)
@@ -349,7 +330,7 @@ func TestVerifyHeaderWithoutFullChain(t *testing.T) {
 }
 
 func TestPrepareExtra(t *testing.T) {
-	g := NewGomegaWithT(t)
+	g := NewWithT(t)
 
 	oldValidators := []istanbul.ValidatorData{
 		{Address: common.HexToAddress("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")},
@@ -397,7 +378,7 @@ func TestPrepareExtra(t *testing.T) {
 }
 
 func TestWriteSeal(t *testing.T) {
-	g := NewGomegaWithT(t)
+	g := NewWithT(t)
 
 	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
 	istExtra := &types.IstanbulExtra{
@@ -440,7 +421,7 @@ func TestWriteSeal(t *testing.T) {
 }
 
 func TestWriteAggregatedSeal(t *testing.T) {
-	g := NewGomegaWithT(t)
+	g := NewWithT(t)
 
 	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
 	istExtra := &types.IstanbulExtra{

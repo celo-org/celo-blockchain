@@ -23,7 +23,7 @@ func TestCalculateTargetEpochRewards(t *testing.T) {
 	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, fn)
 
 	t.Run("should return target epoch rewards", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
 			params.EpochRewardsRegistryId,
@@ -47,7 +47,7 @@ func TestIsReserveLow(t *testing.T) {
 	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, fn)
 
 	t.Run("should indicate if reserve is low", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
 			params.EpochRewardsRegistryId,
@@ -67,7 +67,7 @@ func TestGetCarbonOffsettingPartnerAddress(t *testing.T) {
 	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, fn)
 
 	t.Run("should indicate if reserve is low", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
 			params.EpochRewardsRegistryId,

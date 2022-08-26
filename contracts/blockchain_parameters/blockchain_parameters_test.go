@@ -15,7 +15,7 @@ func TestGetMinimumVersion(t *testing.T) {
 	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, getMinimumVersion)
 
 	t.Run("should return minimum version", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
 			params.BlockchainParametersRegistryId,
@@ -36,7 +36,7 @@ func TestGetIntrinsicGasForAlternativeFeeCurrency(t *testing.T) {
 	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, getIntrinsicGasForAlternativeFeeCurrency)
 
 	t.Run("should return gas for alternative currency", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
 			params.BlockchainParametersRegistryId,
@@ -55,7 +55,7 @@ func TestGetIntrinsicGasForAlternativeFeeCurrency(t *testing.T) {
 func TestGetIntrinsicGasForAlternativeFeeCurrencyOrDefault(t *testing.T) {
 	testutil.TestReturnsDefaultOnFailingRunner(t, params.IntrinsicGasForAlternativeFeeCurrency, GetIntrinsicGasForAlternativeFeeCurrencyOrDefault)
 	t.Run("should return gas for alternative currency", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
 			params.BlockchainParametersRegistryId,
@@ -74,7 +74,7 @@ func TestGetBlockGasLimit(t *testing.T) {
 	testutil.TestFailOnFailingRunner(t, getBlockGasLimit)
 	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, getBlockGasLimit)
 	t.Run("should return block gas limit", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
 			params.BlockchainParametersRegistryId,
@@ -92,7 +92,7 @@ func TestGetBlockGasLimit(t *testing.T) {
 func TestGetBlockGasLimitOrDefault(t *testing.T) {
 	testutil.TestReturnsDefaultOnFailingRunner(t, params.DefaultGasLimit, GetBlockGasLimitOrDefault)
 	t.Run("should return block gas limit", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
 			params.BlockchainParametersRegistryId,
@@ -111,7 +111,7 @@ func TestGetLookbackWindow(t *testing.T) {
 	testutil.TestFailOnFailingRunner(t, GetLookbackWindow)
 	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, GetLookbackWindow)
 	t.Run("should return lookback window", func(t *testing.T) {
-		g := NewGomegaWithT(t)
+		g := NewWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
 			params.BlockchainParametersRegistryId,

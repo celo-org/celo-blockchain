@@ -700,7 +700,7 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) ([]byte, error) {
 	w := sb.wallets()
 	sig, err := w.Bls.Sign(data, extra, useComposite, cip22)
-	return []byte(sig[:]), err
+	return sig[:], err
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature
