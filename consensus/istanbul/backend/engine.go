@@ -281,11 +281,6 @@ func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainHeaderReader, head
 		return err
 	}
 	validators := snap.ValSet.Copy()
-	err = istanbulCore.IstanbulAggregatedSeal(extra.AggregatedSeal).Verify(header.Hash(), validators)
-	if err != nil {
-		return err
-	}
-
 	if emptyAggregatedseal {
 		// The length of Committed seals should be exactly 0 (preprepare proposal check)
 		if len(extra.AggregatedSeal.Signature) != 0 {
@@ -298,7 +293,7 @@ func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainHeaderReader, head
 			return errEmptyAggregatedSeal
 		}
 
-		err = istanbulCore.IstanbulAggregatedSeal(extra.ParentAggregatedSeal).Verify(header.Hash(), validators)
+		err = istanbulCore.IstanbulAggregatedSeal(extra.AggregatedSeal).Verify(header.Hash(), validators)
 		if err != nil {
 			return err
 		}
