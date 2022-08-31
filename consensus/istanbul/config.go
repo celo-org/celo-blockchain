@@ -107,8 +107,8 @@ var DefaultConfig = &Config{
 
 //ApplyParamsChainConfigToConfig applies the istanbul config values from params.chainConfig to the istanbul.Config config
 func ApplyParamsChainConfigToConfig(chainConfig *params.ChainConfig, config *Config) error {
-	if chainConfig.Istanbul.V2Block != nil {
-		config.V2Block = chainConfig.Istanbul.V2Block
+	if chainConfig.FHardforkBlock != nil {
+		config.V2Block = chainConfig.FHardforkBlock
 	}
 	if chainConfig.Istanbul.Epoch != 0 {
 		if chainConfig.Istanbul.Epoch < MinEpochSize {

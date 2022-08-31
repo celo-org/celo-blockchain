@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/big"
 	"os"
 	"path"
 
@@ -40,6 +41,22 @@ var templateFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "mnemonic",
 		Usage: "Mnemonic to generate accounts",
+	},
+	cli.Int64Flag{
+		Name:  "forks.churrito",
+		Usage: "Optional flag to allow churrito fork overwritting (default: 0, disable: -1)",
+	},
+	cli.Int64Flag{
+		Name:  "forks.donut",
+		Usage: "Optional flag to allow donut fork overwritting (default: 0, disable: -1)",
+	},
+	cli.Int64Flag{
+		Name:  "forks.espresso",
+		Usage: "Optional flag to allow espresso fork overwritting (default: 0, disable: -1)",
+	},
+	cli.Int64Flag{
+		Name:  "forks.fhardfork",
+		Usage: "Optional flag to allow f fork overwritting (default: 0, disable: -1)",
 	},
 }
 
@@ -125,6 +142,42 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 	}
 	if ctx.IsSet("blockgaslimit") {
 		genesisConfig.Blockchain.BlockGasLimit = ctx.Uint64("blockgaslimit")
+	}
+
+	if ctx.IsSet("forks.churrito") {
+		churritoBlockNumber := ctx.Int64("forks.churrito")
+		if churritoBlockNumber < 0 {
+			genesisConfig.Hardforks.ChurritoBlock = nil
+		} else {
+			genesisConfig.Hardforks.ChurritoBlock = big.NewInt(churritoBlockNumber)
+		}
+	}
+
+	if ctx.IsSet("forks.donut") {
+		donutBlockNumber := ctx.Int64("forks.donut")
+		if donutBlockNumber < 0 {
+			genesisConfig.Hardforks.DonutBlock = nil
+		} else {
+			genesisConfig.Hardforks.DonutBlock = big.NewInt(donutBlockNumber)
+		}
+	}
+
+	if ctx.IsSet("forks.espresso") {
+		espressoBlockNumber := ctx.Int64("forks.espresso")
+		if espressoBlockNumber < 0 {
+			genesisConfig.Hardforks.EspressoBlock = nil
+		} else {
+			genesisConfig.Hardforks.EspressoBlock = big.NewInt(espressoBlockNumber)
+		}
+	}
+
+	if ctx.IsSet("forks.fhardfork") {
+		fBlockNumber := ctx.Int64("forks.fhardfork")
+		if fBlockNumber < 0 {
+			genesisConfig.Hardforks.FHardforkBlock = nil
+		} else {
+			genesisConfig.Hardforks.FHardforkBlock = big.NewInt(fBlockNumber)
+		}
 	}
 
 	return env, genesisConfig, nil

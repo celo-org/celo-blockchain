@@ -174,9 +174,6 @@ func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, co
 		if err := istanbul.ApplyParamsChainConfigToConfig(chainConfig, &config.Istanbul); err != nil {
 			log.Crit("Invalid Configuration for Istanbul Engine", "err", err)
 		}
-		if config.OverrideV2IstanbulFork != nil {
-			config.Istanbul.V2Block = config.OverrideV2IstanbulFork
-		}
 		return istanbulBackend.New(&config.Istanbul, db)
 	}
 	log.Error(fmt.Sprintf("Only Istanbul Consensus is supported: %v", chainConfig))
