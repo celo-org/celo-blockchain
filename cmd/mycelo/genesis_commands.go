@@ -143,7 +143,7 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 	if ctx.IsSet("forks.churrito") {
 		churritoBlockNumber := ctx.Int64("forks.churrito")
 		if churritoBlockNumber < 0 {
-			genesisConfig.Hardforks.EspressoBlock = nil
+			genesisConfig.Hardforks.ChurritoBlock = nil
 		} else {
 			genesisConfig.Hardforks.ChurritoBlock = big.NewInt(churritoBlockNumber)
 		}
