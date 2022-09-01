@@ -160,7 +160,7 @@ func (b *BLSSeal) VerifyAggregate(validators istanbul.ValidatorSet, signature []
 	}
 	defer signatureObj.Destroy()
 
-        return apk.VerifySignature(b.Seal, b.ExtraData, signatureObj, b.CompositeHasher, b.Cip22)
+	return apk.VerifySignature(b.Seal, b.ExtraData, signatureObj, b.CompositeHasher, b.Cip22)
 }
 
 // verifyEpochValidatorSetSeal verifies the epoch validator set seal in the received COMMIT message
