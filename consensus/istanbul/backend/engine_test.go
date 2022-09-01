@@ -168,7 +168,7 @@ func TestVerifySeal(t *testing.T) {
 	// change header content and expect to invalidate signature
 	header.Number = big.NewInt(4)
 	err = engine.VerifySeal(header)
-	g.Expect(err).Should(BeIdenticalTo(errInvalidSignature))
+	g.Expect(err).Should(HaveOccurred())
 
 	// delete istanbul extra data and expect invalid extra data format
 	header = block.Header()
