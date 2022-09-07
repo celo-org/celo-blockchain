@@ -10,7 +10,7 @@ executors:
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
       GO_VERSION: "1.16.2"
-      CELO_MONOREPO_BRANCH_TO_TEST: master
+      CELO_MONOREPO_BRANCH_TO_TEST: 0054ea40931c6bdc47cdfe0e138c1028c7859a06
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 jobs:
   build-geth:
