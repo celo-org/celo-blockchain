@@ -330,6 +330,16 @@ func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, prepare
 	return self.finalizeAndReturnMessage(msg)
 }
 
+func (self *testSystemBackend) getRoundChangeRequest(view istanbul.View, preparedCertV2 istanbul.PreparedCertificateV2) (*istanbul.RoundChangeRequest, error) {
+	req := &istanbul.RoundChangeRequest{
+		View:                  view,
+		PreparedCertificateV2: preparedCertV2,
+		Address:               self.engine.(*core).address,
+	}
+	err := req.Sign(self.engine.(*core).backend.Sign)
+	return req, err
+}
+
 func (self *testSystemBackend) Enode() *enode.Node {
 	return nil
 }
@@ -575,6 +585,21 @@ func (sys *testSystem) getRoundChangeCertificate(t ErrorReporter, views []istanb
 		roundChangeCertificate.RoundChangeMessages = append(roundChangeCertificate.RoundChangeMessages, msg)
 	}
 	return roundChangeCertificate
+}
+
+func (sys *testSystem) getRoundChangeCertificateV2(t ErrorReporter, views []istanbul.View, preparedCertificateV2 istanbul.PreparedCertificateV2) istanbul.RoundChangeCertificateV2 {
+	var roundChangeCertificateV2 istanbul.RoundChangeCertificateV2
+	for i, backend := range sys.backends {
+		if uint64(i) == sys.MinQuorumSize() {
+			break
+		}
+		req, err := backend.getRoundChangeRequest(views[i%len(views)], preparedCertificateV2)
+		if err != nil {
+			t.Errorf("Failed to create ROUND CHANGE message: %v", err)
+		}
+		roundChangeCertificateV2.Requests = append(roundChangeCertificateV2.Requests, *req)
+	}
+	return roundChangeCertificateV2
 }
 
 // ==============================================

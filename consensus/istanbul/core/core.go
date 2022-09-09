@@ -526,7 +526,7 @@ func (c *core) getPreprepareWithRoundChangeCertificateV2(round *big.Int) (*istan
 }
 
 // startNewRound starts a new round with the desired round
-func (c *core) startNewRound(round *big.Int) error {
+func (c *core) startNewRound(round *big.Int, propose bool) error {
 	logger := c.newLogger("func", "startNewRound", "tag", "stateTransition")
 
 	if round.Cmp(c.current.Round()) == 0 {
@@ -554,7 +554,7 @@ func (c *core) startNewRound(round *big.Int) error {
 	var request *istanbul.Request
 	var roundChangeCertificate istanbul.RoundChangeCertificate
 	var roundChangeCertificateV2 istanbul.RoundChangeCertificateV2
-	if c.address == nextProposer.Address() {
+	if c.address == nextProposer.Address() && propose {
 		if c.isConsensusFork(newView.Sequence) {
 			request, roundChangeCertificateV2, err = c.getPreprepareWithRoundChangeCertificateV2(round)
 			if err != nil {
