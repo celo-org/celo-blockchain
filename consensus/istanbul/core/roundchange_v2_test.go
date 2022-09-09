@@ -357,7 +357,7 @@ func TestHandleRoundChangeV2(t *testing.T) {
 	}
 }
 
-func (ts *testSystem) distributeIstMsgsV2(t *testing.T, sys *testSystem, istMsgDistribution map[uint64]map[int]bool) {
+func (ts *testSystem) distributeIstMsgs(t *testing.T, sys *testSystem, istMsgDistribution map[uint64]map[int]bool) {
 	for {
 		select {
 		case <-ts.quit:
@@ -426,6 +426,8 @@ func TestCommitsBlocksAfterRoundChangeV2(t *testing.T) {
 	sys := NewTestSystemWithBackend(4, 1)
 
 	for _, b := range sys.backends {
+		// activate v2 consensus block
+		b.engine.(*core).config.V2Block = big.NewInt(0)
 		b.engine.Start() // start Istanbul core
 		block := makeBlock(1)
 		b.NewRequest(block)
@@ -443,10 +445,10 @@ func TestCommitsBlocksAfterRoundChangeV2(t *testing.T) {
 	// Send all PREPARE messages to F nodes.
 	// Send COMMIT messages (we don't expect these to be sent in the first round anyway).
 	// Send ROUND CHANGE messages to the remaining 2F + 1 nodes.
-	istMsgDistribution[istanbul.MsgPreprepare] = gossip
+	istMsgDistribution[istanbul.MsgPreprepareV2] = gossip
 	istMsgDistribution[istanbul.MsgPrepare] = sendToF
 	istMsgDistribution[istanbul.MsgCommit] = gossip
-	istMsgDistribution[istanbul.MsgRoundChange] = sendTo2FPlus1
+	istMsgDistribution[istanbul.MsgRoundChangeV2] = sendTo2FPlus1
 
 	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
 
@@ -493,6 +495,8 @@ func TestPreparedCertificatePersistsThroughRoundChangesV2(t *testing.T) {
 	sys := NewTestSystemWithBackend(4, 1)
 
 	for _, b := range sys.backends {
+		// activate v2 consensus block
+		b.engine.(*core).config.V2Block = big.NewInt(0)
 		b.engine.Start() // start Istanbul core
 		block := makeBlock(1)
 		b.NewRequest(block)
@@ -507,10 +511,10 @@ func TestPreparedCertificatePersistsThroughRoundChangesV2(t *testing.T) {
 	istMsgDistribution := map[uint64]map[int]bool{}
 
 	// Send PREPARE messages to F + 1 nodes so we guarantee a PREPARED certificate in the ROUND CHANGE certificate..
-	istMsgDistribution[istanbul.MsgPreprepare] = gossip
+	istMsgDistribution[istanbul.MsgPreprepareV2] = gossip
 	istMsgDistribution[istanbul.MsgPrepare] = sendToFPlus1
 	istMsgDistribution[istanbul.MsgCommit] = gossip
-	istMsgDistribution[istanbul.MsgRoundChange] = gossip
+	istMsgDistribution[istanbul.MsgRoundChangeV2] = gossip
 
 	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
 
@@ -561,6 +565,8 @@ func TestPeriodicRoundChangesV2(t *testing.T) {
 	sys := NewTestSystemWithBackend(4, 1)
 
 	for _, b := range sys.backends {
+		// activate v2 consensus block
+		b.engine.(*core).config.V2Block = big.NewInt(0)
 		b.engine.Start() // start Istanbul core
 		block := makeBlock(1)
 		b.NewRequest(block)
@@ -576,10 +582,10 @@ func TestPeriodicRoundChangesV2(t *testing.T) {
 	defer timeoutResendRC.Unsubscribe()
 
 	istMsgDistribution := map[uint64]map[int]bool{}
-	istMsgDistribution[istanbul.MsgPreprepare] = noGossip
+	istMsgDistribution[istanbul.MsgPreprepareV2] = noGossip
 	istMsgDistribution[istanbul.MsgPrepare] = noGossip
 	istMsgDistribution[istanbul.MsgCommit] = noGossip
-	istMsgDistribution[istanbul.MsgRoundChange] = noGossip
+	istMsgDistribution[istanbul.MsgRoundChangeV2] = noGossip
 
 	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
 
@@ -603,10 +609,10 @@ loop:
 		}
 	}
 
-	istMsgDistribution[istanbul.MsgPreprepare] = gossip
+	istMsgDistribution[istanbul.MsgPreprepareV2] = gossip
 	istMsgDistribution[istanbul.MsgPrepare] = gossip
 	istMsgDistribution[istanbul.MsgCommit] = gossip
-	istMsgDistribution[istanbul.MsgRoundChange] = gossip
+	istMsgDistribution[istanbul.MsgRoundChangeV2] = gossip
 
 	// Make sure we finalize block in next two rounds.
 	roundTimeouts := 0

@@ -344,29 +344,6 @@ func TestHandleRoundChange(t *testing.T) {
 	}
 }
 
-func (ts *testSystem) distributeIstMsgs(t *testing.T, sys *testSystem, istMsgDistribution map[uint64]map[int]bool) {
-	for {
-		select {
-		case <-ts.quit:
-			return
-		case event := <-ts.queuedMessage:
-			msg := new(istanbul.Message)
-			if err := msg.FromPayload(event.Payload, nil); err != nil {
-				t.Errorf("Could not decode payload")
-			}
-
-			targets := istMsgDistribution[msg.Code]
-			for index, b := range sys.backends {
-				if targets[index] || msg.Address == b.address {
-					go b.EventMux().Post(event)
-				} else {
-					testLogger.Info("not sending msg", "index", index, "from", msg.Address, "to", b.address, "code", msg.Code)
-				}
-			}
-		}
-	}
-}
-
 // This tests the liveness issue present in the initial implementation of Istanbul, described in
 // more detail here: https://arxiv.org/pdf/1901.07160.pdf
 // To test this, a block is proposed, for which 2F + 1 PREPARE messages are sent to F nodes.
