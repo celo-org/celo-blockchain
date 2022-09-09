@@ -460,6 +460,15 @@ func TestEthersJSCompatibility(t *testing.T) {
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
 	defer shutdown()
+
+	buildCmd := exec.Command("npm", "run", "build")
+	buildCmd.Dir = "../ethersjs-api-check"
+	buildOutput, err := buildCmd.CombinedOutput()
+	if err != nil {
+		println(string(buildOutput))
+	}
+	require.NoError(t, err)
+
 	// Note the "--unhandled-rejections=strict" flag causes node to raise
 	// unhandled promise rejections as exceptions, and if the execption is not
 	// handled that will result in a non 0 exit code for the program.
