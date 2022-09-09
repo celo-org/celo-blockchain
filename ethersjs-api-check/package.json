@@ -1,0 +1,15 @@
+{
+  "name": "ethersjs-api-check",
+  "version": "1.0.0",
+  "description": "runs ethers.js against an api to check compatibility",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+	"build": "tsc --build"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^4.8.3"
+  }
+}
