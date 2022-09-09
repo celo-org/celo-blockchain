@@ -56,14 +56,14 @@ func (c *core) sendRoundChangeAgain(addr common.Address) {
 
 // buildRoundChangeV2 builds a roundChangeV2 instance with an empty prepared certificate
 func buildRoundChangeV2(addr common.Address, view *istanbul.View) *istanbul.RoundChangeV2 {
-	pc := istanbul.EmptyPreparedCertificate()
+	pc, proposal := istanbul.EmptyPreparedCertificateV2()
 	return &istanbul.RoundChangeV2{
 		Request: istanbul.RoundChangeRequest{
 			Address:               addr,
 			View:                  *view,
-			PreparedCertificateV2: istanbul.PCV2FromPCV1(pc),
+			PreparedCertificateV2: pc,
 		},
-		PreparedProposal: pc.Proposal,
+		PreparedProposal: proposal,
 	}
 }
 
@@ -88,8 +88,8 @@ func (c *core) buildSignedRoundChangeMsgV2(round *big.Int) (*istanbul.Message, e
 	return istanbul.NewRoundChangeV2Message(roundChangeV2, c.address), nil
 }
 
-func (c *core) handleRoundChangeCertificateV2(proposal istanbul.Subject, roundChangeCertificateV2 istanbul.RoundChangeCertificateV2, actualProposal istanbul.Proposal) error {
-	logger := c.newLogger("func", "handleRoundChangeCertificateV2", "proposal_round", proposal.View.Round, "proposal_seq", proposal.View.Sequence, "proposal_digest", proposal.Digest.String())
+func (c *core) handleRoundChangeCertificateV2(subject istanbul.Subject, roundChangeCertificateV2 istanbul.RoundChangeCertificateV2, proposal istanbul.Proposal) error {
+	logger := c.newLogger("func", "handleRoundChangeCertificateV2", "proposal_round", subject.View.Round, "proposal_seq", subject.View.Sequence, "proposal_digest", subject.Digest.String())
 
 	if len(roundChangeCertificateV2.Requests) > c.current.ValidatorSet().Size() || len(roundChangeCertificateV2.Requests) < c.current.ValidatorSet().MinQuorumSize() {
 		return errInvalidRoundChangeCertificateNumMsgs
@@ -120,17 +120,17 @@ func (c *core) handleRoundChangeCertificateV2(proposal istanbul.Subject, roundCh
 
 		// Verify ROUND CHANGE message is for the same sequence AND an equal or subsequent round as the proposal.
 		// We have already called checkMessage by this point and checked the proposal's and PREPREPARE's sequence match.
-		if request.View.Sequence.Cmp(proposal.View.Sequence) != 0 || request.View.Round.Cmp(proposal.View.Round) < 0 {
+		if request.View.Sequence.Cmp(subject.View.Sequence) != 0 || request.View.Round.Cmp(subject.View.Round) < 0 {
 			msgLogger.Error("Round change request in certificate for a different sequence or an earlier round")
 			return errInvalidRoundChangeCertificateMsgView
 		}
 	}
 	pc, _ := roundChangeCertificateV2.HighestRoundPreparedCertificate()
 	if pc != nil {
-		if pc.ProposalHash != proposal.Digest {
+		if pc.ProposalHash != subject.Digest {
 			return errInvalidPreparedCertificateDigestMismatch
 		}
-		preparedView, err := c.verifyPCV2WithProposal(*pc, actualProposal)
+		preparedView, err := c.verifyPCV2WithProposal(*pc, proposal)
 		if err != nil {
 			return err
 		}
@@ -140,15 +140,15 @@ func (c *core) handleRoundChangeCertificateV2(proposal istanbul.Subject, roundCh
 		// to be the next pre-prepare. That (higher view) prepared cert should override older perpared certs for
 		// blocks that were not committed.
 		// Also reject round change messages where the prepared view is greater than the round change view.
-		if preparedView == nil || preparedView.Round.Cmp(proposal.View.Round) > 0 {
+		if preparedView == nil || preparedView.Round.Cmp(subject.View.Round) > 0 {
 			return errInvalidRoundChangeViewMismatch
 		}
 	}
 
 	// May have already moved to this round based on quorum round change messages.
-	logger.Trace("Trying to move to round change certificate's round", "target round", proposal.View.Round)
+	logger.Trace("Trying to move to round change certificate's round", "target round", subject.View.Round)
 
-	return c.startNewRound(proposal.View.Round)
+	return c.startNewRound(subject.View.Round, false)
 }
 
 func (c *core) handleRoundChangeV2(msg *istanbul.Message) error {
@@ -218,7 +218,7 @@ func (c *core) handleRoundChangeV2(msg *istanbul.Message) error {
 	// On quorum round change messages we go to the next round immediately.
 	if quorumRound != nil && quorumRound.Cmp(c.current.DesiredRound()) >= 0 {
 		logger.Debug("Got quorum round change messages, starting new round.")
-		return c.startNewRound(quorumRound)
+		return c.startNewRound(quorumRound, true)
 	} else if ffRound != nil {
 		logger.Debug("Got f+1 round change messages, sending own round change message and waiting for next round.")
 		c.waitForDesiredRound(ffRound)
