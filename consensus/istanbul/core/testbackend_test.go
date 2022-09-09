@@ -284,6 +284,18 @@ func (self *testSystemBackend) getPreprepareMessage(view istanbul.View, roundCha
 	return self.finalizeAndReturnMessage(msg)
 }
 
+func (self *testSystemBackend) getPreprepareV2Message(view istanbul.View,
+	roundChangeCertificateV2 istanbul.RoundChangeCertificateV2,
+	proposal istanbul.Proposal) (istanbul.Message, error) {
+	msg := istanbul.NewPreprepareV2Message(&istanbul.PreprepareV2{
+		View:                     &view,
+		RoundChangeCertificateV2: roundChangeCertificateV2,
+		Proposal:                 proposal,
+	}, self.address)
+
+	return self.finalizeAndReturnMessage(msg)
+}
+
 func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest common.Hash) (istanbul.Message, error) {
 	msg := istanbul.NewPrepareMessage(&istanbul.Subject{
 		View:   &view,
@@ -325,6 +337,19 @@ func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, prepare
 	msg := istanbul.NewRoundChangeMessage(&istanbul.RoundChange{
 		View:                &view,
 		PreparedCertificate: preparedCert,
+	}, common.Address{})
+
+	return self.finalizeAndReturnMessage(msg)
+}
+
+func (self *testSystemBackend) getRoundChangeV2Message(view istanbul.View, preparedCertV2 istanbul.PreparedCertificateV2, proposal istanbul.Proposal) (istanbul.Message, error) {
+	req, err := self.getRoundChangeRequest(view, preparedCertV2)
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+	msg := istanbul.NewRoundChangeV2Message(&istanbul.RoundChangeV2{
+		Request:          *req,
+		PreparedProposal: proposal,
 	}, common.Address{})
 
 	return self.finalizeAndReturnMessage(msg)
