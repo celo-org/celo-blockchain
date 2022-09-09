@@ -117,7 +117,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 	// May have already moved to this round based on quorum round change messages.
 	logger.Trace("Trying to move to round change certificate's round", "target round", proposal.View.Round)
 
-	return c.startNewRound(proposal.View.Round)
+	return c.startNewRound(proposal.View.Round, false)
 }
 
 func (c *core) handleRoundChange(msg *istanbul.Message) error {
@@ -175,7 +175,7 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	// On quorum round change messages we go to the next round immediately.
 	if quorumRound != nil && quorumRound.Cmp(c.current.DesiredRound()) >= 0 {
 		logger.Debug("Got quorum round change messages, starting new round.")
-		return c.startNewRound(quorumRound)
+		return c.startNewRound(quorumRound, true)
 	} else if ffRound != nil {
 		logger.Debug("Got f+1 round change messages, sending own round change message and waiting for next round.")
 		c.waitForDesiredRound(ffRound)

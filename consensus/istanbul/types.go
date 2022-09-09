@@ -373,6 +373,11 @@ func EmptyPreparedCertificate() PreparedCertificate {
 	}
 }
 
+func EmptyPreparedCertificateV2() (PreparedCertificateV2, Proposal) {
+	pc := EmptyPreparedCertificate()
+	return PCV2FromPCV1(pc), pc.Proposal
+}
+
 func (pc *PreparedCertificate) IsEmpty() bool {
 	return len(pc.PrepareOrCommitMessages) == 0
 }
