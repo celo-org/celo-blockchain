@@ -5,6 +5,7 @@
     "esModuleInterop": true,
     "strict": true,
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+	"moduleResolution": "node"
   }
 }

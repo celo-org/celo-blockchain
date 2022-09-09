@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os/exec"
 	"sync"
 	"testing"
 	"time"
@@ -450,4 +451,22 @@ func pruneStateOfBlock(ctx context.Context, node *test.Node, blockHash common.Ha
 	node.Eth.BlockChain().StateCache().TrieDB().Dereference(root)
 
 	return nil
+}
+
+func TestEthersJSCompatibility(t *testing.T) {
+	ac := test.AccountConfig(1, 1)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	// Note the "--unhandled-rejections=strict" flag causes node to raise
+	// unhandled promise rejections as exceptions, and if the execption is not
+	// handled that will result in a non 0 exit code for the program.
+	cmd := exec.Command("node", "--unhandled-rejections=strict", "../ethersjs-api-check/dist/index.js", network[0].Node.HTTPEndpoint())
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		println(string(output))
+	}
+	require.NoError(t, err)
 }
