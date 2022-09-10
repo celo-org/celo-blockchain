@@ -77,15 +77,16 @@ type TxPool struct {
 	gingerbreadP2 bool // Fork indicator whether Gingerbread has been activated
 }
 
-// TxRelayBackend provides an interface to the mechanism that forwards transacions
-// to the ETH network. The implementations of the functions should be non-blocking.
+// TxRelayBackend provides an interface to the mechanism that forwards transactions to the
+// ETH network. The implementations of the functions should be non-blocking.
 //
-// Send instructs backend to forward new transactions
-// NewHead notifies backend about a new head after processed by the tx pool,
-//  including  mined and rolled back transactions since the last event
-// Discard notifies backend about transactions that should be discarded either
-//  because they have been replaced by a re-send or because they have been mined
-//  long ago and no rollback is expected
+// Send instructs backend to forward new transactions NewHead notifies backend about a new
+// head after processed by the tx pool, including mined and rolled back transactions since
+// the last event.
+//
+// Discard notifies backend about transactions that should be discarded either because
+// they have been replaced by a re-send or because they have been mined long ago and no
+// rollback is expected.
 type TxRelayBackend interface {
 	Send(txs types.Transactions)
 	NewHead(head common.Hash, mined []common.Hash, rollback []common.Hash)
