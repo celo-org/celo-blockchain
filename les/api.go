@@ -65,7 +65,7 @@ func parseNode(node string) (enode.ID, error) {
 	}
 }
 
-//GatewayFee returns the current gateway fee of this light server
+// GatewayFee returns the current gateway fee of this light server
 func (api *PrivateLightServerAPI) GatewayFee() (gf *big.Int, err error) {
 	if api.server.handler.blockchain.Config().IsGingerbread(api.server.handler.blockchain.CurrentHeader().Number) {
 		return nil, core.ErrGatewayFeeDeprecated
@@ -73,7 +73,7 @@ func (api *PrivateLightServerAPI) GatewayFee() (gf *big.Int, err error) {
 	return api.server.handler.gatewayFee, nil
 }
 
-//SetGatewayFee allows this light server node to set a gateway fee
+// SetGatewayFee allows this light server node to set a gateway fee
 func (api *PrivateLightServerAPI) SetGatewayFee(gf *big.Int) error {
 	if api.server.handler.blockchain.Config().IsGingerbread(api.server.handler.blockchain.CurrentHeader().Number) {
 		return core.ErrGatewayFeeDeprecated
@@ -419,10 +419,11 @@ func NewPrivateLightAPI(backend *lesCommons) *PrivateLightAPI {
 // LatestCheckpoint returns the latest local checkpoint package.
 //
 // The checkpoint package consists of 4 strings:
-//   result[0], hex encoded latest section index
-//   result[1], 32 bytes hex encoded latest section head hash
-//   result[2], 32 bytes hex encoded latest section canonical hash trie root hash
-//   result[3], 32 bytes hex encoded latest section bloom trie root hash
+//
+//	result[0], hex encoded latest section index
+//	result[1], 32 bytes hex encoded latest section head hash
+//	result[2], 32 bytes hex encoded latest section canonical hash trie root hash
+//	result[3], 32 bytes hex encoded latest section bloom trie root hash
 func (api *PrivateLightAPI) LatestCheckpoint() ([4]string, error) {
 	var res [4]string
 	cp := api.backend.latestLocalCheckpoint()
@@ -437,9 +438,10 @@ func (api *PrivateLightAPI) LatestCheckpoint() ([4]string, error) {
 // GetLocalCheckpoint returns the specific local checkpoint package.
 //
 // The checkpoint package consists of 3 strings:
-//   result[0], 32 bytes hex encoded latest section head hash
-//   result[1], 32 bytes hex encoded latest section canonical hash trie root hash
-//   result[2], 32 bytes hex encoded latest section bloom trie root hash
+//
+//	result[0], 32 bytes hex encoded latest section head hash
+//	result[1], 32 bytes hex encoded latest section canonical hash trie root hash
+//	result[2], 32 bytes hex encoded latest section bloom trie root hash
 func (api *PrivateLightAPI) GetCheckpoint(index uint64) ([3]string, error) {
 	var res [3]string
 	cp := api.backend.localCheckpoint(index)
