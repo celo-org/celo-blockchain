@@ -710,10 +710,7 @@ func (s *PublicBlockChainAPI) GetBlockByNumber(ctx context.Context, number rpc.B
 		response, err := s.rpcMarshalBlock(ctx, block, true, fullTx)
 
 		if err == nil {
-			numhash := rpc.BlockNumberOrHash{
-				BlockNumber: &number,
-			}
-			addEthCompatibilityFields(ctx, response, s.b, numhash)
+			addEthCompatibilityFields(ctx, response, s.b, block.Header())
 			if number == rpc.PendingBlockNumber {
 				// Pending blocks need to nil out a few fields
 				for _, field := range []string{"hash", "nonce", "miner"} {
@@ -735,10 +732,7 @@ func (s *PublicBlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Ha
 		if err != nil {
 			return nil, err
 		}
-		numhash := rpc.BlockNumberOrHash{
-			BlockHash: &hash,
-		}
-		addEthCompatibilityFields(ctx, result, s.b, numhash)
+		addEthCompatibilityFields(ctx, result, s.b, block.Header())
 		return result, nil
 	}
 	return nil, err
@@ -748,9 +742,26 @@ func (s *PublicBlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Ha
 // and ethers.js (and potentially other web3 clients) by adding fields to our
 // rpc response that ethers.js depends upon.
 // See https://github.com/celo-org/celo-blockchain/issues/1945
-func addEthCompatibilityFields(ctx context.Context, block map[string]interface{}, b Backend, numhash rpc.BlockNumberOrHash) {
+func addEthCompatibilityFields(ctx context.Context, block map[string]interface{}, b Backend, header *types.Header) {
+	hash := header.Hash()
+	numhash := rpc.BlockNumberOrHash{
+		BlockHash: &hash,
+	}
 	gasLimit := b.GetBlockGasLimit(ctx, numhash)
 	block["gasLimit"] = hexutil.Uint64(gasLimit)
+
+	// Providing nil as the currency address gets the gas price minimum for the native celo asset.
+	baseFee, err := b.GasPriceMinimumForHeader(ctx, nil, header)
+
+	// GasPriceMinimumForHeader can return an error + non nil baseFee, an error
+	// and nil base fee or a base fee and a nil error. In all cases where a
+	// base fee is returned we want to add it as a field and if there was an
+	// error and nil base fee we log the failure.
+	if err != nil && baseFee == nil {
+		log.Debug("Not adding gasPriceMinimum to RPC response, failed to retrieve gas price minimum", "block", header.Number.Uint64(), "err", err)
+		return
+	}
+	block["baseFeePerGas"] = (*hexutil.Big)(baseFee)
 }
 
 // GetUncleByBlockNumberAndIndex returns the uncle block for the given block hash and index. When fullTx is true
