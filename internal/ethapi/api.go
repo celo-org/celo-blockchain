@@ -710,7 +710,10 @@ func (s *PublicBlockChainAPI) GetBlockByNumber(ctx context.Context, number rpc.B
 		response, err := s.rpcMarshalBlock(ctx, block, true, fullTx)
 
 		if err == nil {
-			addDummyFields(response)
+			numhash := rpc.BlockNumberOrHash{
+				BlockNumber: &number,
+			}
+			addEthCompatibilityFields(ctx, response, s.b, numhash)
 			if number == rpc.PendingBlockNumber {
 				// Pending blocks need to nil out a few fields
 				for _, field := range []string{"hash", "nonce", "miner"} {
@@ -732,14 +735,22 @@ func (s *PublicBlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Ha
 		if err != nil {
 			return nil, err
 		}
-		addDummyFields(result)
+		numhash := rpc.BlockNumberOrHash{
+			BlockHash: &hash,
+		}
+		addEthCompatibilityFields(ctx, result, s.b, numhash)
 		return result, nil
 	}
 	return nil, err
 }
 
-func addDummyFields(block map[string]interface{}) {
-	block["gasLimit"] = 0
+// addEthCompatibilityFields seeks to work around the incompatibility of celo
+// and ethers.js (and potentially other web3 clients) by adding fields to our
+// rpc response that ethers.js depends upon.
+// See https://github.com/celo-org/celo-blockchain/issues/1945
+func addEthCompatibilityFields(ctx context.Context, block map[string]interface{}, b Backend, numhash rpc.BlockNumberOrHash) {
+	gasLimit := b.GetBlockGasLimit(ctx, numhash)
+	block["gasLimit"] = hexutil.Uint64(gasLimit)
 }
 
 // GetUncleByBlockNumberAndIndex returns the uncle block for the given block hash and index. When fullTx is true
