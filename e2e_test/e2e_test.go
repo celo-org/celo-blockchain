@@ -461,21 +461,37 @@ func TestEthersJSCompatibility(t *testing.T) {
 	require.NoError(t, err)
 	defer shutdown()
 
-	buildCmd := exec.Command("npm", "run", "build")
-	buildCmd.Dir = "../ethersjs-api-check"
-	buildOutput, err := buildCmd.CombinedOutput()
-	if err != nil {
-		println(string(buildOutput))
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	num, err := network[0].WsClient.BlockNumber(ctx)
 	require.NoError(t, err)
 
-	// Note the "--unhandled-rejections=strict" flag causes node to raise
-	// unhandled promise rejections as exceptions, and if the execption is not
-	// handled that will result in a non 0 exit code for the program.
-	cmd := exec.Command("node", "--unhandled-rejections=strict", "../ethersjs-api-check/dist/index.js", network[0].Node.HTTPEndpoint())
+	// Execute typescript tests to check ethers.js compatibility.
+	//
+	// The '--networkaddr' and '--blocknum' flags are npm config variables, the
+	// values become available under 'process.env.npm_config_networkaddr' and
+	// 'process.env.npm_config_blocknum' in typescript test. Everything after
+	// '--' are flags that are passed to mocha and these flags are controlling
+	// which tests to run.
+	cmd := exec.Command("npm", "run", "test", "--networkaddr="+network[0].Node.HTTPEndpoint(), "--blocknum="+hexutil.Uint64(num).String(), "--", "--invert", "--grep", "block with pruned")
+	cmd.Dir = "../ethersjs-api-check/"
 	output, err := cmd.CombinedOutput()
-	if err != nil {
-		println(string(output))
-	}
+	println(string(output))
+	require.NoError(t, err)
+
+	err = network[0].Tracker.AwaitBlock(ctx, num+1)
+	require.NoError(t, err)
+	block := network[0].Tracker.GetProcessedBlock(num)
+
+	// Prune state
+	err = pruneStateOfBlock(ctx, network[0], block.Hash())
+	require.NoError(t, err)
+
+	// Execute typescript tests to check what happens with a pruned block.
+	cmd = exec.Command("npm", "run", "test", "--networkaddr="+network[0].Node.HTTPEndpoint(), "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "block with pruned")
+	cmd.Dir = "../ethersjs-api-check/"
+	output, err = cmd.CombinedOutput()
+	println(string(output))
 	require.NoError(t, err)
 }
