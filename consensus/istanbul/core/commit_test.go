@@ -266,6 +266,243 @@ OUTER:
 	}
 }
 
+func TestHandleCommitV2(t *testing.T) {
+	N := uint64(4)
+	F := uint64(1)
+
+	// create block 4
+	proposal := newTestProposalWithNum(4)
+	expectedSubject := &istanbul.Subject{
+		View: &istanbul.View{
+			Round:    big.NewInt(0),
+			Sequence: proposal.Number(),
+		},
+		Digest: proposal.Hash(),
+	}
+
+	testCases := []struct {
+		system             *testSystem
+		expectedErr        error
+		checkParentCommits bool
+	}{
+		{
+			// normal case
+			func() *testSystem {
+				sys := NewTestSystemWithBackendV2(N, F)
+
+				for i, backend := range sys.backends {
+					c := backend.engine.(*core)
+					// same view as the expected one to everyone
+					c.current = newTestRoundStateV2(
+						expectedSubject.View,
+						backend.peers,
+					)
+
+					if i == 0 {
+						// replica 0 is the proposer
+						c.current.(*roundStateImpl).state = StatePrepared
+					}
+				}
+				return sys
+			}(),
+			nil,
+			false,
+		},
+		{
+			// future message
+			func() *testSystem {
+				sys := NewTestSystemWithBackendV2(N, F)
+
+				for i, backend := range sys.backends {
+					c := backend.engine.(*core)
+					if i == 0 {
+						// replica 0 is the proposer
+						c.current = newTestRoundStateV2(
+							expectedSubject.View,
+							backend.peers,
+						)
+						c.current.(*roundStateImpl).state = StatePreprepared
+					} else {
+						c.current = newTestRoundStateV2(
+							&istanbul.View{
+								Round: big.NewInt(0),
+								// proposal from 1 round in the future
+								Sequence: big.NewInt(0).Add(proposal.Number(), common.Big1),
+							},
+							backend.peers,
+						)
+					}
+				}
+				return sys
+			}(),
+			errFutureMessage,
+			false,
+		},
+		{
+			// past message
+			func() *testSystem {
+				sys := NewTestSystemWithBackendV2(N, F)
+
+				for i, backend := range sys.backends {
+					c := backend.engine.(*core)
+
+					if i == 0 {
+						// replica 0 is the proposer
+						c.current = newTestRoundStateV2(
+							expectedSubject.View,
+							backend.peers,
+						)
+						c.current.(*roundStateImpl).state = StatePreprepared
+					} else {
+						c.current = newTestRoundStateV2(
+							&istanbul.View{
+								Round: big.NewInt(0),
+								// we're 2 blocks before so this is indeed a
+								// very old proposal and will error as expected
+								// with an old error message
+								Sequence: big.NewInt(0).Sub(proposal.Number(), common.Big2),
+							},
+							backend.peers,
+						)
+					}
+				}
+				return sys
+			}(),
+			errOldMessage,
+			false,
+		},
+		{
+			// jump state
+			func() *testSystem {
+				sys := NewTestSystemWithBackendV2(N, F)
+
+				for i, backend := range sys.backends {
+					c := backend.engine.(*core)
+					c.current = newTestRoundStateV2(
+						&istanbul.View{
+							Round:    big.NewInt(0),
+							Sequence: proposal.Number(),
+						},
+						backend.peers,
+					)
+
+					// only replica0 stays at StatePreprepared
+					// other replicas are at StatePrepared
+					if i != 0 {
+						c.current.(*roundStateImpl).state = StatePrepared
+					} else {
+						c.current.(*roundStateImpl).state = StatePreprepared
+					}
+				}
+				return sys
+			}(),
+			nil,
+			false,
+		},
+		{
+			// message from previous sequence and round matching last proposal
+			// this should pass the message check, but will return an error in
+			// handleCheckedCommitForPreviousSequence, because the proposal hashes won't match.
+			func() *testSystem {
+				sys := NewTestSystemWithBackendV2(N, F)
+
+				for i, backend := range sys.backends {
+					backend.Commit(newTestProposalWithNum(3), types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{}, nil)
+					c := backend.engine.(*core)
+					if i == 0 {
+						// replica 0 is the proposer
+						c.current = newTestRoundStateV2(
+							expectedSubject.View,
+							backend.peers,
+						)
+						c.current.(*roundStateImpl).state = StatePrepared
+					} else {
+						c.current = newTestRoundStateV2(
+							&istanbul.View{
+								Round:    big.NewInt(1),
+								Sequence: big.NewInt(0).Sub(proposal.Number(), common.Big1),
+							},
+							backend.peers,
+						)
+					}
+				}
+				return sys
+			}(),
+			errInconsistentSubject,
+			true,
+		},
+		// TODO: double send message
+	}
+
+OUTER:
+	for _, test := range testCases {
+		test.system.Run(false)
+
+		v0 := test.system.backends[0]
+		r0 := v0.engine.(*core)
+
+		for i, v := range test.system.backends {
+			validator := r0.current.ValidatorSet().GetByIndex(uint64(i))
+			privateKey, _ := bls.DeserializePrivateKey(test.system.validatorsKeys[i])
+			defer privateKey.Destroy()
+
+			hash := PrepareCommittedSeal(v.engine.(*core).current.Proposal().Hash(), v.engine.(*core).current.Round())
+			signature, _ := privateKey.SignMessage(hash, []byte{}, false, false)
+			defer signature.Destroy()
+			signatureBytes, _ := signature.Serialize()
+
+			msg := istanbul.NewCommitMessage(
+				&istanbul.CommittedSubject{Subject: v.engine.(*core).current.Subject(), CommittedSeal: signatureBytes},
+				validator.Address(),
+			)
+
+			if err := r0.handleCommit(msg); err != nil {
+				if err != test.expectedErr {
+					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
+				}
+				continue OUTER
+			}
+		}
+
+		// core should have received a parent seal from each of its neighbours
+		// how can we add our signature to the ParentCommit? Broadcast to ourselve
+		// does not make much sense
+		if test.checkParentCommits {
+			if r0.current.ParentCommits().Size() != r0.current.ValidatorSet().Size()-1 { // TODO: Maybe remove the -1?
+				t.Errorf("parent seals mismatch: have %v, want %v", r0.current.ParentCommits().Size(), r0.current.ValidatorSet().Size()-1)
+			}
+		}
+
+		// prepared is normal case
+		if r0.current.State() != StateCommitted {
+			// There are not enough commit messages in core
+			if r0.current.State() != StatePrepared {
+				t.Errorf("state mismatch: have %v, want %v", r0.current.State(), StatePrepared)
+			}
+			if r0.current.Commits().Size() > r0.current.ValidatorSet().MinQuorumSize() {
+				t.Errorf("the size of commit messages should be less than %v", r0.current.ValidatorSet().MinQuorumSize())
+			}
+			continue
+		}
+
+		// core should have min quorum size prepare messages
+		if r0.current.Commits().Size() < r0.current.ValidatorSet().MinQuorumSize() {
+			t.Errorf("the size of commit messages should be greater than or equal to minQuorumSize: size %v", r0.current.Commits().Size())
+		}
+
+		// check signatures large than MinQuorumSize
+		signedCount := 0
+		for i := 0; i < r0.current.ValidatorSet().Size(); i++ {
+			if v0.committedMsgs[0].aggregatedSeal.Bitmap.Bit(i) == 1 {
+				signedCount++
+			}
+		}
+		if signedCount < r0.current.ValidatorSet().MinQuorumSize() {
+			t.Errorf("the expected signed count should be greater than or equal to %v, but got %v", r0.current.ValidatorSet().MinQuorumSize(), signedCount)
+		}
+	}
+}
+
 // round is not checked for now
 func TestVerifyCommit(t *testing.T) {
 	// for log purpose
