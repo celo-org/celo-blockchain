@@ -426,7 +426,7 @@ func newTestValidatorSet(n int) istanbul.ValidatorSet {
 	return validator.NewSet(validators)
 }
 
-func newTestSystemWithBackend(n, f uint64) *testSystem {
+func newTestSystemWithBackend(n, f uint64, v2Block *big.Int) *testSystem {
 
 	validators, blsKeys, keys := generateValidators(int(n))
 	sys := newTestSystem(n, f, blsKeys)
@@ -437,6 +437,7 @@ func newTestSystemWithBackend(n, f uint64) *testSystem {
 	config.TimeoutBackoffFactor = 100
 	config.MinResendRoundChangeTimeout = 1000
 	config.MaxResendRoundChangeTimeout = 10000
+	config.V2Block = v2Block
 
 	for i := uint64(0); i < n; i++ {
 		vset := validator.NewSet(validators)
@@ -492,14 +493,23 @@ func NewTestSystemWithBackendDonut(n, f, epoch uint64, donutBlock int64) *testSy
 // FIXME: int64 is needed for N and F
 func NewTestSystemWithBackend(n, f uint64) *testSystem {
 	testLogger.SetHandler(elog.StdoutHandler)
-	return newTestSystemWithBackend(n, f)
+	return newTestSystemWithBackend(n, f, nil)
+}
+
+func NewTestSystemWithBackendV2(n, f uint64) *testSystem {
+	testLogger.SetHandler(elog.StdoutHandler)
+	return newTestSystemWithBackend(n, f, big.NewInt(0))
 }
 
 // FIXME: int64 is needed for N and F
 func NewMutedTestSystemWithBackend(n, f uint64) *testSystem {
 	testLogger.SetHandler(elog.DiscardHandler())
-	return newTestSystemWithBackend(n, f)
+	return newTestSystemWithBackend(n, f, nil)
+}
 
+func NewMutedTestSystemWithBackendV2(n, f uint64) *testSystem {
+	testLogger.SetHandler(elog.DiscardHandler())
+	return newTestSystemWithBackend(n, f, big.NewInt(0))
 }
 
 // listen will consume messages from queue and deliver a message to core
@@ -595,6 +605,11 @@ func (sys *testSystem) getPreparedCertificate(t ErrorReporter, views []istanbul.
 		preparedCertificate.PrepareOrCommitMessages = append(preparedCertificate.PrepareOrCommitMessages, msg)
 	}
 	return preparedCertificate
+}
+
+func (sys *testSystem) getPreparedCertificateV2(t ErrorReporter, views []istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificateV2 {
+	pc := sys.getPreparedCertificate(t, views, proposal)
+	return istanbul.PCV2FromPCV1(pc)
 }
 
 func (sys *testSystem) getRoundChangeCertificate(t ErrorReporter, views []istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
