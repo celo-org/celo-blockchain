@@ -114,7 +114,7 @@ parameters:
 executors:
   golang:
     docker:
-      - image: circleci/golang:1.16
+      - image: "us.gcr.io/celo-testnet/circleci-node12-golang1.17.5"
     working_directory: ~/repos/geth
     environment:
       # Change the go modules to be cached under ~/repos so that we can add
