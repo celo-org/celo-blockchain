@@ -620,6 +620,122 @@ func TestVerifyCommit(t *testing.T) {
 	}
 }
 
+func TestVerifyCommitV2(t *testing.T) {
+	// for log purpose
+	privateKey, _ := crypto.GenerateKey()
+	blsPrivateKey, _ := blscrypto.ECDSAToBLS(privateKey)
+	blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
+	peer := validator.New(getPublicKeyAddress(privateKey), blsPublicKey)
+	valSet := validator.NewSet([]istanbul.ValidatorData{
+		{
+			Address:      peer.Address(),
+			BLSPublicKey: blsPublicKey,
+		},
+	})
+	// }, istanbul.RoundRobin)
+
+	sys := NewTestSystemWithBackendV2(uint64(1), uint64(0))
+
+	testCases := []struct {
+		expected   error
+		commit     *istanbul.CommittedSubject
+		roundState RoundState
+	}{
+		{
+			// normal case
+			expected: nil,
+			commit: &istanbul.CommittedSubject{
+				Subject: &istanbul.Subject{
+					View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
+					Digest: newTestProposal().Hash(),
+				},
+			},
+			roundState: newTestRoundStateV2(
+				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
+				valSet,
+			),
+		},
+		{
+			// old message
+			expected: errInconsistentSubject,
+			commit: &istanbul.CommittedSubject{
+				Subject: &istanbul.Subject{
+					View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
+					Digest: newTestProposal().Hash(),
+				},
+			},
+			roundState: newTestRoundStateV2(
+				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
+				valSet,
+			),
+		},
+		{
+			// different digest
+			expected: errInconsistentSubject,
+			commit: &istanbul.CommittedSubject{
+				Subject: &istanbul.Subject{
+					View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
+					Digest: common.BytesToHash([]byte("1234567890")),
+				},
+			},
+			roundState: newTestRoundStateV2(
+				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
+				valSet,
+			),
+		},
+		{
+			// malicious package(lack of sequence)
+			expected: errInconsistentSubject,
+			commit: &istanbul.CommittedSubject{
+				Subject: &istanbul.Subject{
+					View:   &istanbul.View{Round: big.NewInt(0), Sequence: nil},
+					Digest: newTestProposal().Hash(),
+				},
+			},
+			roundState: newTestRoundStateV2(
+				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
+				valSet,
+			),
+		},
+		{
+			// wrong prepare message with same sequence but different round
+			expected: errInconsistentSubject,
+			commit: &istanbul.CommittedSubject{
+				Subject: &istanbul.Subject{
+					View:   &istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(0)},
+					Digest: newTestProposal().Hash(),
+				},
+			},
+			roundState: newTestRoundStateV2(
+				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
+				valSet,
+			),
+		},
+		{
+			// wrong prepare message with same round but different sequence
+			expected: errInconsistentSubject,
+			commit: &istanbul.CommittedSubject{
+				Subject: &istanbul.Subject{
+					View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(1)},
+					Digest: newTestProposal().Hash(),
+				},
+			},
+			roundState: newTestRoundStateV2(
+				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
+				valSet,
+			),
+		},
+	}
+	for i, test := range testCases {
+		c := sys.backends[0].engine.(*core)
+		c.current = test.roundState
+
+		if err := c.verifyCommit(test.commit); err != test.expected {
+			t.Errorf("result %d: error mismatch: have %v, want %v", i, err, test.expected)
+		}
+	}
+}
+
 // BenchmarkHandleCommit benchmarks handling a commit message
 func BenchmarkHandleCommit(b *testing.B) {
 	N := uint64(2)
