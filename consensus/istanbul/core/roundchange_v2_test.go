@@ -197,7 +197,7 @@ func TestHandleRoundChangeCertificateV2(t *testing.T) {
 		{
 			"Empty certificate",
 			func(t *testing.T, sys *testSystem) (istanbul.RoundChangeCertificateV2, istanbul.Proposal) {
-				return istanbul.RoundChangeCertificateV2{}, nil
+				return istanbul.RoundChangeCertificateV2{}, makeBlock(0)
 			},
 			errInvalidRoundChangeCertificateNumMsgs,
 		},
