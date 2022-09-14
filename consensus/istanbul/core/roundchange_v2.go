@@ -130,11 +130,12 @@ func (c *core) handleRoundChangeCertificateV2(view istanbul.View, roundChangeCer
 			return errInvalidRoundChangeCertificateMsgView
 		}
 	}
-	pc, _ := roundChangeCertificateV2.HighestRoundPreparedCertificate()
-	if pc != nil {
-		if pc.ProposalHash != proposal.Hash() {
-			logger.Warn("Received proposal hash in PreparedCertificate not matching the proposal hash",
-				"pcHash", pc.ProposalHash.Hex(), "proposalHash", proposal.Hash())
+	maxRound := roundChangeCertificateV2.HighestRoundWithPreparedCertificate()
+	if maxRound != nil {
+		pc := roundChangeCertificateV2.GetPreparedCertificateFor(maxRound, proposal.Hash())
+		if pc == nil {
+			logger.Warn("Received proposal hash not found in available prepared certificates in the round change certificate",
+				"proposalHash", proposal.Hash())
 			return errInvalidPreparedCertificateDigestMismatch
 		}
 		preparedView, err := c.verifyPCV2WithProposal(*pc, proposal)

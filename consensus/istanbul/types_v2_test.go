@@ -40,9 +40,8 @@ func TestRoundChangeCertificateMaxPCNil(t *testing.T) {
 	rcc.Requests[0].View.Round = big.NewInt(7)
 	rcc.Requests[1].View.Round = big.NewInt(3)
 	rcc.Requests[2].View.Round = big.NewInt(4)
-	pc, r := rcc.HighestRoundPreparedCertificate()
+	r := rcc.HighestRoundWithPreparedCertificate()
 	assert.Nil(t, r)
-	assert.Nil(t, pc)
 }
 
 func TestRoundChangeCertificateMaxPCNotNil(t *testing.T) {
@@ -60,9 +59,11 @@ func TestRoundChangeCertificateMaxPCNotNil(t *testing.T) {
 	rcc.Requests[3].PreparedCertificateV2.PrepareOrCommitMessages = make([]Message, 0)
 	rcc.Requests[3].View.Round = big.NewInt(4)
 	rcc.Requests[3].PreparedCertificateV2.PrepareOrCommitMessages = make([]Message, 1)
-	pc, r := rcc.HighestRoundPreparedCertificate()
+	r := rcc.HighestRoundWithPreparedCertificate()
 	assert.Same(t, r, rcc.Requests[2].View.Round)
-	assert.Same(t, pc, &rcc.Requests[2].PreparedCertificateV2)
+	maxPC := rcc.AnyHighestPreparedCertificate()
+	assert.NotNil(t, maxPC)
+	assert.Same(t, &rcc.Requests[2].PreparedCertificateV2, maxPC)
 }
 
 func TestRoundChangeCertificateV2RLPEncoding(t *testing.T) {
