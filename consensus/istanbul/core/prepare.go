@@ -138,11 +138,19 @@ func (c *core) verifyProposalAndPCMessages(proposal istanbul.Proposal, pCMessage
 
 // Extract the view from a PreparedCertificate that has already been verified.
 func (c *core) getViewFromVerifiedPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) (*istanbul.View, error) {
-	if len(preparedCertificate.PrepareOrCommitMessages) < c.current.ValidatorSet().MinQuorumSize() {
+	return c.getViewFromVerifiedPreparedCertificateMessages(preparedCertificate.PrepareOrCommitMessages)
+}
+
+func (c *core) getViewFromVerifiedPreparedCertificateV2(preparedCertificate istanbul.PreparedCertificateV2) (*istanbul.View, error) {
+	return c.getViewFromVerifiedPreparedCertificateMessages(preparedCertificate.PrepareOrCommitMessages)
+}
+
+func (c *core) getViewFromVerifiedPreparedCertificateMessages(messages []istanbul.Message) (*istanbul.View, error) {
+	if len(messages) < c.current.ValidatorSet().MinQuorumSize() {
 		return nil, errInvalidPreparedCertificateNumMsgs
 	}
 
-	message := preparedCertificate.PrepareOrCommitMessages[0]
+	message := messages[0]
 
 	// Assume prepare but overwrite if commit
 	subject := message.Prepare()

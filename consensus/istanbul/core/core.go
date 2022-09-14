@@ -506,6 +506,19 @@ func (c *core) getPreprepareWithRoundChangeCertificateV2(round *big.Int) (*istan
 	if err != nil {
 		return &istanbul.Request{}, istanbul.RoundChangeCertificateV2{}, err
 	}
+	// Do View verification
+	for _, req := range roundChangeCertificateV2.Requests {
+		if !req.HasPreparedCertificate() {
+			continue
+		}
+
+		_, err := c.getViewFromVerifiedPreparedCertificateV2(req.PreparedCertificateV2)
+		if err != nil {
+			logger.Error("Unexpected: could not verify a previously received PreparedCertificate round change request", "src_m", req)
+			return &istanbul.Request{}, istanbul.RoundChangeCertificateV2{}, err
+		}
+	}
+
 	// Start with pending request
 	request := c.current.PendingRequest()
 	// Search for a valid request in round change messages.

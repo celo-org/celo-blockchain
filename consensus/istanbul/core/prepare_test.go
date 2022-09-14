@@ -143,6 +143,132 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 	}
 }
 
+func TestVerifyPreparedCertificateV2(t *testing.T) {
+	N := uint64(4) // replica 0 is the proposer, it will send messages to others
+	F := uint64(1)
+	sys := NewTestSystemWithBackendV2(N, F)
+	view := istanbul.View{
+		Round:    big.NewInt(0),
+		Sequence: big.NewInt(1),
+	}
+	proposal := makeBlock(0)
+
+	for _, b := range sys.backends {
+		b.engine.Start() // start Istanbul core
+	}
+
+	testCases := []struct {
+		name         string
+		certificate  istanbul.PreparedCertificateV2
+		proposal     istanbul.Proposal
+		expectedErr  error
+		expectedView *istanbul.View
+	}{
+		{
+			"Valid PREPARED certificate",
+			sys.getPreparedCertificateV2(t, []istanbul.View{view}, proposal),
+			proposal,
+			nil,
+			&view,
+		},
+		{
+			"Invalid PREPARED certificate, duplicate message",
+			func() istanbul.PreparedCertificateV2 {
+				preparedCertificate := sys.getPreparedCertificateV2(t, []istanbul.View{view}, proposal)
+				preparedCertificate.PrepareOrCommitMessages[1] = preparedCertificate.PrepareOrCommitMessages[0]
+				return preparedCertificate
+			}(),
+			proposal,
+			errInvalidPreparedCertificateDuplicate,
+			nil,
+		},
+		{
+			"Invalid PREPARED certificate, future message",
+			func() istanbul.PreparedCertificateV2 {
+				futureView := istanbul.View{
+					Round:    big.NewInt(0),
+					Sequence: big.NewInt(10),
+				}
+				preparedCertificate := sys.getPreparedCertificateV2(t, []istanbul.View{futureView}, proposal)
+				return preparedCertificate
+			}(),
+			proposal,
+			errInvalidPreparedCertificateMsgView,
+			nil,
+		},
+		{
+			"Invalid PREPARED certificate, includes preprepare message",
+			func() istanbul.PreparedCertificateV2 {
+				preparedCertificate := sys.getPreparedCertificateV2(t, []istanbul.View{view}, proposal)
+				testInvalidMsg, _ := sys.backends[0].getRoundChangeMessage(view, sys.getPreparedCertificate(t, []istanbul.View{view}, proposal))
+				preparedCertificate.PrepareOrCommitMessages[0] = testInvalidMsg
+				return preparedCertificate
+			}(),
+			proposal,
+			errInvalidPreparedCertificateMsgCode,
+			nil,
+		},
+		{
+			"Invalid PREPARED certificate, hash mismatch",
+			func() istanbul.PreparedCertificateV2 {
+				preparedCertificate := sys.getPreparedCertificateV2(t, []istanbul.View{view}, proposal)
+				preparedCertificate.PrepareOrCommitMessages[1] = preparedCertificate.PrepareOrCommitMessages[0]
+				preparedCertificate.ProposalHash = makeBlock(1).Hash()
+				return preparedCertificate
+			}(),
+			makeBlock(1),
+			errInvalidPreparedCertificateDigestMismatch,
+			nil,
+		},
+		{
+			"Invalid PREPARED certificate, view inconsistencies",
+			func() istanbul.PreparedCertificateV2 {
+				var view2 istanbul.View
+				view2.Sequence = big.NewInt(view.Sequence.Int64())
+				view2.Round = big.NewInt(view.Round.Int64() + 1)
+				preparedCertificate := sys.getPreparedCertificateV2(t, []istanbul.View{view, view2}, proposal)
+				return preparedCertificate
+			}(),
+			proposal,
+			errInvalidPreparedCertificateInconsistentViews,
+			nil,
+		},
+		{
+			"Empty certificate",
+			func() istanbul.PreparedCertificateV2 {
+				pc, _ := istanbul.EmptyPreparedCertificateV2()
+				return pc
+			}(),
+			proposal,
+			errInvalidPreparedCertificateNumMsgs,
+			nil,
+		},
+	}
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			for _, backend := range sys.backends {
+				c := backend.engine.(*core)
+				view, err := c.verifyPCV2WithProposal(test.certificate, test.proposal)
+				if err != test.expectedErr {
+					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
+				}
+				if err == nil {
+					if view.Cmp(test.expectedView) != 0 {
+						t.Errorf("view mismatch: have %v, want %v", view, test.expectedView)
+					}
+					view, err := c.getViewFromVerifiedPreparedCertificateV2(test.certificate)
+					if err != nil {
+						t.Errorf("error mismatch: have %v, want nil", err)
+					}
+					if view.Cmp(test.expectedView) != 0 {
+						t.Errorf("view mismatch: have %v, want %v", view, test.expectedView)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestHandlePrepare(t *testing.T) {
 	N := uint64(4)
 	F := uint64(1)
