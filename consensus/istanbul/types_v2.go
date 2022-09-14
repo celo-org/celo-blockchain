@@ -247,8 +247,8 @@ func (rcc *RoundChangeCertificateV2) IsEmpty() bool {
 
 func (rcc *RoundChangeCertificateV2) HighestRoundPreparedCertificate() (*PreparedCertificateV2, *big.Int) {
 	var hrpc *PreparedCertificateV2
-	var maxRound *big.Int = big.NewInt(-1)
-	for _, req := range rcc.Requests {
+	var maxRound *big.Int
+	for i, req := range rcc.Requests {
 		if !req.HasPreparedCertificate() {
 			continue
 		}
@@ -257,7 +257,9 @@ func (rcc *RoundChangeCertificateV2) HighestRoundPreparedCertificate() (*Prepare
 		}
 		round := req.View.Round
 		if hrpc == nil || round.Cmp(maxRound) > 0 {
-			hrpc = &req.PreparedCertificateV2
+			// use the index in Requests instead of req to avoid copying
+			// since Requests is an array of instances instead of pointers
+			hrpc = &rcc.Requests[i].PreparedCertificateV2
 			maxRound = round
 		}
 	}
