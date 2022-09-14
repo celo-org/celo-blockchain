@@ -179,8 +179,9 @@ func TestHandleRoundChangeCertificateV2(t *testing.T) {
 		{
 			"Valid round change certificate with PREPARED certificate",
 			func(t *testing.T, sys *testSystem) (istanbul.RoundChangeCertificateV2, istanbul.Proposal) {
-				pc := sys.getPreparedCertificate(t, []istanbul.View{view}, makeBlock(0))
-				return sys.getRoundChangeCertificateV2(t, []istanbul.View{view}, istanbul.PCV2FromPCV1(pc)), pc.Proposal
+				proposal := makeBlock(0)
+				pc := sys.getPreparedCertificateV2(t, []istanbul.View{view}, proposal)
+				return sys.getRoundChangeCertificateV2(t, []istanbul.View{view}, pc), proposal
 			},
 			nil,
 		},
@@ -254,8 +255,9 @@ func TestHandleRoundChangeV2(t *testing.T) {
 			"normal case with valid prepared certificate",
 			noopPrepare,
 			func(t *testing.T, sys *testSystem) (istanbul.PreparedCertificateV2, istanbul.Proposal) {
-				pc := sys.getPreparedCertificate(t, []istanbul.View{*sys.backends[0].engine.(*core).current.View()}, makeBlock(1))
-				return istanbul.PCV2FromPCV1(pc), pc.Proposal
+				proposal := makeBlock(1)
+				pc := sys.getPreparedCertificateV2(t, []istanbul.View{*sys.backends[0].engine.(*core).current.View()}, proposal)
+				return pc, proposal
 			},
 			nil,
 		},
@@ -263,9 +265,10 @@ func TestHandleRoundChangeV2(t *testing.T) {
 			"normal case with invalid prepared certificate",
 			noopPrepare,
 			func(t *testing.T, sys *testSystem) (istanbul.PreparedCertificateV2, istanbul.Proposal) {
-				preparedCert := sys.getPreparedCertificate(t, []istanbul.View{*sys.backends[0].engine.(*core).current.View()}, makeBlock(1))
+				proposal := makeBlock(1)
+				preparedCert := sys.getPreparedCertificateV2(t, []istanbul.View{*sys.backends[0].engine.(*core).current.View()}, proposal)
 				preparedCert.PrepareOrCommitMessages[0] = preparedCert.PrepareOrCommitMessages[1]
-				return istanbul.PCV2FromPCV1(preparedCert), preparedCert.Proposal
+				return preparedCert, proposal
 			},
 			errInvalidPreparedCertificateDuplicate,
 		},
