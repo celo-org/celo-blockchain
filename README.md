@@ -58,7 +58,12 @@ The Celo blockchain client comes with several wrappers/executables found in the 
 
 ## Running tests
 
-Prior to running tests you will need to run `make prepare-system-contracts`.
+Prior to running tests you will need to run `make prepare`, this will run two sub rules.
+
+Without first running this `make prepare`, certain tests will fail.
+
+### prepare-system-contracts
+
 This will shallow checkout the
 [celo-monorepo](https://github.com/celo-org/celo-monorepo) under
 `../.celo-blockchain-monorepo-checkout` relative to this project's root at the
@@ -86,8 +91,8 @@ those checked out by the `prepare-system-contracts` rule, and the checkouts
 created by the `prepare-system-contracts` rule should not be manually modifed,
 aside from changing the contract source.
 
-
-Without first running this make rule, certain tests will fail.
+### prepare-ethersjs-project
+This will install dependencies for the `ethersjs-api-check` typescript project.
 
 ## Running Celo
 
