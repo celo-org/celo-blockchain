@@ -88,7 +88,12 @@ func (c *core) buildSignedRoundChangeMsgV2(round *big.Int) (*istanbul.Message, e
 	return istanbul.NewRoundChangeV2Message(roundChangeV2, c.address), nil
 }
 
-func (c *core) handleRoundChangeCertificateV2(subject istanbul.Subject, roundChangeCertificateV2 istanbul.RoundChangeCertificateV2, proposal istanbul.Proposal) error {
+func (c *core) handleRoundChangeCertificateV2(view istanbul.View, roundChangeCertificateV2 istanbul.RoundChangeCertificateV2, proposal istanbul.Proposal) error {
+	subject := istanbul.Subject{
+		View:   &view,
+		Digest: proposal.Hash(),
+	}
+
 	logger := c.newLogger("func", "handleRoundChangeCertificateV2", "proposal_round", subject.View.Round, "proposal_seq", subject.View.Sequence, "proposal_digest", subject.Digest.String())
 
 	if len(roundChangeCertificateV2.Requests) > c.current.ValidatorSet().Size() || len(roundChangeCertificateV2.Requests) < c.current.ValidatorSet().MinQuorumSize() {
@@ -127,7 +132,9 @@ func (c *core) handleRoundChangeCertificateV2(subject istanbul.Subject, roundCha
 	}
 	pc, _ := roundChangeCertificateV2.HighestRoundPreparedCertificate()
 	if pc != nil {
-		if pc.ProposalHash != subject.Digest {
+		if pc.ProposalHash != proposal.Hash() {
+			logger.Warn("Received proposal hash in PreparedCertificate not matching the proposal hash",
+				"pcHash", pc.ProposalHash.Hex(), "proposalHash", proposal.Hash())
 			return errInvalidPreparedCertificateDigestMismatch
 		}
 		preparedView, err := c.verifyPCV2WithProposal(*pc, proposal)

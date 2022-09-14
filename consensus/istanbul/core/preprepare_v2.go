@@ -106,12 +106,8 @@ func (c *core) handlePreprepareV2(msg *istanbul.Message) error {
 			logger.Error("Preprepare for non-zero round did not contain a round change certificate.")
 			return errMissingRoundChangeCertificate
 		}
-		subject := istanbul.Subject{
-			View:   preprepareV2.View,
-			Digest: preprepareV2.Proposal.Hash(),
-		}
 		// This also moves us to the next round if the certificate is valid.
-		err := c.handleRoundChangeCertificateV2(subject, preprepareV2.RoundChangeCertificateV2, preprepareV2.Proposal)
+		err := c.handleRoundChangeCertificateV2(*preprepareV2.View, preprepareV2.RoundChangeCertificateV2, preprepareV2.Proposal)
 		if err != nil {
 			logger.Warn("Invalid round change certificate with preprepare.", "err", err)
 			return err
