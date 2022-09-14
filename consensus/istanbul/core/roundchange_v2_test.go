@@ -211,11 +211,7 @@ func TestHandleRoundChangeCertificateV2(t *testing.T) {
 				c.config.V2Block = big.NewInt(0)
 				c.Start()
 				certificate, prop := test.getCertificate(t, sys)
-				subject := istanbul.Subject{
-					View:   &view,
-					Digest: makeBlock(0).Hash(),
-				}
-				err := c.handleRoundChangeCertificateV2(subject, certificate, prop)
+				err := c.handleRoundChangeCertificateV2(view, certificate, prop)
 
 				if err != test.expectedErr {
 					t.Errorf("error mismatch for test case %v: have %v, want %v", i, err, test.expectedErr)
