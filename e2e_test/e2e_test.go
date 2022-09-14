@@ -486,6 +486,7 @@ func TestEthersJSCompatibility(t *testing.T) {
 
 	cmd = exec.Command("npm", "run", "test", "--networkaddr="+network[0].Node.HTTPEndpoint(), "--blocknum="+hexutil.Uint64(num).String(), "--", "--invert", "--grep", "block with pruned")
 	cmd.Dir = "../ethersjs-api-check/"
+	println("executing mocha test with", cmd.String())
 	output, err = cmd.CombinedOutput()
 	println(string(output))
 	require.NoError(t, err)
@@ -501,6 +502,7 @@ func TestEthersJSCompatibility(t *testing.T) {
 	// Execute typescript tests to check what happens with a pruned block.
 	cmd = exec.Command("npm", "run", "test", "--networkaddr="+network[0].Node.HTTPEndpoint(), "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "block with pruned")
 	cmd.Dir = "../ethersjs-api-check/"
+	println("executing mocha test with", cmd.String())
 	output, err = cmd.CombinedOutput()
 	println(string(output))
 	require.NoError(t, err)
