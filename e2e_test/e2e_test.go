@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"os/exec"
 	"sync"
 	"testing"
@@ -474,9 +475,18 @@ func TestEthersJSCompatibility(t *testing.T) {
 	// 'process.env.npm_config_blocknum' in typescript test. Everything after
 	// '--' are flags that are passed to mocha and these flags are controlling
 	// which tests to run.
-	cmd := exec.Command("npm", "run", "test", "--networkaddr="+network[0].Node.HTTPEndpoint(), "--blocknum="+hexutil.Uint64(num).String(), "--", "--invert", "--grep", "block with pruned")
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	println("current dir", wd)
+	cmd := exec.Command("ls")
 	cmd.Dir = "../ethersjs-api-check/"
 	output, err := cmd.CombinedOutput()
+	println("ls output", string(output))
+	require.NoError(t, err)
+
+	cmd = exec.Command("npm", "run", "test", "--networkaddr="+network[0].Node.HTTPEndpoint(), "--blocknum="+hexutil.Uint64(num).String(), "--", "--invert", "--grep", "block with pruned")
+	cmd.Dir = "../ethersjs-api-check/"
+	output, err = cmd.CombinedOutput()
 	println(string(output))
 	require.NoError(t, err)
 
