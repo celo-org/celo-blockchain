@@ -47,7 +47,8 @@ func TestRoundChangeCertificateMaxPCNil(t *testing.T) {
 
 func TestRoundChangeCertificateMaxPCNotNil(t *testing.T) {
 	rcc := &RoundChangeCertificateV2{
-		Requests: []RoundChangeRequest{*dummyRoundChangeRequest(), *dummyRoundChangeRequest(), *dummyRoundChangeRequest(), *dummyRoundChangeRequest()},
+		Requests: []RoundChangeRequest{*dummyRoundChangeRequest(), *dummyRoundChangeRequest(),
+			*dummyRoundChangeRequest(), *dummyRoundChangeRequest(), *dummyRoundChangeRequest()},
 	}
 	rcc.Requests[0].View.Round = big.NewInt(6)
 	rcc.Requests[0].PreparedCertificateV2.PrepareOrCommitMessages = make([]Message, 1)
@@ -55,6 +56,8 @@ func TestRoundChangeCertificateMaxPCNotNil(t *testing.T) {
 	rcc.Requests[1].PreparedCertificateV2.PrepareOrCommitMessages = make([]Message, 1)
 	rcc.Requests[2].View.Round = big.NewInt(7)
 	rcc.Requests[2].PreparedCertificateV2.PrepareOrCommitMessages = make([]Message, 1)
+	rcc.Requests[3].View.Round = big.NewInt(10) // doesn't count, Empty PC
+	rcc.Requests[3].PreparedCertificateV2.PrepareOrCommitMessages = make([]Message, 0)
 	rcc.Requests[3].View.Round = big.NewInt(4)
 	rcc.Requests[3].PreparedCertificateV2.PrepareOrCommitMessages = make([]Message, 1)
 	pc, r := rcc.HighestRoundPreparedCertificate()
