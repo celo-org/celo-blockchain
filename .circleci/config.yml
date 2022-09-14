@@ -358,7 +358,7 @@ jobs:
       - run:
           name: Run tests and print coverage summary
           command: |
-            go test -coverprofile cov.out -coverpkg ./consensus/istanbul/... ./e2e_test 
+            go test -v -coverprofile cov.out -coverpkg ./consensus/istanbul/... ./e2e_test 
             go run tools/parsecov/main.go -packagePrefix github.com/celo-org/celo-blockchain/ cov.out > summary
             cat summary
 
