@@ -245,10 +245,19 @@ func (rcc *RoundChangeCertificateV2) IsEmpty() bool {
 	return len(rcc.Requests) == 0
 }
 
-func (rcc *RoundChangeCertificateV2) HighestRoundPreparedCertificate() (*PreparedCertificateV2, *big.Int) {
-	var hrpc *PreparedCertificateV2
+func (rcc *RoundChangeCertificateV2) AnyHighestPreparedCertificate() *PreparedCertificateV2 {
+	pcRound := rcc.HighestRoundWithPreparedCertificate()
+	if pcRound == nil {
+		return nil
+	}
+	return rcc.getAnyPreparedCertificateForRound(pcRound)
+}
+
+// HighestRoundWithPreparedCertificate returns the highest round request with a PC. Be mindful
+// that there could be many different PCs with the same highest round.
+func (rcc *RoundChangeCertificateV2) HighestRoundWithPreparedCertificate() *big.Int {
 	var maxRound *big.Int
-	for i, req := range rcc.Requests {
+	for _, req := range rcc.Requests {
 		if !req.HasPreparedCertificate() {
 			continue
 		}
@@ -256,14 +265,51 @@ func (rcc *RoundChangeCertificateV2) HighestRoundPreparedCertificate() (*Prepare
 			continue
 		}
 		round := req.View.Round
-		if hrpc == nil || round.Cmp(maxRound) > 0 {
-			// use the index in Requests instead of req to avoid copying
-			// since Requests is an array of instances instead of pointers
-			hrpc = &rcc.Requests[i].PreparedCertificateV2
+		if maxRound == nil || round.Cmp(maxRound) > 0 {
 			maxRound = round
 		}
 	}
-	return hrpc, maxRound
+	return maxRound
+}
+
+func (rcc *RoundChangeCertificateV2) getAnyPreparedCertificateForRound(round *big.Int) *PreparedCertificateV2 {
+	for i, req := range rcc.Requests {
+		if req.View.Round == nil {
+			continue
+		}
+		if req.View.Round.Cmp(round) != 0 {
+			continue
+		}
+		if !req.HasPreparedCertificate() {
+			continue
+		}
+		// Use the index in Requests to return the exact same pointer
+		// otherwise it may get overwritten by the reuse of the req variable
+		// in the loop
+		return &rcc.Requests[i].PreparedCertificateV2
+	}
+	return nil
+}
+
+func (rcc *RoundChangeCertificateV2) GetPreparedCertificateFor(round *big.Int, proposalHash common.Hash) *PreparedCertificateV2 {
+	for i, req := range rcc.Requests {
+		if req.View.Round == nil {
+			continue
+		}
+		if req.View.Round.Cmp(round) != 0 {
+			continue
+		}
+		if !req.HasPreparedCertificate() {
+			continue
+		}
+		if req.PreparedCertificateV2.ProposalHash == proposalHash {
+			// Use the index in Requests to return the exact same pointer
+			// otherwise it may get overwritten by the reuse of the req variable
+			// in the loop
+			return &rcc.Requests[i].PreparedCertificateV2
+		}
+	}
+	return nil
 }
 
 // EncodeRLP serializes rcc into the Ethereum RLP format.

@@ -403,6 +403,18 @@ var sendToFPlus1 = map[int]bool{
 	2: true,
 	3: true,
 }
+var sendToHalf1 = map[int]bool{
+	0: true,
+	1: true,
+	2: false,
+	3: false,
+}
+var sendToHalf2 = map[int]bool{
+	0: false,
+	1: false,
+	2: true,
+	3: true,
+}
 var noGossip = map[int]bool{
 	0: false,
 	1: false,
@@ -452,6 +464,88 @@ func TestCommitsBlocksAfterRoundChangeV2(t *testing.T) {
 
 	// Turn PREPAREs back on for round 1.
 	testLogger.Info("Turn PREPAREs back on for round 1")
+	istMsgDistribution[istanbul.MsgPrepare] = gossip
+
+	// Eventually we should get a block again
+	select {
+	case <-time.After(2 * time.Second):
+		t.Error("Did not finalize a block within 2 secs")
+	case _, ok := <-newBlocks.Chan():
+		if !ok {
+			t.Error("Error reading block")
+		}
+		// Wait for all backends to finalize the block.
+		<-time.After(1 * time.Second)
+		testLogger.Info("Expected all backends to finalize")
+		expectedCommitted, _ := sys.backends[0].GetCurrentHeadBlockAndAuthor()
+		for i, b := range sys.backends {
+			committed, _ := b.GetCurrentHeadBlockAndAuthor()
+			// We don't expect any particular block to be committed here. We do expect them to be consistent.
+			if committed.Number().Cmp(common.Big1) != 0 {
+				t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())
+			}
+			if expectedCommitted.Hash() != committed.Hash() {
+				t.Errorf("Backend %v got committed block with unexpected hash: expected %v, got %v", i, expectedCommitted.Hash(), committed.Hash())
+			}
+		}
+	}
+
+	// Manually open and close b/c hijacking sys.listen
+	for _, b := range sys.backends {
+		b.engine.Stop() // stop Istanbul core
+	}
+	close(sys.quit)
+}
+
+func TestUseRoundChangeCertificateWithPC(t *testing.T) {
+	sys := NewTestSystemWithBackend(4, 1)
+
+	for i, b := range sys.backends {
+		// activate v2 consensus block
+		b.engine.(*core).config.V2Block = big.NewInt(0)
+		b.engine.Start() // start Istanbul core
+		block := makeBlock(1)
+		block.Header().GasUsed = uint64(i)
+		b.NewRequest(block)
+	}
+
+	newBlocks := sys.backends[0].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
+	defer newBlocks.Unsubscribe()
+
+	timeout1 := sys.backends[1].EventMux().Subscribe(timeoutAndMoveToNextRoundEvent{})
+	defer timeout1.Unsubscribe()
+	timeout2 := sys.backends[2].EventMux().Subscribe(timeoutAndMoveToNextRoundEvent{})
+	defer timeout2.Unsubscribe()
+	timeout3 := sys.backends[3].EventMux().Subscribe(timeoutAndMoveToNextRoundEvent{})
+	defer timeout3.Unsubscribe()
+
+	istMsgDistribution := map[uint64]map[int]bool{}
+
+	// Allow everyone to see the initial proposal
+	// Send all PREPARE messages to everyone
+	// Do not commit, so the round change will have a prepare certificate
+	// Send ROUND CHANGE messages to everyone
+	istMsgDistribution[istanbul.MsgPreprepareV2] = gossip
+	istMsgDistribution[istanbul.MsgPrepare] = sendToHalf1
+	istMsgDistribution[istanbul.MsgCommit] = noGossip
+	istMsgDistribution[istanbul.MsgRoundChangeV2] = gossip
+
+	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
+
+	<-timeout1.Chan()
+	<-timeout2.Chan()
+	<-timeout3.Chan()
+
+	istMsgDistribution[istanbul.MsgPrepare] = sendToHalf2
+	testLogger.Info("Empty round passing through")
+
+	<-timeout1.Chan()
+	<-timeout2.Chan()
+	<-timeout3.Chan()
+
+	// Turn COMMITS back on for round 2.
+	testLogger.Info("Turn COMMITs back on for round 2")
+	istMsgDistribution[istanbul.MsgCommit] = gossip
 	istMsgDistribution[istanbul.MsgPrepare] = gossip
 
 	// Eventually we should get a block again

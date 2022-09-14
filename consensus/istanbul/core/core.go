@@ -511,7 +511,7 @@ func (c *core) getPreprepareWithRoundChangeCertificateV2(round *big.Int) (*istan
 	// Search for a valid request in round change messages.
 	// The proposal must come from the prepared certificate with the highest round number.
 	// All prepared certificates from the same round are assumed to be the same proposal or no proposal (guaranteed by quorum intersection)
-	maxPC, _ := roundChangeCertificateV2.HighestRoundPreparedCertificate()
+	maxPC := roundChangeCertificateV2.AnyHighestPreparedCertificate()
 	if maxPC == nil {
 		return request, roundChangeCertificateV2, nil
 	}
