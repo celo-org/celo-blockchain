@@ -35,7 +35,7 @@ func newTestRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) 
 }
 
 func newTestRoundStateV2(view *istanbul.View, validatorSet istanbul.ValidatorSet) RoundState {
-	current := newRoundState(view, validatorSet, validatorSet.GetByIndex(0), false)
+	current := newRoundState(view, validatorSet, validatorSet.GetByIndex(0), true)
 	current.(*roundStateImpl).preprepareV2 = newTestPreprepareV2(view)
 	return current
 }
