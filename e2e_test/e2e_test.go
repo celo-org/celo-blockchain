@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -475,19 +475,14 @@ func TestEthersJSCompatibility(t *testing.T) {
 	// 'process.env.npm_config_blocknum' in typescript test. Everything after
 	// '--' are flags that are passed to mocha and these flags are controlling
 	// which tests to run.
-	wd, err := os.Getwd()
-	require.NoError(t, err)
-	println("current dir", wd)
-	cmd := exec.Command("ls")
-	cmd.Dir = "../ethersjs-api-check/"
-	output, err := cmd.CombinedOutput()
-	println("ls output", string(output))
-	require.NoError(t, err)
 
-	cmd = exec.Command("npm", "run", "test", "--networkaddr="+network[0].Node.HTTPEndpoint(), "--blocknum="+hexutil.Uint64(num).String(), "--", "--invert", "--grep", "block with pruned")
+	// The tests don't seem to work on CI with IPV6 addresses so we convert to IPV4 here
+	addr := strings.Replace(network[0].Node.HTTPEndpoint(), "[::]", "127.0.0.1", 1)
+
+	cmd := exec.Command("npm", "run", "test", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--", "--invert", "--grep", "block with pruned")
 	cmd.Dir = "../ethersjs-api-check/"
 	println("executing mocha test with", cmd.String())
-	output, err = cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
 	println(string(output))
 	require.NoError(t, err)
 
@@ -500,7 +495,7 @@ func TestEthersJSCompatibility(t *testing.T) {
 	require.NoError(t, err)
 
 	// Execute typescript tests to check what happens with a pruned block.
-	cmd = exec.Command("npm", "run", "test", "--networkaddr="+network[0].Node.HTTPEndpoint(), "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "block with pruned")
+	cmd = exec.Command("npm", "run", "test", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "block with pruned")
 	cmd.Dir = "../ethersjs-api-check/"
 	println("executing mocha test with", cmd.String())
 	output, err = cmd.CombinedOutput()
