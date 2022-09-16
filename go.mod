@@ -15,14 +15,13 @@ require (
 	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/btcsuite/btcutil v1.0.2
 	github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72
-	github.com/celo-org/celo-bls-go v0.2.7-0.20220802155348-9137669836be
+	github.com/celo-org/celo-bls-go v0.6.4
 	github.com/celo-org/celo-bls-go-android v0.6.4 // indirect
 	github.com/celo-org/celo-bls-go-ios v0.6.4 // indirect
 	github.com/celo-org/celo-bls-go-linux v0.6.5-0.20220729160407-47e82d7c292c // indirect
 	github.com/celo-org/celo-bls-go-macos v0.6.4 // indirect
 	github.com/celo-org/celo-bls-go-other v0.6.4 // indirect
 	github.com/celo-org/celo-bls-go-windows v0.6.4 // indirect
-	//github.com/celo-org/celo-bls-go v0.2.6
 	github.com/cespare/cp v0.1.0
 	github.com/cespare/xxhash/v2 v2.1.1
 	github.com/cloudflare/cloudflare-go v0.14.0
