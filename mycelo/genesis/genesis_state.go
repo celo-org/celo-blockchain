@@ -514,6 +514,8 @@ func (ctx *deployContext) deployExchanges() error {
 				exchange.cfg.ReserveFraction.BigInt(),
 				newBigInt(exchange.cfg.UpdateFrequency),
 				newBigInt(exchange.cfg.MinimumReports),
+				exchange.cfg.MinSupplyForStableBucketCap,
+				exchange.cfg.StableBucketFractionCap.BigInt(),
 			)
 		})
 		if err != nil {

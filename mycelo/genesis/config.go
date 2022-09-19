@@ -317,11 +317,13 @@ type StableTokenParameters struct {
 
 // ExchangeParameters are the initial configuration parameters for Exchange
 type ExchangeParameters struct {
-	Frozen          bool         `json:"frozen"`
-	Spread          *fixed.Fixed `json:"spread"`
-	ReserveFraction *fixed.Fixed `json:"reserveFraction"`
-	UpdateFrequency uint64       `json:"updateFrequency"`
-	MinimumReports  uint64       `json:"minimumReports"`
+	Frozen                      bool         `json:"frozen"`
+	Spread                      *fixed.Fixed `json:"spread"`
+	ReserveFraction             *fixed.Fixed `json:"reserveFraction"`
+	UpdateFrequency             uint64       `json:"updateFrequency"`
+	MinimumReports              uint64       `json:"minimumReports"`
+	MinSupplyForStableBucketCap *big.Int     `json:"minSupplyForStableBucketCap"`
+	StableBucketFractionCap     *fixed.Fixed `json:"stableBucketFractionCap"`
 }
 
 // LockedGoldParameters are the initial configuration parameters for LockedGold
