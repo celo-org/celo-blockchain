@@ -1199,6 +1199,10 @@ type RPCTransaction struct {
 
 // newRPCTransaction returns a transaction that will serialize to the RPC
 // representation, with the given location metadata set (if available).
+// *** Upstream difference ***
+// The `inABlock` flag was added to avoid ambiguity. A Tx in a pending block, will be
+// part of a block. The usage in this file of a `!inABlock`, is for asking for pending txs
+// in the pool that are not even part of the pending block.
 func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber uint64, index uint64, baseFeeFn func(feeCurrency *common.Address) (*big.Int, error), inABlock bool) *RPCTransaction {
 	// Determine the signer. For replay-protected transactions, use the most permissive
 	// signer, because we assume that signers are backwards-compatible with old
@@ -1247,10 +1251,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		result.GasFeeCap = (*hexutil.Big)(tx.GasFeeCap())
 		result.GasTipCap = (*hexutil.Big)(tx.GasTipCap())
 		// if the transaction has been mined, compute the effective gas price
-		// if blockHash != (common.Hash{}) { // This is from upstream.
-		// Changed to a flag, to avoid ambiguity. A Tx in a pending block, will be
-		// part of a block. The only case using this is for asking for pending txs
-		// in the pool that are not even part of the pending block
+		// if blockHash != (common.Hash{}) { // This is from upstream (check the function comment above).
 		if inABlock {
 			baseFee, err := baseFeeFn(tx.FeeCurrency())
 			if err == nil {
