@@ -1159,7 +1159,7 @@ func (s *PublicBlockChainAPI) rpcMarshalHeader(ctx context.Context, header *type
 // rpcMarshalBlock uses the generalized output filler, then adds the total difficulty field, which requires
 // a `PublicBlockchainAPI`.
 func (s *PublicBlockChainAPI) rpcMarshalBlock(ctx context.Context, b *types.Block, inclTx bool, fullTx bool) (map[string]interface{}, error) {
-	baseFeeFn := getGasPriceMinimumFromState(ctx, s.b, b.Hash())
+	baseFeeFn := getGasPriceMinimumFromStateWithHeader(ctx, s.b, b.Header())
 	fields, err := RPCMarshalBlock(b, inclTx, fullTx, baseFeeFn)
 	if err != nil {
 		return nil, err
@@ -1199,7 +1199,11 @@ type RPCTransaction struct {
 
 // newRPCTransaction returns a transaction that will serialize to the RPC
 // representation, with the given location metadata set (if available).
-func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber uint64, index uint64, baseFeeFn func(feeCurrency *common.Address) (*big.Int, error)) *RPCTransaction {
+// *** Upstream difference ***
+// The `inABlock` flag was added to avoid ambiguity. A Tx in a pending block, will be
+// part of a block. The usage in this file of a `!inABlock`, is for asking for pending txs
+// in the pool that are not even part of the pending block.
+func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber uint64, index uint64, baseFeeFn func(feeCurrency *common.Address) (*big.Int, error), inABlock bool) *RPCTransaction {
 	// Determine the signer. For replay-protected transactions, use the most permissive
 	// signer, because we assume that signers are backwards-compatible with old
 	// transactions. For non-protected transactions, the homestead signer signer is used
@@ -1247,7 +1251,8 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		result.GasFeeCap = (*hexutil.Big)(tx.GasFeeCap())
 		result.GasTipCap = (*hexutil.Big)(tx.GasTipCap())
 		// if the transaction has been mined, compute the effective gas price
-		if blockHash != (common.Hash{}) {
+		// if blockHash != (common.Hash{}) { // This is from upstream (check the function comment above).
+		if inABlock {
 			baseFee, err := baseFeeFn(tx.FeeCurrency())
 			if err == nil {
 				// price = min(tip, gasFeeCap - baseFee) + baseFee
@@ -1267,7 +1272,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 
 // newRPCPendingTransaction returns a pending transaction that will serialize to the RPC representation
 func newRPCPendingTransaction(tx *types.Transaction, current *types.Header, config *params.ChainConfig, baseFeeFn func(*common.Address) (*big.Int, error)) *RPCTransaction {
-	return newRPCTransaction(tx, common.Hash{}, 0, 0, baseFeeFn)
+	return newRPCTransaction(tx, common.Hash{}, 0, 0, baseFeeFn, false)
 }
 
 // newRPCTransactionFromBlockIndex returns a transaction that will serialize to the RPC representation.
@@ -1276,7 +1281,7 @@ func newRPCTransactionFromBlockIndex(b *types.Block, index uint64, baseFeeFn fun
 	if index >= uint64(len(txs)) {
 		return nil
 	}
-	return newRPCTransaction(txs[index], b.Hash(), b.NumberU64(), index, baseFeeFn)
+	return newRPCTransaction(txs[index], b.Hash(), b.NumberU64(), index, baseFeeFn, true)
 }
 
 // newRPCRawTransactionFromBlockIndex returns the bytes of a transaction given a block and a transaction index.
@@ -1439,7 +1444,7 @@ func (s *PublicTransactionPoolAPI) GetBlockTransactionCountByHash(ctx context.Co
 // GetTransactionByBlockNumberAndIndex returns the transaction for the given block number and index.
 func (s *PublicTransactionPoolAPI) GetTransactionByBlockNumberAndIndex(ctx context.Context, blockNr rpc.BlockNumber, index hexutil.Uint) *RPCTransaction {
 	if block, _ := s.b.BlockByNumber(ctx, blockNr); block != nil {
-		baseFeeFn := getGasPriceMinimumFromState(ctx, s.b, block.Hash())
+		baseFeeFn := getGasPriceMinimumFromStateWithHeader(ctx, s.b, block.Header())
 
 		return newRPCTransactionFromBlockIndex(block, uint64(index), baseFeeFn)
 	}
@@ -1449,7 +1454,7 @@ func (s *PublicTransactionPoolAPI) GetTransactionByBlockNumberAndIndex(ctx conte
 // GetTransactionByBlockHashAndIndex returns the transaction for the given block hash and index.
 func (s *PublicTransactionPoolAPI) GetTransactionByBlockHashAndIndex(ctx context.Context, blockHash common.Hash, index hexutil.Uint) *RPCTransaction {
 	if block, _ := s.b.BlockByHash(ctx, blockHash); block != nil {
-		baseFeeFn := getGasPriceMinimumFromState(ctx, s.b, blockHash)
+		baseFeeFn := getGasPriceMinimumFromStateWithHeader(ctx, s.b, block.Header())
 		return newRPCTransactionFromBlockIndex(block, uint64(index), baseFeeFn)
 	}
 	return nil
@@ -1499,7 +1504,7 @@ func (s *PublicTransactionPoolAPI) GetTransactionByHash(ctx context.Context, has
 	}
 	if tx != nil {
 		baseFeeFn := getGasPriceMinimumFromState(ctx, s.b, blockHash)
-		return newRPCTransaction(tx, blockHash, blockNumber, index, baseFeeFn), nil
+		return newRPCTransaction(tx, blockHash, blockNumber, index, baseFeeFn, true), nil
 	}
 	// No finalized transaction, try to retrieve it from the pool
 	if tx := s.b.GetPoolTransaction(hash); tx != nil {
@@ -1520,6 +1525,12 @@ func getGasPriceMinimumFromState(ctx context.Context, b Backend, blockHash commo
 			return nil, err
 		}
 
+		return getGasPriceMinimumFromStateWithHeader(ctx, b, header)(feeCurrency)
+	}
+}
+
+func getGasPriceMinimumFromStateWithHeader(ctx context.Context, b Backend, header *types.Header) func(feeCurrency *common.Address) (*big.Int, error) {
+	return func(feeCurrency *common.Address) (*big.Int, error) {
 		return b.GasPriceMinimumForHeader(ctx, feeCurrency, header)
 	}
 }
