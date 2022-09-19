@@ -185,7 +185,6 @@ type GovernanceParameters struct {
 	MinDeposit              *big.Int     `json:"minDeposit"`
 	QueueExpiry             uint64       `json:"queueExpiry"`
 	DequeueFrequency        uint64       `json:"dequeueFrequency"`
-	ApprovalStageDuration   uint64       `json:"approvalStageDuration"`
 	ReferendumStageDuration uint64       `json:"referendumStageDuration"`
 	ExecutionStageDuration  uint64       `json:"executionStageDuration"`
 	ParticipationBaseline   *fixed.Fixed `json:"participationBaseline"`
@@ -328,7 +327,7 @@ type ExchangeParameters struct {
 	StableBucketFractionCap     *fixed.Fixed `json:"stableBucketFractionCap"`
 }
 type ExchangeParametersMarshaling struct {
-	MinSupplyForStableBucketCap *bigintstr.BigIntStr `json:"value"`
+	MinSupplyForStableBucketCap *bigintstr.BigIntStr `json:"minSupplyForStableBucketCap"`
 }
 
 // LockedGoldParameters are the initial configuration parameters for LockedGold

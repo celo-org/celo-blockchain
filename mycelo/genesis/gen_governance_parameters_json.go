@@ -17,16 +17,15 @@ func (g GovernanceParameters) MarshalJSON() ([]byte, error) {
 	type GovernanceParameters struct {
 		UseMultiSig             bool                 `json:"useMultiSig"`
 		ConcurrentProposals     uint64               `json:"concurrentProposals"`
-		MinDeposit              *bigintstr.BigIntStr `json:"MinDeposit"`
-		QueueExpiry             uint64               `json:"QueueExpiry"`
-		DequeueFrequency        uint64               `json:"DequeueFrequency"`
-		ApprovalStageDuration   uint64               `json:"ApprovalStageDuration"`
-		ReferendumStageDuration uint64               `json:"ReferendumStageDuration"`
-		ExecutionStageDuration  uint64               `json:"ExecutionStageDuration"`
+		MinDeposit              *bigintstr.BigIntStr `json:"minDeposit"`
+		QueueExpiry             uint64               `json:"queueExpiry"`
+		DequeueFrequency        uint64               `json:"dequeueFrequency"`
+		ReferendumStageDuration uint64               `json:"referendumStageDuration"`
+		ExecutionStageDuration  uint64               `json:"executionStageDuration"`
 		ParticipationBaseline   *fixed.Fixed         `json:"participationBaseline"`
 		ParticipationFloor      *fixed.Fixed         `json:"participationFloor"`
-		BaselineUpdateFactor    *fixed.Fixed         `json:"BaselineUpdateFactor"`
-		BaselineQuorumFactor    *fixed.Fixed         `json:"BaselineQuorumFactor"`
+		BaselineUpdateFactor    *fixed.Fixed         `json:"baselineUpdateFactor"`
+		BaselineQuorumFactor    *fixed.Fixed         `json:"baselineQuorumFactor"`
 	}
 	var enc GovernanceParameters
 	enc.UseMultiSig = g.UseMultiSig
@@ -34,7 +33,6 @@ func (g GovernanceParameters) MarshalJSON() ([]byte, error) {
 	enc.MinDeposit = (*bigintstr.BigIntStr)(g.MinDeposit)
 	enc.QueueExpiry = g.QueueExpiry
 	enc.DequeueFrequency = g.DequeueFrequency
-	enc.ApprovalStageDuration = g.ApprovalStageDuration
 	enc.ReferendumStageDuration = g.ReferendumStageDuration
 	enc.ExecutionStageDuration = g.ExecutionStageDuration
 	enc.ParticipationBaseline = g.ParticipationBaseline
@@ -49,16 +47,15 @@ func (g *GovernanceParameters) UnmarshalJSON(input []byte) error {
 	type GovernanceParameters struct {
 		UseMultiSig             *bool                `json:"useMultiSig"`
 		ConcurrentProposals     *uint64              `json:"concurrentProposals"`
-		MinDeposit              *bigintstr.BigIntStr `json:"MinDeposit"`
-		QueueExpiry             *uint64              `json:"QueueExpiry"`
-		DequeueFrequency        *uint64              `json:"DequeueFrequency"`
-		ApprovalStageDuration   *uint64              `json:"ApprovalStageDuration"`
-		ReferendumStageDuration *uint64              `json:"ReferendumStageDuration"`
-		ExecutionStageDuration  *uint64              `json:"ExecutionStageDuration"`
+		MinDeposit              *bigintstr.BigIntStr `json:"minDeposit"`
+		QueueExpiry             *uint64              `json:"queueExpiry"`
+		DequeueFrequency        *uint64              `json:"dequeueFrequency"`
+		ReferendumStageDuration *uint64              `json:"referendumStageDuration"`
+		ExecutionStageDuration  *uint64              `json:"executionStageDuration"`
 		ParticipationBaseline   *fixed.Fixed         `json:"participationBaseline"`
 		ParticipationFloor      *fixed.Fixed         `json:"participationFloor"`
-		BaselineUpdateFactor    *fixed.Fixed         `json:"BaselineUpdateFactor"`
-		BaselineQuorumFactor    *fixed.Fixed         `json:"BaselineQuorumFactor"`
+		BaselineUpdateFactor    *fixed.Fixed         `json:"baselineUpdateFactor"`
+		BaselineQuorumFactor    *fixed.Fixed         `json:"baselineQuorumFactor"`
 	}
 	var dec GovernanceParameters
 	if err := json.Unmarshal(input, &dec); err != nil {
@@ -78,9 +75,6 @@ func (g *GovernanceParameters) UnmarshalJSON(input []byte) error {
 	}
 	if dec.DequeueFrequency != nil {
 		g.DequeueFrequency = *dec.DequeueFrequency
-	}
-	if dec.ApprovalStageDuration != nil {
-		g.ApprovalStageDuration = *dec.ApprovalStageDuration
 	}
 	if dec.ReferendumStageDuration != nil {
 		g.ReferendumStageDuration = *dec.ReferendumStageDuration
