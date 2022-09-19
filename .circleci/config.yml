@@ -594,11 +594,11 @@ workflows:
           requires:
             - go-modules
             - prepare-system-contracts
-      - android
+              #- android
       - ios
       - publish-mobile-client:
           requires:
-            - android
+            #- android
             - ios
             # Makes sure tests are all green before publishing
             # Though these are not using the mobile built binaries
