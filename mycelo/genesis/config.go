@@ -315,6 +315,8 @@ type StableTokenParameters struct {
 	ExchangeIdentifier          string           `json:"exchangeIdentifier"`
 }
 
+//go:generate gencodec -type ExchangeParameters -field-override ExchangeParametersMarshaling -out gen_exchange_parameters_json.go
+
 // ExchangeParameters are the initial configuration parameters for Exchange
 type ExchangeParameters struct {
 	Frozen                      bool         `json:"frozen"`
@@ -324,6 +326,9 @@ type ExchangeParameters struct {
 	MinimumReports              uint64       `json:"minimumReports"`
 	MinSupplyForStableBucketCap *big.Int     `json:"minSupplyForStableBucketCap"`
 	StableBucketFractionCap     *fixed.Fixed `json:"stableBucketFractionCap"`
+}
+type ExchangeParametersMarshaling struct {
+	MinSupplyForStableBucketCap *bigintstr.BigIntStr `json:"value"`
 }
 
 // LockedGoldParameters are the initial configuration parameters for LockedGold
