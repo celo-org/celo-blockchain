@@ -463,6 +463,10 @@ jobs:
           name: Check imports to ensure we are using github.com/celo-org/celo-blockchain
           command: ./scripts/check_imports.sh
 
+          # This build started failing on all branches unrelated to any change in this repo.
+          # The below link links to a build on master that failed, the previous build of the
+          # same commit 24 days prior succeed.
+          # https://app.circleci.com/pipelines/github/celo-org/celo-blockchain/8386/workflows/6d117662-83e7-4e8b-8d0c-d6891d6af94c/jobs/87995
           # android:
           # docker:
           #  - image: us.gcr.io/celo-testnet/android:v3
