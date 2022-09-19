@@ -463,20 +463,20 @@ jobs:
           name: Check imports to ensure we are using github.com/celo-org/celo-blockchain
           command: ./scripts/check_imports.sh
 
-  android:
-    docker:
-      - image: us.gcr.io/celo-testnet/android:v3
-    working_directory: ~/repos/geth
-    steps:
-      - *shallow-checkout
-      - *restore-go-mod-cache
-      - run:
-          name: Compile android client
-          command: make android
-      - persist_to_workspace:
-          root: ~/repos
-          paths:
-            - geth/build/bin/geth.aar
+          # android:
+          # docker:
+          #  - image: us.gcr.io/celo-testnet/android:v3
+          # working_directory: ~/repos/geth
+          # steps:
+          #  - *shallow-checkout
+          # - *restore-go-mod-cache
+          # - run:
+          #  name: Compile android client
+          # command: make android
+          # - persist_to_workspace:
+          # root: ~/repos
+          # paths:
+          #  - geth/build/bin/geth.aar
 
   ios:
     macos:
