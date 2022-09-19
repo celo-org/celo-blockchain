@@ -36,7 +36,7 @@ func TestNewRPCTransactionCeloDynamic(t *testing.T) {
 
 			GasFeeCap: smallFeeCap,
 			GasTipCap: gasTipCap,
-		}), blockHash, blockNumber, index, baseFeeFn)
+		}), blockHash, blockNumber, index, baseFeeFn, true)
 		assert.Equal(t, (*hexutil.Big)(smallFeeCap), rpcTx.GasPrice)
 	})
 
@@ -47,7 +47,7 @@ func TestNewRPCTransactionCeloDynamic(t *testing.T) {
 
 			GasFeeCap: bigFeeCap,
 			GasTipCap: gasTipCap,
-		}), blockHash, blockNumber, index, baseFeeFn)
+		}), blockHash, blockNumber, index, baseFeeFn, true)
 		assert.Equal(t, (*hexutil.Big)(big.NewInt(0).Add(gasTipCap, baseFee)), rpcTx.GasPrice)
 	})
 
@@ -58,7 +58,7 @@ func TestNewRPCTransactionCeloDynamic(t *testing.T) {
 
 			GasFeeCap: bigFeeCap,
 			GasTipCap: gasTipCap,
-		}), common.Hash{}, 0, 0, baseFeeFn)
+		}), common.Hash{}, 0, 0, baseFeeFn, false)
 		assert.Equal(t, (*hexutil.Big)(bigFeeCap), rpcTx.GasPrice)
 	})
 }
@@ -83,7 +83,7 @@ func TestNewRPCTransactionDynamic(t *testing.T) {
 
 			GasFeeCap: smallFeeCap,
 			GasTipCap: gasTipCap,
-		}), blockHash, blockNumber, index, baseFeeFn)
+		}), blockHash, blockNumber, index, baseFeeFn, true)
 		assert.Equal(t, (*hexutil.Big)(smallFeeCap), rpcTx.GasPrice)
 	})
 
@@ -93,7 +93,7 @@ func TestNewRPCTransactionDynamic(t *testing.T) {
 
 			GasFeeCap: bigFeeCap,
 			GasTipCap: gasTipCap,
-		}), blockHash, blockNumber, index, baseFeeFn)
+		}), blockHash, blockNumber, index, baseFeeFn, true)
 		assert.Equal(t, (*hexutil.Big)(big.NewInt(0).Add(gasTipCap, baseFee)), rpcTx2.GasPrice)
 	})
 
@@ -103,7 +103,7 @@ func TestNewRPCTransactionDynamic(t *testing.T) {
 
 			GasFeeCap: bigFeeCap,
 			GasTipCap: gasTipCap,
-		}), common.Hash{}, 0, 0, baseFeeFn)
+		}), common.Hash{}, 0, 0, baseFeeFn, false)
 		assert.Equal(t, (*hexutil.Big)(bigFeeCap), rpcTx.GasPrice)
 	})
 }
