@@ -28,10 +28,10 @@ import (
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 )
 
-func TestVerifyPreparedCertificate(t *testing.T) {
+func TestVerifyPreparedCertificateV2(t *testing.T) {
 	N := uint64(4) // replica 0 is the proposer, it will send messages to others
 	F := uint64(1)
-	sys := NewTestSystemWithBackend(N, F)
+	sys := NewTestSystemWithBackendV2(N, F)
 	view := istanbul.View{
 		Round:    big.NewInt(0),
 		Sequence: big.NewInt(1),
@@ -44,76 +44,87 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 
 	testCases := []struct {
 		name         string
-		certificate  istanbul.PreparedCertificate
+		certificate  istanbul.PreparedCertificateV2
+		proposal     istanbul.Proposal
 		expectedErr  error
 		expectedView *istanbul.View
 	}{
 		{
 			"Valid PREPARED certificate",
-			sys.getPreparedCertificate(t, []istanbul.View{view}, proposal),
+			sys.getPreparedCertificateV2(t, []istanbul.View{view}, proposal),
+			proposal,
 			nil,
 			&view,
 		},
 		{
 			"Invalid PREPARED certificate, duplicate message",
-			func() istanbul.PreparedCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view}, proposal)
+			func() istanbul.PreparedCertificateV2 {
+				preparedCertificate := sys.getPreparedCertificateV2(t, []istanbul.View{view}, proposal)
 				preparedCertificate.PrepareOrCommitMessages[1] = preparedCertificate.PrepareOrCommitMessages[0]
 				return preparedCertificate
 			}(),
+			proposal,
 			errInvalidPreparedCertificateDuplicate,
 			nil,
 		},
 		{
 			"Invalid PREPARED certificate, future message",
-			func() istanbul.PreparedCertificate {
+			func() istanbul.PreparedCertificateV2 {
 				futureView := istanbul.View{
 					Round:    big.NewInt(0),
 					Sequence: big.NewInt(10),
 				}
-				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{futureView}, proposal)
+				preparedCertificate := sys.getPreparedCertificateV2(t, []istanbul.View{futureView}, proposal)
 				return preparedCertificate
 			}(),
+			proposal,
 			errInvalidPreparedCertificateMsgView,
 			nil,
 		},
 		{
 			"Invalid PREPARED certificate, includes preprepare message",
-			func() istanbul.PreparedCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view}, proposal)
+			func() istanbul.PreparedCertificateV2 {
+				preparedCertificate := sys.getPreparedCertificateV2(t, []istanbul.View{view}, proposal)
 				testInvalidMsg, _ := sys.backends[0].getRoundChangeMessage(view, sys.getPreparedCertificate(t, []istanbul.View{view}, proposal))
 				preparedCertificate.PrepareOrCommitMessages[0] = testInvalidMsg
 				return preparedCertificate
 			}(),
+			proposal,
 			errInvalidPreparedCertificateMsgCode,
 			nil,
 		},
 		{
 			"Invalid PREPARED certificate, hash mismatch",
-			func() istanbul.PreparedCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view}, proposal)
+			func() istanbul.PreparedCertificateV2 {
+				preparedCertificate := sys.getPreparedCertificateV2(t, []istanbul.View{view}, proposal)
 				preparedCertificate.PrepareOrCommitMessages[1] = preparedCertificate.PrepareOrCommitMessages[0]
-				preparedCertificate.Proposal = makeBlock(1)
+				preparedCertificate.ProposalHash = makeBlock(1).Hash()
 				return preparedCertificate
 			}(),
+			makeBlock(1),
 			errInvalidPreparedCertificateDigestMismatch,
 			nil,
 		},
 		{
 			"Invalid PREPARED certificate, view inconsistencies",
-			func() istanbul.PreparedCertificate {
+			func() istanbul.PreparedCertificateV2 {
 				var view2 istanbul.View
 				view2.Sequence = big.NewInt(view.Sequence.Int64())
 				view2.Round = big.NewInt(view.Round.Int64() + 1)
-				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view, view2}, proposal)
+				preparedCertificate := sys.getPreparedCertificateV2(t, []istanbul.View{view, view2}, proposal)
 				return preparedCertificate
 			}(),
+			proposal,
 			errInvalidPreparedCertificateInconsistentViews,
 			nil,
 		},
 		{
 			"Empty certificate",
-			istanbul.EmptyPreparedCertificate(),
+			func() istanbul.PreparedCertificateV2 {
+				pc, _ := istanbul.EmptyPreparedCertificateV2()
+				return pc
+			}(),
+			proposal,
 			errInvalidPreparedCertificateNumMsgs,
 			nil,
 		},
@@ -122,7 +133,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			for _, backend := range sys.backends {
 				c := backend.engine.(*core)
-				view, err := c.verifyPreparedCertificate(test.certificate)
+				view, err := c.verifyPCV2WithProposal(test.certificate, test.proposal)
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}
@@ -130,7 +141,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 					if view.Cmp(test.expectedView) != 0 {
 						t.Errorf("view mismatch: have %v, want %v", view, test.expectedView)
 					}
-					view, err := c.getViewFromVerifiedPreparedCertificate(test.certificate)
+					view, err := c.getViewFromVerifiedPreparedCertificateV2(test.certificate)
 					if err != nil {
 						t.Errorf("error mismatch: have %v, want nil", err)
 					}
@@ -142,8 +153,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 		})
 	}
 }
-
-func TestHandlePrepare(t *testing.T) {
+func TestHandlePrepareV2(t *testing.T) {
 	N := uint64(4)
 	F := uint64(1)
 
@@ -164,12 +174,12 @@ func TestHandlePrepare(t *testing.T) {
 		{
 			"normal case",
 			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
+				sys := NewTestSystemWithBackendV2(N, F)
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
 
-					c.current = newTestRoundState(
+					c.current = newTestRoundStateV2(
 						&istanbul.View{
 							Round:    big.NewInt(0),
 							Sequence: big.NewInt(1),
@@ -189,8 +199,8 @@ func TestHandlePrepare(t *testing.T) {
 		{
 			"normal case with prepared certificate",
 			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
-				preparedCert := sys.getPreparedCertificate(
+				sys := NewTestSystemWithBackendV2(N, F)
+				preparedCert := sys.getPreparedCertificateV2(
 					t,
 					[]istanbul.View{
 						{
@@ -202,14 +212,17 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.current = newTestRoundState(
+					c.current = newTestRoundStateV2(
 						&istanbul.View{
 							Round:    big.NewInt(0),
 							Sequence: big.NewInt(1),
 						},
 						backend.peers,
 					)
-					c.current.(*roundStateImpl).preparedCertificate = preparedCert
+					c.current.(*roundStateImpl).preparedCertificate = istanbul.PreparedCertificate{
+						Proposal:                proposal,
+						PrepareOrCommitMessages: preparedCert.PrepareOrCommitMessages,
+					}
 
 					if i == 0 {
 						// replica 0 is the proposer
@@ -223,8 +236,8 @@ func TestHandlePrepare(t *testing.T) {
 		{
 			"Inconsistent subject due to prepared certificate",
 			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
-				preparedCert := sys.getPreparedCertificate(
+				sys := NewTestSystemWithBackendV2(N, F)
+				preparedCert := sys.getPreparedCertificateV2(
 					t,
 					[]istanbul.View{
 						{
@@ -236,14 +249,17 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.current = newTestRoundState(
+					c.current = newTestRoundStateV2(
 						&istanbul.View{
 							Round:    big.NewInt(0),
 							Sequence: big.NewInt(1),
 						},
 						backend.peers,
 					)
-					c.current.(*roundStateImpl).preparedCertificate = preparedCert
+					c.current.(*roundStateImpl).preparedCertificate = istanbul.PreparedCertificate{
+						Proposal:                proposal,
+						PrepareOrCommitMessages: preparedCert.PrepareOrCommitMessages,
+					}
 
 					if i == 0 {
 						// replica 0 is the proposer
@@ -257,19 +273,19 @@ func TestHandlePrepare(t *testing.T) {
 		{
 			"future message",
 			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
+				sys := NewTestSystemWithBackendV2(N, F)
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
 					if i == 0 {
 						// replica 0 is the proposer
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							expectedSubject.View,
 							backend.peers,
 						)
 						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							&istanbul.View{
 								Round:    big.NewInt(2),
 								Sequence: big.NewInt(3),
@@ -285,19 +301,19 @@ func TestHandlePrepare(t *testing.T) {
 		{
 			"subject not match",
 			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
+				sys := NewTestSystemWithBackendV2(N, F)
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
 					if i == 0 {
 						// replica 0 is the proposer
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							expectedSubject.View,
 							backend.peers,
 						)
 						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							&istanbul.View{
 								Round:    big.NewInt(0),
 								Sequence: big.NewInt(0),
@@ -313,19 +329,19 @@ func TestHandlePrepare(t *testing.T) {
 		{
 			"subject not match",
 			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
+				sys := NewTestSystemWithBackendV2(N, F)
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
 					if i == 0 {
 						// replica 0 is the proposer
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							expectedSubject.View,
 							backend.peers,
 						)
 						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							&istanbul.View{
 								Round:    big.NewInt(0),
 								Sequence: big.NewInt(1)},
@@ -340,14 +356,14 @@ func TestHandlePrepare(t *testing.T) {
 		{
 			"less than 2F+1",
 			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
+				sys := NewTestSystemWithBackendV2(N, F)
 
 				// save less than 2*F+1 replica
 				sys.backends = sys.backends[2*int(F)+1:]
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.current = newTestRoundState(
+					c.current = newTestRoundStateV2(
 						expectedSubject.View,
 						backend.peers,
 					)
@@ -426,7 +442,7 @@ func TestHandlePrepare(t *testing.T) {
 }
 
 // round is not checked for now
-func TestVerifyPrepare(t *testing.T) {
+func TestVerifyPrepareV2(t *testing.T) {
 
 	// for log purpose
 	privateKey, _ := crypto.GenerateKey()
@@ -440,7 +456,7 @@ func TestVerifyPrepare(t *testing.T) {
 		},
 	})
 
-	sys := NewTestSystemWithBackend(uint64(1), uint64(0))
+	sys := NewTestSystemWithBackendV2(uint64(1), uint64(0))
 
 	testCases := []struct {
 		expected error
@@ -455,7 +471,7 @@ func TestVerifyPrepare(t *testing.T) {
 				View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
 				Digest: newTestProposal().Hash(),
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
 				valSet,
 			),
@@ -467,7 +483,7 @@ func TestVerifyPrepare(t *testing.T) {
 				View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
 				Digest: newTestProposal().Hash(),
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
 				valSet,
 			),
@@ -479,7 +495,7 @@ func TestVerifyPrepare(t *testing.T) {
 				View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
 				Digest: common.BytesToHash([]byte("1234567890")),
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
 				valSet,
 			),
@@ -491,7 +507,7 @@ func TestVerifyPrepare(t *testing.T) {
 				View:   &istanbul.View{Round: big.NewInt(0), Sequence: nil},
 				Digest: newTestProposal().Hash(),
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
 				valSet,
 			),
@@ -503,7 +519,7 @@ func TestVerifyPrepare(t *testing.T) {
 				View:   &istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(0)},
 				Digest: newTestProposal().Hash(),
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
 				valSet,
 			),
@@ -515,7 +531,7 @@ func TestVerifyPrepare(t *testing.T) {
 				View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(1)},
 				Digest: newTestProposal().Hash(),
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
 				valSet,
 			),
@@ -529,52 +545,6 @@ func TestVerifyPrepare(t *testing.T) {
 			if err != test.expected {
 				t.Errorf("result %d: error mismatch: have %v, want %v", i, err, test.expected)
 			}
-		}
-	}
-}
-
-// benchMarkHandlePrepare benchmarks handling a prepare message
-func BenchmarkHandlePrepare(b *testing.B) {
-	N := uint64(2)
-	F := uint64(1) // F does not affect tests
-
-	sys := NewMutedTestSystemWithBackend(N, F)
-	// sys := NewTestSystemWithBackend(N, F)
-
-	for i, backend := range sys.backends {
-		c := backend.engine.(*core)
-
-		c.current = newTestRoundState(
-			&istanbul.View{
-				Round:    big.NewInt(0),
-				Sequence: big.NewInt(1),
-			},
-			backend.peers,
-		)
-
-		if i == 0 {
-			// replica 0 is the proposer
-			c.current.(*roundStateImpl).state = StatePreprepared
-		}
-	}
-
-	sys.Run(false)
-
-	v0 := sys.backends[0]
-	c := v0.engine.(*core)
-	m, _ := Encode(v0.engine.(*core).current.Subject())
-	msg := istanbul.Message{
-		Code:    istanbul.MsgPrepare,
-		Msg:     m,
-		Address: c.current.ValidatorSet().GetByIndex(uint64(1)).Address(),
-	}
-
-	// benchmarked portion
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		err := c.handlePrepare(&msg)
-		if err != nil {
-			b.Errorf("Error handling the pre-prepare message. err: %v", err)
 		}
 	}
 }
