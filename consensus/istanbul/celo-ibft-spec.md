@@ -102,7 +102,7 @@ upon: <FinalCommittedEvent> = PendingEvent
   scheduleResendRoundChange(0)
 
 // A request event is a request to reach agreement on the provided value, the
-// request event is sent by the application, if this parcicipant is the proposer
+// request event is sent by the application, if this participant is the proposer
 // it will propose that value by sending a preprepared message.
 upon: <RequestEvent, Hc, V> = PendingEvent && Sc = AcceptRequest
   PendingEvent ← nil
@@ -137,9 +137,9 @@ upon: M ← { <Commit, Hc, Rd, Vc> } ∈ Msgs && |M| >= 2f+1 && Sc ∈ {Preprepa
 
 // Upon receipt of a round change if that round change is old, send the participant's round
 // change back to the sender to help them catch up, in order to avoid this condition triggering
-// repeatedly the received round change message is then removed from Msgs. Othewise if there are
+// repeatedly the received round change message is then removed from Msgs. Otherwise if there are
 // at least 2f+1 round change messages sharing the same round then switch to it. Otherwise if
-// there are at least f+1 round change messages switch to the higest round that is less than or
+// there are at least f+1 round change messages switch to the highest round that is less than or
 // equal to the top f+1 rounds.
 upon: m<RoundChange, Hc , R, PC> ∈ Msgs && (PC = nil || validPC(PC)) 
   if R < Rd {
@@ -344,7 +344,7 @@ important then `*` is used in the place of that variable.
 ### Numbers of participants
 `3f+1 - the total number of participants`\
 `2f+1 - a quorum of participants`
-`f - the number of failed or malicious parcicipants that the system can tolerate`
+`f - the number of failed or malicious participants that the system can tolerate`
 
 ### Participant states
 `AcceptRequest`\
@@ -433,7 +433,7 @@ function call to occur after the given duration.
 `{X, Y} - the set containing X and Y`\
 `|M| - the cardinality of M`\
 `m ∈ M - m is an element of the set M`\
-`{ m : C(m) } - set builder notiation, the set of messages m such that they satisfy condition C`\
+`{ m : C(m) } - set builder notation, the set of messages m such that they satisfy condition C`\
 `∃ m : C(m) - there exists m that satisfies condition C`\
 `∀ m : C(m) - all m satisfy condition C`\
 `M/N - Set difference, the set containing all elements of M and no elements of N`
