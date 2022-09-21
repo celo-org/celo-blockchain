@@ -3,4 +3,5 @@ FROM circleci/node:12
 
 COPY --from=circleci/golang:1.17.5 /usr/local/go/ /usr/local/go/
  
+ENV PATH="/home/circleci/go/bin:${PATH}"
 ENV PATH="/usr/local/go/bin:${PATH}"
