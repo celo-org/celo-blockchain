@@ -758,7 +758,7 @@ func addEthCompatibilityFields(ctx context.Context, block map[string]interface{}
 	// base fee is returned we want to add it as a field and if there was an
 	// error and nil base fee we log the failure.
 	if err != nil && baseFee == nil {
-		log.Debug("Not adding gasPriceMinimum to RPC response, failed to retrieve gas price minimum", "block", header.Number.Uint64(), "err", err)
+		log.Debug("Not adding baseFeePerGas to RPC response, failed to retrieve gas price minimum", "block", header.Number.Uint64(), "err", err)
 		return
 	}
 	block["baseFeePerGas"] = (*hexutil.Big)(baseFee)
