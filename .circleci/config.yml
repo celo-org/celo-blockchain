@@ -466,20 +466,24 @@ jobs:
           name: Check imports to ensure we are using github.com/celo-org/celo-blockchain
           command: ./scripts/check_imports.sh
 
-  android:
-    docker:
-      - image: us.gcr.io/celo-testnet/android:v3
-    working_directory: ~/repos/geth
-    steps:
-      - *shallow-checkout
-      - *restore-go-mod-cache
-      - run:
-          name: Compile android client
-          command: make android
-      - persist_to_workspace:
-          root: ~/repos
-          paths:
-            - geth/build/bin/geth.aar
+          # This build started failing on all branches unrelated to any change in this repo.
+          # The below link links to a build on master that failed, the previous build of the
+          # same commit 24 days prior succeed.
+          # https://app.circleci.com/pipelines/github/celo-org/celo-blockchain/8386/workflows/6d117662-83e7-4e8b-8d0c-d6891d6af94c/jobs/87995
+          # android:
+          # docker:
+          #  - image: us.gcr.io/celo-testnet/android:v3
+          # working_directory: ~/repos/geth
+          # steps:
+          #  - *shallow-checkout
+          # - *restore-go-mod-cache
+          # - run:
+          #  name: Compile android client
+          # command: make android
+          # - persist_to_workspace:
+          # root: ~/repos
+          # paths:
+          #  - geth/build/bin/geth.aar
 
   ios:
     macos:
@@ -597,11 +601,11 @@ workflows:
           requires:
             - go-modules
             - prepare-system-contracts
-      - android
+              #- android
       - ios
       - publish-mobile-client:
           requires:
-            - android
+            #- android
             - ios
             # Makes sure tests are all green before publishing
             # Though these are not using the mobile built binaries
@@ -638,10 +642,9 @@ workflows:
       - end-to-end-validator-order-test:
           requires:
             - go-modules
-      # Flaky!
-      #      - end-to-end-cip35-eth-compatibility-test:
-      #          requires:
-      #            - go-modules
+      - end-to-end-cip35-eth-compatibility-test:
+          requires:
+            - go-modules
       - end-to-end-replica-test:
           requires:
             - go-modules
