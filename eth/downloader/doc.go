@@ -24,32 +24,32 @@ around that point.
 
 In celo we don't have the problem of reorgs but we still retain the pivot point
 because the validator uptime scores historically were required to be calculated
-by processing blocks from an epoch boundary. Howver since
+by processing blocks from an epoch boundary. However since
 https://github.com/celo-org/celo-blockchain/pull/1833 which removes the
 requirement to process blocks from an epoch boundary we could in fact drop the
 concept of pivot.
 
 Snap: Not currently working, but in theory works like fast sync except that
-nodes download a flat file to get the state, as opposed to making hundresd of
-thousandes of individual requests for it. This should significantly speed up
+nodes download a flat file to get the state, as opposed to making hundreds of
+thousands of individual requests for it. This should significantly speed up
 sync.
 
 Light: Downloads only headers during sync and then downloads other data on
 demand in order to service rpc requests.
 
-Lightest: Like light but downloads only one header per epoch, wich on mainnet
+Lightest: Like light but downloads only one header per epoch, which on mainnet
 means one header out of every 17280 headers. This is particularly fast only
 takes 20 seconds or so to get synced.
 
 Sync process detail
 
-Syncing is is initiated with one peer (see eth.loop), the peer selected to sync
+Syncing is initiated with one peer (see eth.loop), the peer selected to sync
 with is the one with the highest total difficulty of all peers (see
 eth.nextSyncOp). Syncing may be cancelled and started with a different peer if
 a peer with a higher total difficulty becomes available.
 
-Syncing introduces the concept a checkpoint (see params.TrustedCheckpoint) The
-checkpiont is a hard coded set of trie roots that allow state sync to start
+Syncing introduces the concept of a checkpoint (see params.TrustedCheckpoint).
+The checkpoint is a hard coded set of trie roots that allow state sync to start
 before the whole header chain has been downloaded.
 
 The pivot point is the point which the fast sync syncs state for, it is
@@ -67,7 +67,7 @@ to the sync). From the celo side there should never be a case without a pivot
 block because we instead choose the pivot to be zero if head is currently < 64.
 
 Next the sync finds the common ancestor (aka origin) between the node and the
-peer is is syncing against.
+peer is syncing against.
 
 If fast syncing {
 
@@ -87,8 +87,8 @@ If fast syncing {
 	since fast sync does not process all blocks that step can be skipped.
 
 	Then, and I'm not really clear why if the origin is greater than the last
-	frozen block (ie there is stuff in the current database beyond whats in the
-	Freezer)the "direct-ancient mode is disabled", maybe because it is only
+	frozen block (IE there is stuff in the current database beyond whats in the
+	Freezer) the "direct-ancient mode is disabled", maybe because it is only
 	applicable for nodes that are starting from scratch or have never reached
 	the pivot.
 
