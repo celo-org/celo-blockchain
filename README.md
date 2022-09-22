@@ -14,7 +14,7 @@ Most functionality of this client is similar to `go-ethereum`, also known as `ge
 
 ## Building the source
 
-Building `geth` requires both a Go (version 1.16) and a C compiler.
+Building `geth` requires both Go (min version 1.15) and a C compiler.
 You can install them using your favourite package manager. Once the dependencies are installed, run
 
 ```shell
