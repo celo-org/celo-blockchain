@@ -921,6 +921,56 @@ func testMultiProtoSync(t *testing.T, protocol uint, mode SyncMode) {
 	}
 }
 
+// Tests that if a block is empty (e.g. header only), no body request should be
+// made, and instead the header should be assembled into a whole block in itself.
+func TestEmptyShortCircuit67Full(t *testing.T)  { testEmptyShortCircuit(t, istanbul.Celo67, FullSync) }
+func TestEmptyShortCircuit67Fast(t *testing.T)  { testEmptyShortCircuit(t, istanbul.Celo67, FastSync) }
+func TestEmptyShortCircuit67Light(t *testing.T) { testEmptyShortCircuit(t, istanbul.Celo67, LightSync) }
+
+func testEmptyShortCircuit(t *testing.T, protocol uint, mode SyncMode) {
+	t.Parallel()
+
+	tester := newTester()
+	defer tester.terminate()
+
+	// Create a block chain to download
+	chain := testChainBase
+	tester.newPeer("peer", protocol, chain)
+
+	// Instrument the downloader to signal body requests
+	bodiesHave, receiptsHave := int32(0), int32(0)
+	tester.downloader.bodyFetchHook = func(headers []*types.Header) {
+		atomic.AddInt32(&bodiesHave, int32(len(headers)))
+	}
+	tester.downloader.receiptFetchHook = func(headers []*types.Header) {
+		atomic.AddInt32(&receiptsHave, int32(len(headers)))
+	}
+	// Synchronise with the peer and make sure all blocks were retrieved
+	if err := tester.sync("peer", nil, mode); err != nil {
+		t.Fatalf("failed to synchronise blocks: %v", err)
+	}
+	assertOwnChain(t, tester, chain.len())
+
+	// Validate the number of block bodies that should have been requested
+	bodiesNeeded, receiptsNeeded := 0, 0
+	for _, block := range chain.blockm {
+		if mode != LightSync && block != tester.genesis {
+			bodiesNeeded++
+		}
+	}
+	for _, receipt := range chain.receiptm {
+		if mode == FastSync && len(receipt) > 0 {
+			receiptsNeeded++
+		}
+	}
+	if int(bodiesHave) != bodiesNeeded {
+		t.Errorf("body retrieval count mismatch: have %v, want %v", bodiesHave, bodiesNeeded)
+	}
+	if int(receiptsHave) != receiptsNeeded {
+		t.Errorf("receipt retrieval count mismatch: have %v, want %v", receiptsHave, receiptsNeeded)
+	}
+}
+
 // Tests that headers are enqueued continuously, preventing malicious nodes from
 // stalling the downloader by feeding gapped header chains.
 func TestMissingHeaderAttack67Full(t *testing.T) {
@@ -1006,7 +1056,7 @@ func testInvalidHeaderRollback(t *testing.T, protocol uint, mode SyncMode) {
 	tester := newTester()
 
 	// Create a small enough block chain to download
-	targetBlocks := 3*fsHeaderSafetyNet + 256 + int(fsMinFullBlocks)
+	targetBlocks := 3*fsHeaderSafetyNet + 256 + fsMinFullBlocks
 	chain := testChainBase.shorten(targetBlocks)
 
 	// Attempt to sync with an attacker that feeds junk during the fast sync phase.
