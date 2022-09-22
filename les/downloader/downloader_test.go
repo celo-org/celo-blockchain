@@ -954,6 +954,8 @@ func testEmptyShortCircuit(t *testing.T, protocol uint, mode SyncMode) {
 	// Validate the number of block bodies that should have been requested
 	bodiesNeeded, receiptsNeeded := 0, 0
 	for _, block := range chain.blockm {
+		// As we save info in every block (as for example, randomness), we will
+		// never have empty blocks
 		if mode != LightSync && block != tester.genesis {
 			bodiesNeeded++
 		}
