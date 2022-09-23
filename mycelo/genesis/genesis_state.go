@@ -107,10 +107,10 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 		// 08 ReserveSpenderMultisig (requires reserve to work)
 		ctx.deployReserveSpenderMultisig,
 
-		// 09 StableToken and StableTokenEUR
+		// 09 StableToken, StableTokenEUR and StableTokenBRL
 		ctx.deployStableTokens,
 
-		// 10 Exchange and ExchangeEUR
+		// 10 Exchange, ExchangeEUR and ExchangeBRL
 		ctx.deployExchanges,
 
 		// 11 Accounts
@@ -503,12 +503,13 @@ func (ctx *deployContext) deployExchanges() error {
 	exchanges := []ExchangeConfig{
 		{"Exchange", "StableToken", ctx.genesisConfig.Exchange},
 		{"ExchangeEUR", "StableTokenEUR", ctx.genesisConfig.ExchangeEUR},
+		{"ExchangeBRL", "StableTokenBRL", ctx.genesisConfig.ExchangeBRL},
 	}
 	for _, exchange := range exchanges {
 		err := ctx.deployCoreContract(exchange.contract, func(contract *contract.EVMBackend) error {
 			return contract.SimpleCall("initialize",
 				env.MustProxyAddressFor("Registry"),
-				env.MustProxyAddressFor(exchange.stableTokenContract),
+				exchange.stableTokenContract,
 				exchange.cfg.Spread.BigInt(),
 				exchange.cfg.ReserveFraction.BigInt(),
 				newBigInt(exchange.cfg.UpdateFrequency),
@@ -693,6 +694,7 @@ func (ctx *deployContext) deployStableTokens() error {
 	tokens := []StableTokenConfig{
 		{"StableToken", ctx.genesisConfig.StableToken},
 		{"StableTokenEUR", ctx.genesisConfig.StableTokenEUR},
+		{"StableTokenBRL", ctx.genesisConfig.StableTokenBRL},
 	}
 	for _, token := range tokens {
 		err := ctx.deployCoreContract(token.contract, func(contract *contract.EVMBackend) error {

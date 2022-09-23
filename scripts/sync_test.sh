@@ -16,8 +16,8 @@ LOGFILE=/tmp/sync_test.log
 
 # Do the sync
 echo "Running geth sync"
-build/bin/geth --datadir $DATADIR --syncmode $MODE --exitwhensynced > $LOGFILE 2>&1
-
+build/bin/geth --datadir $DATADIR --syncmode $MODE --exitwhensynced >> $LOGFILE 2>&1
+echo "Checking sync result"
 MARK=`date +%s`
 
 # Now check what the latest block is
@@ -26,8 +26,8 @@ RETRY_SLEEP=3
 # We attempt to check it several times since, sometimes the command
 # fails with "No peers available"
 for ATTEMPT in $(seq 1 $ATTEMPTS); do
-	echo "Attempt $ATTEMPT/$ATTEMPTS of getting the latest block timestamp" 
-	LATEST=`build/bin/geth --datadir $DATADIR --verbosity 0 console --syncmode $MODE --exec 'eth.getBlock("latest").timestamp'`
+	echo "Attempt $ATTEMPT/$ATTEMPTS of getting the latest block timestamp"
+	LATEST=`build/bin/geth --datadir $DATADIR --verbosity 0 --maxpeers 0 console --syncmode $MODE --exec "parseInt(eth.getHeaderByNumber(eth.blockNumber).timestamp)"`
 	RESULT=$?
 	# If the execution returned 0, and the output is a number...
 	if [ $RESULT -eq 0 ] && [ $LATEST -eq $LATEST 2> /dev/null ]; then

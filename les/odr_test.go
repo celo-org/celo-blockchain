@@ -36,8 +36,8 @@ import (
 
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/les/downloader"
 	"github.com/celo-org/celo-blockchain/light"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rlp"
@@ -422,9 +422,9 @@ func testGetTxStatusFromUnindexedPeers(t *testing.T, protocol int) {
 			closeFns = append(closeFns, closePeer)
 
 			// Create a one-time routine for serving message
-			go func(i int, peer *testPeer) {
-				serveMsg(peer, testspec.txLookups[i])
-			}(i, peer)
+			go func(i int, peer *testPeer, lookup uint64) {
+				serveMsg(peer, lookup)
+			}(i, peer, testspec.txLookups[i])
 		}
 
 		// Send out the GetTxStatus requests, compare the result with

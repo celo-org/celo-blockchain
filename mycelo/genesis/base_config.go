@@ -55,6 +55,15 @@ func BaseConfig() *Config {
 			GoldPrice:                   fixed("1"),
 			ExchangeIdentifier:          "ExchangeEUR",
 		},
+		StableTokenBRL: StableTokenParameters{
+			Name:                        "Celo Brazilian Real",
+			Symbol:                      "cREAL",
+			Decimals:                    18,
+			Rate:                        fixed("1"),
+			InflationFactorUpdatePeriod: 2 * Year,
+			GoldPrice:                   fixed("1"),
+			ExchangeIdentifier:          "ExchangeBRL",
+		},
 		Validators: ValidatorsParameters{
 			GroupLockedGoldRequirements: LockedGoldRequirements{
 				Value:    bigIntStr("10000000000000000000000"), // 10k CELO per validator
@@ -94,6 +103,13 @@ func BaseConfig() *Config {
 			Frozen:          false,
 		},
 		ExchangeEUR: ExchangeParameters{
+			Spread:          fixed("0.005"),
+			ReserveFraction: fixed("0.01"),
+			UpdateFrequency: 5 * Minute,
+			MinimumReports:  1,
+			Frozen:          false,
+		},
+		ExchangeBRL: ExchangeParameters{
 			Spread:          fixed("0.005"),
 			ReserveFraction: fixed("0.01"),
 			UpdateFrequency: 5 * Minute,

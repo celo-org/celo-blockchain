@@ -45,13 +45,14 @@ type Prestate struct {
 // ExecutionResult contains the execution status after running a state test, any
 // error that might have occurred and a dump of the final state if requested.
 type ExecutionResult struct {
-	StateRoot   common.Hash    `json:"stateRoot"`
-	TxRoot      common.Hash    `json:"txRoot"`
-	ReceiptRoot common.Hash    `json:"receiptRoot"`
-	LogsHash    common.Hash    `json:"logsHash"`
-	Bloom       types.Bloom    `json:"logsBloom"        gencodec:"required"`
-	Receipts    types.Receipts `json:"receipts"`
-	Rejected    []*rejectedTx  `json:"rejected,omitempty"`
+	StateRoot   common.Hash           `json:"stateRoot"`
+	TxRoot      common.Hash           `json:"txRoot"`
+	ReceiptRoot common.Hash           `json:"receiptRoot"`
+	LogsHash    common.Hash           `json:"logsHash"`
+	Bloom       types.Bloom           `json:"logsBloom"        gencodec:"required"`
+	Receipts    types.Receipts        `json:"receipts"`
+	Rejected    []*rejectedTx         `json:"rejected,omitempty"`
+	Difficulty  *math.HexOrDecimal256 `json:"currentDifficulty" gencodec:"required"`
 }
 
 type ommer struct {
@@ -61,23 +62,28 @@ type ommer struct {
 
 //go:generate gencodec -type stEnv -field-override stEnvMarshaling -out gen_stenv.go
 type stEnv struct {
-	Coinbase    common.Address                      `json:"currentCoinbase"   gencodec:"required"`
-	Difficulty  *big.Int                            `json:"currentDifficulty" gencodec:"required"`
-	GasLimit    uint64                              `json:"currentGasLimit"   gencodec:"required"`
-	Number      uint64                              `json:"currentNumber"     gencodec:"required"`
-	Timestamp   uint64                              `json:"currentTimestamp"  gencodec:"required"`
-	BlockHashes map[math.HexOrDecimal64]common.Hash `json:"blockHashes,omitempty"`
-	Ommers      []ommer                             `json:"ommers,omitempty"`
-	BaseFee     *big.Int                            `json:"currentBaseFee,omitempty"`
+	Coinbase         common.Address                      `json:"currentCoinbase"   gencodec:"required"`
+	Difficulty       *big.Int                            `json:"currentDifficulty"`
+	ParentDifficulty *big.Int                            `json:"parentDifficulty"`
+	GasLimit         uint64                              `json:"currentGasLimit"   gencodec:"required"`
+	Number           uint64                              `json:"currentNumber"     gencodec:"required"`
+	Timestamp        uint64                              `json:"currentTimestamp"  gencodec:"required"`
+	ParentTimestamp  uint64                              `json:"parentTimestamp,omitempty"`
+	BlockHashes      map[math.HexOrDecimal64]common.Hash `json:"blockHashes,omitempty"`
+	Ommers           []ommer                             `json:"ommers,omitempty"`
+	BaseFee          *big.Int                            `json:"currentBaseFee,omitempty"`
+	ParentUncleHash  common.Hash                         `json:"parentUncleHash"`
 }
 
 type stEnvMarshaling struct {
-	Coinbase   common.UnprefixedAddress
-	Difficulty *math.HexOrDecimal256
-	GasLimit   math.HexOrDecimal64
-	Number     math.HexOrDecimal64
-	Timestamp  math.HexOrDecimal64
-	BaseFee    *math.HexOrDecimal256
+	Coinbase         common.UnprefixedAddress
+	Difficulty       *math.HexOrDecimal256
+	ParentDifficulty *math.HexOrDecimal256
+	GasLimit         math.HexOrDecimal64
+	Number           math.HexOrDecimal64
+	Timestamp        math.HexOrDecimal64
+	ParentTimestamp  math.HexOrDecimal64
+	BaseFee          *math.HexOrDecimal256
 }
 
 type rejectedTx struct {
