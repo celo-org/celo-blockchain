@@ -1026,6 +1026,46 @@ func (d *Downloader) findAncestorBinarySearch(p *peerConnection, mode SyncMode, 
 	return start, nil
 }
 
+func getEpochHeaders(fromEpochBlock uint64, epochSize uint64, p *peerConnection) {
+	if fromEpochBlock%epochSize != 0 {
+		panic(fmt.Sprintf(
+			"Logic error: getEpochHeaders received a request to fetch non-epoch block %d with epochSize %d",
+			fromEpochBlock, epochSize))
+	}
+
+	// if epochSize is 100 and we fetch from=1000 and skip=100 then we will get
+	// 1000, 1101, 1202, 1303 ...
+	// So, skip has to be epochSize - 1 to get the right set of blocks.
+	skip := int(epochSize - 1)
+	count := MaxEpochHeaderFetch
+	log.Trace("getEpochHeaders", "from", fromEpochBlock, "count", count, "skip", skip)
+	p.log.Trace("Fetching full headers", "count", count, "from", fromEpochBlock)
+	go p.peer.RequestHeadersByNumber(fromEpochBlock, count, skip, false)
+}
+
+func getNormalHeaders(from uint64, skeleton bool, p *peerConnection) {
+	if skeleton {
+		p.log.Trace("Fetching skeleton headers", "count", MaxHeaderFetch, "from", from)
+		go p.peer.RequestHeadersByNumber(from+uint64(MaxHeaderFetch)-1, MaxSkeletonSize, MaxHeaderFetch-1, false)
+	} else {
+		p.log.Trace("Fetching full headers", "count", MaxHeaderFetch, "from", from)
+		go p.peer.RequestHeadersByNumber(from, MaxHeaderFetch, 0, false)
+	}
+}
+
+func getEpochOrNormalHeaders(from uint64, epochSize uint64, height uint64, skeleton bool, p *peerConnection) {
+	// Download the epoch headers including and beyond the current head.
+	nextEpochBlock := (from-1)/epochSize*epochSize + epochSize
+	// If we're still not synced up to the latest epoch, sync only epoch headers.
+	// Otherwise, sync block headers as we would normally in light sync.
+	log.Trace("Getting headers in lightest sync mode", "from", from, "height", height, "nextEpochBlock", nextEpochBlock, "epochSize", epochSize)
+	if nextEpochBlock < height {
+		getEpochHeaders(nextEpochBlock, epochSize, p)
+	} else if from <= height {
+		getNormalHeaders(height, skeleton, p)
+	}
+}
+
 // fetchHeaders keeps retrieving headers concurrently from the number
 // requested, until no more are returned, potentially throttling on the way. To
 // facilitate concurrency but still protect against malicious nodes sending bad
@@ -1049,57 +1089,17 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, height uint64)
 	epochSize := d.epochSize
 
 	var ttl time.Duration
-
-	getNormalHeaders := func(from uint64) {
-		if skeleton {
-			p.log.Trace("Fetching skeleton headers", "count", MaxHeaderFetch, "from", from)
-			go p.peer.RequestHeadersByNumber(from+uint64(MaxHeaderFetch)-1, MaxSkeletonSize, MaxHeaderFetch-1, false)
-		} else {
-			p.log.Trace("Fetching full headers", "count", MaxHeaderFetch, "from", from)
-			go p.peer.RequestHeadersByNumber(from, MaxHeaderFetch, 0, false)
-		}
-	}
-
 	mode := d.getMode()
-	getEpochHeaders := func(fromEpochBlock uint64) {
-		if fromEpochBlock%epochSize != 0 {
-			panic(fmt.Sprintf(
-				"Logic error: getEpochHeaders received a request to fetch non-epoch block %d with epochSize %d",
-				fromEpochBlock, epochSize))
-		}
 
-		// if epochSize is 100 and we fetch from=1000 and skip=100 then we will get
-		// 1000, 1101, 1202, 1303 ...
-		// So, skip has to be epochSize - 1 to get the right set of blocks.
-		skip := int(epochSize - 1)
-		count := MaxEpochHeaderFetch
-		log.Trace("getEpochHeaders", "from", fromEpochBlock, "count", count, "skip", skip)
-		p.log.Trace("Fetching full headers", "count", count, "from", fromEpochBlock)
-		go p.peer.RequestHeadersByNumber(fromEpochBlock, count, skip, false)
-	}
-
-	// Returns true if a header(s) fetch request was made, false if the syncing is finished.
-	getEpochOrNormalHeaders := func(from uint64) {
-		// Download the epoch headers including and beyond the current head.
-		nextEpochBlock := (from-1)/epochSize*epochSize + epochSize
-		// If we're still not synced up to the latest epoch, sync only epoch headers.
-		// Otherwise, sync block headers as we would normally in light sync.
-		log.Trace("Getting headers in lightest sync mode", "from", from, "height", height, "nextEpochBlock", nextEpochBlock, "epochSize", epochSize)
-		if nextEpochBlock < height {
-			getEpochHeaders(nextEpochBlock)
-		} else if from <= height {
-			getNormalHeaders(height)
-		}
-	}
 	getHeaders := func(from uint64) {
 		request = time.Now()
 
 		ttl = d.peers.rates.TargetTimeout()
 		timeout.Reset(ttl)
 		if mode != LightestSync {
-			getNormalHeaders(from)
+			getNormalHeaders(from, skeleton, p)
 		} else {
-			getEpochOrNormalHeaders(from)
+			getEpochOrNormalHeaders(from, epochSize, height, skeleton, p)
 		}
 	}
 
