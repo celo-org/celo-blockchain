@@ -826,7 +826,7 @@ func (m *Message) Preprepare() *Preprepare {
 	return m.prePrepare
 }
 
-// Preprepare returns preprepare if this is a preprepare message.
+// PreprepareV2 returns preprepare if this is a preprepare message.
 func (m *Message) PreprepareV2() *PreprepareV2 {
 	return m.prePrepareV2
 }
@@ -836,7 +836,7 @@ func (m *Message) Prepare() *Subject {
 	return m.prepare
 }
 
-// Prepare returns round change if this is a round change message.
+// TryRoundChange returns a round change if this is a round change message.
 func (m *Message) TryRoundChange() (*RoundChange, error) {
 	if m.roundChange != nil {
 		return m.roundChange, nil
@@ -850,12 +850,12 @@ func (m *Message) TryRoundChange() (*RoundChange, error) {
 	return m.roundChange, nil
 }
 
-// Prepare returns round change if this is a round change message.
+// RoundChange returns a round change if this is a round change message.
 func (m *Message) RoundChange() *RoundChange {
 	return m.roundChange
 }
 
-// Prepare returns round change if this is a round change message.
+// RoundChangeV2 returns a round change v2 if this is a round change v2 message.
 func (m *Message) RoundChangeV2() *RoundChangeV2 {
 	return m.roundChangeV2
 }
