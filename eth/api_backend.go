@@ -375,6 +375,10 @@ func (b *EthAPIBackend) RPCGasCap() uint64 {
 	return b.eth.config.RPCGasCap
 }
 
+func (b *EthAPIBackend) RPCEthCompatibility() bool {
+	return b.eth.config.RPCEthCompatibility
+}
+
 func (b *EthAPIBackend) RPCTxFeeCap() float64 {
 	return b.eth.config.RPCTxFeeCap
 }

@@ -52,6 +52,7 @@ type Backend interface {
 	RPCGasInflationRate() float64 // global multiplier applied to the gas estimations
 	RPCGasCap() uint64            // global gas cap for eth_call over rpc: DoS protection
 	RPCTxFeeCap() float64         // global tx fee cap for all transaction related APIs
+	RPCEthCompatibility() bool    // determines if the fields 'gasLimit' and 'baseFeePerGas' should be returned by the RPC API.
 	UnprotectedAllowed() bool     // allows only for EIP155 transactions.
 
 	// Blockchain API

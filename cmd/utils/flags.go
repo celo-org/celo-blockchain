@@ -465,6 +465,10 @@ var (
 		Usage: "Disables db compaction after import",
 	}
 	// RPC settings
+	DisableRPCETHCompatibility = cli.BoolFlag{
+		Name:  "disablerpcethcompatibility",
+		Usage: "If set, blocks returned from the RPC api will not contain the 'gasLimit' and 'baseFeePerGas' fields, which were added to the RPC block representation in order to improve compatibility with ethereum tooling. Note these fields do not currently exist on the internal block representation so they should be disregarded for the purposes of hashing or signing",
+	}
 
 	IPCDisabledFlag = cli.BoolFlag{
 		Name:  "ipcdisable",
@@ -1760,6 +1764,11 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	}
 	if ctx.GlobalIsSet(RPCGlobalTxFeeCapFlag.Name) {
 		cfg.RPCTxFeeCap = ctx.GlobalFloat64(RPCGlobalTxFeeCapFlag.Name)
+	}
+
+	cfg.RPCEthCompatibility = true
+	if ctx.GlobalIsSet(DisableRPCETHCompatibility.Name) {
+		cfg.RPCEthCompatibility = false
 	}
 
 	// Disable DNS discovery by default (by using the flag's value even if it hasn't been set and so

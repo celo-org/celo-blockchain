@@ -350,6 +350,10 @@ func (b *LesApiBackend) RPCTxFeeCap() float64 {
 	return b.eth.config.RPCTxFeeCap
 }
 
+func (b *LesApiBackend) RPCEthCompatibility() bool {
+	return b.eth.config.RPCEthCompatibility
+}
+
 func (b *LesApiBackend) BloomStatus() (uint64, uint64) {
 	if b.eth.bloomIndexer == nil {
 		return 0, 0
