@@ -26,10 +26,10 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 )
 
-func TestRoundChangeSet(t *testing.T) {
+func TestRoundChangeSetV2(t *testing.T) {
 	vals, _, _ := generateValidators(4)
 	vset := validator.NewSet(vals)
-	rc := newRoundChangeSet(vset)
+	rc := newRoundChangeSetV2(vset)
 
 	view := &istanbul.View{
 		Sequence: big.NewInt(1),
@@ -103,16 +103,12 @@ func TestRoundChangeSet(t *testing.T) {
 				Sequence: big.NewInt(1),
 				Round:    big.NewInt(int64((i + 1) * j)),
 			}
-			r := &istanbul.Subject{
-				View:   view,
-				Digest: common.Hash{},
-			}
-			m, _ := Encode(r)
-			msg := &istanbul.Message{
-				Code:    istanbul.MsgRoundChange,
-				Msg:     m,
-				Address: v.Address(),
-			}
+			msg := istanbul.NewRoundChangeV2Message(&istanbul.RoundChangeV2{
+				Request: istanbul.RoundChangeRequest{
+					Address: v.Address(),
+					View:    *view,
+				},
+			}, v.Address())
 			err := rc.Add(view.Round, msg)
 			if err != nil {
 				t.Errorf("Round change message: unexpected error %v", err)
@@ -143,23 +139,23 @@ func TestRoundChangeSet(t *testing.T) {
 	for r := 1; r < vset.Size(); r += roundMultiplier {
 		expectedMsgsAtRound := vset.Size() - r + 1
 		for quorum := 1; quorum < 10; quorum++ {
-			cert, err := rc.getCertificate(big.NewInt(int64(r)), quorum)
+			cert, _, err := rc.getCertificate(big.NewInt(int64(r)), quorum)
 			if expectedMsgsAtRound < quorum {
 				// Expecting fewer than quorum.
-				if err != errFailedCreateRoundChangeCertificate || len(cert.RoundChangeMessages) != 0 {
-					t.Errorf("problem in getCertificate r=%v q=%v expMsgs=%v - want 0 have %v err=%v -- %v -- %v", r, quorum, expectedMsgsAtRound, len(cert.RoundChangeMessages), err, cert, rc)
+				if err != errFailedCreateRoundChangeCertificate || len(cert.Requests) != 0 {
+					t.Errorf("problem in getCertificate r=%v q=%v expMsgs=%v - want 0 have %v err=%v -- %v -- %v", r, quorum, expectedMsgsAtRound, len(cert.Requests), err, cert, rc)
 				}
 			} else {
 				// Number msgs available at this round is >= quorum. Expecting a cert with =quorum RC messages.
-				if err != nil || len(cert.RoundChangeMessages) != quorum {
-					t.Errorf("problem in getCertificate r=%v q=%v expMsgs=%v - want %v have %v -- %v -- %v", r, quorum, quorum, expectedMsgsAtRound, len(cert.RoundChangeMessages), cert, rc)
+				if err != nil || len(cert.Requests) != quorum {
+					t.Errorf("problem in getCertificate r=%v q=%v expMsgs=%v - want %v have %v -- %v -- %v", r, quorum, quorum, expectedMsgsAtRound, len(cert.Requests), cert, rc)
 				}
 			}
 		}
 	}
 }
 
-func TestHandleRoundChangeCertificate(t *testing.T) {
+func TestHandleRoundChangeCertificateV2(t *testing.T) {
 	N := uint64(4) // replica 0 is the proposer, it will send messages to others
 	F := uint64(1)
 	view := istanbul.View{
@@ -169,36 +165,40 @@ func TestHandleRoundChangeCertificate(t *testing.T) {
 
 	testCases := []struct {
 		name           string
-		getCertificate func(*testing.T, *testSystem) istanbul.RoundChangeCertificate
+		getCertificate func(*testing.T, *testSystem) (istanbul.RoundChangeCertificateV2, istanbul.Proposal)
 		expectedErr    error
 	}{
 		{
 			"Valid round change certificate without PREPARED certificate",
-			func(t *testing.T, sys *testSystem) istanbul.RoundChangeCertificate {
-				return sys.getRoundChangeCertificate(t, []istanbul.View{view}, istanbul.EmptyPreparedCertificate())
+			func(t *testing.T, sys *testSystem) (istanbul.RoundChangeCertificateV2, istanbul.Proposal) {
+				pc, prop := istanbul.EmptyPreparedCertificateV2()
+				return sys.getRoundChangeCertificateV2(t, []istanbul.View{view}, pc), prop
 			},
 			nil,
 		},
 		{
 			"Valid round change certificate with PREPARED certificate",
-			func(t *testing.T, sys *testSystem) istanbul.RoundChangeCertificate {
-				return sys.getRoundChangeCertificate(t, []istanbul.View{view}, sys.getPreparedCertificate(t, []istanbul.View{view}, makeBlock(0)))
+			func(t *testing.T, sys *testSystem) (istanbul.RoundChangeCertificateV2, istanbul.Proposal) {
+				proposal := makeBlock(0)
+				pc := sys.getPreparedCertificateV2(t, []istanbul.View{view}, proposal)
+				return sys.getRoundChangeCertificateV2(t, []istanbul.View{view}, pc), proposal
 			},
 			nil,
 		},
 		{
 			"Invalid round change certificate, duplicate message",
-			func(t *testing.T, sys *testSystem) istanbul.RoundChangeCertificate {
-				roundChangeCertificate := sys.getRoundChangeCertificate(t, []istanbul.View{view}, istanbul.EmptyPreparedCertificate())
-				roundChangeCertificate.RoundChangeMessages[1] = roundChangeCertificate.RoundChangeMessages[0]
-				return roundChangeCertificate
+			func(t *testing.T, sys *testSystem) (istanbul.RoundChangeCertificateV2, istanbul.Proposal) {
+				pc, prop := istanbul.EmptyPreparedCertificateV2()
+				roundChangeCertificateV2 := sys.getRoundChangeCertificateV2(t, []istanbul.View{view}, pc)
+				roundChangeCertificateV2.Requests[1] = roundChangeCertificateV2.Requests[0]
+				return roundChangeCertificateV2, prop
 			},
 			errInvalidRoundChangeCertificateDuplicate,
 		},
 		{
 			"Empty certificate",
-			func(t *testing.T, sys *testSystem) istanbul.RoundChangeCertificate {
-				return istanbul.RoundChangeCertificate{}
+			func(t *testing.T, sys *testSystem) (istanbul.RoundChangeCertificateV2, istanbul.Proposal) {
+				return istanbul.RoundChangeCertificateV2{}, makeBlock(0)
 			},
 			errInvalidRoundChangeCertificateNumMsgs,
 		},
@@ -208,13 +208,11 @@ func TestHandleRoundChangeCertificate(t *testing.T) {
 			sys := NewTestSystemWithBackend(N, F)
 			for i, backend := range sys.backends {
 				c := backend.engine.(*core)
+				// activate v2 consensus block
+				c.config.V2Block = big.NewInt(0)
 				c.Start()
-				certificate := test.getCertificate(t, sys)
-				subject := istanbul.Subject{
-					View:   &view,
-					Digest: makeBlock(0).Hash(),
-				}
-				err := c.handleRoundChangeCertificate(subject, certificate)
+				certificate, prop := test.getCertificate(t, sys)
+				err := c.handleRoundChangeCertificateV2(view, certificate, prop)
 
 				if err != test.expectedErr {
 					t.Errorf("error mismatch for test case %v: have %v, want %v", i, err, test.expectedErr)
@@ -231,12 +229,12 @@ func TestHandleRoundChangeCertificate(t *testing.T) {
 	}
 }
 
-func TestHandleRoundChange(t *testing.T) {
+func TestHandleRoundChangeV2(t *testing.T) {
 	N := uint64(4) // replica 0 is the proposer, it will send messages to others
 	F := uint64(1) // F does not affect tests
 
-	buildEmptyCertificate := func(_ *testing.T, _ *testSystem) istanbul.PreparedCertificate {
-		return istanbul.EmptyPreparedCertificate()
+	buildEmptyCertificate := func(_ *testing.T, _ *testSystem) (istanbul.PreparedCertificateV2, istanbul.Proposal) {
+		return istanbul.EmptyPreparedCertificateV2()
 	}
 
 	noopPrepare := func(_ *testSystem) {}
@@ -244,7 +242,7 @@ func TestHandleRoundChange(t *testing.T) {
 	testCases := []struct {
 		name          string
 		prepareSystem func(*testSystem)
-		getCert       func(*testing.T, *testSystem) istanbul.PreparedCertificate
+		getCert       func(*testing.T, *testSystem) (istanbul.PreparedCertificateV2, istanbul.Proposal)
 		expectedErr   error
 	}{
 		{
@@ -256,18 +254,21 @@ func TestHandleRoundChange(t *testing.T) {
 		{
 			"normal case with valid prepared certificate",
 			noopPrepare,
-			func(t *testing.T, sys *testSystem) istanbul.PreparedCertificate {
-				return sys.getPreparedCertificate(t, []istanbul.View{*sys.backends[0].engine.(*core).current.View()}, makeBlock(1))
+			func(t *testing.T, sys *testSystem) (istanbul.PreparedCertificateV2, istanbul.Proposal) {
+				proposal := makeBlock(1)
+				pc := sys.getPreparedCertificateV2(t, []istanbul.View{*sys.backends[0].engine.(*core).current.View()}, proposal)
+				return pc, proposal
 			},
 			nil,
 		},
 		{
 			"normal case with invalid prepared certificate",
 			noopPrepare,
-			func(t *testing.T, sys *testSystem) istanbul.PreparedCertificate {
-				preparedCert := sys.getPreparedCertificate(t, []istanbul.View{*sys.backends[0].engine.(*core).current.View()}, makeBlock(1))
+			func(t *testing.T, sys *testSystem) (istanbul.PreparedCertificateV2, istanbul.Proposal) {
+				proposal := makeBlock(1)
+				preparedCert := sys.getPreparedCertificateV2(t, []istanbul.View{*sys.backends[0].engine.(*core).current.View()}, proposal)
 				preparedCert.PrepareOrCommitMessages[0] = preparedCert.PrepareOrCommitMessages[1]
-				return preparedCert
+				return preparedCert, proposal
 			},
 			errInvalidPreparedCertificateDuplicate,
 		},
@@ -276,8 +277,8 @@ func TestHandleRoundChange(t *testing.T) {
 			func(sys *testSystem) {
 				sys.backends[0].engine.(*core).current.(*rsSaveDecorator).rs.(*roundStateImpl).round = big.NewInt(10)
 			},
-			func(t *testing.T, _ *testSystem) istanbul.PreparedCertificate {
-				return istanbul.EmptyPreparedCertificate()
+			func(t *testing.T, _ *testSystem) (istanbul.PreparedCertificateV2, istanbul.Proposal) {
+				return istanbul.EmptyPreparedCertificateV2()
 			},
 			nil,
 		},
@@ -307,7 +308,10 @@ func TestHandleRoundChange(t *testing.T) {
 			defer closer()
 
 			for _, v := range sys.backends {
-				v.engine.(*core).Start()
+				c := v.engine.(*core)
+				// activate v2 consensus block
+				c.config.V2Block = big.NewInt(0)
+				c.Start()
 			}
 			test.prepareSystem(sys)
 
@@ -319,10 +323,18 @@ func TestHandleRoundChange(t *testing.T) {
 				Round:    new(big.Int).Add(curView.Round, common.Big1),
 				Sequence: curView.Sequence,
 			}
-
-			msg := istanbul.NewRoundChangeMessage(&istanbul.RoundChange{
-				View:                nextView,
-				PreparedCertificate: test.getCert(t, sys),
+			pc, prop := test.getCert(t, sys)
+			req := istanbul.RoundChangeRequest{
+				Address:               v0.Address(),
+				View:                  *nextView,
+				PreparedCertificateV2: pc,
+			}
+			if err := req.Sign(r0.backend.Sign); err != nil {
+				t.Errorf("error signing RoundChangeRequest: %v", err)
+			}
+			msg := istanbul.NewRoundChangeV2Message(&istanbul.RoundChangeV2{
+				Request:          req,
+				PreparedProposal: prop,
 			}, v0.Address())
 
 			for i, v := range sys.backends {
@@ -334,7 +346,7 @@ func TestHandleRoundChange(t *testing.T) {
 				c := v.engine.(*core)
 
 				// run each backends and verify handlePreprepare function.
-				err := c.handleRoundChange(msg)
+				err := c.handleRoundChangeV2(msg)
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}
@@ -342,6 +354,75 @@ func TestHandleRoundChange(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (ts *testSystem) distributeIstMsgs(t *testing.T, sys *testSystem, istMsgDistribution map[uint64]map[int]bool) {
+	for {
+		select {
+		case <-ts.quit:
+			return
+		case event := <-ts.queuedMessage:
+			msg := new(istanbul.Message)
+			if err := msg.FromPayload(event.Payload, nil); err != nil {
+				t.Errorf("Could not decode payload")
+			}
+
+			targets := istMsgDistribution[msg.Code]
+			for index, b := range sys.backends {
+				if targets[index] || msg.Address == b.address {
+					go b.EventMux().Post(event)
+				} else {
+					testLogger.Info("not sending msg", "index", index, "from", msg.Address, "to", b.address, "code", msg.Code)
+				}
+			}
+		}
+	}
+}
+
+var gossip = map[int]bool{
+	0: true,
+	1: true,
+	2: true,
+	3: true,
+}
+
+var sendTo2FPlus1 = map[int]bool{
+	0: true,
+	1: true,
+	2: true,
+	3: false,
+}
+
+var sendToF = map[int]bool{
+	0: false,
+	1: false,
+	2: false,
+	3: true,
+}
+
+var sendToFPlus1 = map[int]bool{
+	0: false,
+	1: false,
+	2: true,
+	3: true,
+}
+var sendToHalf1 = map[int]bool{
+	0: true,
+	1: true,
+	2: false,
+	3: false,
+}
+var sendToHalf2 = map[int]bool{
+	0: false,
+	1: false,
+	2: true,
+	3: true,
+}
+var noGossip = map[int]bool{
+	0: false,
+	1: false,
+	2: false,
+	3: false,
 }
 
 // This tests the liveness issue present in the initial implementation of Istanbul, described in
@@ -352,10 +433,12 @@ func TestHandleRoundChange(t *testing.T) {
 // get the remaining 2F non-byzantine nodes to lock onto that new block, causing a deadlock.
 // In the new implementation, the PREPREPARE will include a ROUND CHANGE certificate,
 // and all nodes will accept the newly proposed block.
-func TestCommitsBlocksAfterRoundChange(t *testing.T) {
+func TestCommitsBlocksAfterRoundChangeV2(t *testing.T) {
 	sys := NewTestSystemWithBackend(4, 1)
 
 	for _, b := range sys.backends {
+		// activate v2 consensus block
+		b.engine.(*core).config.V2Block = big.NewInt(0)
 		b.engine.Start() // start Istanbul core
 		block := makeBlock(1)
 		b.NewRequest(block)
@@ -373,10 +456,10 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 	// Send all PREPARE messages to F nodes.
 	// Send COMMIT messages (we don't expect these to be sent in the first round anyway).
 	// Send ROUND CHANGE messages to the remaining 2F + 1 nodes.
-	istMsgDistribution[istanbul.MsgPreprepare] = gossip
+	istMsgDistribution[istanbul.MsgPreprepareV2] = gossip
 	istMsgDistribution[istanbul.MsgPrepare] = sendToF
 	istMsgDistribution[istanbul.MsgCommit] = gossip
-	istMsgDistribution[istanbul.MsgRoundChange] = sendTo2FPlus1
+	istMsgDistribution[istanbul.MsgRoundChangeV2] = sendTo2FPlus1
 
 	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
 
@@ -417,12 +500,96 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 	close(sys.quit)
 }
 
+func TestUseRoundChangeCertificateWithPC(t *testing.T) {
+	sys := NewTestSystemWithBackend(4, 1)
+
+	for i, b := range sys.backends {
+		// activate v2 consensus block
+		b.engine.(*core).config.V2Block = big.NewInt(0)
+		b.engine.Start() // start Istanbul core
+		block := makeBlock(1)
+		block.Header().GasUsed = uint64(i)
+		b.NewRequest(block)
+	}
+
+	newBlocks := sys.backends[0].EventMux().Subscribe(istanbul.FinalCommittedEvent{})
+	defer newBlocks.Unsubscribe()
+
+	timeout1 := sys.backends[1].EventMux().Subscribe(timeoutAndMoveToNextRoundEvent{})
+	defer timeout1.Unsubscribe()
+	timeout2 := sys.backends[2].EventMux().Subscribe(timeoutAndMoveToNextRoundEvent{})
+	defer timeout2.Unsubscribe()
+	timeout3 := sys.backends[3].EventMux().Subscribe(timeoutAndMoveToNextRoundEvent{})
+	defer timeout3.Unsubscribe()
+
+	istMsgDistribution := map[uint64]map[int]bool{}
+
+	// Allow everyone to see the initial proposal
+	// Send all PREPARE messages to everyone
+	// Do not commit, so the round change will have a prepare certificate
+	// Send ROUND CHANGE messages to everyone
+	istMsgDistribution[istanbul.MsgPreprepareV2] = gossip
+	istMsgDistribution[istanbul.MsgPrepare] = sendToHalf1
+	istMsgDistribution[istanbul.MsgCommit] = noGossip
+	istMsgDistribution[istanbul.MsgRoundChangeV2] = gossip
+
+	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
+
+	<-timeout1.Chan()
+	<-timeout2.Chan()
+	<-timeout3.Chan()
+
+	istMsgDistribution[istanbul.MsgPrepare] = sendToHalf2
+	testLogger.Info("Empty round passing through")
+
+	<-timeout1.Chan()
+	<-timeout2.Chan()
+	<-timeout3.Chan()
+
+	// Turn COMMITS back on for round 2.
+	testLogger.Info("Turn COMMITs back on for round 2")
+	istMsgDistribution[istanbul.MsgCommit] = gossip
+	istMsgDistribution[istanbul.MsgPrepare] = gossip
+
+	// Eventually we should get a block again
+	select {
+	case <-time.After(2 * time.Second):
+		t.Error("Did not finalize a block within 2 secs")
+	case _, ok := <-newBlocks.Chan():
+		if !ok {
+			t.Error("Error reading block")
+		}
+		// Wait for all backends to finalize the block.
+		<-time.After(1 * time.Second)
+		testLogger.Info("Expected all backends to finalize")
+		expectedCommitted, _ := sys.backends[0].GetCurrentHeadBlockAndAuthor()
+		for i, b := range sys.backends {
+			committed, _ := b.GetCurrentHeadBlockAndAuthor()
+			// We don't expect any particular block to be committed here. We do expect them to be consistent.
+			if committed.Number().Cmp(common.Big1) != 0 {
+				t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())
+			}
+			if expectedCommitted.Hash() != committed.Hash() {
+				t.Errorf("Backend %v got committed block with unexpected hash: expected %v, got %v", i, expectedCommitted.Hash(), committed.Hash())
+			}
+		}
+	}
+
+	// Manually open and close b/c hijacking sys.listen
+	for _, b := range sys.backends {
+		b.engine.Stop() // stop Istanbul core
+	}
+	close(sys.quit)
+}
+
 // This tests that when F+1 nodes receive 2F+1 PREPARE messages for a particular proposal, the
 // system enforces that as the only valid proposal for this sequence.
-func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
+func TestPreparedCertificatePersistsThroughRoundChangesV2(t *testing.T) {
 	sys := NewTestSystemWithBackend(4, 1)
 
 	for _, b := range sys.backends {
+		// activate v2 consensus block
+		b.engine.(*core).config.V2Block = big.NewInt(0)
 		b.engine.Start() // start Istanbul core
 		block := makeBlock(1)
 		b.NewRequest(block)
@@ -437,10 +604,10 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 	istMsgDistribution := map[uint64]map[int]bool{}
 
 	// Send PREPARE messages to F + 1 nodes so we guarantee a PREPARED certificate in the ROUND CHANGE certificate..
-	istMsgDistribution[istanbul.MsgPreprepare] = gossip
+	istMsgDistribution[istanbul.MsgPreprepareV2] = gossip
 	istMsgDistribution[istanbul.MsgPrepare] = sendToFPlus1
 	istMsgDistribution[istanbul.MsgCommit] = gossip
-	istMsgDistribution[istanbul.MsgRoundChange] = gossip
+	istMsgDistribution[istanbul.MsgRoundChangeV2] = gossip
 
 	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
 
@@ -487,10 +654,12 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 }
 
 // Test periodic round changes at high rounds
-func TestPeriodicRoundChanges(t *testing.T) {
+func TestPeriodicRoundChangesV2(t *testing.T) {
 	sys := NewTestSystemWithBackend(4, 1)
 
 	for _, b := range sys.backends {
+		// activate v2 consensus block
+		b.engine.(*core).config.V2Block = big.NewInt(0)
 		b.engine.Start() // start Istanbul core
 		block := makeBlock(1)
 		b.NewRequest(block)
@@ -506,10 +675,10 @@ func TestPeriodicRoundChanges(t *testing.T) {
 	defer timeoutResendRC.Unsubscribe()
 
 	istMsgDistribution := map[uint64]map[int]bool{}
-	istMsgDistribution[istanbul.MsgPreprepare] = noGossip
+	istMsgDistribution[istanbul.MsgPreprepareV2] = noGossip
 	istMsgDistribution[istanbul.MsgPrepare] = noGossip
 	istMsgDistribution[istanbul.MsgCommit] = noGossip
-	istMsgDistribution[istanbul.MsgRoundChange] = noGossip
+	istMsgDistribution[istanbul.MsgRoundChangeV2] = noGossip
 
 	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
 
@@ -533,10 +702,10 @@ loop:
 		}
 	}
 
-	istMsgDistribution[istanbul.MsgPreprepare] = gossip
+	istMsgDistribution[istanbul.MsgPreprepareV2] = gossip
 	istMsgDistribution[istanbul.MsgPrepare] = gossip
 	istMsgDistribution[istanbul.MsgCommit] = gossip
-	istMsgDistribution[istanbul.MsgRoundChange] = gossip
+	istMsgDistribution[istanbul.MsgRoundChangeV2] = gossip
 
 	// Make sure we finalize block in next two rounds.
 	roundTimeouts := 0
