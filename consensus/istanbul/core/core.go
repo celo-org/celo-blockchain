@@ -567,6 +567,18 @@ func (c *core) startNewRound(round *big.Int, propose bool) error {
 	var request *istanbul.Request
 	var roundChangeCertificate istanbul.RoundChangeCertificate
 	var roundChangeCertificateV2 istanbul.RoundChangeCertificateV2
+
+	//	startNewRound is called from two different places: handleRoundChange and handleRoundChangeCertificate.
+	//	The first occurs when receiving a RoundChange(V1 or V2) message, and the second when receiving a Preprepare(V1 or V2) message (round >= 1).
+
+	//	In the second case, during a preprepare handling, this function is creating a preprepare and a
+	//	roundchangecertificate with the round change messages that it received in the roundchangecertificate; This generated RCC
+	//	won't be used.
+
+	//	With the V2 istanbul version of the RoundChangeCertificate, the round change messages may not be available,
+	//	therefore it is not possible to create the RCC_V2 by using the same RoundChangeSet
+	//	The solution was to modify completely how the roundChangeSet works,
+	//	but since the co-existance of V1 and V2 are temporary, the propose flag should be enough.
 	if c.address == nextProposer.Address() && propose {
 		if c.isConsensusFork(newView.Sequence) {
 			request, roundChangeCertificateV2, err = c.getPreprepareWithRoundChangeCertificateV2(round)
