@@ -123,7 +123,7 @@ var (
 			BlockPeriod:    5,
 			RequestTimeout: 10000,
 			LookbackWindow: 12,
-			// V2Block:        big.NewInt(????), TBD
+			V2Block:        big.NewInt(14166861),
 		},
 	}
 
