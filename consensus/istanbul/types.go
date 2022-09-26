@@ -639,6 +639,18 @@ const (
 	MsgPreprepareV2
 )
 
+// IsRoundChangeCode returns true if and only if the message code equals
+// MsgRoundChange or MsgRoundChangeV2
+func IsRoundChangeCode(istanbulMsgCode uint64) bool {
+	return istanbulMsgCode == MsgRoundChange || istanbulMsgCode == MsgRoundChangeV2
+}
+
+// IsPreprepareCode returns true if and only if the message code equals
+// MsgPreprepare or MsgPreprepareV2
+func IsPreprepareCode(istanbulMsgCode uint64) bool {
+	return istanbulMsgCode == MsgPreprepare || istanbulMsgCode == MsgPreprepareV2
+}
+
 // Message is a wrapper used for all istanbul communication. It encapsulates
 // the sender's address, a code that indicates the type of the wrapped message
 // and a signature. Message instances also hold a deserialised instance of the

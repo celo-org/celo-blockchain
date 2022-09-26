@@ -74,13 +74,13 @@ func (c *core) checkMessage(msgCode uint64, msgView *istanbul.View) error {
 	// Msg is now correct sequence and >= desiredRound.
 
 	// RoundChange messages are accepted in all states and for current or future rounds.
-	if msgCode == istanbul.MsgRoundChange || msgCode == istanbul.MsgRoundChangeV2 {
+	if istanbul.IsRoundChangeCode(msgCode) {
 		return nil
 	}
 
 	// WaitingForNewRound and StateAcceptRequest: accepts Preprepare (including for rounds >= desiredRound), other messages are future.
 	if (c.current.State() == StateWaitingForNewRound || c.current.State() == StateAcceptRequest) &&
-		(msgCode != istanbul.MsgPreprepare && msgCode != istanbul.MsgPreprepareV2) {
+		!istanbul.IsPreprepareCode(msgCode) {
 		return errFutureMessage
 	}
 
@@ -317,7 +317,7 @@ var (
 )
 
 func toPriority(msgCode uint64, view *istanbul.View) int64 {
-	if msgCode == istanbul.MsgRoundChange || msgCode == istanbul.MsgRoundChangeV2 {
+	if istanbul.IsRoundChangeCode(msgCode) {
 		// msgRoundChange comes first
 		return 0
 	}
