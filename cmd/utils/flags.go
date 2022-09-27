@@ -1735,8 +1735,6 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 			cfg.TrieCleanCache += cfg.SnapshotCache
 			cfg.SnapshotCache = 0 // Disabled
 		}
-		cfg.TrieCleanCache += cfg.SnapshotCache
-		cfg.SnapshotCache = 0 // Disabled
 	}
 	if ctx.GlobalIsSet(DocRootFlag.Name) {
 		cfg.DocRoot = ctx.GlobalString(DocRootFlag.Name)
