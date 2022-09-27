@@ -228,7 +228,7 @@ func (e *MockEngine) VerifyHeader(chain consensus.ChainHeaderReader, header *typ
 // verifyHeader checks whether a header conforms to the consensus rules
 func (e *MockEngine) verifyHeader(chain consensus.ChainHeaderReader, header, parent *types.Header, seal bool) error {
 	// Ensure that the extra data format is satisfied
-	if _, err := types.ExtractIstanbulExtra(header); err != nil {
+	if _, err := header.IstanbulExtra(); err != nil {
 		return errors.New("invalid extra data format")
 	}
 	// Verify the header's timestamp

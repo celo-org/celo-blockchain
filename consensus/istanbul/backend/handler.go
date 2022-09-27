@@ -239,7 +239,7 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 
 	// Now check if this validator signer is in the "parent seal" on the child block.
 	// The parent seal is used for downtime calculations.
-	childExtra, err := types.ExtractIstanbulExtra(child.Header())
+	childExtra, err := child.Header().IstanbulExtra()
 	if err != nil {
 		return
 	}
