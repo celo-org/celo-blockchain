@@ -299,13 +299,13 @@ func (b *LesApiBackend) GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.
 func (b *LesApiBackend) GetRealBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (uint64, error) {
 	statedb, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
 	if err != nil {
-		return 0, fmt.Errorf("LesApiBackend failed to retreive state for block gas limit for block %v: %w", blockNrOrHash, err)
+		return 0, fmt.Errorf("LesApiBackend failed to retrieve state for block gas limit for block %v: %w", blockNrOrHash, err)
 	}
 
 	caller := b.eth.BlockChain().NewEVMRunner(header, statedb)
 	limit, err := blockchain_parameters.GetBlockGasLimit(caller)
 	if err != nil {
-		return 0, fmt.Errorf("LesApiBackend failed to retreive block gas limit from blockchain parameters constract for block %v: %w", blockNrOrHash, err)
+		return 0, fmt.Errorf("LesApiBackend failed to retrieve block gas limit from blockchain parameters constract for block %v: %w", blockNrOrHash, err)
 	}
 	return limit, nil
 }
