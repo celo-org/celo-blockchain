@@ -86,9 +86,3 @@ describe('ethers.js compatibility tests with no state', () => {
 
 
 });
-
-
-// const fullBlock = await provider.send(
-// 	'eth_getBlockByNumber',
-// 	[ethers.utils.hexValue(blockNumber), true]
-// )
