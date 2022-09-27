@@ -2,7 +2,7 @@ import {ethers} from 'ethers';
 import {assert} from 'chai';
 import 'mocha';
 
-describe('ethers.js compatibility', () => {
+describe('ethers.js compatibility tests with state', () => {
 
 	it('block retrieved with gasLimit', async () => {
 		let provider = new ethers.providers.JsonRpcProvider(process.env.npm_config_networkaddr);
@@ -29,6 +29,10 @@ describe('ethers.js compatibility', () => {
 		assert.notEqual(feeData.lastBaseFeePerGas, null);
 	});
 
+});
+
+describe('ethers.js compatibility tests with no state', () => {
+
 	// Our blockchain client implementation returns a default gas limit when the
 	// actual gas limit cannot be retrieved.  We cannot check fee data against a
 	// pruned block because getFeeData always requests the latest block.
@@ -41,4 +45,6 @@ describe('ethers.js compatibility', () => {
 		assert.notEqual(block.gasLimit, null);
 	});
 
+
 });
+

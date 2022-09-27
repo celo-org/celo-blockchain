@@ -491,7 +491,7 @@ func TestEthersJSCompatibility(t *testing.T) {
 	// The tests don't seem to work on CI with IPV6 addresses so we convert to IPV4 here
 	addr := strings.Replace(network[0].Node.HTTPEndpoint(), "[::]", "127.0.0.1", 1)
 
-	cmd := exec.Command("npm", "run", "test", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--", "--invert", "--grep", "block with pruned")
+	cmd := exec.Command("npm", "run", "test", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "ethers.js compatibility tests with state")
 	cmd.Dir = "../ethersjs-api-check/"
 	println("executing mocha test with", cmd.String())
 	output, err := cmd.CombinedOutput()
@@ -507,7 +507,7 @@ func TestEthersJSCompatibility(t *testing.T) {
 	require.NoError(t, err)
 
 	// Execute typescript tests to check what happens with a pruned block.
-	cmd = exec.Command("npm", "run", "test", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "block with pruned")
+	cmd = exec.Command("npm", "run", "test", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "ethers.js compatibility tests with no state")
 	cmd.Dir = "../ethersjs-api-check/"
 	println("executing mocha test with", cmd.String())
 	output, err = cmd.CombinedOutput()
