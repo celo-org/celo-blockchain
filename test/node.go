@@ -58,7 +58,7 @@ var (
 		HTTPModules:          allModules,
 	}
 
-	baseEthConfig = &eth.Config{
+	BaseEthConfig = &eth.Config{
 		SyncMode:            downloader.FullSync,
 		MinSyncPeers:        1,
 		DatabaseCache:       256,
@@ -352,7 +352,7 @@ func BuildConfig(accounts *env.AccountsConfig) (*genesis.Config, *ethconfig.Conf
 	// copy the base eth config, so we can modify it without damaging the
 	// original.
 	ec := &eth.Config{}
-	err := copyObject(baseEthConfig, ec)
+	err := copyObject(BaseEthConfig, ec)
 	return gc, ec, err
 }
 
