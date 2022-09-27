@@ -47,10 +47,10 @@ geth:
 
 prepare: prepare-system-contracts prepare-ethersjs-project
 
-prepare-ethersjs-project: ./ethersjs-api-check/node_modules
+prepare-ethersjs-project: ./e2e_test/ethersjs-api-check/node_modules
 
-./ethersjs-api-check/node_modules: ./ethersjs-api-check/package.json ./ethersjs-api-check/package-lock.json
-	@cd ./ethersjs-api-check && npm ci
+./e2e_test/ethersjs-api-check/node_modules: ./e2e_test/ethersjs-api-check/package.json ./e2e_test/ethersjs-api-check/package-lock.json
+	@cd ./e2e_test/ethersjs-api-check && npm ci
 
 # This rule checks out celo-monorepo under MONOREPO_PATH at the commit contained in
 # monorepo_commit and compiles the system solidity contracts. It then copies the

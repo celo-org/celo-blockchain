@@ -492,7 +492,7 @@ func TestEthersJSCompatibility(t *testing.T) {
 	addr := strings.Replace(network[0].Node.HTTPEndpoint(), "[::]", "127.0.0.1", 1)
 
 	cmd := exec.Command("npm", "run", "test", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "ethers.js compatibility tests with state")
-	cmd.Dir = "../ethersjs-api-check/"
+	cmd.Dir = "./ethersjs-api-check/"
 	println("executing mocha test with", cmd.String())
 	output, err := cmd.CombinedOutput()
 	println(string(output))
@@ -508,7 +508,7 @@ func TestEthersJSCompatibility(t *testing.T) {
 
 	// Execute typescript tests to check what happens with a pruned block.
 	cmd = exec.Command("npm", "run", "test", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "ethers.js compatibility tests with no state")
-	cmd.Dir = "../ethersjs-api-check/"
+	cmd.Dir = "./ethersjs-api-check/"
 	println("executing mocha test with", cmd.String())
 	output, err = cmd.CombinedOutput()
 	println(string(output))
