@@ -17,6 +17,7 @@
 package gasprice_minimum
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -87,6 +88,32 @@ func GetGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*big.I
 	}
 
 	return gasPriceMinimum, err
+}
+
+// GetRealGasPriceMinimum is similar to GetRealGasPriceMinimum but if there is
+// a problem retrieving the gas price minimum it will return the error and a
+// nil gas price minimum.
+func GetRealGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*big.Int, error) {
+	var currencyAddress common.Address
+	var err error
+
+	if currency == nil {
+		currencyAddress, err = contracts.GetRegisteredAddress(vmRunner, params.GoldTokenRegistryId)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve gold token address: %w", err)
+		}
+	} else {
+		currencyAddress = *currency
+	}
+
+	var gasPriceMinimum *big.Int
+	err = getGasPriceMinimumMethod.Query(vmRunner, &gasPriceMinimum, currencyAddress)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve gas price minimum for currency %v, error: %w", currencyAddress.String(), err)
+	}
+
+	return gasPriceMinimum, nil
 }
 
 func GetGasPriceMinimumFloor(vmRunner vm.EVMRunner) (*big.Int, error) {

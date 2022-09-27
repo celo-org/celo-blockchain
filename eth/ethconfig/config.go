@@ -146,6 +146,11 @@ type Config struct {
 	// send-transction variants. The unit is ether.
 	RPCTxFeeCap float64
 
+	// RPCEthCompatibility is used to determine whether the 'gaslimit' end
+	// 'baseFeePerGas' fields should be added to blocks returned by the RPC
+	// API. Where true indicates the fields should be added.
+	RPCEthCompatibility bool
+
 	// Checkpoint is a hardcoded checkpoint which can be nil.
 	Checkpoint *params.TrustedCheckpoint `toml:",omitempty"`
 
