@@ -43,8 +43,7 @@ import (
 	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/eth/filters"
 	"github.com/celo-org/celo-blockchain/eth/protocols/eth"
-
-	// "github.com/celo-org/celo-blockchain/eth/protocols/snap"
+	"github.com/celo-org/celo-blockchain/eth/protocols/snap"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/internal/ethapi"
@@ -567,7 +566,7 @@ func (s *Ethereum) BloomIndexer() *core.ChainIndexer    { return s.bloomIndexer 
 func (s *Ethereum) Protocols() []p2p.Protocol {
 	protos := eth.MakeProtocols((*ethHandler)(s.handler), s.networkID, s.ethDialCandidates)
 	if s.config.SnapshotCache > 0 {
-		// protos = append(protos, snap.MakeProtocols((*snapHandler)(s.handler), s.snapDialCandidates)...)
+		protos = append(protos, snap.MakeProtocols((*snapHandler)(s.handler), s.snapDialCandidates)...)
 	}
 	return protos
 }
