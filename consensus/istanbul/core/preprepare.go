@@ -40,22 +40,6 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 	}
 }
 
-// ResendPreprepare sends again the preprepare message.
-func (c *core) ResendPreprepare() error {
-	logger := c.newLogger("func", "resendPreprepare")
-	if !c.isProposer() {
-		return errors.New("Cant resend preprepare if not proposer")
-	}
-	st := c.current.State()
-	if st != StatePreprepared && st != StatePrepared && st != StateCommitted {
-		return errors.New("Cant resend preprepare if not in preprepared, prepared, or committed state")
-	}
-	m := istanbul.NewPreprepareMessage(c.current.Preprepare(), c.address)
-	logger.Debug("Re-Sending preprepare", "m", m)
-	c.broadcast(m)
-	return nil
-}
-
 func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	defer c.handlePrePrepareTimer.UpdateSince(time.Now())
 
@@ -63,6 +47,12 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	logger.Trace("Got preprepare message", "m", msg)
 
 	preprepare := msg.Preprepare()
+	// Check consensus fork
+	if c.isConsensusFork(preprepare.View.Sequence) {
+		logger.Info("Received Preprepare (V1) for forked block sequence", "sequence", preprepare.View.Sequence.Uint64())
+		return errors.New("Received Preprepare (V1) for forked block")
+	}
+
 	logger = logger.New("msg_num", preprepare.Proposal.Number(), "msg_hash", preprepare.Proposal.Hash(), "msg_seq", preprepare.View.Sequence, "msg_round", preprepare.View.Round)
 
 	// Verify that the proposal is for the sequence number of the view we verified.
