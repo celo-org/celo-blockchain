@@ -71,8 +71,8 @@ func TestGetIntrinsicGasForAlternativeFeeCurrencyOrDefault(t *testing.T) {
 }
 
 func TestGetBlockGasLimit(t *testing.T) {
-	testutil.TestFailOnFailingRunner(t, getBlockGasLimit)
-	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, getBlockGasLimit)
+	testutil.TestFailOnFailingRunner(t, GetBlockGasLimit)
+	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, GetBlockGasLimit)
 	t.Run("should return block gas limit", func(t *testing.T) {
 		g := NewGomegaWithT(t)
 
@@ -84,7 +84,7 @@ func TestGetBlockGasLimit(t *testing.T) {
 			},
 		)
 
-		gas, err := getBlockGasLimit(runner)
+		gas, err := GetBlockGasLimit(runner)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(gas).To(Equal(uint64(50000)))
 	})

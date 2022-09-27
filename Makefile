@@ -7,7 +7,7 @@
 .PHONY: geth-linux-arm geth-linux-arm-5 geth-linux-arm-6 geth-linux-arm-7 geth-linux-arm64
 .PHONY: geth-darwin geth-darwin-amd64
 .PHONY: geth-windows geth-windows-386 geth-windows-amd64
-.PHONY: prepare-system-contracts
+.PHONY: prepare prepare-system-contracts prepare-ethersjs-project
 
 GOBIN = ./build/bin
 GO ?= latest
@@ -44,6 +44,13 @@ geth:
 	$(GORUN) build/ci.go install ./cmd/geth
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
+
+prepare: prepare-system-contracts prepare-ethersjs-project
+
+prepare-ethersjs-project: ./e2e_test/ethersjs-api-check/node_modules
+
+./e2e_test/ethersjs-api-check/node_modules: ./e2e_test/ethersjs-api-check/package.json ./e2e_test/ethersjs-api-check/package-lock.json
+	@cd ./e2e_test/ethersjs-api-check && npm ci
 
 # This rule checks out celo-monorepo under MONOREPO_PATH at the commit contained in
 # monorepo_commit and compiles the system solidity contracts. It then copies the

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"os/exec"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -462,4 +464,96 @@ func pruneStateOfBlock(ctx context.Context, node *test.Node, blockHash common.Ha
 	node.Eth.BlockChain().StateCache().TrieDB().Dereference(root)
 
 	return nil
+}
+
+func TestEthersJSCompatibility(t *testing.T) {
+	ac := test.AccountConfig(1, 1)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	num, err := network[0].WsClient.BlockNumber(ctx)
+	require.NoError(t, err)
+
+	// Execute typescript tests to check ethers.js compatibility.
+	//
+	// The '--networkaddr' and '--blocknum' flags are npm config variables, the
+	// values become available under 'process.env.npm_config_networkaddr' and
+	// 'process.env.npm_config_blocknum' in typescript test. Everything after
+	// '--' are flags that are passed to mocha and these flags are controlling
+	// which tests to run.
+
+	// The tests don't seem to work on CI with IPV6 addresses so we convert to IPV4 here
+	addr := strings.Replace(network[0].Node.HTTPEndpoint(), "[::]", "127.0.0.1", 1)
+
+	cmd := exec.Command("npm", "run", "test", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "ethers.js compatibility tests with state")
+	cmd.Dir = "./ethersjs-api-check/"
+	println("executing mocha test with", cmd.String())
+	output, err := cmd.CombinedOutput()
+	println(string(output))
+	require.NoError(t, err)
+
+	err = network[0].Tracker.AwaitBlock(ctx, num+1)
+	require.NoError(t, err)
+	block := network[0].Tracker.GetProcessedBlock(num)
+
+	// Prune state
+	err = pruneStateOfBlock(ctx, network[0], block.Hash())
+	require.NoError(t, err)
+
+	// Execute typescript tests to check what happens with a pruned block.
+	cmd = exec.Command("npm", "run", "test", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "ethers.js compatibility tests with no state")
+	cmd.Dir = "./ethersjs-api-check/"
+	println("executing mocha test with", cmd.String())
+	output, err = cmd.CombinedOutput()
+	println(string(output))
+	require.NoError(t, err)
+}
+
+// This test checks the functionality of the configuration to enable/disable
+// returning the 'gasLimit' and 'baseFeePerGas' fields on RPC blocks.
+func TestEthersJSCompatibilityDisable(t *testing.T) {
+	ac := test.AccountConfig(1, 1)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+
+	// Check fields present (compatibility set by default)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	result := make(map[string]interface{})
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
+	require.NoError(t, err)
+
+	_, ok := result["gasLimit"]
+	assert.True(t, ok, "gasLimit field should be present on RPC block")
+	_, ok = result["baseFeePerGas"]
+	assert.True(t, ok, "baseFeePerGas field should be present on RPC block")
+
+	// Turn of compatibility and check fields are not present
+	ec.RPCEthCompatibility = false
+	network, shutdown, err = test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	result = make(map[string]interface{})
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
+	require.NoError(t, err)
+
+	_, ok = result["gasLimit"]
+	assert.False(t, ok, "gasLimit field should not be present on RPC block")
+	_, ok = result["baseFeePerGas"]
+	assert.False(t, ok, "baseFeePerGas field should not be present on RPC block")
 }
