@@ -19,6 +19,7 @@ package les
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 
 	ethereum "github.com/celo-org/celo-blockchain"
@@ -295,6 +296,20 @@ func (b *LesApiBackend) GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.
 	return blockchain_parameters.GetBlockGasLimitOrDefault(caller)
 }
 
+func (b *LesApiBackend) GetRealBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (uint64, error) {
+	statedb, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
+	if err != nil {
+		return 0, fmt.Errorf("LesApiBackend failed to retreive state for block gas limit for block %v: %w", blockNrOrHash, err)
+	}
+
+	caller := b.eth.BlockChain().NewEVMRunner(header, statedb)
+	limit, err := blockchain_parameters.GetBlockGasLimit(caller)
+	if err != nil {
+		return 0, fmt.Errorf("LesApiBackend failed to retreive block gas limit from blockchain parameters constract for block %v: %w", blockNrOrHash, err)
+	}
+	return limit, nil
+}
+
 func (b *LesApiBackend) NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
 	return b.eth.BlockChain().NewEVMRunner(header, state)
 }
@@ -320,6 +335,12 @@ func (b *LesApiBackend) GasPriceMinimumForHeader(ctx context.Context, currencyAd
 	vmRunner := b.eth.blockchain.NewEVMRunner(header, state)
 
 	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
+}
+
+func (b *LesApiBackend) RealGasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error) {
+	state := light.NewState(ctx, header, b.eth.odr)
+	vmRunner := b.eth.blockchain.NewEVMRunner(header, state)
+	return gpm.GetRealGasPriceMinimum(vmRunner, currencyAddress)
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {

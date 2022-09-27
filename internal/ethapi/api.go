@@ -749,21 +749,20 @@ func addEthCompatibilityFields(ctx context.Context, block map[string]interface{}
 	numhash := rpc.BlockNumberOrHash{
 		BlockHash: &hash,
 	}
-	gasLimit := b.GetBlockGasLimit(ctx, numhash)
-	block["gasLimit"] = hexutil.Uint64(gasLimit)
+	gasLimit, err := b.GetRealBlockGasLimit(ctx, numhash)
+	if err != nil {
+		log.Debug("Not adding gasLimit to RPC response, failed to retrieve it", "block", header.Number.Uint64(), "err", err)
+	} else {
+		block["gasLimit"] = hexutil.Uint64(gasLimit)
+	}
 
 	// Providing nil as the currency address gets the gas price minimum for the native celo asset.
-	baseFee, err := b.GasPriceMinimumForHeader(ctx, nil, header)
-
-	// GasPriceMinimumForHeader can return an error + non nil baseFee, an error
-	// and nil base fee or a base fee and a nil error. In all cases where a
-	// base fee is returned we want to add it as a field and if there was an
-	// error and nil base fee we log the failure.
-	if err != nil && baseFee == nil {
+	baseFee, err := b.RealGasPriceMinimumForHeader(ctx, nil, header)
+	if err != nil {
 		log.Debug("Not adding baseFeePerGas to RPC response, failed to retrieve gas price minimum", "block", header.Number.Uint64(), "err", err)
-		return
+	} else {
+		block["baseFeePerGas"] = (*hexutil.Big)(baseFee)
 	}
-	block["baseFeePerGas"] = (*hexutil.Big)(baseFee)
 }
 
 // GetUncleByBlockNumberAndIndex returns the uncle block for the given block hash and index. When fullTx is true

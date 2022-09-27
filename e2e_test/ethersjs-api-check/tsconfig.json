@@ -4,8 +4,9 @@
     "module": "commonjs",
     "esModuleInterop": true,
     "strict": true,
-    "rootDir": "src",
+    "rootDir": ".",
     "outDir": "dist",
-	"moduleResolution": "node"
+	"moduleResolution": "node",
+	"useUnknownInCatchVariables": true
   }
 }

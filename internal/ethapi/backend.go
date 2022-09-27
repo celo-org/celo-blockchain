@@ -44,6 +44,11 @@ type Backend interface {
 	SuggestGasTipCap(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
 	CurrentGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
 	GasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error)
+
+	// As opposed to GasPriceMinimumForHeader which returns a default value in
+	// some cases when it can't retrieve the gas price minimum, this function
+	// returns an error and no gas price minimum when it encounters a problem.
+	RealGasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error)
 	SyncProgress() ethereum.SyncProgress
 
 	ChainDb() ethdb.Database
@@ -99,6 +104,11 @@ type Backend interface {
 	GatewayFee() *big.Int
 	GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Context) uint64
 	GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) uint64
+
+	// As opposed to GetBlockGasLimit which returns a default value in the case
+	// that it can't retrieve the block gas limit, this function returns an
+	// error and no gas limit when it encounters a problem.
+	GetRealBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (uint64, error)
 	NewEVMRunner(*types.Header, vm.StateDB) vm.EVMRunner
 	Engine() consensus.Engine
 }
