@@ -1,3 +1,8 @@
+/*
+ * Note these tests are intended to be invoked only by our e2e tests, they
+ * should not be executed in a standalone fashion.
+ * See e2e_test.TestEthersJSCompatibility
+ */
 import {ethers} from 'ethers';
 import {assert} from 'chai';
 import 'mocha';
