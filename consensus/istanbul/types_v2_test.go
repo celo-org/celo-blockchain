@@ -10,6 +10,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/stretchr/testify/assert"
 )
@@ -257,24 +258,24 @@ func bigHeader(validators int) *types.Header {
 	return header
 }
 
-func bigTxs(gasLimit int) []*types.Transaction {
+func bigTxs(gasLimit int, gasPerByte int) []*types.Transaction {
 	curr := common.BytesToAddress(getF(20))
 	gateFeeRec := common.BytesToAddress(getF(20))
 	tx := types.NewTransaction(999, common.BytesToAddress(getF(20)),
 		big.NewInt(329274), 2942729, big.NewInt(294279),
 		&curr,
-		&gateFeeRec, big.NewInt(32027), getF(gasLimit/4))
+		&gateFeeRec, big.NewInt(32027), getF(gasLimit/gasPerByte))
 	return []*types.Transaction{tx}
 }
 
-func bigBlock(gasLimit int, validators int) *types.Block {
+func bigBlock(gasLimit int, validators int, gasPerByte int) *types.Block {
 	randomness := &types.Randomness{
 		Revealed:  common.BigToHash(common.Big3),
 		Committed: common.BigToHash(common.Big2),
 	}
 	// Full header
 	header := bigHeader(validators)
-	txs := bigTxs(gasLimit)
+	txs := bigTxs(gasLimit, gasPerByte)
 	receipts := []*types.Receipt{{
 		Type:              9,
 		PostState:         getF(32),
@@ -340,8 +341,9 @@ func bigRCC(validators int) *RoundChangeCertificateV2 {
 func TestBigPreprepareV2Size(t *testing.T) {
 	gasLimit := 34_600_000
 	validators := 110
+	gasPerByte := params.TxDataZeroGas
 	sizeLimit := int(9.5 * 1024 * 1024)
-	block := bigBlock(gasLimit, validators)
+	block := bigBlock(gasLimit, validators, int(gasPerByte))
 	assert.NotNil(t, block)
 	bigRCC := bigRCC(validators)
 	assert.NotNil(t, bigRCC)
