@@ -78,7 +78,7 @@ copy them into place.
 forbidden.
 
 In the case that you would like to change the default monorepo checkout
-location, or that you would like to have multipe checkouts of the monorepo (at
+location, or that you would like to have multiple checkouts of the monorepo (at
 different versions) you can set the `MONOREPO_PATH` variable in the make
 command, for example:
 
@@ -88,7 +88,7 @@ make prepare-system-contracts MONOREPO_PATH=../alt-monorepo
 ```
 Note that `MONOREPO_PATH` should not be set to point at checkouts other than
 those checked out by the `prepare-system-contracts` rule, and the checkouts
-created by the `prepare-system-contracts` rule should not be manually modifed,
+created by the `prepare-system-contracts` rule should not be manually modified,
 aside from changing the contract source.
 
 ### prepare-ethersjs-project
@@ -96,7 +96,7 @@ This will install dependencies for the `ethersjs-api-check` typescript project.
 
 ## Running Celo
 
-Please see the [docs.celo.org/getting-started](https://docs.celo.org/getting-started/choosing-a-network) for instructions on how to run a node connected the Celo network using the prebuilt Docker image.
+Please see the [docs.celo.org/getting-started](https://docs.celo.org/getting-started/choosing-a-network) for instructions on how to run a node connected to the Celo network using the prebuilt Docker image.
 
 Going through all the possible command line flags is out of scope here, please consult `geth --help` for more complete information.
 We've enumerated a few common parameter combos to get you up to speed quickly on how you can run your own Celo blockchain client instance.
@@ -153,7 +153,7 @@ As an alternative to passing the numerous flags to the `Celo` binary, you can al
 $ geth --config /path/to/your_config.toml
 ```
 
-To get an idea how the file should look like you can use the `dumpconfig` subcommand to
+To get an idea of how the file should look like you can use the `dumpconfig` subcommand to
 export your existing configuration:
 
 ```shell
@@ -229,7 +229,7 @@ Please make sure your contributions adhere to our coding guidelines:
 
 ### Submitting an issue
 
-If you come across a bug, pleas open a [GitHub issue](https://github.com/celo-org/celo-blockchain/issues/new) with information about your build and what happened.
+If you come across a bug, please open a [GitHub issue](https://github.com/celo-org/celo-blockchain/issues/new) with information about your build and what happened.
 
 ### CI Testing and automerge
 
@@ -256,7 +256,7 @@ and do a squash merge once all the required tests have passed.
 
 ### Benchmarking
 
-Golang has built in support for running benchmarks with go tool
+Golang has built-in support for running benchmarks with go tool
 `go test -run=ThisIsNotATestName -bench=. ./$PACKAGE_NAME` will run all benchmarks in a package.
 
 One note around running benchmarks is that `BenchmarkHandlePreprepare` is quite takes a while to run, particularly when testing with a larger number of validators.
