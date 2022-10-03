@@ -708,10 +708,14 @@ func (s *PublicBlockChainAPI) GetBlockByNumber(ctx context.Context, number rpc.B
 	block, err := s.b.BlockByNumber(ctx, number)
 	if block != nil && err == nil {
 		response, err := s.rpcMarshalBlock(ctx, block, true, fullTx)
-		if err == nil && number == rpc.PendingBlockNumber {
-			// Pending blocks need to nil out a few fields
-			for _, field := range []string{"hash", "nonce", "miner"} {
-				response[field] = nil
+
+		if err == nil && s.b.RPCEthCompatibility() {
+			addEthCompatibilityFields(ctx, response, s.b, block.Header())
+			if number == rpc.PendingBlockNumber {
+				// Pending blocks need to nil out a few fields
+				for _, field := range []string{"hash", "nonce", "miner"} {
+					response[field] = nil
+				}
 			}
 		}
 		return response, err
@@ -724,9 +728,41 @@ func (s *PublicBlockChainAPI) GetBlockByNumber(ctx context.Context, number rpc.B
 func (s *PublicBlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Hash, fullTx bool) (map[string]interface{}, error) {
 	block, err := s.b.BlockByHash(ctx, hash)
 	if block != nil {
-		return s.rpcMarshalBlock(ctx, block, true, fullTx)
+		result, err := s.rpcMarshalBlock(ctx, block, true, fullTx)
+		if err != nil {
+			return nil, err
+		}
+		if s.b.RPCEthCompatibility() {
+			addEthCompatibilityFields(ctx, result, s.b, block.Header())
+		}
+		return result, nil
 	}
 	return nil, err
+}
+
+// addEthCompatibilityFields seeks to work around the incompatibility of celo
+// and ethers.js (and potentially other web3 clients) by adding fields to our
+// rpc response that ethers.js depends upon.
+// See https://github.com/celo-org/celo-blockchain/issues/1945
+func addEthCompatibilityFields(ctx context.Context, block map[string]interface{}, b Backend, header *types.Header) {
+	hash := header.Hash()
+	numhash := rpc.BlockNumberOrHash{
+		BlockHash: &hash,
+	}
+	gasLimit, err := b.GetRealBlockGasLimit(ctx, numhash)
+	if err != nil {
+		log.Debug("Not adding gasLimit to RPC response, failed to retrieve it", "block", header.Number.Uint64(), "err", err)
+	} else {
+		block["gasLimit"] = hexutil.Uint64(gasLimit)
+	}
+
+	// Providing nil as the currency address gets the gas price minimum for the native celo asset.
+	baseFee, err := b.RealGasPriceMinimumForHeader(ctx, nil, header)
+	if err != nil {
+		log.Debug("Not adding baseFeePerGas to RPC response, failed to retrieve gas price minimum", "block", header.Number.Uint64(), "err", err)
+	} else {
+		block["baseFeePerGas"] = (*hexutil.Big)(baseFee)
+	}
 }
 
 // GetUncleByBlockNumberAndIndex returns the uncle block for the given block hash and index. When fullTx is true

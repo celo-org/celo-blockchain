@@ -373,6 +373,11 @@ func EmptyPreparedCertificate() PreparedCertificate {
 	}
 }
 
+func EmptyPreparedCertificateV2() (PreparedCertificateV2, Proposal) {
+	pc := EmptyPreparedCertificate()
+	return PCV2FromPCV1(pc), pc.Proposal
+}
+
 func (pc *PreparedCertificate) IsEmpty() bool {
 	return len(pc.PrepareOrCommitMessages) == 0
 }
@@ -630,7 +635,21 @@ const (
 	MsgPrepare
 	MsgCommit
 	MsgRoundChange
+	MsgRoundChangeV2
+	MsgPreprepareV2
 )
+
+// IsRoundChangeCode returns true if and only if the message code equals
+// MsgRoundChange or MsgRoundChangeV2
+func IsRoundChangeCode(istanbulMsgCode uint64) bool {
+	return istanbulMsgCode == MsgRoundChange || istanbulMsgCode == MsgRoundChangeV2
+}
+
+// IsPreprepareCode returns true if and only if the message code equals
+// MsgPreprepare or MsgPreprepareV2
+func IsPreprepareCode(istanbulMsgCode uint64) bool {
+	return istanbulMsgCode == MsgPreprepare || istanbulMsgCode == MsgPreprepareV2
+}
 
 // Message is a wrapper used for all istanbul communication. It encapsulates
 // the sender's address, a code that indicates the type of the wrapped message
@@ -655,8 +674,10 @@ type Message struct {
 	// Message.FromPayload, or at message construction time.
 	committedSubject    *CommittedSubject
 	prePrepare          *Preprepare
+	prePrepareV2        *PreprepareV2
 	prepare             *Subject
 	roundChange         *RoundChange
+	roundChangeV2       *RoundChangeV2
 	queryEnode          *QueryEnodeData
 	forwardMessage      *ForwardMessage
 	enodeCertificate    *EnodeCertificate
@@ -695,6 +716,13 @@ func (m *Message) DecodeMessage() error {
 			return err
 		}
 		m.prePrepare = p
+	case MsgPreprepareV2:
+		var p *PreprepareV2
+		err = m.decode(&p)
+		if err != nil {
+			return err
+		}
+		m.prePrepareV2 = p
 	case MsgPrepare:
 		var p *Subject
 		err = m.decode(&p)
@@ -710,6 +738,13 @@ func (m *Message) DecodeMessage() error {
 			return err
 		}
 		m.roundChange = p
+	case MsgRoundChangeV2:
+		var p *RoundChangeV2
+		err = m.decode(&p)
+		if err != nil {
+			return err
+		}
+		m.roundChangeV2 = p
 	case QueryEnodeMsg:
 		var q *QueryEnodeData
 		err = m.decode(&q)
@@ -756,7 +791,7 @@ func (m *Message) DecodeRLP(stream *rlp.Stream) error {
 // FromPayload decodes b into a Message instance it will set one of the private
 // fields committedSubject, prePrepare, prepare or roundChange depending on the
 // type of the message.
-func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.Address, error)) error {
+func (m *Message) FromPayload(b []byte, validateFn ValidateFn) error {
 	// Decode Message
 	err := rlp.DecodeBytes(b, &m)
 	if err != nil {
@@ -765,18 +800,8 @@ func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.
 
 	// Validate message (on a message without Signature)
 	if validateFn != nil {
-		var payload []byte
-		payload, err = m.PayloadNoSig()
-		if err != nil {
+		if err := CheckSignedBy(m, m.Signature, m.Address, ErrInvalidSigner, validateFn); err != nil {
 			return err
-		}
-
-		signed_val_addr, err := validateFn(payload, m.Signature)
-		if err != nil {
-			return err
-		}
-		if signed_val_addr != m.Address {
-			return ErrInvalidSigner
 		}
 	}
 	return nil
@@ -813,12 +838,17 @@ func (m *Message) Preprepare() *Preprepare {
 	return m.prePrepare
 }
 
+// PreprepareV2 returns preprepare if this is a preprepare message.
+func (m *Message) PreprepareV2() *PreprepareV2 {
+	return m.prePrepareV2
+}
+
 // Prepare returns prepare if this is a prepare message.
 func (m *Message) Prepare() *Subject {
 	return m.prepare
 }
 
-// Prepare returns round change if this is a round change message.
+// TryRoundChange returns a round change if this is a round change message.
 func (m *Message) TryRoundChange() (*RoundChange, error) {
 	if m.roundChange != nil {
 		return m.roundChange, nil
@@ -832,9 +862,14 @@ func (m *Message) TryRoundChange() (*RoundChange, error) {
 	return m.roundChange, nil
 }
 
-// Prepare returns round change if this is a round change message.
+// RoundChange returns a round change if this is a round change message.
 func (m *Message) RoundChange() *RoundChange {
 	return m.roundChange
+}
+
+// RoundChangeV2 returns a round change v2 if this is a round change v2 message.
+func (m *Message) RoundChangeV2() *RoundChangeV2 {
+	return m.roundChangeV2
 }
 
 // QueryEnode returns query enode data if this is a query enode message.

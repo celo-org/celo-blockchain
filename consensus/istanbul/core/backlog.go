@@ -32,9 +32,10 @@ var (
 	// msgPriority is defined for calculating processing priority to speedup consensus
 	// istanbul.MsgPreprepare > istanbul.MsgCommit > istanbul.MsgPrepare
 	msgPriority = map[uint64]int{
-		istanbul.MsgPreprepare: 1,
-		istanbul.MsgCommit:     2,
-		istanbul.MsgPrepare:    3,
+		istanbul.MsgPreprepare:   1,
+		istanbul.MsgPreprepareV2: 1,
+		istanbul.MsgCommit:       2,
+		istanbul.MsgPrepare:      3,
 	}
 
 	// Do not accept messages for views more than this many sequences in the future.
@@ -73,12 +74,13 @@ func (c *core) checkMessage(msgCode uint64, msgView *istanbul.View) error {
 	// Msg is now correct sequence and >= desiredRound.
 
 	// RoundChange messages are accepted in all states and for current or future rounds.
-	if msgCode == istanbul.MsgRoundChange {
+	if istanbul.IsRoundChangeCode(msgCode) {
 		return nil
 	}
 
 	// WaitingForNewRound and StateAcceptRequest: accepts Preprepare (including for rounds >= desiredRound), other messages are future.
-	if (c.current.State() == StateWaitingForNewRound || c.current.State() == StateAcceptRequest) && msgCode != istanbul.MsgPreprepare {
+	if (c.current.State() == StateWaitingForNewRound || c.current.State() == StateAcceptRequest) &&
+		!istanbul.IsPreprepareCode(msgCode) {
 		return errFutureMessage
 	}
 
@@ -315,7 +317,7 @@ var (
 )
 
 func toPriority(msgCode uint64, view *istanbul.View) int64 {
-	if msgCode == istanbul.MsgRoundChange {
+	if istanbul.IsRoundChangeCode(msgCode) {
 		// msgRoundChange comes first
 		return 0
 	}
@@ -328,12 +330,16 @@ func extractMessageView(msg *istanbul.Message) *istanbul.View {
 	switch msg.Code {
 	case istanbul.MsgPreprepare:
 		return msg.Preprepare().View
+	case istanbul.MsgPreprepareV2:
+		return msg.PreprepareV2().View
 	case istanbul.MsgPrepare:
 		return msg.Prepare().View
 	case istanbul.MsgCommit:
 		return msg.Commit().Subject.View
 	case istanbul.MsgRoundChange:
 		return msg.RoundChange().View
+	case istanbul.MsgRoundChangeV2:
+		return &msg.RoundChangeV2().Request.View
 	default:
 		panic(fmt.Sprintf("unknown message code %q", msg.Code))
 	}

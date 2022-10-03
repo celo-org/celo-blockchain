@@ -73,6 +73,7 @@ var (
 		utils.USBFlag,
 		// utils.SmartCardDaemonPathFlag,
 		utils.OverrideEHardforkFlag,
+		utils.OverrideV2IstanbulForkFlag,
 		utils.TxPoolLocalsFlag,
 		utils.TxPoolNoLocalsFlag,
 		utils.TxPoolJournalFlag,
@@ -164,6 +165,7 @@ var (
 	}
 
 	rpcFlags = []cli.Flag{
+		utils.DisableRPCETHCompatibility,
 		utils.HTTPEnabledFlag,
 		utils.HTTPListenAddrFlag,
 		utils.HTTPPortFlag,

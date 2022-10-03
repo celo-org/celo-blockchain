@@ -1,0 +1,23 @@
+{
+  "name": "ethersjs-api-check",
+  "version": "1.0.0",
+  "description": "runs ethers.js against an api to check compatibility",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha -r ts-node/register test/*.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/chai": "^4.3.3",
+    "@types/mocha": "^9.1.1",
+    "@types/node": "^18.7.16",
+    "chai": "^4.3.6",
+    "mocha": "^10.0.0",
+    "typescript": "^4.8.3"
+  },
+  "dependencies": {
+    "ethers": "^5.7.0",
+    "ts-node": "^10.9.1"
+  }
+}
