@@ -55,8 +55,9 @@ type Header struct {
 	Extra       []byte         `json:"extraData"        gencodec:"required"`
 
 	// Used to cache deserialized istanbul extra data
-	extraLock         sync.Mutex
-	deserializedExtra *IstanbulExtra
+	extraLock  sync.Mutex
+	extraValue *IstanbulExtra
+	extraError error
 }
 
 // field type overrides for gencodec
