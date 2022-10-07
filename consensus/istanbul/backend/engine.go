@@ -138,7 +138,7 @@ func (sb *Backend) verifyHeader(chain consensus.ChainHeaderReader, header *types
 	}
 
 	// Ensure that the extra data format is satisfied
-	if _, err := types.ExtractIstanbulExtra(header); err != nil {
+	if _, err := header.IstanbulExtra(); err != nil {
 		return errInvalidExtraDataFormat
 	}
 
@@ -273,7 +273,7 @@ func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainHeaderReader, head
 		return nil
 	}
 
-	extra, err := types.ExtractIstanbulExtra(header)
+	extra, err := header.IstanbulExtra()
 	if err != nil {
 		return err
 	}
@@ -373,7 +373,7 @@ func (sb *Backend) VerifySeal(header *types.Header) error {
 		return errUnknownBlock
 	}
 
-	extra, err := types.ExtractIstanbulExtra(header)
+	extra, err := header.IstanbulExtra()
 	if err != nil {
 		return errInvalidExtraDataFormat
 	}
@@ -861,7 +861,7 @@ func (sb *Backend) snapshot(chain consensus.ChainHeaderReader, number uint64, ha
 			return nil, errors.New("Cannot load genesis")
 		}
 
-		istanbulExtra, err := types.ExtractIstanbulExtra(genesis)
+		istanbulExtra, err := genesis.IstanbulExtra()
 		if err != nil {
 			log.Error("Unable to extract istanbul extra", "err", err)
 			return nil, err
@@ -948,7 +948,7 @@ func (sb *Backend) addParentSeal(chain consensus.ChainHeaderReader, header *type
 
 	// Get parent's extra to fetch it's AggregatedSeal
 	parent := chain.GetHeader(header.ParentHash, number-1)
-	parentExtra, err := types.ExtractIstanbulExtra(parent)
+	parentExtra, err := parent.IstanbulExtra()
 	if err != nil {
 		return err
 	}
@@ -1046,7 +1046,7 @@ func ecrecover(header *types.Header) (common.Address, error) {
 	}
 
 	// Retrieve the signature from the header extra-data
-	istanbulExtra, err := types.ExtractIstanbulExtra(header)
+	istanbulExtra, err := header.IstanbulExtra()
 	if err != nil {
 		return common.Address{}, err
 	}
@@ -1099,7 +1099,7 @@ func writeValidatorSetDiff(header *types.Header, oldValSet []istanbul.ValidatorD
 			"addedValidators", common.ConvertToStringSlice(addedValidatorsAddresses), "removedValidators", removedValidators.Text(16))
 	}
 
-	extra, err := types.ExtractIstanbulExtra(header)
+	extra, err := header.IstanbulExtra()
 	if err != nil {
 		return nil
 	}
@@ -1124,7 +1124,7 @@ func writeSeal(h *types.Header, seal []byte) error {
 		return errInvalidSignature
 	}
 
-	istanbulExtra, err := types.ExtractIstanbulExtra(h)
+	istanbulExtra, err := h.IstanbulExtra()
 	if err != nil {
 		return err
 	}
@@ -1147,7 +1147,7 @@ func writeAggregatedSeal(h *types.Header, aggregatedSeal types.IstanbulAggregate
 		return errInvalidAggregatedSeal
 	}
 
-	istanbulExtra, err := types.ExtractIstanbulExtra(h)
+	istanbulExtra, err := h.IstanbulExtra()
 	if err != nil {
 		return err
 	}
