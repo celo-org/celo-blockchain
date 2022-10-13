@@ -161,12 +161,14 @@ shallow-checkout: &shallow-checkout
         git clone --quiet --depth 1 ${CIRCLE_REPOSITORY_URL} --branch ${CIRCLE_BRANCH} ~/repos/geth 
       else
         # Forked PR, in this case we need to fetch the remote ref (beacause its not a branch so we can't clone directly to it)
+        # See https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/checking-out-pull-requests-locally
         
         # Use the github api to get the branch name
         PR_BRANCH_NAME = `curl -s https://api.github.com/repos/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/pulls/${CIRCLE_PR_NUMBER} | jq -r '.head.ref'`
         git clone --quiet --depth 1 ${CIRCLE_REPOSITORY_URL} ~/repos/geth  
         cd ~/repos/geth
         git fetch --depth 1 origin pull/${CIRCLE_PR_NUMBER}/head:${PR_BRANCH_NAME}
+        git checkout ${PR_BRANCH_NAME}
       fi
 
 install-go: &install-go
