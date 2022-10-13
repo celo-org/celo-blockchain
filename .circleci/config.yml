@@ -164,11 +164,10 @@ shallow-checkout: &shallow-checkout
         # See https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/checking-out-pull-requests-locally
         
         # Use the github api to get the branch name
-        PR_BRANCH_NAME = `curl -s https://api.github.com/repos/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/pulls/${CIRCLE_PR_NUMBER} | jq -r '.head.ref'`
         git clone --quiet --depth 1 ${CIRCLE_REPOSITORY_URL} ~/repos/geth  
         cd ~/repos/geth
-        git fetch --depth 1 origin pull/${CIRCLE_PR_NUMBER}/head:${PR_BRANCH_NAME}
-        git checkout ${PR_BRANCH_NAME}
+        git fetch --depth 1 origin pull/${CIRCLE_PR_NUMBER}/head:${CIRCLE_BRANCH}
+        git checkout ${CIRCLE_BRANCH}
       fi
 
 install-go: &install-go
