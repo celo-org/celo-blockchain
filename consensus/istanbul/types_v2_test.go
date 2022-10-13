@@ -338,6 +338,8 @@ func bigRCC(validators int) *RoundChangeCertificateV2 {
 	return rcc
 }
 
+// TestBigPreprepareV2Size constructs the largest possible consensus message in
+// order to ensure that it does not exceed the built in size limits.
 func TestBigPreprepareV2Size(t *testing.T) {
 	gasLimit := 34_600_000
 	validators := 110
