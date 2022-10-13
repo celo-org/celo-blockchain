@@ -530,6 +530,22 @@ jobs:
       - run: make geth
       - run: DATADIR=/tmp/lightest_sync_test_data MODE=lightest ./scripts/sync_test.sh
 
+  build-and-store-binaries:
+    executor: golang
+    steps:
+      - *shallow-checkout
+      - *restore-go-mod-cache
+      - *store-month-in-file
+      - *restore-go-cache
+      - run:
+          name: Build and compress executables
+          command: |
+            make all
+            tar -cvzf geth.tar ./build/bin
+      - store_artifacts:
+          path: ./geth.tar
+          destination: geth.tar
+
   end-to-end-blockchain-parameters-test:
     environment:
       TEST_NAME: ci_test_blockchain_parameters.sh
@@ -622,6 +638,9 @@ workflows:
             branches:
               only: master
       - lightest-sync-test:
+          requires:
+            - go-modules
+      - build-and-store-binaries:
           requires:
             - go-modules
       - end-to-end-blockchain-parameters-test:
