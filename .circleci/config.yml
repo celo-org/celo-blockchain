@@ -160,7 +160,7 @@ shallow-checkout: &shallow-checkout
         # Non forked PR
         git clone --quiet --depth 1 ${CIRCLE_REPOSITORY_URL} --branch ${CIRCLE_BRANCH} ~/repos/geth 
       else
-        # Forked PR, in this case we need to fetch the remote ref (beacause its not a branch so we can't clone directly to it)
+        # Forked PR, in this case we need to fetch the remote ref (because its not a branch so we can't clone directly to it)
         # See https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/checking-out-pull-requests-locally
         
         # Use the github api to get the branch name
