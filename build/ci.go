@@ -254,6 +254,7 @@ func doInstall(cmdline []string) {
 
 // buildFlags returns the go tool flags for building.
 func buildFlags(env build.Environment) (flags []string) {
+	flags = append(flags, "-v")
 	var ld []string
 	if env.IsMusl {
 		flags = append(flags, []string{"-tags", "musl"}...)
@@ -1015,7 +1016,7 @@ func doAndroidArchive(cmdline []string) {
 	}
 
 	// Build gomobile.
-	install := tc.Install(GOBIN, "golang.org/x/mobile/cmd/gomobile@latest", "golang.org/x/mobile/cmd/gobind@latest")
+	install := tc.Install(GOBIN, "golang.org/x/mobile/cmd/gomobile@34ab1303b554208641230536476d5bb2f750d12e", "golang.org/x/mobile/cmd/gobind@34ab1303b554208641230536476d5bb2f750d12e")
 	install.Env = append(install.Env)
 	build.MustRun(install)
 
