@@ -571,74 +571,74 @@ workflows:
   version: 2
   build:
     jobs:
-      - go-modules
-      - prepare-system-contracts
-      - check-imports
-      - lint
-      - unit-tests:
-          requires:
-            - go-modules
-            - prepare-system-contracts
-      - race:
-          filters:
-            branches:
-              only: /master|release.*/
-          requires:
-            - go-modules
-            - prepare-system-contracts
-      - istanbul-e2e-coverage:
-          requires:
-            - go-modules
-            - prepare-system-contracts
-      - e2e-benchmarks:
-          requires:
-            - go-modules
-            - prepare-system-contracts
+      # - go-modules
+      # - prepare-system-contracts
+      # - check-imports
+      # - lint
+      # - unit-tests:
+      #     requires:
+      #       - go-modules
+      #       - prepare-system-contracts
+      # - race:
+      #     filters:
+      #       branches:
+      #         only: /master|release.*/
+      #     requires:
+      #       - go-modules
+      #       - prepare-system-contracts
+      # - istanbul-e2e-coverage:
+      #     requires:
+      #       - go-modules
+      #       - prepare-system-contracts
+      # - e2e-benchmarks:
+      #     requires:
+      #       - go-modules
+      #       - prepare-system-contracts
       - android
-      - ios
-      - publish-mobile-client:
-          requires:
-            - android
-            - ios
-            # Makes sure tests are all green before publishing
-            # Though these are not using the mobile built binaries
-            # they should be a good indicator
-            - unit-tests
-            - lightest-sync-test
-            - end-to-end-blockchain-parameters-test
-            - end-to-end-governance-test
-            - end-to-end-slashing-test
-            - end-to-end-sync-test
-            - end-to-end-transfer-test
-            - end-to-end-validator-order-test
-          filters:
-            branches:
-              only: master
-      - lightest-sync-test:
-          requires:
-            - go-modules
-      - end-to-end-blockchain-parameters-test:
-          requires:
-            - go-modules
-      - end-to-end-governance-test:
-          requires:
-            - go-modules
-      - end-to-end-slashing-test:
-          requires:
-            - go-modules
-      - end-to-end-sync-test:
-          requires:
-            - go-modules
-      - end-to-end-transfer-test:
-          requires:
-            - go-modules
-      - end-to-end-validator-order-test:
-          requires:
-            - go-modules
+      # - ios
+      # - publish-mobile-client:
+      #     requires:
+      #       - android
+      #       - ios
+      #       # Makes sure tests are all green before publishing
+      #       # Though these are not using the mobile built binaries
+      #       # they should be a good indicator
+      #       - unit-tests
+      #       - lightest-sync-test
+      #       - end-to-end-blockchain-parameters-test
+      #       - end-to-end-governance-test
+      #       - end-to-end-slashing-test
+      #       - end-to-end-sync-test
+      #       - end-to-end-transfer-test
+      #       - end-to-end-validator-order-test
+      #     filters:
+      #       branches:
+      #         only: master
+      # - lightest-sync-test:
+      #     requires:
+      #       - go-modules
+      # - end-to-end-blockchain-parameters-test:
+      #     requires:
+      #       - go-modules
+      # - end-to-end-governance-test:
+      #     requires:
+      #       - go-modules
+      # - end-to-end-slashing-test:
+      #     requires:
+      #       - go-modules
+      # - end-to-end-sync-test:
+      #     requires:
+      #       - go-modules
+      # - end-to-end-transfer-test:
+      #     requires:
+      #       - go-modules
+      # - end-to-end-validator-order-test:
+      #     requires:
+      #       - go-modules
       # Flaky!
       #      - end-to-end-cip35-eth-compatibility-test:
       #          requires:
       #            - go-modules
-      - end-to-end-replica-test:
-          requires:
-            - go-modules
+      # - end-to-end-replica-test:
+      #     requires:
+      #       - go-modules

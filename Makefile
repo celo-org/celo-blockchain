@@ -141,7 +141,7 @@ all-musl:
 android:
 	@echo "Applying patch for mobile libs..."
 	git apply patches/mobileLibsForBuild.patch
-	ANDROID_NDK_HOME=$(ANDROID_NDK) $(GORUN) build/ci.go aar --local --metrics-default
+	ANDROID_NDK_HOME=$(ANDROID_NDK) $(GORUN) -x -v build/ci.go aar --local --metrics-default
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/geth.aar\" to use the library."
 	@echo "Import \"$(GOBIN)/geth-sources.jar\" to add javadocs"
