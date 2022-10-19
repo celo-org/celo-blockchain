@@ -635,10 +635,9 @@ workflows:
       - end-to-end-validator-order-test:
           requires:
             - go-modules
-      # Flaky!
-      #      - end-to-end-cip35-eth-compatibility-test:
-      #          requires:
-      #            - go-modules
+      - end-to-end-cip35-eth-compatibility-test:
+          requires:
+            - go-modules
       - end-to-end-replica-test:
           requires:
             - go-modules
