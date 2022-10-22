@@ -191,9 +191,10 @@ var (
 		Value: 0,
 	}
 	defaultSyncMode = ethconfig.Defaults.SyncMode
-	SyncModeFlag    = TextMarshalerFlag{
+	// TODO: Check if snap sync is enabled
+	SyncModeFlag = TextMarshalerFlag{
 		Name:  "syncmode",
-		Usage: `Blockchain sync mode ("fast", "full", "snap", "light", or "lightest")`,
+		Usage: `Blockchain sync mode ("fast", "full", "light", or "lightest")`,
 		Value: &defaultSyncMode,
 	}
 	GCModeFlag = cli.StringFlag{
@@ -1732,13 +1733,16 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		cfg.SnapshotCache = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheSnapshotFlag.Name) / 100
 	}
 	if !ctx.GlobalBool(SnapshotFlag.Name) {
-		// If snap-sync is requested, this flag is also required
-		if cfg.SyncMode == downloader.SnapSync {
-			log.Info("Snap sync requested, enabling --snapshot")
-		} else {
-			cfg.TrieCleanCache += cfg.SnapshotCache
-			cfg.SnapshotCache = 0 // Disabled
-		}
+		// Snap Dync Disabled. See https://github.com/celo-org/celo-blockchain/issues/1735
+		// // If snap-sync is requested, this flag is also required
+		// if cfg.SyncMode == downloader.SnapSync {
+		// 	log.Info("Snap sync requested, enabling --snapshot")
+		// } else {
+		// 	cfg.TrieCleanCache += cfg.SnapshotCache
+		// 	cfg.SnapshotCache = 0 // Disabled
+		// }
+		cfg.TrieCleanCache += cfg.SnapshotCache
+		cfg.SnapshotCache = 0 // Disabled
 	}
 	if ctx.GlobalIsSet(DocRootFlag.Name) {
 		cfg.DocRoot = ctx.GlobalString(DocRootFlag.Name)
