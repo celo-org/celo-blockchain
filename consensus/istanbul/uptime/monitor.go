@@ -150,7 +150,7 @@ func (um *Monitor) ProcessHeader(header *types.Header) error {
 	}
 
 	// Get the bitmap from the previous block
-	extra, err := types.ExtractIstanbulExtra(header)
+	extra, err := header.IstanbulExtra()
 	if err != nil {
 		um.logger.Error("Unable to extract istanbul extra", "func", "ProcessBlock", "blocknum", headerNumber)
 		return errors.New("could not extract block header extra")

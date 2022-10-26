@@ -128,7 +128,7 @@ func (ist *IstanbulExtra) DecodeRLP(s *rlp.Stream) error {
 // ExtractIstanbulExtra extracts all values of the IstanbulExtra from the header. It returns an
 // error if the length of the given extra-data is less than 32 bytes or the extra-data can not
 // be decoded.
-func ExtractIstanbulExtra(h *Header) (*IstanbulExtra, error) {
+func extractIstanbulExtra(h *Header) (*IstanbulExtra, error) {
 	if len(h.Extra) < IstanbulExtraVanity {
 		return nil, ErrInvalidIstanbulHeaderExtra
 	}
@@ -146,7 +146,7 @@ func ExtractIstanbulExtra(h *Header) (*IstanbulExtra, error) {
 // decoded/encoded by rlp.
 func IstanbulFilteredHeader(h *Header, keepSeal bool) *Header {
 	newHeader := CopyHeader(h)
-	istanbulExtra, err := ExtractIstanbulExtra(newHeader)
+	istanbulExtra, err := extractIstanbulExtra(newHeader)
 	if err != nil {
 		return nil
 	}

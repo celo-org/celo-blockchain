@@ -476,7 +476,7 @@ func (sb *Backend) ParentBlockValidators(proposal istanbul.Proposal) istanbul.Va
 }
 
 func (sb *Backend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.ValidatorSet, error) {
-	istExtra, err := types.ExtractIstanbulExtra(proposal.Header())
+	istExtra, err := proposal.Header().IstanbulExtra()
 	if err != nil {
 		return nil, err
 	}
@@ -650,7 +650,7 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 	header := block.Header()
 
 	// Ensure that the extra data format is satisfied
-	istExtra, err := types.ExtractIstanbulExtra(header)
+	istExtra, err := header.IstanbulExtra()
 	if err != nil {
 		return err
 	}
@@ -806,7 +806,7 @@ func (sb *Backend) GetCurrentHeadBlockAndAuthor() (istanbul.Proposal, common.Add
 
 func (sb *Backend) LastSubject() (istanbul.Subject, error) {
 	lastProposal, _ := sb.GetCurrentHeadBlockAndAuthor()
-	istExtra, err := types.ExtractIstanbulExtra(lastProposal.Header())
+	istExtra, err := lastProposal.Header().IstanbulExtra()
 	if err != nil {
 		return istanbul.Subject{}, err
 	}
