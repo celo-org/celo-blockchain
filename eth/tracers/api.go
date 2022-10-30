@@ -851,7 +851,7 @@ func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *
 		if err != nil {
 			return nil, err
 		}
-		sysStateDB, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true)
+		sysStateDB, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false)
 		if err != nil {
 			return nil, err
 		}
