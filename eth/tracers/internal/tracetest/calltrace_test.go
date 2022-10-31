@@ -26,22 +26,24 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth/tracers"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/tests"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/common/math"
+	"github.com/celo-org/celo-blockchain/contracts/testutil"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/eth/tracers"
+	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/celo-org/celo-blockchain/tests"
 
 	// Force-load native and js pacakges, to trigger registration
-	_ "github.com/ethereum/go-ethereum/eth/tracers/js"
-	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
+	_ "github.com/celo-org/celo-blockchain/eth/tracers/js"
+	_ "github.com/celo-org/celo-blockchain/eth/tracers/native"
 )
 
 // To generate a new callTracer test, copy paste the makeTest method below into
@@ -139,6 +141,7 @@ func TestCallTracerNative(t *testing.T) {
 }
 
 func testCallTracer(tracerName string, dirPath string, t *testing.T) {
+	celoMock := testutil.NewCeloMock()
 	files, err := ioutil.ReadDir(filepath.Join("testdata", dirPath))
 	if err != nil {
 		t.Fatalf("failed to retrieve tracer test suite: %v", err)
@@ -173,13 +176,11 @@ func testCallTracer(tracerName string, dirPath string, t *testing.T) {
 					GasPrice: tx.GasPrice(),
 				}
 				context = vm.BlockContext{
-					CanTransfer: core.CanTransfer,
-					Transfer:    core.Transfer,
+					CanTransfer: vmcontext.CanTransfer,
+					Transfer:    vmcontext.TobinTransfer,
 					Coinbase:    test.Context.Miner,
 					BlockNumber: new(big.Int).SetUint64(uint64(test.Context.Number)),
 					Time:        new(big.Int).SetUint64(uint64(test.Context.Time)),
-					Difficulty:  (*big.Int)(test.Context.Difficulty),
-					GasLimit:    uint64(test.Context.GasLimit),
 				}
 				_, statedb = tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false)
 			)
@@ -192,7 +193,7 @@ func testCallTracer(tracerName string, dirPath string, t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to prepare transaction for tracing: %v", err)
 			}
-			st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()))
+			st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()), celoMock.Runner, nil)
 			if _, err = st.TransitionDb(); err != nil {
 				t.Fatalf("failed to execute transaction: %v", err)
 			}
@@ -268,6 +269,7 @@ func BenchmarkTracers(b *testing.B) {
 }
 
 func benchTracer(tracerName string, test *callTracerTest, b *testing.B) {
+	celoMock := testutil.NewCeloMock()
 	// Configure a blockchain with the given prestate
 	tx := new(types.Transaction)
 	if err := rlp.DecodeBytes(common.FromHex(test.Input), tx); err != nil {
@@ -284,13 +286,11 @@ func benchTracer(tracerName string, test *callTracerTest, b *testing.B) {
 		GasPrice: tx.GasPrice(),
 	}
 	context := vm.BlockContext{
-		CanTransfer: core.CanTransfer,
-		Transfer:    core.Transfer,
+		CanTransfer: vmcontext.CanTransfer,
+		Transfer:    vmcontext.TobinTransfer,
 		Coinbase:    test.Context.Miner,
 		BlockNumber: new(big.Int).SetUint64(uint64(test.Context.Number)),
 		Time:        new(big.Int).SetUint64(uint64(test.Context.Time)),
-		Difficulty:  (*big.Int)(test.Context.Difficulty),
-		GasLimit:    uint64(test.Context.GasLimit),
 	}
 	_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false)
 
@@ -303,7 +303,7 @@ func benchTracer(tracerName string, test *callTracerTest, b *testing.B) {
 		}
 		evm := vm.NewEVM(context, txContext, statedb, test.Genesis.Config, vm.Config{Debug: true, Tracer: tracer})
 		snap := statedb.Snapshot()
-		st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()))
+		st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()), celoMock.Runner, nil)
 		if _, err = st.TransitionDb(); err != nil {
 			b.Fatalf("failed to execute transaction: %v", err)
 		}
@@ -318,6 +318,7 @@ func benchTracer(tracerName string, test *callTracerTest, b *testing.B) {
 // Tx to A, A calls B with zero value. B does not already exist.
 // Expected: that enter/exit is invoked and the inner call is shown in the result
 func TestZeroValueToNotExitCall(t *testing.T) {
+	celoMock := testutil.NewCeloMock()
 	var to = common.HexToAddress("0x00000000000000000000000000000000deadbeef")
 	privkey, err := crypto.HexToECDSA("0000000000000000deadbeef00000000000000000000000000000000deadbeef")
 	if err != nil {
@@ -338,13 +339,11 @@ func TestZeroValueToNotExitCall(t *testing.T) {
 		GasPrice: big.NewInt(1),
 	}
 	context := vm.BlockContext{
-		CanTransfer: core.CanTransfer,
-		Transfer:    core.Transfer,
+		CanTransfer: vmcontext.CanTransfer,
+		Transfer:    vmcontext.TobinTransfer,
 		Coinbase:    common.Address{},
 		BlockNumber: new(big.Int).SetUint64(8000000),
 		Time:        new(big.Int).SetUint64(5),
-		Difficulty:  big.NewInt(0x30000),
-		GasLimit:    uint64(6000000),
 	}
 	var code = []byte{
 		byte(vm.PUSH1), 0x0, byte(vm.DUP1), byte(vm.DUP1), byte(vm.DUP1), // in and outs zero
@@ -372,7 +371,7 @@ func TestZeroValueToNotExitCall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to prepare transaction for tracing: %v", err)
 	}
-	st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()))
+	st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()), celoMock.Runner, nil)
 	if _, err = st.TransitionDb(); err != nil {
 		t.Fatalf("failed to execute transaction: %v", err)
 	}
