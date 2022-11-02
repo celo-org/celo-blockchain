@@ -246,10 +246,9 @@ func importChain(ctx *cli.Context) error {
 	// Start system runtime metrics collection
 	go metrics.CollectProcessMetrics(3 * time.Second)
 
-	stack, _ := makeConfigNode(ctx)
+	stack, _, chain, db := makeFullNode_(ctx)
 	defer stack.Close()
 
-	chain, db := utils.MakeChain(ctx, stack)
 	defer db.Close()
 
 	// Start periodically gathering memory profiles

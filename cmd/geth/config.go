@@ -29,7 +29,9 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/keystore"
 	"github.com/celo-org/celo-blockchain/accounts/usbwallet"
 	"github.com/celo-org/celo-blockchain/cmd/utils"
+	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/eth/ethconfig"
+	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/internal/ethapi"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
@@ -157,6 +159,11 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 
 // makeFullNode loads geth configuration and creates the Ethereum backend.
 func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
+	stack, backend, _, _ := makeFullNode_(ctx)
+	return stack, backend
+}
+
+func makeFullNode_(ctx *cli.Context) (*node.Node, ethapi.Backend, *core.BlockChain, ethdb.Database) {
 	stack, cfg := makeConfigNode(ctx)
 	if ctx.GlobalIsSet(utils.OverrideEHardforkFlag.Name) {
 		cfg.Eth.OverrideEHardfork = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideEHardforkFlag.Name))
@@ -164,7 +171,7 @@ func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 	if ctx.GlobalIsSet(utils.OverrideV2IstanbulForkFlag.Name) {
 		cfg.Eth.OverrideV2IstanbulFork = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideV2IstanbulForkFlag.Name))
 	}
-	backend, _ := utils.RegisterEthService(stack, &cfg.Eth)
+	backend, ethereum := utils.RegisterEthService(stack, &cfg.Eth)
 
 	// Configure GraphQL if requested
 	if ctx.GlobalIsSet(utils.GraphQLEnabledFlag.Name) {
@@ -174,7 +181,7 @@ func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 	if cfg.Ethstats.URL != "" {
 		utils.RegisterEthStatsService(stack, backend, cfg.Ethstats.URL)
 	}
-	return stack, backend
+	return stack, backend, ethereum.BlockChain(), ethereum.ChainDb()
 }
 
 // dumpConfig is the dumpconfig command.
