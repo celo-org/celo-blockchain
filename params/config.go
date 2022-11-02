@@ -71,7 +71,7 @@ var (
 			BlockPeriod:    5,
 			RequestTimeout: 3000,
 			LookbackWindow: 12,
-			// V2Block:        big.NewInt(????), TBD
+			V2Block:        big.NewInt(16068685),
 		},
 	}
 
@@ -97,7 +97,7 @@ var (
 			BlockPeriod:    5,
 			RequestTimeout: 3000,
 			LookbackWindow: 12,
-			// V2Block:        big.NewInt(????), TBD
+			V2Block:        big.NewInt(13612887),
 		},
 	}
 
@@ -123,7 +123,7 @@ var (
 			BlockPeriod:    5,
 			RequestTimeout: 10000,
 			LookbackWindow: 12,
-			// V2Block:        big.NewInt(????), TBD
+			V2Block:        big.NewInt(14287656),
 		},
 	}
 
