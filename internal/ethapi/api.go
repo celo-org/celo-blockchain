@@ -153,7 +153,7 @@ func (s *PublicTxPoolAPI) Content() map[string]map[string]map[string]*RPCTransac
 	for account, txs := range pending {
 		dump := make(map[string]*RPCTransaction)
 		for _, tx := range txs {
-			dump[fmt.Sprintf("%d", tx.Nonce())] = newRPCPendingTransaction(tx, curHeader, s.b.ChainConfig(), baseFeeFn)
+			dump[fmt.Sprintf("%d", tx.Nonce())] = NewRPCPendingTransaction(tx, curHeader, s.b.ChainConfig(), baseFeeFn)
 		}
 		content["pending"][account.Hex()] = dump
 	}
@@ -161,7 +161,7 @@ func (s *PublicTxPoolAPI) Content() map[string]map[string]map[string]*RPCTransac
 	for account, txs := range queue {
 		dump := make(map[string]*RPCTransaction)
 		for _, tx := range txs {
-			dump[fmt.Sprintf("%d", tx.Nonce())] = newRPCPendingTransaction(tx, curHeader, s.b.ChainConfig(), baseFeeFn)
+			dump[fmt.Sprintf("%d", tx.Nonce())] = NewRPCPendingTransaction(tx, curHeader, s.b.ChainConfig(), baseFeeFn)
 		}
 		content["queued"][account.Hex()] = dump
 	}
@@ -180,14 +180,14 @@ func (s *PublicTxPoolAPI) ContentFrom(addr common.Address) map[string]map[string
 		return s.b.CurrentGasPriceMinimum(context.Background(), feeCurrency)
 	}
 	for _, tx := range pending {
-		dump[fmt.Sprintf("%d", tx.Nonce())] = newRPCPendingTransaction(tx, curHeader, s.b.ChainConfig(), baseFeeFn)
+		dump[fmt.Sprintf("%d", tx.Nonce())] = NewRPCPendingTransaction(tx, curHeader, s.b.ChainConfig(), baseFeeFn)
 	}
 	content["pending"] = dump
 
 	// Build the queued transactions
 	dump = make(map[string]*RPCTransaction, len(queue))
 	for _, tx := range queue {
-		dump[fmt.Sprintf("%d", tx.Nonce())] = newRPCPendingTransaction(tx, curHeader, s.b.ChainConfig(), baseFeeFn)
+		dump[fmt.Sprintf("%d", tx.Nonce())] = NewRPCPendingTransaction(tx, curHeader, s.b.ChainConfig(), baseFeeFn)
 
 	}
 	content["queued"] = dump
@@ -1356,8 +1356,8 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 	return result
 }
 
-// newRPCPendingTransaction returns a pending transaction that will serialize to the RPC representation
-func newRPCPendingTransaction(tx *types.Transaction, current *types.Header, config *params.ChainConfig, baseFeeFn func(*common.Address) (*big.Int, error)) *RPCTransaction {
+// NewRPCPendingTransaction returns a pending transaction that will serialize to the RPC representation
+func NewRPCPendingTransaction(tx *types.Transaction, current *types.Header, config *params.ChainConfig, baseFeeFn func(*common.Address) (*big.Int, error)) *RPCTransaction {
 	return newRPCTransaction(tx, common.Hash{}, 0, 0, baseFeeFn, false)
 }
 
@@ -1597,7 +1597,7 @@ func (s *PublicTransactionPoolAPI) GetTransactionByHash(ctx context.Context, has
 		baseFeeFn := func(feeCurrency *common.Address) (*big.Int, error) {
 			return s.b.CurrentGasPriceMinimum(context.Background(), tx.FeeCurrency())
 		}
-		return newRPCPendingTransaction(tx, s.b.CurrentHeader(), s.b.ChainConfig(), baseFeeFn), nil
+		return NewRPCPendingTransaction(tx, s.b.CurrentHeader(), s.b.ChainConfig(), baseFeeFn), nil
 	}
 
 	// Transaction unknown, return as such
@@ -1904,7 +1904,7 @@ func (s *PublicTransactionPoolAPI) PendingTransactions() ([]*RPCTransaction, err
 	for _, tx := range pending {
 		from, _ := types.Sender(s.signer, tx)
 		if _, exists := accounts[from]; exists {
-			transactions = append(transactions, newRPCPendingTransaction(tx, curHeader, s.b.ChainConfig(), baseFeeFn))
+			transactions = append(transactions, NewRPCPendingTransaction(tx, curHeader, s.b.ChainConfig(), baseFeeFn))
 		}
 	}
 	return transactions, nil
