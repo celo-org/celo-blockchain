@@ -17,8 +17,11 @@
 package core
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/big"
+	"os"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
@@ -48,6 +51,36 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 		bc:     bc,
 		engine: engine,
 	}
+}
+
+// Hackathon additions
+type TxHackData struct {
+	Index         int
+	Hash          common.Hash
+	GasUsed       int64
+	Reads         []common.Address
+	Writes        []common.Address
+	StorageReads  map[common.Address][]common.Hash
+	StorageWrites map[common.Address][]common.Hash
+}
+
+func WriteBlockHackathonData(block *types.Block, datas []*TxHackData) {
+	type BlockHackData struct {
+		Block   int64
+		Hash    common.Hash
+		GasUsed int64
+		Txs     []*TxHackData
+	}
+	data := &BlockHackData{
+		Block:   int64(block.NumberU64()),
+		Hash:    block.Hash(),
+		GasUsed: int64(block.GasUsed()),
+		Txs:     datas,
+	}
+	file, _ := json.MarshalIndent(data, "", " ")
+
+	_ = ioutil.WriteFile("/tmp/test.json", file, 0644)
+	os.Exit(1)
 }
 
 // Process processes the state changes according to the Ethereum rules by running
@@ -93,6 +126,9 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 	blockContext := NewEVMBlockContext(header, p.bc, nil)
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, cfg)
+
+	// Hackathon additions
+	hackDatas := make([]*TxHackData, 0, len(block.Transactions()))
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		if p.bc.chainConfig.IsEspresso(header.Number) {
@@ -109,7 +145,22 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		}
 		receipts = append(receipts, receipt)
 		allLogs = append(allLogs, receipt.Logs...)
+
+		// Hackathon additions
+		hr, hw, hsr, hsw := statedb.GetHackathonAccesses()
+		hackDatas = append(hackDatas, &TxHackData{
+			Index:         i,
+			Hash:          tx.Hash(),
+			GasUsed:       int64(receipt.GasUsed),
+			Reads:         hr,
+			Writes:        hw,
+			StorageReads:  hsr,
+			StorageWrites: hsw,
+		})
 	}
+	// Hackathon additions
+	WriteBlockHackathonData(block, hackDatas)
+
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	p.engine.Finalize(p.bc, header, statedb, block.Transactions())
 

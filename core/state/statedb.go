@@ -56,6 +56,11 @@ func (n *proofList) Delete(key []byte) error {
 	panic("not supported")
 }
 
+// Hackathon additions
+type addressSet map[common.Address]struct{}
+type hashSet map[common.Hash]struct{}
+type storageSet map[common.Address]hashSet
+
 // StateDB structs within the ethereum protocol are used to store anything
 // within the merkle trie. StateDBs take care of caching and storing
 // nested states. It's the general query interface to retrieve:
@@ -122,6 +127,12 @@ type StateDB struct {
 	StorageUpdated int
 	AccountDeleted int
 	StorageDeleted int
+
+	// Hackathon additions
+	readAddresses  addressSet
+	readStorage    storageSet
+	writeAddresses addressSet
+	writeStorage   storageSet
 }
 
 // New creates a new state from a given trie.
@@ -143,6 +154,12 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 		journal:             newJournal(),
 		accessList:          newAccessList(),
 		hasher:              crypto.NewKeccakState(),
+
+		// Hackathon additions
+		readAddresses:  make(addressSet),
+		readStorage:    make(storageSet),
+		writeAddresses: make(addressSet),
+		writeStorage:   make(storageSet),
 	}
 	if sdb.snaps != nil {
 		if sdb.snap = sdb.snaps.Snapshot(root); sdb.snap != nil {
@@ -490,6 +507,7 @@ func (s *StateDB) deleteStateObject(obj *stateObject) {
 // the object is not found or was deleted in this execution context. If you need
 // to differentiate between non-existent/just-deleted, use getDeletedStateObject.
 func (s *StateDB) getStateObject(addr common.Address) *stateObject {
+	s.readAddresses[addr] = struct{}{}
 	if obj := s.getDeletedStateObject(addr); obj != nil && !obj.deleted {
 		return obj
 	}
@@ -658,6 +676,17 @@ func (s *StateDB) Copy() *StateDB {
 		preimages:           make(map[common.Hash][]byte, len(s.preimages)),
 		journal:             newJournal(),
 		hasher:              crypto.NewKeccakState(),
+		// Hackathon additions
+		readAddresses:  s.readAddresses.Copy(),
+		readStorage:    make(storageSet, len(s.readStorage)),
+		writeAddresses: s.writeAddresses.Copy(),
+		writeStorage:   make(storageSet, len(s.writeStorage)),
+	}
+	for addr := range s.readStorage {
+		state.readStorage[addr] = s.readStorage[addr].Copy()
+	}
+	for addr := range s.writeStorage {
+		state.writeStorage[addr] = s.writeStorage[addr].Copy()
 	}
 	// Copy the dirty states, logs, and preimages
 	for addr := range s.journal.dirties {
@@ -776,6 +805,28 @@ func (s *StateDB) GetRefund() uint64 {
 // the journal as well as the refunds. Finalise, however, will not push any updates
 // into the tries just yet. Only IntermediateRoot or Commit will do that.
 func (s *StateDB) Finalise(deleteEmptyObjects bool) {
+	// Hackathon additions
+	for _, ev := range s.journal.entries {
+		switch ev.(type) {
+
+		case storageChange:
+			{
+				addr := *(ev.dirtied())
+				if s.writeStorage[addr] == nil {
+					s.writeStorage[addr] = make(hashSet)
+				}
+				s.writeStorage[addr][ev.(storageChange).key] = struct{}{}
+
+			}
+
+		default:
+			addr := ev.dirtied()
+			if addr != nil {
+				s.writeAddresses[*addr] = struct{}{}
+			}
+		}
+	}
+
 	addressesToPrefetch := make([][]byte, 0, len(s.journal.dirties))
 	for addr := range s.journal.dirties {
 		obj, exist := s.stateObjects[addr]
@@ -887,6 +938,70 @@ func (s *StateDB) Prepare(thash common.Hash, ti int) {
 	s.thash = thash
 	s.txIndex = ti
 	s.accessList = newAccessList()
+
+	// Hackathon additions
+	s.readAddresses = make(addressSet)
+	s.writeAddresses = make(addressSet)
+	s.readStorage = make(storageSet)
+	s.writeStorage = make(storageSet)
+}
+
+// Hackathon additions
+func (a addressSet) ToList() []common.Address {
+	ret := make([]common.Address, 0, len(a))
+	for addr := range a {
+		ret = append(ret, addr)
+	}
+	return ret
+}
+
+func (a hashSet) ToList() []common.Hash {
+	ret := make([]common.Hash, 0, len(a))
+	for hash := range a {
+		ret = append(ret, hash)
+	}
+	return ret
+}
+
+func (a storageSet) ToList() map[common.Address][]common.Hash {
+	ret := make(map[common.Address][]common.Hash, len(a))
+	for addr := range a {
+		ret[addr] = a[addr].ToList()
+	}
+	return ret
+}
+
+func (a addressSet) Copy() addressSet {
+	ret := make(addressSet, len(a))
+	for addr := range a {
+		ret[addr] = a[addr]
+	}
+	return ret
+}
+
+func (a hashSet) Copy() hashSet {
+	ret := make(hashSet, len(a))
+	for addr := range a {
+		ret[addr] = a[addr]
+	}
+	return ret
+}
+
+func (s *StateDB) GetHackathonAccesses() ([]common.Address, []common.Address, map[common.Address][]common.Hash, map[common.Address][]common.Hash) {
+	// Purge writes from reads
+	for addr := range s.writeAddresses {
+		delete(s.readAddresses, addr)
+	}
+	for addr := range s.writeStorage {
+		rst := s.readStorage[addr]
+		if rst == nil {
+			continue
+		}
+		for key := range s.writeStorage[addr] {
+			delete(rst, key)
+		}
+	}
+	return s.readAddresses.ToList(), s.writeAddresses.ToList(), s.readStorage.ToList(), s.writeStorage.ToList()
 }
 
 func (s *StateDB) clearJournalAndRefund() {
