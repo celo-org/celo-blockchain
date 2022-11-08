@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"math/big"
 	"os"
+	"strconv"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
@@ -78,9 +79,10 @@ func WriteBlockHackathonData(block *types.Block, datas []*TxHackData) {
 		Txs:     datas,
 	}
 	file, _ := json.MarshalIndent(data, "", " ")
-
-	_ = ioutil.WriteFile("/tmp/test.json", file, 0644)
-	os.Exit(1)
+	folder := "/tmp/hackathon/"
+	path := folder + strconv.Itoa(int(data.Block)/1000) + "/"
+	_ = os.MkdirAll(path, os.ModePerm)
+	_ = ioutil.WriteFile(path+strconv.Itoa(int(data.Block))+".json", file, 0644)
 }
 
 // Process processes the state changes according to the Ethereum rules by running
