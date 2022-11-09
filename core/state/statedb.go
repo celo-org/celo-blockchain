@@ -987,7 +987,15 @@ func (a hashSet) Copy() hashSet {
 	return ret
 }
 
-func (s *StateDB) GetHackathonAccesses() ([]common.Address, []common.Address, map[common.Address][]common.Hash, map[common.Address][]common.Hash) {
+// Hackathon additions
+type HackAccesses struct {
+	Reads         []common.Address
+	Writes        []common.Address
+	StorageReads  map[common.Address][]common.Hash
+	StorageWrites map[common.Address][]common.Hash
+}
+
+func (s *StateDB) GetHackathonAccesses() HackAccesses {
 	// Purge writes from reads
 	for addr := range s.writeAddresses {
 		delete(s.readAddresses, addr)
@@ -1001,7 +1009,12 @@ func (s *StateDB) GetHackathonAccesses() ([]common.Address, []common.Address, ma
 			delete(rst, key)
 		}
 	}
-	return s.readAddresses.ToList(), s.writeAddresses.ToList(), s.readStorage.ToList(), s.writeStorage.ToList()
+	return HackAccesses{
+		Reads:         s.readAddresses.ToList(),
+		Writes:        s.writeAddresses.ToList(),
+		StorageReads:  s.readStorage.ToList(),
+		StorageWrites: s.writeStorage.ToList(),
+	}
 }
 
 func (s *StateDB) clearJournalAndRefund() {

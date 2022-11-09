@@ -27,6 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
 	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
@@ -113,6 +114,9 @@ type ExecutionResult struct {
 	UsedGas    uint64 // Total used gas but include the refunded gas
 	Err        error  // Any error encountered during the execution(listed in core/vm/errors.go)
 	ReturnData []byte // Returned data from evm(function result or data supplied with revert opcode)
+
+	// Hackathon additions
+	Accesses *state.HackAccesses
 }
 
 // Unwrap returns the internal evm error which allows us for further
@@ -475,6 +479,11 @@ func (st *StateTransition) preCheck() error {
 
 }
 
+// Hackathon additions
+type HasHackathonAccesses interface {
+	GetHackathonAccesses() state.HackAccesses
+}
+
 // TransitionDb will transition the state by applying the current message and
 // returning the evm execution result with following fields.
 //
@@ -575,7 +584,12 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		// After EIP-3529: refunds are capped to gasUsed / 5
 		st.refundGas(params.RefundQuotientEIP3529)
 	}
-
+	// Hackathon additions
+	// get the accesses before tx fees distribution
+	// since we have confirmed that with fees distribution at the end of a tx
+	// parallelization is impossible. Let's find an alternative.
+	hha := st.evm.GetStateDB().(HasHackathonAccesses)
+	accesses := hha.GetHackathonAccesses()
 	err = st.distributeTxFees()
 	if err != nil {
 		return nil, err
@@ -584,6 +598,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		UsedGas:    st.gasUsed(),
 		Err:        vmerr,
 		ReturnData: ret,
+		Accesses:   &accesses,
 	}, nil
 }
 

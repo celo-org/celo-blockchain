@@ -56,13 +56,10 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 
 // Hackathon additions
 type TxHackData struct {
-	Index         int
-	Hash          common.Hash
-	GasUsed       int64
-	Reads         []common.Address
-	Writes        []common.Address
-	StorageReads  map[common.Address][]common.Hash
-	StorageWrites map[common.Address][]common.Hash
+	Index    int
+	Hash     common.Hash
+	GasUsed  int64
+	Accesses state.HackAccesses
 }
 
 func WriteBlockHackathonData(block *types.Block, datas []*TxHackData) {
@@ -141,7 +138,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
 		statedb.Prepare(tx.Hash(), i)
-		receipt, err := applyTransaction(msg, p.config, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, vmRunner, sysCtx)
+		receipt, accesses, err := applyTransaction(msg, p.config, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, vmRunner, sysCtx)
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
@@ -149,15 +146,11 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		allLogs = append(allLogs, receipt.Logs...)
 
 		// Hackathon additions
-		hr, hw, hsr, hsw := statedb.GetHackathonAccesses()
 		hackDatas = append(hackDatas, &TxHackData{
-			Index:         i,
-			Hash:          tx.Hash(),
-			GasUsed:       int64(receipt.GasUsed),
-			Reads:         hr,
-			Writes:        hw,
-			StorageReads:  hsr,
-			StorageWrites: hsw,
+			Index:    i,
+			Hash:     tx.Hash(),
+			GasUsed:  int64(receipt.GasUsed),
+			Accesses: *accesses,
 		})
 	}
 	// Hackathon additions
@@ -172,9 +165,12 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	return receipts, allLogs, *usedGas, nil
 }
 
-func applyTransaction(msg types.Message, config *params.ChainConfig, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*types.Receipt, error) {
+func applyTransaction(msg types.Message, config *params.ChainConfig, gp *GasPool,
+	statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction,
+	usedGas *uint64, evm *vm.EVM, vmRunner vm.EVMRunner,
+	sysCtx *SysContractCallCtx) (*types.Receipt, *state.HackAccesses, error) {
 	if config.IsDonut(blockNumber) && !config.IsEspresso(blockNumber) && !tx.Protected() {
-		return nil, ErrUnprotectedTransaction
+		return nil, nil, ErrUnprotectedTransaction
 	}
 
 	// Create a new context to be used in the EVM environment
@@ -184,7 +180,7 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, gp *GasPool
 	// Apply the transaction to the current state (included in the env).
 	result, err := ApplyMessage(evm, msg, gp, vmRunner, sysCtx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Update the state with pending changes.
@@ -218,21 +214,21 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, gp *GasPool
 	receipt.BlockHash = blockHash
 	receipt.BlockNumber = blockNumber
 	receipt.TransactionIndex = uint(statedb.TxIndex())
-	return receipt, err
+	return receipt, result.Accesses, err
 }
 
 // ApplyTransaction attempts to apply a transaction to the given state database
 // and uses the input parameters for its environment. It returns the receipt
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
-func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipient *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*types.Receipt, error) {
+func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipient *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*types.Receipt, *state.HackAccesses, error) {
 	var baseFee *big.Int
 	if config.IsEspresso(header.Number) {
 		baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
 	}
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number), baseFee)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Create a new context to be used in the EVM environment
 	blockContext := NewEVMBlockContext(header, bc, txFeeRecipient)
