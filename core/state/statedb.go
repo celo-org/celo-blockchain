@@ -805,28 +805,6 @@ func (s *StateDB) GetRefund() uint64 {
 // the journal as well as the refunds. Finalise, however, will not push any updates
 // into the tries just yet. Only IntermediateRoot or Commit will do that.
 func (s *StateDB) Finalise(deleteEmptyObjects bool) {
-	// Hackathon additions
-	for _, ev := range s.journal.entries {
-		switch ev.(type) {
-
-		case storageChange:
-			{
-				addr := *(ev.dirtied())
-				if s.writeStorage[addr] == nil {
-					s.writeStorage[addr] = make(hashSet)
-				}
-				s.writeStorage[addr][ev.(storageChange).key] = struct{}{}
-
-			}
-
-		default:
-			addr := ev.dirtied()
-			if addr != nil {
-				s.writeAddresses[*addr] = struct{}{}
-			}
-		}
-	}
-
 	addressesToPrefetch := make([][]byte, 0, len(s.journal.dirties))
 	for addr := range s.journal.dirties {
 		obj, exist := s.stateObjects[addr]
@@ -996,6 +974,27 @@ type HackAccesses struct {
 }
 
 func (s *StateDB) GetHackathonAccesses() HackAccesses {
+	// Populate changes from the journal
+	for _, ev := range s.journal.entries {
+		switch ev.(type) {
+
+		case storageChange:
+			{
+				addr := *(ev.dirtied())
+				if s.writeStorage[addr] == nil {
+					s.writeStorage[addr] = make(hashSet)
+				}
+				s.writeStorage[addr][ev.(storageChange).key] = struct{}{}
+
+			}
+
+		default:
+			addr := ev.dirtied()
+			if addr != nil {
+				s.writeAddresses[*addr] = struct{}{}
+			}
+		}
+	}
 	// Purge writes from reads
 	for addr := range s.writeAddresses {
 		delete(s.readAddresses, addr)
