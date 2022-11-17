@@ -15,7 +15,7 @@
 # To use this image for testing, modify GETH_NODE_DOCKER_IMAGE_TAG in celo-monorepo/.env file
 
 # Build Geth in a stock Go builder container
-FROM golang:1.18-alpine as builder
+FROM golang:1.19-alpine as builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers git
 
