@@ -12,13 +12,16 @@ if [ -z "$MODE" ]; then
   echo "Set MODE to the sync mode"
   exit 3
 fi
-LOGFILE=/tmp/sync_test.log
 
+MARK=`date +%s`
 # Do the sync
 echo "Running geth sync"
-build/bin/geth --datadir $DATADIR --syncmode $MODE --exitwhensynced >> $LOGFILE 2>&1
-echo "Checking sync result"
-MARK=`date +%s`
+echo "-----------------"
+build/bin/geth --datadir $DATADIR --syncmode $MODE --exitwhensynced
+
+echo "-------------------------------"
+echo "Geth exited cheking sync status"
+echo "-------------------------------"
 
 # Now check what the latest block is
 ATTEMPTS=10
