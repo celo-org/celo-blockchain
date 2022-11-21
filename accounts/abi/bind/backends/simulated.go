@@ -621,8 +621,7 @@ func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallM
 		if err != nil {
 			return nil, err
 		}
-		sysVmRunner := b.blockchain.NewEVMRunner(block.Header(), sysStateDB)
-		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
+		sysCtx = core.NewSysContractCallCtx(block.Header(), sysStateDB, b.blockchain)
 	}
 	return core.NewStateTransition(vmEnv, msg, gasPool, vmRunner, sysCtx).TransitionDb()
 }
@@ -790,7 +789,7 @@ type callMsg struct {
 
 func (m callMsg) From() common.Address                 { return m.CallMsg.From }
 func (m callMsg) Nonce() uint64                        { return 0 }
-func (m callMsg) CheckNonce() bool                     { return false }
+func (m callMsg) IsFake() bool                         { return true }
 func (m callMsg) To() *common.Address                  { return m.CallMsg.To }
 func (m callMsg) GasPrice() *big.Int                   { return m.CallMsg.GasPrice }
 func (m callMsg) GasFeeCap() *big.Int                  { return m.CallMsg.GasFeeCap }

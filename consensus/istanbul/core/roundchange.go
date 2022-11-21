@@ -17,28 +17,15 @@
 package core
 
 import (
-	"fmt"
+	"errors"
 	"math/big"
-	"sort"
-	"strings"
-	"sync"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 )
 
-// sendRoundChange broadcasts a ROUND CHANGE message with the current desired round.
-func (c *core) sendRoundChange() {
-	c.broadcast(c.buildRoundChangeMsg(c.current.DesiredRound()))
-}
-
-// sendRoundChange sends a ROUND CHANGE message for the current desired round back to a single address
-func (c *core) sendRoundChangeAgain(addr common.Address) {
-	c.unicast(c.buildRoundChangeMsg(c.current.DesiredRound()), addr)
-}
-
 // buildRoundChangeMsg creates a round change msg for the given round
-func (c *core) buildRoundChangeMsg(round *big.Int) *istanbul.Message {
+func (c *core) buildRoundChangeMsgV1(round *big.Int) *istanbul.Message {
 	nextView := &istanbul.View{
 		Round:    new(big.Int).Set(round),
 		Sequence: new(big.Int).Set(c.current.View().Sequence),
@@ -65,25 +52,16 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		message := roundChangeCertificate.RoundChangeMessages[i]
 
 		// Verify message signed by a validator
-		data, err := message.PayloadNoSig()
-		if err != nil {
+		if err := istanbul.CheckSignedBy(&message, message.Signature,
+			message.Address, errInvalidRoundChangeCertificateMsgSignature, c.validateFn); err != nil {
 			return err
-		}
-
-		signer, err := c.validateFn(data, message.Signature)
-		if err != nil {
-			return err
-		}
-
-		if signer != message.Address {
-			return errInvalidRoundChangeCertificateMsgSignature
 		}
 
 		// Check for duplicate ROUND CHANGE messages
-		if seen[signer] {
+		if seen[message.Address] {
 			return errInvalidRoundChangeCertificateDuplicate
 		}
-		seen[signer] = true
+		seen[message.Address] = true
 
 		// Check that the message is a ROUND CHANGE message
 		if istanbul.MsgRoundChange != message.Code {
@@ -100,7 +78,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		// Verify ROUND CHANGE message is for the same sequence AND an equal or subsequent round as the proposal.
 		// We have already called checkMessage by this point and checked the proposal's and PREPREPARE's sequence match.
 		if roundChange.View.Sequence.Cmp(proposal.View.Sequence) != 0 || roundChange.View.Round.Cmp(proposal.View.Round) < 0 {
-			msgLogger.Error("Round change in certificate for a different sequence or an earlier round", "err", err)
+			msgLogger.Error("Round change in certificate for a different sequence or an earlier round")
 			return errInvalidRoundChangeCertificateMsgView
 		}
 
@@ -139,13 +117,20 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 	// May have already moved to this round based on quorum round change messages.
 	logger.Trace("Trying to move to round change certificate's round", "target round", proposal.View.Round)
 
-	return c.startNewRound(proposal.View.Round)
+	return c.startNewRound(proposal.View.Round, false)
 }
 
 func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	logger := c.newLogger("func", "handleRoundChange", "tag", "handleMsg", "from", msg.Address)
 
 	rc := msg.RoundChange()
+
+	// Check consensus fork
+	if c.isConsensusFork(rc.View.Sequence) {
+		logger.Info("Received RoundChange (V1) for forked block sequence", "sequence", rc.View.Sequence.Uint64())
+		return errors.New("Received RoundChange (V1) for forked block")
+	}
+
 	logger = logger.New("msg_round", rc.View.Round, "msg_seq", rc.View.Sequence)
 
 	// Must be same sequence and future round.
@@ -190,7 +175,7 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	// On quorum round change messages we go to the next round immediately.
 	if quorumRound != nil && quorumRound.Cmp(c.current.DesiredRound()) >= 0 {
 		logger.Debug("Got quorum round change messages, starting new round.")
-		return c.startNewRound(quorumRound)
+		return c.startNewRound(quorumRound, true)
 	} else if ffRound != nil {
 		logger.Debug("Got f+1 round change messages, sending own round change message and waiting for next round.")
 		c.waitForDesiredRound(ffRound)
@@ -201,175 +186,18 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 
 // ----------------------------------------------------------------------------
 
-func newRoundChangeSet(valSet istanbul.ValidatorSet) *roundChangeSet {
-	return &roundChangeSet{
-		validatorSet:      valSet,
-		msgsForRound:      make(map[uint64]MessageSet),
-		latestRoundForVal: make(map[common.Address]uint64),
-		mu:                new(sync.Mutex),
-	}
-}
-
-type roundChangeSet struct {
-	validatorSet      istanbul.ValidatorSet
-	msgsForRound      map[uint64]MessageSet
-	latestRoundForVal map[common.Address]uint64
-	mu                *sync.Mutex
-}
-
-// Add adds the round and message into round change set
-func (rcs *roundChangeSet) Add(r *big.Int, msg *istanbul.Message) error {
-	rcs.mu.Lock()
-	defer rcs.mu.Unlock()
-
-	src := msg.Address
-	round := r.Uint64()
-
-	if prevLatestRound, ok := rcs.latestRoundForVal[src]; ok {
-		if prevLatestRound > round {
-			// Reject as we have an RC for a later round from this validator.
-			return errOldMessage
-		} else if prevLatestRound < round {
-			// Already got an RC for an earlier round from this validator.
-			// Forget that and remember this.
-			if rcs.msgsForRound[prevLatestRound] != nil {
-				rcs.msgsForRound[prevLatestRound].Remove(src)
-				if rcs.msgsForRound[prevLatestRound].Size() == 0 {
-					delete(rcs.msgsForRound, prevLatestRound)
-				}
-			}
+// CurrentRoundChangeSet returns the current round change set summary.
+func (c *core) CurrentRoundChangeSet() *RoundChangeSetSummary {
+	if c.isConsensusFork(c.current.Sequence()) {
+		rcs := c.roundChangeSetV2
+		if rcs != nil {
+			return rcs.Summary()
 		}
-	}
-
-	rcs.latestRoundForVal[src] = round
-
-	if rcs.msgsForRound[round] == nil {
-		rcs.msgsForRound[round] = newMessageSet(rcs.validatorSet)
-	}
-	return rcs.msgsForRound[round].Add(msg)
-}
-
-// Clear deletes the messages with smaller round
-func (rcs *roundChangeSet) Clear(round *big.Int) {
-	rcs.mu.Lock()
-	defer rcs.mu.Unlock()
-
-	for k, rms := range rcs.msgsForRound {
-		if rms.Size() == 0 || k < round.Uint64() {
-			for _, msg := range rms.Values() {
-				delete(rcs.latestRoundForVal, msg.Address) // no need to check if msg.Address is present
-			}
-			delete(rcs.msgsForRound, k)
-		}
-	}
-}
-
-// MaxRound returns the max round which the number of messages is equal or larger than num
-func (rcs *roundChangeSet) MaxRound(num int) *big.Int {
-	rcs.mu.Lock()
-	defer rcs.mu.Unlock()
-
-	// Sort rounds descending
-	var sortedRounds []uint64
-	for r := range rcs.msgsForRound {
-		sortedRounds = append(sortedRounds, r)
-	}
-	sort.Slice(sortedRounds, func(i, j int) bool { return sortedRounds[i] > sortedRounds[j] })
-
-	acc := 0
-	for _, r := range sortedRounds {
-		rms := rcs.msgsForRound[r]
-		acc += rms.Size()
-		if acc >= num {
-			return new(big.Int).SetUint64(r)
-		}
-	}
-
-	return nil
-}
-
-// MaxOnOneRound returns the max round which the number of messages is >= num
-func (rcs *roundChangeSet) MaxOnOneRound(num int) *big.Int {
-	rcs.mu.Lock()
-	defer rcs.mu.Unlock()
-
-	// Sort rounds descending
-	var sortedRounds []uint64
-	for r := range rcs.msgsForRound {
-		sortedRounds = append(sortedRounds, r)
-	}
-	sort.Slice(sortedRounds, func(i, j int) bool { return sortedRounds[i] > sortedRounds[j] })
-
-	for _, r := range sortedRounds {
-		rms := rcs.msgsForRound[r]
-		if rms.Size() >= num {
-			return new(big.Int).SetUint64(r)
+	} else {
+		rcs := c.roundChangeSet
+		if rcs != nil {
+			return rcs.Summary()
 		}
 	}
 	return nil
-}
-
-func (rcs *roundChangeSet) String() string {
-	rcs.mu.Lock()
-	defer rcs.mu.Unlock()
-
-	// Sort rounds descending
-	var sortedRounds []uint64
-	for r := range rcs.msgsForRound {
-		sortedRounds = append(sortedRounds, r)
-	}
-	sort.Slice(sortedRounds, func(i, j int) bool { return sortedRounds[i] > sortedRounds[j] })
-
-	modeRound := uint64(0)
-	modeRoundSize := 0
-	msgsForRoundStr := make([]string, 0, len(sortedRounds))
-	for _, r := range sortedRounds {
-		rms := rcs.msgsForRound[r]
-		if rms.Size() > modeRoundSize {
-			modeRound = r
-			modeRoundSize = rms.Size()
-		}
-		msgsForRoundStr = append(msgsForRoundStr, fmt.Sprintf("%v: %v", r, rms.String()))
-	}
-
-	return fmt.Sprintf("RCS len=%v mode_round=%v mode_round_len=%v unique_rounds=%v %v",
-		len(rcs.latestRoundForVal),
-		modeRound,
-		modeRoundSize,
-		len(rcs.msgsForRound),
-		strings.Join(msgsForRoundStr, ", "))
-}
-
-// Gets a round change certificate for a specific round. Includes quorumSize messages of that round or later.
-// If the total is less than quorumSize, returns an empty cert and errFailedCreateRoundChangeCertificate.
-func (rcs *roundChangeSet) getCertificate(minRound *big.Int, quorumSize int) (istanbul.RoundChangeCertificate, error) {
-	rcs.mu.Lock()
-	defer rcs.mu.Unlock()
-
-	// Sort rounds descending
-	var sortedRounds []uint64
-	for r := range rcs.msgsForRound {
-		sortedRounds = append(sortedRounds, r)
-	}
-	sort.Slice(sortedRounds, func(i, j int) bool { return sortedRounds[i] > sortedRounds[j] })
-
-	var messages []istanbul.Message
-	for _, r := range sortedRounds {
-		if r < minRound.Uint64() {
-			break
-		}
-		for _, message := range rcs.msgsForRound[r].Values() {
-			messages = append(messages, *message)
-
-			// Stop when we've added a quorum of the highest-round messages.
-			if len(messages) >= quorumSize {
-				return istanbul.RoundChangeCertificate{
-					RoundChangeMessages: messages,
-				}, nil
-			}
-		}
-	}
-
-	// Didn't find a quorum of messages. Return an empty certificate with error.
-	return istanbul.RoundChangeCertificate{}, errFailedCreateRoundChangeCertificate
 }

@@ -32,7 +32,7 @@ import (
 //var faucetAddr = common.HexToAddress("0x71562b71999873DB5b286dF957af199Ec94617F7")
 var faucetKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 
-func (s *Suite) sendSuccessfulTxs(t *utesting.T, isEth66 bool) error {
+func (s *Suite) sendSuccessfulTxs(t *utesting.T, isCelo67 bool) error {
 	tests := []*types.Transaction{
 		getNextTxFromChain(s),
 		unknownTx(s),
@@ -48,15 +48,15 @@ func (s *Suite) sendSuccessfulTxs(t *utesting.T, isEth66 bool) error {
 			prevTx = tests[i-1]
 		}
 		// write tx to connection
-		if err := sendSuccessfulTx(s, tx, prevTx, isEth66); err != nil {
+		if err := sendSuccessfulTx(s, tx, prevTx, isCelo67); err != nil {
 			return fmt.Errorf("send successful tx test failed: %v", err)
 		}
 	}
 	return nil
 }
 
-func sendSuccessfulTx(s *Suite, tx *types.Transaction, prevTx *types.Transaction, isEth66 bool) error {
-	sendConn, recvConn, err := s.createSendAndRecvConns(isEth66)
+func sendSuccessfulTx(s *Suite, tx *types.Transaction, prevTx *types.Transaction, isCelo67 bool) error {
+	sendConn, recvConn, err := s.createSendAndRecvConns(isCelo67)
 	if err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func sendSuccessfulTx(s *Suite, tx *types.Transaction, prevTx *types.Transaction
 	}
 }
 
-func (s *Suite) sendMaliciousTxs(t *utesting.T, isEth66 bool) error {
+func (s *Suite) sendMaliciousTxs(t *utesting.T, isCelo67 bool) error {
 	badTxs := []*types.Transaction{
 		getOldTxFromChain(s),
 		invalidNonceTx(s),
@@ -127,8 +127,8 @@ func (s *Suite) sendMaliciousTxs(t *utesting.T, isEth66 bool) error {
 		recvConn *Conn
 		err      error
 	)
-	if isEth66 {
-		recvConn, err = s.dial66()
+	if isCelo67 {
+		recvConn, err = s.dial67()
 	} else {
 		recvConn, err = s.dial()
 	}
@@ -141,7 +141,7 @@ func (s *Suite) sendMaliciousTxs(t *utesting.T, isEth66 bool) error {
 	}
 	for i, tx := range badTxs {
 		t.Logf("Testing malicious tx propagation: %v\n", i)
-		if err = sendMaliciousTx(s, tx, isEth66); err != nil {
+		if err = sendMaliciousTx(s, tx, isCelo67); err != nil {
 			return fmt.Errorf("malicious tx test failed:\ntx: %v\nerror: %v", tx, err)
 		}
 	}
@@ -149,14 +149,14 @@ func (s *Suite) sendMaliciousTxs(t *utesting.T, isEth66 bool) error {
 	return checkMaliciousTxPropagation(s, badTxs, recvConn)
 }
 
-func sendMaliciousTx(s *Suite, tx *types.Transaction, isEth66 bool) error {
+func sendMaliciousTx(s *Suite, tx *types.Transaction, isCelo67 bool) error {
 	// setup connection
 	var (
 		conn *Conn
 		err  error
 	)
-	if isEth66 {
-		conn, err = s.dial66()
+	if isCelo67 {
+		conn, err = s.dial67()
 	} else {
 		conn, err = s.dial()
 	}

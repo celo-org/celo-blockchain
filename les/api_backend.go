@@ -19,8 +19,10 @@ package les
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 
+	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
@@ -32,7 +34,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
@@ -259,8 +260,8 @@ func (b *LesApiBackend) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEven
 	return b.eth.blockchain.SubscribeRemovedLogsEvent(ch)
 }
 
-func (b *LesApiBackend) Downloader() *downloader.Downloader {
-	return b.eth.Downloader()
+func (b *LesApiBackend) SyncProgress() ethereum.SyncProgress {
+	return b.eth.Downloader().Progress()
 }
 
 func (b *LesApiBackend) ProtocolVersion() int {
@@ -295,6 +296,20 @@ func (b *LesApiBackend) GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.
 	return blockchain_parameters.GetBlockGasLimitOrDefault(caller)
 }
 
+func (b *LesApiBackend) GetRealBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (uint64, error) {
+	statedb, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
+	if err != nil {
+		return 0, fmt.Errorf("LesApiBackend failed to retrieve state for block gas limit for block %v: %w", blockNrOrHash, err)
+	}
+
+	caller := b.eth.BlockChain().NewEVMRunner(header, statedb)
+	limit, err := blockchain_parameters.GetBlockGasLimit(caller)
+	if err != nil {
+		return 0, fmt.Errorf("LesApiBackend failed to retrieve block gas limit from blockchain parameters constract for block %v: %w", blockNrOrHash, err)
+	}
+	return limit, nil
+}
+
 func (b *LesApiBackend) NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
 	return b.eth.BlockChain().NewEVMRunner(header, state)
 }
@@ -320,6 +335,12 @@ func (b *LesApiBackend) GasPriceMinimumForHeader(ctx context.Context, currencyAd
 	vmRunner := b.eth.blockchain.NewEVMRunner(header, state)
 
 	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
+}
+
+func (b *LesApiBackend) RealGasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error) {
+	state := light.NewState(ctx, header, b.eth.odr)
+	vmRunner := b.eth.blockchain.NewEVMRunner(header, state)
+	return gpm.GetRealGasPriceMinimum(vmRunner, currencyAddress)
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {
@@ -348,6 +369,10 @@ func (b *LesApiBackend) RPCGasCap() uint64 {
 
 func (b *LesApiBackend) RPCTxFeeCap() float64 {
 	return b.eth.config.RPCTxFeeCap
+}
+
+func (b *LesApiBackend) RPCEthCompatibility() bool {
+	return b.eth.config.RPCEthCompatibility
 }
 
 func (b *LesApiBackend) BloomStatus() (uint64, uint64) {
@@ -387,8 +412,4 @@ func (b *LesApiBackend) StateAtBlock(ctx context.Context, block *types.Block, re
 
 func (b *LesApiBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, vm.EVMRunner, *state.StateDB, error) {
 	return b.eth.stateAtTransaction(ctx, block, txIndex, reexec)
-}
-
-func (b *LesApiBackend) VmRunnerAtHeader(header *types.Header, state *state.StateDB) vm.EVMRunner {
-	return b.eth.blockchain.NewEVMRunner(header, state)
 }

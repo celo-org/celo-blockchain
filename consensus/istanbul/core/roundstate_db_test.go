@@ -21,7 +21,7 @@ func TestRSDBRoundStateDB(t *testing.T) {
 			{Address: common.BytesToAddress([]byte(string(rune(2)))), BLSPublicKey: pubkey1},
 			{Address: common.BytesToAddress([]byte(string(rune(4)))), BLSPublicKey: pubkey2},
 		})
-		return newRoundState(newView(2, 1), valSet, valSet.GetByIndex(0))
+		return newRoundState(newView(2, 1), valSet, valSet.GetByIndex(0), false)
 	}
 
 	t.Run("Should save view & roundState", func(t *testing.T) {
@@ -34,7 +34,7 @@ func TestRSDBRoundStateDB(t *testing.T) {
 		finishOnError(t, err)
 		assertEqualView(t, view, rs.View())
 
-		savedRs, err := rsdb.GetRoundStateFor(view)
+		savedRs, err := rsdb.GetRoundStateFor(view, false)
 		finishOnError(t, err)
 		assertEqualRoundState(t, savedRs, rs)
 	})
@@ -44,7 +44,7 @@ func TestRSDBRoundStateDB(t *testing.T) {
 		rs := dummyRoundState()
 		err := rsdb.UpdateLastRoundState(rs)
 		finishOnError(t, err)
-		rs.StartNewSequence(common.Big32, rs.ValidatorSet(), rs.ValidatorSet().GetByIndex(1), rs.ParentCommits())
+		rs.StartNewSequence(common.Big32, rs.ValidatorSet(), rs.ValidatorSet().GetByIndex(1), rs.ParentCommits(), false)
 		err = rsdb.UpdateLastRoundState(rs)
 		finishOnError(t, err)
 
@@ -63,7 +63,7 @@ func TestRSDBDeleteEntriesOlderThan(t *testing.T) {
 			{Address: common.BytesToAddress([]byte(string(rune(2)))), BLSPublicKey: pubkey1},
 			{Address: common.BytesToAddress([]byte(string(rune(4)))), BLSPublicKey: pubkey2},
 		})
-		return newRoundState(view, valSet, valSet.GetByIndex(0))
+		return newRoundState(view, valSet, valSet.GetByIndex(0), false)
 	}
 
 	rsdb, _ := newRoundStateDB("", &RoundStateDBOptions{withGarbageCollector: false})
@@ -147,7 +147,7 @@ func TestRSDBGetOldestValidView(t *testing.T) {
 
 			if viewToStore != nil {
 				t.Logf("Saving RoundState")
-				err := rsdb.UpdateLastRoundState(newRoundState(viewToStore, valSet, valSet.GetByIndex(0)))
+				err := rsdb.UpdateLastRoundState(newRoundState(viewToStore, valSet, valSet.GetByIndex(0), false))
 				if err != nil {
 					t.Fatalf("UpdateLastRoundState error: %v", err)
 				}

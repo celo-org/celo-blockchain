@@ -146,6 +146,11 @@ type Config struct {
 	// send-transction variants. The unit is ether.
 	RPCTxFeeCap float64
 
+	// RPCEthCompatibility is used to determine whether the 'gaslimit' end
+	// 'baseFeePerGas' fields should be added to blocks returned by the RPC
+	// API. Where true indicates the fields should be added.
+	RPCEthCompatibility bool
+
 	// Checkpoint is a hardcoded checkpoint which can be nil.
 	Checkpoint *params.TrustedCheckpoint `toml:",omitempty"`
 
@@ -154,6 +159,9 @@ type Config struct {
 
 	// E block override (TODO: remove after the fork)
 	OverrideEHardfork *big.Int `toml:",omitempty"`
+
+	// V2 istanbul fork block number override (TODO: remove after the fork)
+	OverrideV2IstanbulFork *big.Int `toml:",omitempty"`
 
 	// The minimum required peers in order for syncing to be initiated, if left
 	// at 0 then the default will be used.
@@ -171,7 +179,9 @@ func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, co
 		if err := istanbul.ApplyParamsChainConfigToConfig(chainConfig, &config.Istanbul); err != nil {
 			log.Crit("Invalid Configuration for Istanbul Engine", "err", err)
 		}
-
+		if config.OverrideV2IstanbulFork != nil {
+			config.Istanbul.V2Block = config.OverrideV2IstanbulFork
+		}
 		return istanbulBackend.New(&config.Istanbul, db)
 	}
 	log.Error(fmt.Sprintf("Only Istanbul Consensus is supported: %v", chainConfig))

@@ -79,7 +79,7 @@ func getIntrinsicGasForAlternativeFeeCurrency(vmRunner vm.EVMRunner) (uint64, er
 // GetBlockGasLimitOrDefault retrieves the block max gas limit
 // In case of error, it returns the default value
 func GetBlockGasLimitOrDefault(vmRunner vm.EVMRunner) uint64 {
-	val, err := getBlockGasLimit(vmRunner)
+	val, err := GetBlockGasLimit(vmRunner)
 	if err != nil {
 		logError("blockGasLimit", err)
 		return params.DefaultGasLimit
@@ -87,8 +87,8 @@ func GetBlockGasLimitOrDefault(vmRunner vm.EVMRunner) uint64 {
 	return val
 }
 
-// getBlockGasLimit retrieves the block max gas limit
-func getBlockGasLimit(vmRunner vm.EVMRunner) (uint64, error) {
+// GetBlockGasLimit retrieves the block max gas limit
+func GetBlockGasLimit(vmRunner vm.EVMRunner) (uint64, error) {
 	var gasLimit *big.Int
 	err := blockGasLimitMethod.Query(vmRunner, &gasLimit)
 	if err != nil {

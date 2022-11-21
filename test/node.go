@@ -16,7 +16,6 @@ import (
 	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 
-	"github.com/celo-org/celo-blockchain/accounts/keystore"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
@@ -59,12 +58,13 @@ var (
 		HTTPModules:          allModules,
 	}
 
-	baseEthConfig = &eth.Config{
-		SyncMode:        downloader.FullSync,
-		MinSyncPeers:    1,
-		DatabaseCache:   256,
-		DatabaseHandles: 256,
-		TxPool:          core.DefaultTxPoolConfig,
+	BaseEthConfig = &eth.Config{
+		SyncMode:            downloader.FullSync,
+		MinSyncPeers:        1,
+		DatabaseCache:       256,
+		DatabaseHandles:     256,
+		TxPool:              core.DefaultTxPoolConfig,
+		RPCEthCompatibility: true,
 		Istanbul: istanbul.Config{
 			Validator: true,
 			// Set announce gossip period to 1 minute, if not set this results
@@ -199,7 +199,11 @@ func (n *Node) Start() error {
 	// Import the node key into the keystore and then unlock it, the keystore
 	// is the interface used for signing operations so the node key needs to be
 	// inside it.
-	ks := n.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
+	ks, _, err := n.Config.GetKeyStore()
+	if err != nil {
+		return err
+	}
+	n.AccountManager().AddBackend(ks)
 	account, err := ks.ImportECDSA(n.Key, "")
 	if err != nil {
 		return err
@@ -348,7 +352,7 @@ func BuildConfig(accounts *env.AccountsConfig) (*genesis.Config, *ethconfig.Conf
 	// copy the base eth config, so we can modify it without damaging the
 	// original.
 	ec := &eth.Config{}
-	err := copyObject(baseEthConfig, ec)
+	err := copyObject(BaseEthConfig, ec)
 	return gc, ec, err
 }
 

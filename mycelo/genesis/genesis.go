@@ -27,6 +27,7 @@ func CreateCommonGenesisConfig(chainID *big.Int, adminAccountAddress common.Addr
 	genesisConfig.Hardforks = HardforkConfig{
 		ChurritoBlock: common.Big0,
 		DonutBlock:    common.Big0,
+		EspressoBlock: common.Big0,
 	}
 
 	// Make admin account manager of Governance & Reserve
@@ -52,14 +53,17 @@ func CreateCommonGenesisConfig(chainID *big.Int, adminAccountAddress common.Addr
 func FundAccounts(genesisConfig *Config, accounts []env.Account) {
 	cusdBalances := make([]Balance, len(accounts))
 	ceurBalances := make([]Balance, len(accounts))
+	crealBalances := make([]Balance, len(accounts))
 	goldBalances := make([]Balance, len(accounts))
 	for i, acc := range accounts {
-		cusdBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cUSD
-		ceurBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cEUR
-		goldBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k CELO
+		cusdBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))}  // 50k cUSD
+		ceurBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))}  // 50k cEUR
+		crealBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cREAL
+		goldBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))}  // 50k CELO
 	}
-	genesisConfig.StableTokenEUR.InitialBalances = ceurBalances
 	genesisConfig.StableToken.InitialBalances = cusdBalances
+	genesisConfig.StableTokenEUR.InitialBalances = ceurBalances
+	genesisConfig.StableTokenBRL.InitialBalances = crealBalances
 	genesisConfig.GoldToken.InitialBalances = goldBalances
 }
 
