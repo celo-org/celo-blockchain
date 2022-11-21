@@ -154,7 +154,21 @@ shallow-checkout: &shallow-checkout
     name: shallow checkout
     command: |
       mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-      git clone --quiet --depth 1 "$CIRCLE_REPOSITORY_URL" --branch "$CIRCLE_BRANCH" ~/repos/geth
+      # CIRCLE_PR_NUMBER is only set for forked PRs and for forked PRs we need
+      # a different approach to check out the branch.
+      if [ -z ${CIRCLE_PR_NUMBER} ]; then
+        # Non forked PR
+        git clone --quiet --depth 1 ${CIRCLE_REPOSITORY_URL} --branch ${CIRCLE_BRANCH} ~/repos/geth 
+      else
+        # Forked PR, in this case we need to fetch the remote ref (because its not a branch so we can't clone directly to it)
+        # See https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/checking-out-pull-requests-locally
+        
+        # Use the github api to get the branch name
+        git clone --quiet --depth 1 ${CIRCLE_REPOSITORY_URL} ~/repos/geth  
+        cd ~/repos/geth
+        git fetch --depth 1 origin pull/${CIRCLE_PR_NUMBER}/head:${CIRCLE_BRANCH}
+        git checkout ${CIRCLE_BRANCH}
+      fi
 
 install-go: &install-go
   run:
