@@ -68,13 +68,13 @@ func newPeerSet() *peerSet {
 	}
 }
 
-// registerSnapExtension unblocks an already connected `istanbul` peer waiting for its
+// registerSnapExtension unblocks an already connected `eth` peer waiting for its
 // `snap` extension, or if no such peer exists, tracks the extension for the time
-// being until the `istanbul` main protocol starts looking for it.
+// being until the `eth` main protocol starts looking for it.
 func (ps *peerSet) registerSnapExtension(peer *snap.Peer) error {
-	// Reject the peer if it advertises `snap` without `istanbul` as `snap` is only a
-	// satellite protocol meaningful with the chain selection of `istanbul`
-	if !peer.RunningCap(istanbul.ProtocolName, istanbul.ProtocolVersions) {
+	// Reject the peer if it advertises `snap` without `eth` as `snap` is only a
+	// satellite protocol meaningful with the chain selection of `eth`
+	if !peer.RunningCap(eth.ProtocolName, istanbul.ProtocolVersions) {
 		return errSnapWithoutEth
 	}
 	// Ensure nobody can double connect
