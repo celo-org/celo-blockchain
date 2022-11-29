@@ -51,6 +51,7 @@ func TestStateProcessorErrors(t *testing.T) {
 			ChurritoBlock:       big.NewInt(0),
 			DonutBlock:          big.NewInt(0),
 			EspressoBlock:       big.NewInt(0),
+			GForkBlock:          new(big.Int),
 			Faker:               true,
 		}
 		signer     = types.LatestSigner(config)
