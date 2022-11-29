@@ -630,14 +630,18 @@ func (st *StateTransition) distributeTxFees() error {
 		"coinbaseFeeRecipient", st.evm.Context.Coinbase, "coinbaseFee", tipTxFee,
 		"comunityFundRecipient", governanceAddress, "communityFundFee", baseTxFee)
 	if feeCurrency == nil {
-		if gatewayFeeRecipient != &common.ZeroAddress {
-			st.state.AddBalance(*gatewayFeeRecipient, st.msg.GatewayFee())
+		if !st.evm.ChainConfig().IsGFork(st.evm.Context.BlockNumber) {
+			if gatewayFeeRecipient != &common.ZeroAddress {
+				st.state.AddBalance(*gatewayFeeRecipient, st.msg.GatewayFee())
+			}
+			if governanceAddress != common.ZeroAddress {
+				st.state.AddBalance(governanceAddress, baseTxFee)
+			}
+			st.state.AddBalance(st.evm.Context.Coinbase, tipTxFee)
+			st.state.AddBalance(from, refund)
+		} else {
+			// TODO, volpe's burn logic
 		}
-		if governanceAddress != common.ZeroAddress {
-			st.state.AddBalance(governanceAddress, baseTxFee)
-		}
-		st.state.AddBalance(st.evm.Context.Coinbase, tipTxFee)
-		st.state.AddBalance(from, refund)
 	} else {
 		if err = st.creditGasFees(from, st.evm.Context.Coinbase, gatewayFeeRecipient, governanceAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
 			log.Error("Error crediting", "from", from, "coinbase", st.evm.Context.Coinbase, "gateway", gatewayFeeRecipient, "fund", governanceAddress)
