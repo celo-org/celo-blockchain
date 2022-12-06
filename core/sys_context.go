@@ -14,6 +14,7 @@ import (
 
 // SysContractCallCtx acts as a cache holding information obtained through
 // system contract calls to be used during block processing.
+// Note: This struct should be a read only one to be safe for concurrent use
 type SysContractCallCtx struct {
 	whitelistedCurrencies map[common.Address]struct{}
 	// The gas required for a non celo (cUSD, cEUR, ...) transfer.
