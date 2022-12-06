@@ -2030,6 +2030,7 @@ func generateReceiptResponse(receipt *types.Receipt, signer types.Signer, tx *ty
 		"contractAddress":   nil,
 		"logs":              receipt.Logs,
 		"logsBloom":         receipt.Bloom,
+		"type":              hexutil.Uint(receipt.Type),
 	}
 
 	// Assign receipt status or post state.
