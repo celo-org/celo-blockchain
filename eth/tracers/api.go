@@ -599,16 +599,16 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	}
 	blockCtx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 	blockHash := block.Hash()
+	var sysCtx *core.SysContractCallCtx
+	if api.backend.ChainConfig().IsEspresso(block.Number()) {
+		sysCtx = core.NewSysContractCallCtx(block.Header(), statedb, api.backend)
+	}
 	for th := 0; th < threads; th++ {
 		pend.Add(1)
 		go func() {
 			defer pend.Done()
 			// Fetch and execute the next transaction trace tasks
 			for task := range jobs {
-				var sysCtx *core.SysContractCallCtx
-				if api.backend.ChainConfig().IsEspresso(block.Number()) {
-					sysCtx = core.NewSysContractCallCtx(block.Header(), task.statedb, api.backend)
-				}
 				msg, _ := txs[task.index].AsMessage(signer, nil)
 				txctx := &Context{
 					BlockHash: blockHash,
@@ -624,10 +624,6 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 				results[task.index] = &txTraceResult{Result: res}
 			}
 		}()
-	}
-	var sysCtx *core.SysContractCallCtx
-	if api.backend.ChainConfig().IsEspresso(block.Number()) {
-		sysCtx = core.NewSysContractCallCtx(block.Header(), statedb, api.backend)
 	}
 	vmRunner := api.backend.NewEVMRunner(block.Header(), statedb)
 	// Feed the transactions into the tracers and return
