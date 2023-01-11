@@ -525,15 +525,6 @@ jobs:
             - geth/build/bin/Geth.framework.tgz
             - geth/libbls_snark_sys.a
 
-  publish-mobile-client:
-    docker:
-      - image: circleci/node:10
-    working_directory: ~/repos/geth
-    steps:
-      - attach_workspace:
-          at: ~/repos
-      - run: ./scripts/publish-mobile-client.sh ${CIRCLE_SHA1} ${NPM_TOKEN_FOR_CELO_CLIENT}
-
   lightest-sync-test:
     executor: golang
     steps:
@@ -633,24 +624,6 @@ workflows:
             - prepare-system-contracts
               #- android
       - ios
-      - publish-mobile-client:
-          requires:
-            #- android
-            - ios
-            # Makes sure tests are all green before publishing
-            # Though these are not using the mobile built binaries
-            # they should be a good indicator
-            - unit-tests
-            - lightest-sync-test
-            - end-to-end-blockchain-parameters-test
-            - end-to-end-governance-test
-            - end-to-end-slashing-test
-            - end-to-end-sync-test
-            - end-to-end-transfer-test
-            - end-to-end-validator-order-test
-          filters:
-            branches:
-              only: master
       - lightest-sync-test:
           requires:
             - go-modules
