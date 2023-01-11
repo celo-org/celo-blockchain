@@ -262,6 +262,7 @@ end-to-end-test: &end-to-end-test
         no_output_timeout: 15m
         command: |
           export PATH=${PATH}:~/repos/golang/go/bin
+          export E2E_TESTS_FORCE_USE_MYCELO=true
           cd celo-monorepo/packages/celotool
           ./${TEST_NAME} local ~/repos/geth
     # Note, all e2e tests call 'make all' in ~/repos/geth, this causes most code
