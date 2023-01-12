@@ -6,7 +6,7 @@ Official golang implementation of the Celo blockchain, based off of the [officia
 [![Codecov](https://img.shields.io/codecov/c/github/celo-org/celo-blockchain)](https://codecov.io/gh/celo-org/celo-blockchain)
 [![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://chat.celo.org)
 
-Prebuilt [Docker](https://en.wikipedia.org/wiki/Docker_\(software\)) images are available for immediate use: [us.gcr.io/celo-testnet/celo-node](https://us.gcr.io/celo-testnet/celo-node). See [docs.celo.org/getting-started](https://docs.celo.org/getting-started/choosing-a-network) for a guide to the Celo networks and how to get started.
+Prebuilt [Docker](https://en.wikipedia.org/wiki/Docker_\(software\)) images are available for immediate use: [us.gcr.io/celo-org/geth](https://us.gcr.io/celo-org/geth). See [docs.celo.org/getting-started](https://docs.celo.org/getting-started/choosing-a-network) for a guide to the Celo networks and how to get started.
 
 Documentation for Celo more generally can be found at [docs.celo.org](https://docs.celo.org/)
 
