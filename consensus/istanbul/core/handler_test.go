@@ -47,7 +47,7 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	}, v0.Address())
 
 	// Prepare message but preprepare message code
-	m.Code = istanbul.MsgPreprepare
+	m.Code = istanbul.MsgPreprepareV2
 
 	payload, err := m.Payload()
 	require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	err = msg.FromPayload(payload, r0.validateFn)
 	assert.Error(t, err)
 
-	m = istanbul.NewPreprepareMessage(&istanbul.Preprepare{
+	m = istanbul.NewPreprepareV2Message(&istanbul.PreprepareV2{
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
@@ -74,7 +74,7 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	err = msg.FromPayload(payload, r0.validateFn)
 	assert.Error(t, err)
 
-	m = istanbul.NewPreprepareMessage(&istanbul.Preprepare{
+	m = istanbul.NewPreprepareV2Message(&istanbul.PreprepareV2{
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
@@ -92,7 +92,7 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	err = msg.FromPayload(payload, r0.validateFn)
 	assert.Error(t, err)
 
-	m = istanbul.NewPreprepareMessage(&istanbul.Preprepare{
+	m = istanbul.NewPreprepareV2Message(&istanbul.PreprepareV2{
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
