@@ -1342,7 +1342,6 @@ func xgoAllToolsArchiveFiles(target string, dir string) []string {
 		executableXgoPath("evm", target, dir),
 		executableXgoPath("geth", target, dir),
 		executableXgoPath("rlpdump", target, dir),
-		executableXgoPath("wnode", target, dir),
 		executableXgoPath("clef", target, dir),
 		executableXgoPath("blspopchecker", target, dir),
 	}
