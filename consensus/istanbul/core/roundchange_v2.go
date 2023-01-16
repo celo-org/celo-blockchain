@@ -26,32 +26,24 @@ import (
 
 // sendRoundChange broadcasts a ROUND CHANGE message with the current desired round.
 func (c *core) sendRoundChange() {
-	if c.isConsensusFork(c.current.Sequence()) {
-		msg, err := c.buildSignedRoundChangeMsgV2(c.current.DesiredRound())
-		if err != nil {
-			logger := c.newLogger("func", "sendRoundChange")
-			logger.Warn("Cannot build signed roundChangeV2 message", "error", err)
-			return
-		}
-		c.broadcast(msg)
-	} else {
-		c.broadcast(c.buildRoundChangeMsgV1(c.current.DesiredRound()))
+	msg, err := c.buildSignedRoundChangeMsgV2(c.current.DesiredRound())
+	if err != nil {
+		logger := c.newLogger("func", "sendRoundChange")
+		logger.Warn("Cannot build signed roundChangeV2 message", "error", err)
+		return
 	}
+	c.broadcast(msg)
 }
 
 // sendRoundChange sends a ROUND CHANGE message for the current desired round back to a single address
 func (c *core) sendRoundChangeAgain(addr common.Address) {
-	if c.isConsensusFork(c.current.Sequence()) {
-		msg, err := c.buildSignedRoundChangeMsgV2(c.current.DesiredRound())
-		if err != nil {
-			logger := c.newLogger("func", "sendRoundChangeAgain", "addr", addr)
-			logger.Warn("Cannot build signed roundChangeV2 message", "error", err)
-			return
-		}
-		c.unicast(msg, addr)
-	} else {
-		c.unicast(c.buildRoundChangeMsgV1(c.current.DesiredRound()), addr)
+	msg, err := c.buildSignedRoundChangeMsgV2(c.current.DesiredRound())
+	if err != nil {
+		logger := c.newLogger("func", "sendRoundChangeAgain", "addr", addr)
+		logger.Warn("Cannot build signed roundChangeV2 message", "error", err)
+		return
 	}
+	c.unicast(msg, addr)
 }
 
 // buildRoundChangeV2 builds a roundChangeV2 instance with an empty prepared certificate
@@ -238,7 +230,7 @@ func (c *core) handleRoundChangeV2(msg *istanbul.Message) error {
 // ----------------------------------------------------------------------------
 
 // CurrentRoundChangeSet returns the current round change set summary.
-func (c *core) CurrentRoundChangeSetV2() *RoundChangeSetSummary {
+func (c *core) CurrentRoundChangeSet() *RoundChangeSetSummary {
 	rcs := c.roundChangeSetV2
 	if rcs != nil {
 		return rcs.Summary()
