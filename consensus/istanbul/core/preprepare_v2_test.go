@@ -526,15 +526,15 @@ func BenchmarkHandleRoundChange_100V2(b *testing.B) {
 }
 func BenchmarkHandleRoundChange_120V2(b *testing.B) {
 	b.Skip("Skipping slow benchmark")
-	benchMarkHandleRoundChange(120, b)
+	benchMarkHandleRoundChangeV2(120, b)
 }
 func BenchmarkHandleRoundChange_150V2(b *testing.B) {
 	b.Skip("Skipping slow benchmark")
-	benchMarkHandleRoundChange(150, b)
+	benchMarkHandleRoundChangeV2(150, b)
 }
 func BenchmarkHandleRoundChange_200V2(b *testing.B) {
 	b.Skip("Skipping slow benchmark")
-	benchMarkHandleRoundChange(200, b)
+	benchMarkHandleRoundChangeV2(200, b)
 }
 
 // benchMarkHandlePreprepare benchmarks handling a preprepare with a round change certificate that has

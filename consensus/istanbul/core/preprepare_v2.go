@@ -34,15 +34,9 @@ func (c *core) ResendPreprepare() error {
 	if st != StatePreprepared && st != StatePrepared && st != StateCommitted {
 		return errors.New("Cant resend preprepare if not in preprepared, prepared, or committed state")
 	}
-	if c.isConsensusFork(c.current.Sequence()) {
-		m := istanbul.NewPreprepareV2Message(c.current.PreprepareV2(), c.address)
-		logger.Debug("Re-Sending preprepare v2", "m", m)
-		c.broadcast(m)
-	} else {
-		m := istanbul.NewPreprepareMessage(c.current.Preprepare(), c.address)
-		logger.Debug("Re-Sending preprepare", "m", m)
-		c.broadcast(m)
-	}
+	m := istanbul.NewPreprepareV2Message(c.current.PreprepareV2(), c.address)
+	logger.Debug("Re-Sending preprepare v2", "m", m)
+	c.broadcast(m)
 	return nil
 }
 
