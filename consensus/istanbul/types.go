@@ -29,7 +29,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
-	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
@@ -127,216 +126,10 @@ func (v *View) Cmp(y *View) int {
 	return 0
 }
 
-// ## RoundChangeCertificate ##############################################################
-// To considerably reduce the bandwidth used by the RoundChangeCertificate type (which often
-// contains repeated Proposal from different RoundChange messages), we break it apart during
-// RLP encoding and then build it back during decoding. Proposals are sent just once, and
-// Messages referencing them will use their Hash instead.
-
-type RoundChangeCertificate struct {
-	RoundChangeMessages []Message
-}
-
-func (b *RoundChangeCertificate) IsEmpty() bool {
-	return len(b.RoundChangeMessages) == 0
-}
-
-// EncodeRLP serializes b into the Ethereum RLP format.
-func (c *RoundChangeCertificate) EncodeRLP(w io.Writer) error {
-	proposals, messages, err := c.asValues()
-	if err != nil {
-		return err
-	}
-	log.Debug("Round change certificate proposals", "count", len(proposals))
-	return rlp.Encode(w, []interface{}{proposals, messages})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
-func (c *RoundChangeCertificate) DecodeRLP(s *rlp.Stream) error {
-	var decodestr struct {
-		Proposals       []*types.Block
-		IndexedMessages []IndexedRoundChangeMessage
-	}
-
-	if err := s.Decode(&decodestr); err != nil {
-		return err
-	}
-	return c.setValues(decodestr.Proposals, decodestr.IndexedMessages)
-}
-
-// setValues recreates the RoundChange messages from the props (Proposal set/index) and the
-// list of IndexedRoundChangeMessage, which is supposed to be the same as the RoundChange
-// Messages but with the proposals just referenced to the Proposals set.
-func (c *RoundChangeCertificate) setValues(props []*types.Block, iMess []IndexedRoundChangeMessage) error {
-	// create a Proposal index from the list
-	propIndex := make(map[common.Hash]Proposal)
-	for _, prop := range props {
-		propIndex[prop.Hash()] = prop
-	}
-	// Recreate Messages one by one
-	mess := make([]Message, len(iMess))
-	for i, im := range iMess {
-		mess[i] = Message{
-			Code:      im.Message.Code,
-			Address:   im.Message.Address,
-			Signature: im.Message.Signature,
-		}
-
-		// Add the proposal to the message if it had one
-		roundChange, err := im.Message.TryRoundChange()
-		if err != nil {
-			return err
-		}
-
-		if proposal, ok := propIndex[im.ProposalHash]; ok {
-			roundChange.PreparedCertificate.Proposal = proposal
-		}
-
-		setMessageBytes(&mess[i], roundChange)
-		mess[i].roundChange = roundChange
-	}
-	c.RoundChangeMessages = mess
-	return nil
-}
-
-type IndexedRoundChangeMessage struct {
-	ProposalHash common.Hash
-	Message      Message // PreparedCertificate.Proposal = nil if any
-}
-
-// asValues presents the RoundChangeCertificate as values for RLP Serialization.
-// This is done using a list of proposals, and the RoundChange messages using
-// hash references instead of the full proposal objects, to reduce bandwidth.
-func (c *RoundChangeCertificate) asValues() ([]*types.Block, []*IndexedRoundChangeMessage, error) {
-	var err error
-
-	messages := make([]*IndexedRoundChangeMessage, len(c.RoundChangeMessages))
-	proposalsMap := make(map[common.Hash]*types.Block)
-
-	for i, message := range c.RoundChangeMessages {
-		var proposal *types.Block
-		proposal, messages[i], err = extractProposal(&message)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if proposal != nil {
-			// we don't use the height since we know they MUST be the same
-			proposalsMap[proposal.Hash()] = proposal
-		}
-	}
-
-	// Iterate values. RLP does not support maps
-	proposals := make([]*types.Block, len(proposalsMap))
-	var i = 0
-	for _, p := range proposalsMap {
-		proposals[i] = p
-		i++
-	}
-	return proposals, messages, nil
-}
-
-func extractProposal(message *Message) (*types.Block, *IndexedRoundChangeMessage, error) {
-	roundChange, err := message.TryRoundChange()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	pc := roundChange.PreparedCertificate
-
-	// Assume message.Code = MsgRoundChange
-	indexedMsg := IndexedRoundChangeMessage{
-		Message: Message{
-			Code:      message.Code,
-			Address:   message.Address,
-			Signature: message.Signature,
-		},
-	}
-
-	if pc.Proposal != nil {
-		indexedMsg.ProposalHash = pc.Proposal.Hash()
-	}
-
-	curatedPC := EmptyPreparedCertificate()
-	curatedPC.PrepareOrCommitMessages = pc.PrepareOrCommitMessages
-
-	setMessageBytes(&indexedMsg.Message,
-		&RoundChange{
-			View:                roundChange.View,
-			PreparedCertificate: curatedPC,
-		})
-
-	return pc.Proposal.(*types.Block), &indexedMsg, nil
-}
-
-// ## Preprepare ##############################################################
-
-// NewPreprepareMessage constructs a Message instance with the given sender and
-// prePrepare. Both the prePrepare instance and the serialized bytes of
-// prePrepare are part of the returned Message.
-func NewPreprepareMessage(prePrepare *Preprepare, sender common.Address) *Message {
-	message := &Message{
-		Address:    sender,
-		Code:       MsgPreprepare,
-		prePrepare: prePrepare,
-	}
-	setMessageBytes(message, prePrepare)
-	return message
-}
-
-type Preprepare struct {
-	View                   *View
-	Proposal               Proposal
-	RoundChangeCertificate RoundChangeCertificate
-}
-
-type PreprepareData struct {
-	View                   *View
-	Proposal               *types.Block
-	RoundChangeCertificate RoundChangeCertificate
-}
-
 type PreprepareSummary struct {
 	View                          *View            `json:"view"`
 	ProposalHash                  common.Hash      `json:"proposalHash"`
 	RoundChangeCertificateSenders []common.Address `json:"roundChangeCertificateSenders"`
-}
-
-func (pp *Preprepare) HasRoundChangeCertificate() bool {
-	return !pp.RoundChangeCertificate.IsEmpty()
-}
-
-func (pp *Preprepare) AsData() *PreprepareData {
-	return &PreprepareData{
-		View:                   pp.View,
-		Proposal:               pp.Proposal.(*types.Block),
-		RoundChangeCertificate: pp.RoundChangeCertificate,
-	}
-}
-
-func (pp *Preprepare) Summary() *PreprepareSummary {
-	return &PreprepareSummary{
-		View:                          pp.View,
-		ProposalHash:                  pp.Proposal.Hash(),
-		RoundChangeCertificateSenders: MapMessagesToSenders(pp.RoundChangeCertificate.RoundChangeMessages),
-	}
-}
-
-// RLP Encoding ---------------------------------------------------------------
-
-// EncodeRLP serializes b into the Ethereum RLP format.
-func (pp *Preprepare) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, pp.AsData())
-}
-
-// DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
-func (pp *Preprepare) DecodeRLP(s *rlp.Stream) error {
-	var data PreprepareData
-	if err := s.Decode(&data); err != nil {
-		return err
-	}
-	pp.View, pp.Proposal, pp.RoundChangeCertificate = data.View, data.Proposal, data.RoundChangeCertificate
-	return nil
 }
 
 // ## PreparedCertificate #####################################################
@@ -422,49 +215,6 @@ func (pc *PreparedCertificate) DecodeRLP(s *rlp.Stream) error {
 	pc.PrepareOrCommitMessages, pc.Proposal = data.PrepareOrCommitMessages, data.Proposal
 	return nil
 
-}
-
-// ## RoundChange #############################################################
-
-// NewRoundChangeMessage constructs a Message instance with the given sender and
-// roundChange. Both the roundChange instance and the serialized bytes of
-// roundChange are part of the returned Message.
-func NewRoundChangeMessage(roundChange *RoundChange, sender common.Address) *Message {
-	message := &Message{
-		Address:     sender,
-		Code:        MsgRoundChange,
-		roundChange: roundChange,
-	}
-	setMessageBytes(message, roundChange)
-	return message
-}
-
-type RoundChange struct {
-	View                *View
-	PreparedCertificate PreparedCertificate
-}
-
-func (b *RoundChange) HasPreparedCertificate() bool {
-	return !b.PreparedCertificate.IsEmpty()
-}
-
-// EncodeRLP serializes b into the Ethereum RLP format.
-func (b *RoundChange) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{b.View, &b.PreparedCertificate})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the consensus fields from a RLP stream.
-func (b *RoundChange) DecodeRLP(s *rlp.Stream) error {
-	var roundChange struct {
-		View                *View
-		PreparedCertificate PreparedCertificate
-	}
-
-	if err := s.Decode(&roundChange); err != nil {
-		return err
-	}
-	b.View, b.PreparedCertificate = roundChange.View, roundChange.PreparedCertificate
-	return nil
 }
 
 // ## Subject #################################################################
@@ -631,24 +381,22 @@ func (qed *QueryEnodeData) DecodeRLP(s *rlp.Stream) error {
 // ## Consensus Message codes ##########################################################
 
 const (
-	MsgPreprepare uint64 = iota
+	DEPRECATED_MsgPreprepare uint64 = iota // Moved to V2
 	MsgPrepare
 	MsgCommit
-	MsgRoundChange
+	DEPRECATED_MsgRoundChange // Moved to V2
 	MsgRoundChangeV2
 	MsgPreprepareV2
 )
 
-// IsRoundChangeCode returns true if and only if the message code equals
-// MsgRoundChange or MsgRoundChangeV2
+// IsRoundChangeCode returns true if and only if the message code equals MsgRoundChangeV2
 func IsRoundChangeCode(istanbulMsgCode uint64) bool {
-	return istanbulMsgCode == MsgRoundChange || istanbulMsgCode == MsgRoundChangeV2
+	return istanbulMsgCode == MsgRoundChangeV2
 }
 
-// IsPreprepareCode returns true if and only if the message code equals
-// MsgPreprepare or MsgPreprepareV2
+// IsPreprepareCode returns true if and only if the message code equals MsgPreprepareV2
 func IsPreprepareCode(istanbulMsgCode uint64) bool {
-	return istanbulMsgCode == MsgPreprepare || istanbulMsgCode == MsgPreprepareV2
+	return istanbulMsgCode == MsgPreprepareV2
 }
 
 // Message is a wrapper used for all istanbul communication. It encapsulates
@@ -673,10 +421,8 @@ type Message struct {
 	// serializable since they are private. They are set when calling
 	// Message.FromPayload, or at message construction time.
 	committedSubject    *CommittedSubject
-	prePrepare          *Preprepare
 	prePrepareV2        *PreprepareV2
 	prepare             *Subject
-	roundChange         *RoundChange
 	roundChangeV2       *RoundChangeV2
 	queryEnode          *QueryEnodeData
 	forwardMessage      *ForwardMessage
@@ -709,13 +455,6 @@ func (m *Message) Sign(signingFn func(data []byte) ([]byte, error)) error {
 func (m *Message) DecodeMessage() error {
 	var err error
 	switch m.Code {
-	case MsgPreprepare:
-		var p *Preprepare
-		err = m.decode(&p)
-		if err != nil {
-			return err
-		}
-		m.prePrepare = p
 	case MsgPreprepareV2:
 		var p *PreprepareV2
 		err = m.decode(&p)
@@ -731,13 +470,6 @@ func (m *Message) DecodeMessage() error {
 		var cs *CommittedSubject
 		err = m.decode(&cs)
 		m.committedSubject = cs
-	case MsgRoundChange:
-		var p *RoundChange
-		err = m.decode(&p)
-		if err != nil {
-			return err
-		}
-		m.roundChange = p
 	case MsgRoundChangeV2:
 		var p *RoundChangeV2
 		err = m.decode(&p)
@@ -833,11 +565,6 @@ func (m *Message) Commit() *CommittedSubject {
 	return m.committedSubject
 }
 
-// Preprepare returns preprepare if this is a preprepare message.
-func (m *Message) Preprepare() *Preprepare {
-	return m.prePrepare
-}
-
 // PreprepareV2 returns preprepare if this is a preprepare message.
 func (m *Message) PreprepareV2() *PreprepareV2 {
 	return m.prePrepareV2
@@ -846,25 +573,6 @@ func (m *Message) PreprepareV2() *PreprepareV2 {
 // Prepare returns prepare if this is a prepare message.
 func (m *Message) Prepare() *Subject {
 	return m.prepare
-}
-
-// TryRoundChange returns a round change if this is a round change message.
-func (m *Message) TryRoundChange() (*RoundChange, error) {
-	if m.roundChange != nil {
-		return m.roundChange, nil
-	}
-	if m.Code != MsgRoundChange {
-		return nil, fmt.Errorf("expected round change message, received code: %d", m.Code)
-	}
-	if err := m.DecodeMessage(); err != nil {
-		return nil, err
-	}
-	return m.roundChange, nil
-}
-
-// RoundChange returns a round change if this is a round change message.
-func (m *Message) RoundChange() *RoundChange {
-	return m.roundChange
 }
 
 // RoundChangeV2 returns a round change v2 if this is a round change v2 message.
