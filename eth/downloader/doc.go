@@ -1,6 +1,6 @@
 /*
 Package downloader handles downloading data from other nodes for sync. Sync
-referrs to the process of catching up with other nodes, once caught up nodes
+refers to the process of catching up with other nodes, once caught up nodes
 use a different process to maintain their syncronisation.
 
 There are a few different modes for syncing
