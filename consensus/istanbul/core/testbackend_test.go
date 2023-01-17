@@ -274,16 +274,6 @@ func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (
 	return *message, err
 }
 
-func (self *testSystemBackend) getPreprepareMessage(view istanbul.View, roundChangeCertificate istanbul.RoundChangeCertificate, proposal istanbul.Proposal) (istanbul.Message, error) {
-	msg := istanbul.NewPreprepareMessage(&istanbul.Preprepare{
-		View:                   &view,
-		RoundChangeCertificate: roundChangeCertificate,
-		Proposal:               proposal,
-	}, self.address)
-
-	return self.finalizeAndReturnMessage(msg)
-}
-
 func (self *testSystemBackend) getPreprepareV2Message(view istanbul.View,
 	roundChangeCertificateV2 istanbul.RoundChangeCertificateV2,
 	proposal istanbul.Proposal) (istanbul.Message, error) {
@@ -331,15 +321,6 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 	message, err := self.finalizeAndReturnMessage(msg)
 	// self.engine.(*core).current.TransitionToPreprepared(cachePreprepare)
 	return message, err
-}
-
-func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, preparedCert istanbul.PreparedCertificate) (istanbul.Message, error) {
-	msg := istanbul.NewRoundChangeMessage(&istanbul.RoundChange{
-		View:                &view,
-		PreparedCertificate: preparedCert,
-	}, common.Address{})
-
-	return self.finalizeAndReturnMessage(msg)
 }
 
 func (self *testSystemBackend) getRoundChangeV2Message(view istanbul.View, preparedCertV2 istanbul.PreparedCertificateV2, proposal istanbul.Proposal) (istanbul.Message, error) {
@@ -610,21 +591,6 @@ func (sys *testSystem) getPreparedCertificate(t ErrorReporter, views []istanbul.
 func (sys *testSystem) getPreparedCertificateV2(t ErrorReporter, views []istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificateV2 {
 	pc := sys.getPreparedCertificate(t, views, proposal)
 	return istanbul.PCV2FromPCV1(pc)
-}
-
-func (sys *testSystem) getRoundChangeCertificate(t ErrorReporter, views []istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
-	var roundChangeCertificate istanbul.RoundChangeCertificate
-	for i, backend := range sys.backends {
-		if uint64(i) == sys.MinQuorumSize() {
-			break
-		}
-		msg, err := backend.getRoundChangeMessage(views[i%len(views)], preparedCertificate)
-		if err != nil {
-			t.Errorf("Failed to create ROUND CHANGE message: %v", err)
-		}
-		roundChangeCertificate.RoundChangeMessages = append(roundChangeCertificate.RoundChangeMessages, msg)
-	}
-	return roundChangeCertificate
 }
 
 func (sys *testSystem) getRoundChangeCertificateV2(t ErrorReporter, views []istanbul.View, preparedCertificateV2 istanbul.PreparedCertificateV2) istanbul.RoundChangeCertificateV2 {

@@ -125,7 +125,7 @@ func BenchmarkHandleMsg(b *testing.B) {
 	for i, backend := range sys.backends {
 		c := backend.engine.(*core)
 
-		c.current = newTestRoundState(
+		c.current = newTestRoundStateV2(
 			&istanbul.View{
 				Round:    big.NewInt(0),
 				Sequence: big.NewInt(1),
@@ -183,7 +183,7 @@ func newInitializedTestSystem(b *testing.B, useRoundStateDB bool) *testSystem {
 				b.Errorf("Failed to create rsdb: %v", err)
 			}
 
-			c.current = withSavingDecorator(rsdb, newTestRoundState(
+			c.current = withSavingDecorator(rsdb, newTestRoundStateV2(
 				&istanbul.View{
 					Round:    big.NewInt(0),
 					Sequence: big.NewInt(1),
@@ -196,7 +196,7 @@ func newInitializedTestSystem(b *testing.B, useRoundStateDB bool) *testSystem {
 				c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = StatePreprepared
 			}
 		} else {
-			c.current = newTestRoundState(
+			c.current = newTestRoundStateV2(
 				&istanbul.View{
 					Round:    big.NewInt(0),
 					Sequence: big.NewInt(1),

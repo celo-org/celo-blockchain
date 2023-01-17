@@ -85,7 +85,7 @@ func TestVerifyPreparedCertificateV2(t *testing.T) {
 			"Invalid PREPARED certificate, includes preprepare message",
 			func() istanbul.PreparedCertificateV2 {
 				preparedCertificate := sys.getPreparedCertificateV2(t, []istanbul.View{view}, proposal)
-				testInvalidMsg, _ := sys.backends[0].getRoundChangeMessage(view, sys.getPreparedCertificate(t, []istanbul.View{view}, proposal))
+				testInvalidMsg, _ := sys.backends[0].getRoundChangeV2Message(view, sys.getPreparedCertificateV2(t, []istanbul.View{view}, proposal), proposal)
 				preparedCertificate.PrepareOrCommitMessages[0] = testInvalidMsg
 				return preparedCertificate
 			}(),

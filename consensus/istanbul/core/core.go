@@ -131,7 +131,6 @@ type core struct {
 	currentMu sync.RWMutex
 	handlerWg *sync.WaitGroup
 
-	roundChangeSet   *roundChangeSet
 	roundChangeSetV2 *roundChangeSetV2
 
 	pendingRequests   *prque.Prque
@@ -588,7 +587,6 @@ func (c *core) startNewSequence() error {
 		Round:    new(big.Int).Set(common.Big0),
 	}
 	valSet := c.backend.Validators(headBlock)
-	c.roundChangeSet = newRoundChangeSet(valSet)
 	c.roundChangeSetV2 = newRoundChangeSetV2(valSet)
 
 	// Inform the backend that a new sequence has started & bail if the backed stopped the core
@@ -680,10 +678,10 @@ func (c *core) createRoundState() (RoundState, error) {
 		}
 		valSet := c.backend.Validators(headBlock)
 		proposer := c.selectProposer(valSet, headAuthor, 0)
-		roundState = newRoundState(&istanbul.View{Sequence: nextSequence, Round: common.Big0}, valSet, proposer, c.isConsensusFork(nextSequence))
+		roundState = newRoundState(&istanbul.View{Sequence: nextSequence, Round: common.Big0}, valSet, proposer)
 	} else {
 		logger.Info("Retrieving stored RoundState", "stored_view", lastStoredView, "requested_seq", nextSequence)
-		roundState, err = c.rsdb.GetRoundStateFor(lastStoredView, c.isConsensusFork(lastStoredView.Sequence))
+		roundState, err = c.rsdb.GetRoundStateFor(lastStoredView)
 
 		if err != nil {
 			logger.Error("Failed to fetch lastStoredRoundState", "err", err)
@@ -713,8 +711,7 @@ func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.Valida
 		headBlock := c.backend.GetCurrentHeadBlock()
 		newParentCommits = newMessageSet(c.backend.ParentBlockValidators(headBlock))
 	}
-	return c.current.StartNewSequence(view.Sequence, validatorSet, nextProposer, newParentCommits, c.isConsensusFork(view.Sequence))
-
+	return c.current.StartNewSequence(view.Sequence, validatorSet, nextProposer, newParentCommits)
 }
 
 func (c *core) isProposer() bool {
