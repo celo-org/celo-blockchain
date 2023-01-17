@@ -22,11 +22,16 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/log"
 )
 
 // Start implements core.Engine.Start
 func (c *core) Start() error {
-
+	rsdb, err := newRoundStateDB(c.config.RoundStateDBPath, nil)
+	if err != nil {
+		log.Crit("Failed to open RoundStateDB", "err", err)
+	}
+	c.rsdb = rsdb
 	roundState, err := c.createRoundState()
 	if err != nil {
 		return err
@@ -63,10 +68,11 @@ func (c *core) Stop() error {
 	// Make sure the handler goroutine exits
 	c.handlerWg.Wait()
 
+	err := c.rsdb.Close()
 	c.currentMu.Lock()
 	defer c.currentMu.Unlock()
 	c.current = nil
-	return nil
+	return err
 }
 
 // ----------------------------------------------------------------------------
