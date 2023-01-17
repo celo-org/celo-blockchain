@@ -240,7 +240,10 @@ func (w *worker) stop() {
 	atomic.StoreInt32(&w.running, 0)
 
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		istanbul.StopValidating()
+		err := istanbul.StopValidating()
+		if err != nil {
+			log.Error("Error while calling engine.StopValidating", "err", err)
+		}
 	}
 }
 
