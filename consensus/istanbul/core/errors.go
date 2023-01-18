@@ -64,8 +64,6 @@ var (
 	errInvalidRoundChangeCertificateMsgSignature = errors.New("invalid signature in ROUND CHANGE certificate")
 	// errInvalidRoundChangeCertificateDuplicate is returned when the ROUND CHANGE certificate has multiple ROUND CHANGE messages from the same validator.
 	errInvalidRoundChangeCertificateDuplicate = errors.New("duplicate message in ROUND CHANGE certificate")
-	// errInvalidRoundChangeCertificateMsgCode is returned when the ROUND CHANGE certificate contains a message with the wrong code.
-	errInvalidRoundChangeCertificateMsgCode = errors.New("non-ROUND CHANGE message in ROUND CHANGE certificate")
 	// errInvalidRoundChangeCertificateMsgView is returned when the ROUND CHANGE certificate contains a message for the wrong view
 	errInvalidRoundChangeCertificateMsgView = errors.New("message in ROUND CHANGE certificate for wrong view")
 

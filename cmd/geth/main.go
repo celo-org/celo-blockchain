@@ -73,7 +73,6 @@ var (
 		utils.USBFlag,
 		// utils.SmartCardDaemonPathFlag,
 		utils.OverrideEHardforkFlag,
-		utils.OverrideV2IstanbulForkFlag,
 		utils.TxPoolLocalsFlag,
 		utils.TxPoolNoLocalsFlag,
 		utils.TxPoolJournalFlag,

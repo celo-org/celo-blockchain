@@ -418,7 +418,6 @@ func newTestSystemWithBackend(n, f uint64, v2Block *big.Int) *testSystem {
 	config.TimeoutBackoffFactor = 100
 	config.MinResendRoundChangeTimeout = 1000
 	config.MaxResendRoundChangeTimeout = 10000
-	config.V2Block = v2Block
 
 	for i := uint64(0); i < n; i++ {
 		vset := validator.NewSet(validators)

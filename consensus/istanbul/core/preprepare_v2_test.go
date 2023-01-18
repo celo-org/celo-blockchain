@@ -53,8 +53,6 @@ func TestHandlePreprepareV2(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for _, backend := range sys.backends {
-					// activate v2 consensus block
-					backend.engine.(*core).config.V2Block = big.NewInt(0)
 					backend.engine.(*core).Start()
 				}
 				return sys
@@ -72,8 +70,6 @@ func TestHandlePreprepareV2(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for _, backend := range sys.backends {
-					// activate v2 consensus block
-					backend.engine.(*core).config.V2Block = big.NewInt(0)
 					backend.engine.(*core).Start()
 				}
 				return sys
@@ -95,8 +91,6 @@ func TestHandlePreprepareV2(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					// activate v2 consensus block
-					c.config.V2Block = big.NewInt(0)
 					backend.engine.(*core).Start()
 					if i != 0 {
 						// replica 0 is the proposer
@@ -119,8 +113,6 @@ func TestHandlePreprepareV2(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					// activate v2 consensus block
-					c.config.V2Block = big.NewInt(0)
 					backend.engine.(*core).Start()
 					if i != 0 {
 						getRoundState(c).state = StatePreprepared
@@ -145,8 +137,6 @@ func TestHandlePreprepareV2(t *testing.T) {
 
 				for _, backend := range sys.backends {
 					c := backend.engine.(*core)
-					// activate v2 consensus block
-					c.config.V2Block = big.NewInt(0)
 					backend.engine.(*core).Start()
 					getRoundState(c).state = StatePreprepared
 					getRoundState(c).sequence = big.NewInt(10)
@@ -170,8 +160,6 @@ func TestHandlePreprepareV2(t *testing.T) {
 
 				for _, backend := range sys.backends {
 					c := backend.engine.(*core)
-					// activate v2 consensus block
-					c.config.V2Block = big.NewInt(0)
 					backend.engine.(*core).Start()
 					getRoundState(c).state = StatePreprepared
 					getRoundState(c).round = big.NewInt(int64(N))
@@ -193,8 +181,6 @@ func TestHandlePreprepareV2(t *testing.T) {
 
 				for _, backend := range sys.backends {
 					c := backend.engine.(*core)
-					// activate v2 consensus block
-					c.config.V2Block = big.NewInt(0)
 					backend.engine.(*core).Start()
 					getRoundState(c).state = StatePreprepared
 					getRoundState(c).round = big.NewInt(int64(N))
@@ -220,8 +206,6 @@ func TestHandlePreprepareV2(t *testing.T) {
 
 				for _, backend := range sys.backends {
 					c := backend.engine.(*core)
-					// activate v2 consensus block
-					c.config.V2Block = big.NewInt(0)
 					backend.engine.(*core).Start()
 					getRoundState(c).state = StatePreprepared
 					getRoundState(c).round = big.NewInt(int64(N))
@@ -261,8 +245,6 @@ func TestHandlePreprepareV2(t *testing.T) {
 
 				for _, backend := range sys.backends {
 					c := backend.engine.(*core)
-					// activate v2 consensus block
-					c.config.V2Block = big.NewInt(0)
 					backend.engine.(*core).Start()
 					getRoundState(c).state = StatePreprepared
 					getRoundState(c).round = big.NewInt(int64(N))
@@ -296,8 +278,6 @@ func TestHandlePreprepareV2(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					// activate v2 consensus block
-					c.config.V2Block = big.NewInt(0)
 					backend.engine.(*core).Start()
 					getRoundState(c).round = big.NewInt(int64(N))
 					getRoundState(c).desiredRound = getRoundState(c).round
@@ -325,8 +305,6 @@ func TestHandlePreprepareV2(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					// activate v2 consensus block
-					c.config.V2Block = big.NewInt(0)
 					backend.engine.(*core).Start()
 					getRoundState(c).round = big.NewInt(int64(N))
 					getRoundState(c).desiredRound = getRoundState(c).round
@@ -353,8 +331,6 @@ func TestHandlePreprepareV2(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					// activate v2 consensus block
-					c.config.V2Block = big.NewInt(0)
 					backend.engine.(*core).Start()
 					getRoundState(c).round = big.NewInt(int64(N))
 					getRoundState(c).desiredRound = getRoundState(c).round
@@ -489,10 +465,6 @@ func benchMarkHandleRoundChangeV2(n int, b *testing.B) {
 	N := uint64(n)
 	F := uint64(1) // F does not affect tests
 	sys := NewMutedTestSystemWithBackend(N, F)
-	for _, b := range sys.backends {
-		// activate v2 consensus block
-		b.engine.(*core).config.V2Block = big.NewInt(0)
-	}
 	c := sys.backends[0].engine.(*core)
 	c.Start()
 	sys.backends[1].engine.(*core).Start()
@@ -550,8 +522,6 @@ func benchMarkHandlePreprepareV2(n int, b *testing.B) {
 
 	for i, backend := range sys.backends {
 		c := backend.engine.(*core)
-		// activate v2 consensus block
-		c.config.V2Block = big.NewInt(0)
 		backend.engine.(*core).Start()
 		getRoundState(c).round = big.NewInt(int64(N))
 		getRoundState(c).desiredRound = getRoundState(c).round
