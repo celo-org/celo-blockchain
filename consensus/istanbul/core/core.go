@@ -152,10 +152,6 @@ type core struct {
 
 // New creates an Istanbul consensus core
 func New(backend CoreBackend, config *istanbul.Config) Engine {
-	rsdb, err := newRoundStateDB(config.RoundStateDBPath, nil)
-	if err != nil {
-		log.Crit("Failed to open RoundStateDB", "err", err)
-	}
 
 	c := &core{
 		config:                    config,
@@ -167,7 +163,6 @@ func New(backend CoreBackend, config *istanbul.Config) Engine {
 		pendingRequests:           prque.New(nil),
 		pendingRequestsMu:         new(sync.Mutex),
 		consensusTimestamp:        time.Time{},
-		rsdb:                      rsdb,
 		consensusPrepareTimeGauge: metrics.NewRegisteredGauge("consensus/istanbul/core/consensus_prepare", nil),
 		consensusCommitTimeGauge:  metrics.NewRegisteredGauge("consensus/istanbul/core/consensus_commit", nil),
 		verifyGauge:               metrics.NewRegisteredGauge("consensus/istanbul/core/verify", nil),
