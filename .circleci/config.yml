@@ -500,31 +500,31 @@ jobs:
           # paths:
           #  - geth/build/bin/geth.aar
 
-  ios:
-    macos:
-      xcode: "12.5.1"
-    working_directory: ~/repos/geth
-    steps:
-      # Note the macos executor does not seem to be able to restore caches.
-      - *shallow-checkout
-      - run:
-          name: Setup Go language
-          command: |
-            brew install go@1.16
-            brew link go@1.16
-            # Check that homebrew installed the expected go version
-            if [[ "$(go version)" != "go version go1.16"* ]]; then
-              echo "go1.16 is required"
-              exit 1
-            fi
-      - run:
-          name: Compile ios client
-          command: make ios
-      - persist_to_workspace:
-          root: ~/repos
-          paths:
-            - geth/build/bin/Geth.framework.tgz
-            - geth/libbls_snark_sys.a
+  # ios:
+  #   macos:
+  #     xcode: "12.5.1"
+  #   working_directory: ~/repos/geth
+  #   steps:
+  #     # Note the macos executor does not seem to be able to restore caches.
+  #     - *shallow-checkout
+  #     - run:
+  #         name: Setup Go language
+  #         command: |
+  #           brew install go@1.16
+  #           brew link go@1.16
+  #           # Check that homebrew installed the expected go version
+  #           if [[ "$(go version)" != "go version go1.16"* ]]; then
+  #             echo "go1.16 is required"
+  #             exit 1
+  #           fi
+  #     - run:
+  #         name: Compile ios client
+  #         command: make ios
+  #     - persist_to_workspace:
+  #         root: ~/repos
+  #         paths:
+  #           - geth/build/bin/Geth.framework.tgz
+  #           - geth/libbls_snark_sys.a
 
   lightest-sync-test:
     executor: golang
@@ -623,8 +623,8 @@ workflows:
           requires:
             - go-modules
             - prepare-system-contracts
-              #- android
-      - ios
+      # - android
+      # - ios
       - lightest-sync-test:
           requires:
             - go-modules
