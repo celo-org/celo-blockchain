@@ -17,6 +17,8 @@
 package backend
 
 import (
+	"fmt"
+
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -45,10 +47,14 @@ func (sb *Backend) getPeersFromDestAddresses(destAddresses []common.Address) map
 // If this node is proxied and destAddresses is not nil, the message will be wrapped
 // in an istanbul.ForwardMessage to ensure the proxy sends it to the correct
 // destAddresses.
-func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error {
+func (sb *Backend) Multicast(destAddresses []common.Address, msg *istanbul.Message, ethMsgCode uint64, sendToSelf bool) error {
 	logger := sb.logger.New("func", "Multicast")
 
 	var err error
+	payload, err := msg.Payload()
+	if err != nil {
+		return fmt.Errorf("error getting payload from msg: %w", err)
+	}
 
 	if sb.IsProxiedValidator() {
 		err = sb.proxiedValidatorEngine.SendForwardMsgToAllProxies(destAddresses, ethMsgCode, payload)
@@ -64,10 +70,6 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 
 	if sendToSelf {
 		// Send to self.  Note that it will never be a wrapped version of the consensus message.
-		msg := istanbul.MessageEvent{
-			Payload: payload,
-		}
-
 		go func() {
 			if err := sb.istanbulEventMux.Post(msg); err != nil {
 				logger.Warn("Error in posting message to self", "err", err)

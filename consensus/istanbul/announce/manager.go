@@ -245,13 +245,7 @@ func (m *Manager) answerQueryEnodeMsg(address common.Address, node *enode.Node, 
 			return errNodeMissingEnodeCertificate
 		}
 
-		payload, err := enodeCertMsg.Msg.Payload()
-		if err != nil {
-			logger.Warn("Error getting payload of enode certificate message", "err", err)
-			return err
-		}
-
-		if err := m.network.Multicast([]common.Address{address}, payload, istanbul.EnodeCertificateMsg, false); err != nil {
+		if err := m.network.Multicast([]common.Address{address}, enodeCertMsg.Msg, istanbul.EnodeCertificateMsg, false); err != nil {
 			return err
 		}
 	}

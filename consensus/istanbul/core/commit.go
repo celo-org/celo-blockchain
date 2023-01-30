@@ -162,7 +162,7 @@ func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, com
 	if validator == nil {
 		return errInvalidValidatorAddress
 	}
-	if err := c.verifyCommittedSeal(commit, validator); err != nil {
+	if err := commit.ValidComittedSeal(); err != nil {
 		return errInvalidCommittedSeal
 	}
 	if headBlock.Number().Uint64() > 0 {

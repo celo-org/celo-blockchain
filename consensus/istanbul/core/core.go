@@ -59,7 +59,7 @@ type CoreBackend interface {
 	// Multicast sends a message to it's connected nodes filtered on the 'addresses' parameter (where each address
 	// is associated with those node's signing key)
 	// If sendToSelf is set to true, then the function will send an event to self via a message event
-	Multicast(addresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error
+	Multicast(addresses []common.Address, msg *istanbul.Message, ethMsgCode uint64, sendToSelf bool) error
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
@@ -343,15 +343,9 @@ func (c *core) gossipTo(msg *istanbul.Message, addresses []common.Address) {
 		return
 	}
 	logger.Trace("Gossipping message", "msg.Address", msg.Address.Hex(), "msg.Code", msg.Code)
-	// Convert to payload
-	payload, err := msg.Payload()
-	if err != nil {
-		logger.Error("Failed to convert message to payload", "m", msg, "err", err)
-		return
-	}
 
 	// Send payload to the specified addresses
-	if err := c.backend.Multicast(addresses, payload, istanbul.ConsensusMsg, true); err != nil {
+	if err := c.backend.Multicast(addresses, msg, istanbul.ConsensusMsg, true); err != nil {
 		logger.Error("Failed to send message", "m", msg, "err", err)
 		return
 	}
@@ -370,14 +364,8 @@ func (c *core) unicast(msg *istanbul.Message, addr common.Address) {
 func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
 	logger := c.newLogger("func", "sendMsgTo")
 
-	payload, err := c.finalizeMessage(msg)
-	if err != nil {
-		logger.Error("Failed to finalize message", "m", msg, "err", err)
-		return
-	}
-
 	// Send payload to the specified addresses
-	if err := c.backend.Multicast(addresses, payload, istanbul.ConsensusMsg, true); err != nil {
+	if err := c.backend.Multicast(addresses, msg, istanbul.ConsensusMsg, true); err != nil {
 		logger.Error("Failed to send message", "m", msg, "err", err)
 		return
 	}

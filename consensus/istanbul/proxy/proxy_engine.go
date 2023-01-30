@@ -38,7 +38,7 @@ type BackendForProxyEngine interface {
 	// Multicast sends a message to it's connected nodes filtered on the 'addresses' parameter (where each address
 	// is associated with those node's signing key)
 	// If sendToSelf is set to true, then the function will send an event to self via a message event
-	Multicast(addresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error
+	Multicast(addresses []common.Address, msg *istanbul.Message, ethMsgCode uint64, sendToSelf bool) error
 
 	// Unicast will asynchronously send a celo message to peer
 	Unicast(peer consensus.Peer, payload []byte, ethMsgCode uint64)

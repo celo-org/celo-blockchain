@@ -108,13 +108,7 @@ func (a *avs) ShareVersion(version uint) error {
 			destAddresses = valConnArray
 		}
 
-		payload, err := enodeCertMsg.Msg.Payload()
-		if err != nil {
-			a.logger.Error("Error getting payload of enode certificate message", "err", err)
-			return err
-		}
-
-		if err := a.network.Multicast(destAddresses, payload, istanbul.EnodeCertificateMsg, false); err != nil {
+		if err := a.network.Multicast(destAddresses, enodeCertMsg.Msg, istanbul.EnodeCertificateMsg, false); err != nil {
 			return err
 		}
 	}

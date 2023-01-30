@@ -46,6 +46,9 @@ type Engine interface {
 	GossipPrepares() error
 	// GossipCommits gossips to other validators all the commits received in the current round.
 	GossipCommits() error
+
+	// DecodeMessage decodes an istanbul message
+	DecodeMessage(payload []byte) (*istanbul.Message, istanbul.Validator, error)
 }
 
 // State represents the IBFT state

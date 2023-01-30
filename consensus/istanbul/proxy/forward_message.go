@@ -82,12 +82,12 @@ func (p *proxyEngine) handleForwardMsg(peer consensus.Peer, payload []byte) (boo
 		return true, errUnauthorizedMessageFromProxiedValidator
 	}
 
-	fwdMsg := istMsg.ForwardMessage()
-	logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
-	if err := p.backend.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code, false); err != nil {
-		logger.Error("Error in multicasting a forwarded message", "error", err)
-		return true, err
-	}
+	// fwdMsg := istMsg.ForwardMessage()
+	// logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
+	// if err := p.backend.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code, false); err != nil {
+	// 	logger.Error("Error in multicasting a forwarded message", "error", err)
+	// 	return true, err
+	// }
 
 	return true, nil
 }

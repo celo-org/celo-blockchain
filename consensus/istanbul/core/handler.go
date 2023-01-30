@@ -82,7 +82,7 @@ func (c *core) subscribeEvents() {
 	c.events = c.backend.EventMux().Subscribe(
 		// external events
 		istanbul.RequestEvent{},
-		istanbul.MessageEvent{},
+		new(istanbul.Message),
 		// internal events
 		backlogEvent{},
 	)
@@ -123,14 +123,20 @@ func (c *core) handleEvents() {
 				if err == errFutureMessage {
 					c.storeRequestMsg(r)
 				}
-			case istanbul.MessageEvent:
-				if err := c.handleMsg(ev.Payload); err != nil && err != errFutureMessage && err != errOldMessage {
+			case *istanbul.Message:
+				// Only accept message if the address is valid
+				_, src := c.current.ValidatorSet().GetByAddress(ev.Address)
+				if src == nil {
+					logger.Warn("Invalid address in message", "m", ev)
+				}
+				if err := c.handleCheckedMsg(ev, src); err != nil && err != errFutureMessage && err != errOldMessage {
 					logger.Warn("Error in handling istanbul message", "err", err)
 				}
 			case backlogEvent:
 				if payload, err := ev.msg.Payload(); err != nil {
 					logger.Error("Error in retrieving payload from istanbul message that was sent from a backlog event", "err", err)
 				} else {
+
 					if err := c.handleMsg(payload); err != nil && err != errFutureMessage && err != errOldMessage {
 						logger.Warn("Error in handling istanbul message that was sent from a backlog event", "err", err)
 					}
@@ -169,24 +175,44 @@ func (c *core) sendEvent(ev interface{}) {
 	c.backend.EventMux().Post(ev)
 }
 
-func (c *core) handleMsg(payload []byte) error {
-	logger := c.newLogger("func", "handleMsg")
+// DecodeMessage decodes an instanbul message, if decoding fails or if the
+// message is not from a validator then an error is returned.
+func (c *core) DecodeMessage(payload []byte) (*istanbul.Message, istanbul.Validator, error) {
+	logger := c.newLogger("func", "DecodeMessage")
 
-	// Decode message and check its signature
+	// Decode message and check its ecdsa signature
 	msg := new(istanbul.Message)
 	logger.Debug("Got new message", "payload", hexutil.Encode(payload))
 	if err := msg.FromPayload(payload, c.validateFn); err != nil {
 		logger.Debug("Failed to decode message from payload", "err", err)
-		return err
+		return nil, nil, err
 	}
 
 	// Only accept message if the address is valid
 	_, src := c.current.ValidatorSet().GetByAddress(msg.Address)
 	if src == nil {
 		logger.Error("Invalid address in message", "m", msg)
-		return istanbul.ErrUnauthorizedAddress
+		return nil, nil, istanbul.ErrUnauthorizedAddress
 	}
 
+	if msg.Commit() != nil {
+		// Kick off background task to verify the comitted seal (BLS signature)
+		msg.Commit().VerifyCommittedSeal(
+			func(committedSeal *istanbul.CommittedSubject) error { return c.verifyCommittedSeal(committedSeal, src) },
+		)
+	}
+
+	return msg, src, nil
+}
+
+func (c *core) handleMsg(payload []byte) error {
+	logger := c.newLogger("func", "handleMsg")
+
+	msg, src, err := c.DecodeMessage(payload)
+	if err != nil {
+		logger.Debug("Failed to decode message from payload", "err", err)
+		return err
+	}
 	return c.handleCheckedMsg(msg, src)
 }
 

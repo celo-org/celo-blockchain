@@ -18,6 +18,7 @@ package backend
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -95,9 +96,18 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		// Handle messages as primary validator
 		switch msg.Code {
 		case istanbul.ConsensusMsg:
-			go sb.istanbulEventMux.Post(istanbul.MessageEvent{
-				Payload: data,
-			})
+
+			println("handling consensus messag")
+			// Decopde the message this kicks off bls signature verification in
+			// a background thread if the message is a commit message.
+			m, _, err := sb.core.DecodeMessage(data)
+			if err != nil {
+
+				println("failed handle consensus message", err.Error())
+				return true, fmt.Errorf("invalid consensus message: %w", err)
+			}
+			// Deliver the message to the consensus engine
+			go sb.istanbulEventMux.Post(m)
 			return true, nil
 		case istanbul.DelegateSignMsg:
 			if sb.shouldHandleDelegateSign(peer) {

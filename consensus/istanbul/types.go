@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/accounts"
@@ -510,6 +511,39 @@ type CommittedSubject struct {
 	Subject               *Subject
 	CommittedSeal         []byte
 	EpochValidatorSetSeal []byte
+	// These fields are unexported to ensure that they are not serialized over
+	// RLP.
+	mu                          sync.Mutex
+	wg                          sync.WaitGroup
+	committedSealValidatonError *error
+}
+
+// VerifyCommittedSeal kicks off verification of the committedSeal in a
+// background go routine, the result of verification can be obtained by calling
+// ValidCommittedSeal, ValidCommittedSeal will wait till verificaiton is
+// complete before returning.
+func (c *CommittedSubject) VerifyCommittedSeal(verify func(committedSeal *CommittedSubject) error) {
+	println("verifying")
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.committedSealValidatonError != nil {
+		println("verification already done")
+		// If the verification has already been done then bail.
+		return
+	}
+	c.wg.Add(1)
+	go func() {
+		defer c.wg.Done()
+		*c.committedSealValidatonError = verify(c)
+	}()
+}
+
+// ValidComittedSeal returns an error if committed seal verification failed.
+func (c *CommittedSubject) ValidComittedSeal() error {
+	println("waiting on wg")
+	c.wg.Wait()
+	println("completed waiting on wg")
+	return *c.committedSealValidatonError
 }
 
 // ## ForwardMessage #################################################################
