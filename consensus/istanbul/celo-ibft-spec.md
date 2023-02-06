@@ -448,3 +448,29 @@ function call to occur after the given duration.
 // to Hc and value equal to V is greater than 1 and less than 10.
 1 < |{ m<Prepare, Hc, Rm, Vm> ∈ M : Rm = Hc && Vm = V }| < 10
 ```
+
+## Appendix 2: Notes
+
+### What do the prepared certificate and round change certificate do?
+
+They enforce that if it’s possible that a node could have confirmed a block in
+a round, then all remaining nodes in future rounds can only confirm the same
+block.
+
+- A node could have confirmed a block if 2f+1 nodes send commit messages for a
+  block.
+- If a node sends a commit message for a block then it must have seen 2f+1
+  prepares or commits for that block and therefore must have a prepared
+  certificate.
+- Therefore there must be at least 2f+1 nodes with prepared certificates for a
+  block if 2f+1 nodes have sent commit messages for a block.
+- When the proposer proposes in the next round they must provide a round change
+  certificate with 2f+1 round change messages.
+- When nodes send round change messages they should include the prepared
+  certificate if they have one.
+- So if 2f+1 nodes have prepared certificates then f nodes do not.
+- If the proposer of the next round includes the f round change messages from
+  the nodes that do not have prepared certificates, and if there are a further
+  f byzantine nodes that do not include their prepared certificate even if they
+  had one, there still remains one round change message that must come from a
+  non byzantine node and must include a prepared certificate.
