@@ -2,7 +2,7 @@
 name: Simple Task
 about: Simple Actionable Task
 title: ''
-labels: blockchain
+labels: triage
 assignees: ''
 
 ---
