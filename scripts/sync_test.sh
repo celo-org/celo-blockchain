@@ -19,9 +19,9 @@ echo "Running geth sync"
 echo "-----------------"
 build/bin/geth --datadir $DATADIR --syncmode $MODE --exitwhensynced
 
-echo "-------------------------------"
-echo "Geth exited cheking sync status"
-echo "-------------------------------"
+echo "------------------------------------"
+echo "Geth exited, checking sync status..."
+echo "------------------------------------"
 
 # Now check what the latest block is
 ATTEMPTS=10
