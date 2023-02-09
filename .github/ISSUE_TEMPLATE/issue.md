@@ -2,7 +2,7 @@
 name: Issue
 about: Feature/Need/Problem complete template
 title: ''
-labels: blockchain, needs-research
+labels: triage, needs-research
 assignees: ''
 
 ---

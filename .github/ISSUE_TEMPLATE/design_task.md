@@ -2,7 +2,7 @@
 name: Research/Design Task
 about: Research of design task
 title: ''
-labels: blockchain, needs-research
+labels: triage, needs-research
 assignees: ''
 
 ---
