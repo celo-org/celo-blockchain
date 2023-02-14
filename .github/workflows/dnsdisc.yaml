@@ -18,7 +18,7 @@ jobs:
   Go-Tests:
     uses: ./.github/workflows/go-tests.yaml
     with:
-      path: ".p2p/dnsdisc"
+      path: "p2p/dnsdisc"
       
 
 
