@@ -80,82 +80,90 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 	ctx.fundAdminAccount()
 
 	deploySteps := [](func() error){
+		// X, Y => X is the number in this list, Y is the migration number in the protocol folder for the core contracts
+
+		// i:00, migr:01 Libraries
 		ctx.deployLibraries,
-		// 01 Registry
+
+		// i:01, migr:02 Registry
 		ctx.deployRegistry,
-		// 02 Freezer
+
+		// i:02, migr:03 Freezer
 		ctx.deployFreezer,
 
-		// 03 TransferWhitelist
+		// i:03, migr:03 TransferWhitelist
 		ctx.deployTransferWhitelist,
 
-		// 03.bis FeeCurrencyWhitelist
+		// i:04, migr:03 FeeCurrencyWhitelist
 		ctx.deployFeeCurrencyWhitelist,
 
-		// 04 GoldToken
+		// i:05, migr:04 GoldToken
 		ctx.deployGoldToken,
 
-		// 05 SortedOracles
+		// i:06, migr:05 SortedOracles
 		ctx.deploySortedOracles,
 
-		// 06 GasPriceMinimum
+		// i:07, migr:06 GasPriceMinimum
 		ctx.deployGasPriceMinimum,
 
-		// 07 Reserve
+		// i:08, migr:07 Reserve
 		ctx.deployReserve,
 
-		// 08 ReserveSpenderMultisig (requires reserve to work)
+		// i:09, migr:08 ReserveSpenderMultisig (requires reserve to work)
 		ctx.deployReserveSpenderMultisig,
 
-		// 09 StableToken, StableTokenEUR and StableTokenBRL
+		// i:10, migr:09 StableToken, StableTokenEUR and StableTokenBRL
 		ctx.deployStableTokens,
 
-		// 10 Exchange, ExchangeEUR and ExchangeBRL
+		// i:11, migr:10 Exchange, ExchangeEUR and ExchangeBRL
 		ctx.deployExchanges,
 
-		// 11 Accounts
+		// i:12, migr:11 Accounts
 		ctx.deployAccounts,
 
-		// 12 LockedGold
+		// i:13, migr:12 LockedGold
 		ctx.deployLockedGold,
 
-		// 13 Validators
+		// i:14, migr:13 Validators
 		ctx.deployValidators,
 
-		// 14 Election
+		// i:15, migr:14 Election
 		ctx.deployElection,
 
-		// 15 EpochRewards
+		// i:16, migr:15 EpochRewards
 		ctx.deployEpochRewards,
 
-		// 16 Random
+		// i:17, migr:16 Random
 		ctx.deployRandom,
 
-		// 17 Attestations
+		// i:18, migr17 Attestations
 		ctx.deployAttestations,
 
-		// 18 Escrow
+		// 1:19, migr:18 Escrow
 		ctx.deployEscrow,
 
-		// 19 BlockchainParameters
+		// i:20, migr:19 BlockchainParameters
 		ctx.deployBlockchainParameters,
 
-		// 20 GovernanceSlasher
+		// i:21, migr:20 GovernanceSlasher
 		ctx.deployGovernanceSlasher,
 
-		// 21 DoubleSigningSlasher
+		// i:22, migr:21 DoubleSigningSlasher
 		ctx.deployDoubleSigningSlasher,
 
-		// 22 DowntimeSlasher
+		// i:23, migr:22 DowntimeSlasher
 		ctx.deployDowntimeSlasher,
 
-		// 23 GovernanceApproverMultiSig
+		// i:24, migr:23 GovernanceApproverMultiSig
 		ctx.deployGovernanceApproverMultiSig,
 
-		// 24 Governance
+		// i:25, migr:24 GrandaMento
+		ctx.deployGrandaMento,
+
+		// i:28, migr:27 Governance
 		ctx.deployGovernance,
 
-		// 25 Elect Validators
+		// i:29, migr:28 Elect Validators
 		ctx.electValidators,
 	}
 
@@ -461,7 +469,7 @@ func (ctx *deployContext) deployAttestations() error {
 
 func (ctx *deployContext) deployEscrow() error {
 	return ctx.deployCoreContract("Escrow", func(contract *contract.EVMBackend) error {
-		return contract.SimpleCall("initialize", env.MustProxyAddressFor("Registry"))
+		return contract.SimpleCall("initialize")
 	})
 }
 
@@ -469,6 +477,34 @@ func (ctx *deployContext) deployFeeCurrencyWhitelist() error {
 	return ctx.deployCoreContract("FeeCurrencyWhitelist", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize")
 	})
+}
+
+func (ctx *deployContext) deployGrandaMento() error {
+	approver := ctx.accounts.AdminAccount().Address
+
+	err := ctx.deployCoreContract("GrandaMento", func(contract *contract.EVMBackend) error {
+		return contract.SimpleCall("initialize",
+			env.MustProxyAddressFor("Registry"),
+			approver,
+			ctx.genesisConfig.GrandaMento.MaxApprovalExchangeRateChange.BigInt(),
+			ctx.genesisConfig.GrandaMento.Spread.BigInt(),
+			newBigInt(ctx.genesisConfig.GrandaMento.VetoPeriodSeconds),
+		)
+	})
+	if err != nil {
+		return err
+	}
+
+	ctx.logger.Info("Adding GrandaMento as a new exchange spender to the reserve", "GrandaMento", env.MustProxyAddressFor("GrandaMento"))
+	ctx.contract("Reserve").SimpleCall("addExchangeSpender", env.MustProxyAddressFor("GrandaMento"))
+
+	for _, exchangeLimit := range ctx.genesisConfig.GrandaMento.StableTokenExchangeLimits {
+		err = ctx.contract("GrandaMento").SimpleCall("setStableTokenExchangeLimits", exchangeLimit.StableToken, exchangeLimit.MinExchangeAmount, exchangeLimit.MaxExchangeAmount)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (ctx *deployContext) deployGoldToken() error {

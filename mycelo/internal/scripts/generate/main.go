@@ -66,6 +66,7 @@ var contractNames = []string{
 	"DowntimeSlasher",
 	"GovernanceApproverMultiSig",
 	"Governance",
+	"GrandaMento",
 }
 
 var buildPath = flag.String("buildpath", "", "the folder where truffle contract build live (on monorepo ./packages/protocol/build/contracts )")

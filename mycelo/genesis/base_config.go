@@ -178,5 +178,27 @@ func BaseConfig() *Config {
 			BaselineUpdateFactor:    fixed("0.2"),
 			BaselineQuorumFactor:    fixed("1"),
 		},
+		GrandaMento: GrandaMentoParameters{
+			MaxApprovalExchangeRateChange: fixed("0.3"),
+			Spread:                        fixed("0.005"),
+			VetoPeriodSeconds:             10,
+			StableTokenExchangeLimits: []StableTokenExchangeLimit{
+				{
+					StableToken:       "StableToken",
+					MinExchangeAmount: bigIntStr("50000000000000000000000"),
+					MaxExchangeAmount: bigIntStr("50000000000000000000000000"),
+				},
+				{
+					StableToken:       "StableTokenEUR",
+					MinExchangeAmount: bigIntStr("40000000000000000000000"),
+					MaxExchangeAmount: bigIntStr("40000000000000000000000000"),
+				},
+				{
+					StableToken:       "StableTokenBRL",
+					MinExchangeAmount: bigIntStr("40000000000000000000000"),
+					MaxExchangeAmount: bigIntStr("40000000000000000000000000"),
+				},
+			},
+		},
 	}
 }
