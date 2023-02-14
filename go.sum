@@ -107,7 +107,6 @@ github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72 h1:fUmDBbSvv
 github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72/go.mod h1:OEE5igu/CDjGegM1Jn6ZMo7R6LlV/JChAkjfQQIRLpg=
 github.com/c-bata/go-prompt v0.2.2/go.mod h1:VzqtzE2ksDBcdln8G7mk2RX9QyGjH+OVqOCSiVIqS34=
 github.com/celo-org/celo-bls-go v0.3.3 h1:kOkm/BeM0YwHWUTwSLprxhk1IFq/ZjaWVtW6jTZ0+ys=
-github.com/celo-org/celo-bls-go v0.3.3/go.mod h1:eoMAORYWgZ5HOo3Z0bIAv/nbPtj/eArIO0nh7XFx7rk=
 github.com/celo-org/celo-bls-go-android v0.3.2 h1:pa6T14NUaf5S1vkq+90gya4ckVLefl4YtUhQKi22wvI=
 github.com/celo-org/celo-bls-go-android v0.3.2/go.mod h1:cFgtFRH8+6x5b+EyG5SqniXY3aKd03NBSGDgITscX34=
 github.com/celo-org/celo-bls-go-ios v0.3.2 h1:xR+3h80nyB1jRZB7GUChHpX93+iDIywH0qeGhWiZ/6w=

@@ -1,0 +1,24 @@
+name: DNSDisc Go tests
+
+on:
+  push:
+    paths:
+      - 'p2p/dnsdisc/**'
+      - '.github/workflows/dns-disc.yaml'
+    branches:
+      - master
+  pull_request:
+    paths:
+      - 'p2p/dnsdisc/**'
+      - '.github/workflows/dns-disc.yaml'
+  workflow_dispatch:
+
+jobs:
+
+  Go-Tests:
+    uses: ./.github/workflows/go-tests.yaml
+    with:
+      path: ".p2p/dnsdisc"
+      
+
+
