@@ -160,6 +160,9 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 		// i:25, migr:24 GrandaMento
 		ctx.deployGrandaMento,
 
+		// i:26, migr:25 FederatedAttestations
+		ctx.deployFederatedAttestations,
+
 		// i:28, migr:27 Governance
 		ctx.deployGovernance,
 
@@ -505,6 +508,12 @@ func (ctx *deployContext) deployGrandaMento() error {
 		}
 	}
 	return nil
+}
+
+func (ctx *deployContext) deployFederatedAttestations() error {
+	return ctx.deployCoreContract("FederatedAttestations", func(contract *contract.EVMBackend) error {
+		return contract.SimpleCall("initialize")
+	})
 }
 
 func (ctx *deployContext) deployGoldToken() error {
