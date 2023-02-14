@@ -163,6 +163,9 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 		// i:26, migr:25 FederatedAttestations
 		ctx.deployFederatedAttestations,
 
+		// i:27, migr:26 OdisPayment
+		ctx.deployOdisPayments,
+
 		// i:28, migr:27 Governance
 		ctx.deployGovernance,
 
@@ -512,6 +515,12 @@ func (ctx *deployContext) deployGrandaMento() error {
 
 func (ctx *deployContext) deployFederatedAttestations() error {
 	return ctx.deployCoreContract("FederatedAttestations", func(contract *contract.EVMBackend) error {
+		return contract.SimpleCall("initialize")
+	})
+}
+
+func (ctx *deployContext) deployOdisPayments() error {
+	return ctx.deployCoreContract("OdisPayments", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize")
 	})
 }
