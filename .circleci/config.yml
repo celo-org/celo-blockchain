@@ -283,23 +283,23 @@ jobs:
     docker:
       - image: akeyless/ci_base
     environment:
-      PR_COMMENT_TOKEN2: /dynamic-secrets/keys/github/celo-blockchain/pull_requests=write
+      PR_WRITE_TOKEN_PATH: /dynamic-secrets/keys/github/celo-blockchain/pull_requests=write
     steps:
       - checkout
       - run:
-          name: "update akeyless cli tool"
+          name: "update akeyless cli tool to latest version"
           command: akeyless update
 
       - run:
-          name: "authenticate to akeyless"
+          name: "authenticate to akeyless via OIDC"
           command: akeyless auth --access-id $accessid --access-type jwt --jwt $CIRCLE_OIDC_TOKEN --json | jq '.token' -r  > ~/.vault_token
 
       - run:
-          name: "Get PR Comment token (and remove unnecessary information and punctuation"
-          command: TOKEN=$(cat ~/.vault_token) && echo export PR_COMMENT_TOKEN2=$(akeyless get-dynamic-secret-value --name $PR_COMMENT_TOKEN2 --token $TOKEN |grep token | awk '{print $2}' | tr -d '"",' ) >> "$BASH_ENV"
+          name: "Get PR Comment token (and remove unnecessary information and punctuation)"
+          command: TOKEN=$(cat ~/.vault_token) && echo export PR_COMMENT_TOKEN2=$(akeyless get-dynamic-secret-value --name $PR_WRITE_TOKEN_PATH --token $TOKEN |grep token | awk '{print $2}' | tr -d '"",' ) >> "$BASH_ENV"
 
       - run:
-          name: "Copy $BASH_ENV to bash.env file"
+          name: "Copy $BASH_ENV to bash.env file so we can persist that to workspaces"
           command: cp $BASH_ENV bash.env
 
       - persist_to_workspace:
