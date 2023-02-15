@@ -283,7 +283,7 @@ jobs:
     docker:
       - image: akeyless/ci_base
     environment:
-      PR_COMMENT_TOKEN: /dynamic-secrets/keys/github/celo-blockchain/pull_requests=write
+      PR_COMMENT_TOKEN2: /dynamic-secrets/keys/github/celo-blockchain/pull_requests=write
     steps:
       - checkout
       - run:
@@ -295,8 +295,8 @@ jobs:
           command: akeyless auth --access-id $accessid --access-type jwt --jwt $CIRCLE_OIDC_TOKEN --json | jq '.token' -r  > ~/.vault_token
 
       - run:
-          name: "Get PR Comment token"
-          command: TOKEN=$(cat ~/.vault_token) && echo export SECRET=$(akeyless get-dynamic-secret-value --name $PR_COMMENT_TOKEN --token $TOKEN |grep token | awk '{print $2}' | tr -d '"",' ) >> "$BASH_ENV"
+          name: "Get PR Comment token (and remove unnecessary information and punctuation"
+          command: TOKEN=$(cat ~/.vault_token) && echo export PR_COMMENT_TOKEN2=$(akeyless get-dynamic-secret-value --name $PR_COMMENT_TOKEN2 --token $TOKEN |grep token | awk '{print $2}' | tr -d '"",' ) >> "$BASH_ENV"
 
       - run:
           name: "Copy $BASH_ENV to bash.env file"
@@ -469,8 +469,7 @@ jobs:
             # replaced by '\n'. Using backtics causes there to be a round of
             # backslash processing on the command before execution, so we
             # need to double the backslashes in the awk command.
-            #curl -u piersy:${PR_COMMENT_TOKEN} -X ${CURL_VERB} $URL -d "{\"body\":\"`awk -v ORS='\\\\n' '1' comment`\"}" ;
-            curl -u celo-org:${SECRET} -X ${CURL_VERB} $URL -d "{\"body\":\"`awk -v ORS='\\\\n' '1' comment`\"}" ;
+            curl -u celo-org:${PR_COMMENT_TOKEN2} -X ${CURL_VERB} $URL -d "{\"body\":\"`awk -v ORS='\\\\n' '1' comment`\"}" ;
 
 
   e2e-benchmarks:
