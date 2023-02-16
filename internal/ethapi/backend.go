@@ -21,6 +21,7 @@ import (
 	"context"
 	"math/big"
 
+	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
@@ -29,7 +30,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/params"
@@ -40,17 +40,25 @@ import (
 // both full and light clients) with access to necessary functions.
 type Backend interface {
 	// General Ethereum API
-	Downloader() *downloader.Downloader
 	SuggestPrice(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
 	SuggestGasTipCap(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
 	CurrentGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
 	GasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error)
+
+	// As opposed to GasPriceMinimumForHeader which returns a default value in
+	// some cases when it can't retrieve the gas price minimum, this function
+	// returns an error and no gas price minimum when it encounters a problem.
+	RealGasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error)
+	SyncProgress() ethereum.SyncProgress
+
 	ChainDb() ethdb.Database
 	AccountManager() *accounts.Manager
 	ExtRPCEnabled() bool
-	RPCGasCap() uint64        // global gas cap for eth_call over rpc: DoS protection
-	RPCTxFeeCap() float64     // global tx fee cap for all transaction related APIs
-	UnprotectedAllowed() bool // allows only for EIP155 transactions.
+	RPCGasInflationRate() float64 // global multiplier applied to the gas estimations
+	RPCGasCap() uint64            // global gas cap for eth_call over rpc: DoS protection
+	RPCTxFeeCap() float64         // global tx fee cap for all transaction related APIs
+	RPCEthCompatibility() bool    // determines if the fields 'gasLimit' and 'baseFeePerGas' should be returned by the RPC API.
+	UnprotectedAllowed() bool     // allows only for EIP155 transactions.
 
 	// Blockchain API
 	SetHead(number uint64)
@@ -96,6 +104,11 @@ type Backend interface {
 	GatewayFee() *big.Int
 	GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Context) uint64
 	GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) uint64
+
+	// As opposed to GetBlockGasLimit which returns a default value in the case
+	// that it can't retrieve the block gas limit, this function returns an
+	// error and no gas limit when it encounters a problem.
+	GetRealBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (uint64, error)
 	NewEVMRunner(*types.Header, vm.StateDB) vm.EVMRunner
 	Engine() consensus.Engine
 }

@@ -6,7 +6,7 @@ Official golang implementation of the Celo blockchain, based off of the [officia
 [![Codecov](https://img.shields.io/codecov/c/github/celo-org/celo-blockchain)](https://codecov.io/gh/celo-org/celo-blockchain)
 [![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://chat.celo.org)
 
-Prebuilt [Docker](https://en.wikipedia.org/wiki/Docker_\(software\)) images are available for immediate use: [us.gcr.io/celo-testnet/celo-node](https://us.gcr.io/celo-testnet/celo-node). See [docs.celo.org/getting-started](https://docs.celo.org/getting-started/choosing-a-network) for a guide to the Celo networks and how to get started.
+Prebuilt [Docker](https://en.wikipedia.org/wiki/Docker_\(software\)) images are available for immediate use: [us.gcr.io/celo-org/geth](https://us.gcr.io/celo-org/geth). See [docs.celo.org/getting-started](https://docs.celo.org/getting-started/choosing-a-network) for a guide to the Celo networks and how to get started.
 
 Documentation for Celo more generally can be found at [docs.celo.org](https://docs.celo.org/)
 
@@ -14,7 +14,7 @@ Most functionality of this client is similar to `go-ethereum`, also known as `ge
 
 ## Building the source
 
-Building `geth` requires both a Go (version 1.16) and a C compiler.
+Building `geth` requires both Go (min version 1.15) and a C compiler.
 You can install them using your favourite package manager. Once the dependencies are installed, run
 
 ```shell
@@ -58,35 +58,45 @@ The Celo blockchain client comes with several wrappers/executables found in the 
 
 ## Running tests
 
-Prior to running tests you will need to run `make prepare-system-contracts`.
-This will checkout the celo-monorepo and compile the system contracts for use
-in full network tests. The rule will copy the compiled contracts from
-celo-monorepo to `compiled-system-contracts`. If you subsequently edit the
-system contracts source, running the make rule again will re-compile them and
-copy them into place.
+Prior to running tests you will need to run `make prepare`, this will run two sub rules.
 
-This make rule will shallow checkout
+Without first running this `make prepare`, certain tests will fail.
+
+### prepare-system-contracts
+
+This will shallow checkout the
 [celo-monorepo](https://github.com/celo-org/celo-monorepo) under
-`../.celo-blockchain-monorepo-checkout` relative to this project's root, and it
-will checkout the commit defined in the variable MONOREPO_COMMIT in the
-Makefile. 
+`../.celo-blockchain-monorepo-checkout` relative to this project's root at the
+commit defined in the file `monorepo_commit`. Then it will compile the system
+contracts for use in full network tests. The rule will copy the compiled
+contracts from celo-monorepo to `compiled-system-contracts`. If you
+subsequently edit the system contracts source or `monorepo_commit`, running the
+make rule again will re-checkout the monorepo, re-compile the contracts and
+copy them into place. 
 
-These values can be overridden if required, by setting those variables in the
-make command, for example:
-```
-make prepare-system-contracts MONOREPO_COMMIT=master MONOREPO_PATH=../alt-monorepo
-```
+`monorepo_commit` may contain a commit hash or a tag, branch names are
+forbidden.
 
-Without first running this make rule, certain tests will fail with errors such
-as:
+In the case that you would like to change the default monorepo checkout
+location, or that you would like to have multiple checkouts of the monorepo (at
+different versions) you can set the `MONOREPO_PATH` variable in the make
+command, for example:
 
 ```
-panic: Can't read bytecode for monorepo/packages/protocol/build/contracts/FixidityLib.json: open
+make prepare-system-contracts MONOREPO_PATH=../alt-monorepo
+
 ```
+Note that `MONOREPO_PATH` should not be set to point at checkouts other than
+those checked out by the `prepare-system-contracts` rule, and the checkouts
+created by the `prepare-system-contracts` rule should not be manually modified,
+aside from changing the contract source.
+
+### prepare-ethersjs-project
+This will install dependencies for the `ethersjs-api-check` typescript project.
 
 ## Running Celo
 
-Please see the [docs.celo.org/getting-started](https://docs.celo.org/getting-started/choosing-a-network) for instructions on how to run a node connected the Celo network using the prebuilt Docker image.
+Please see the [docs.celo.org/getting-started](https://docs.celo.org/getting-started/choosing-a-network) for instructions on how to run a node connected to the Celo network using the prebuilt Docker image.
 
 Going through all the possible command line flags is out of scope here, please consult `geth --help` for more complete information.
 We've enumerated a few common parameter combos to get you up to speed quickly on how you can run your own Celo blockchain client instance.
@@ -143,7 +153,7 @@ As an alternative to passing the numerous flags to the `Celo` binary, you can al
 $ geth --config /path/to/your_config.toml
 ```
 
-To get an idea how the file should look like you can use the `dumpconfig` subcommand to
+To get an idea of how the file should look like you can use the `dumpconfig` subcommand to
 export your existing configuration:
 
 ```shell
@@ -219,7 +229,7 @@ Please make sure your contributions adhere to our coding guidelines:
 
 ### Submitting an issue
 
-If you come across a bug, pleas open a [GitHub issue](https://github.com/celo-org/celo-blockchain/issues/new) with information about your build and what happened.
+If you come across a bug, please open a [GitHub issue](https://github.com/celo-org/celo-blockchain/issues/new) with information about your build and what happened.
 
 ### CI Testing and automerge
 
@@ -246,7 +256,7 @@ and do a squash merge once all the required tests have passed.
 
 ### Benchmarking
 
-Golang has built in support for running benchmarks with go tool
+Golang has built-in support for running benchmarks with go tool
 `go test -run=ThisIsNotATestName -bench=. ./$PACKAGE_NAME` will run all benchmarks in a package.
 
 One note around running benchmarks is that `BenchmarkHandlePreprepare` is quite takes a while to run, particularly when testing with a larger number of validators.

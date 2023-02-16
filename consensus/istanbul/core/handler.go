@@ -22,11 +22,16 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/log"
 )
 
 // Start implements core.Engine.Start
 func (c *core) Start() error {
-
+	rsdb, err := newRoundStateDB(c.config.RoundStateDBPath, nil)
+	if err != nil {
+		log.Crit("Failed to open RoundStateDB", "err", err)
+	}
+	c.rsdb = rsdb
 	roundState, err := c.createRoundState()
 	if err != nil {
 		return err
@@ -34,6 +39,7 @@ func (c *core) Start() error {
 
 	c.current = roundState
 	c.roundChangeSet = newRoundChangeSet(c.current.ValidatorSet())
+	c.roundChangeSetV2 = newRoundChangeSetV2(c.current.ValidatorSet())
 
 	// Reset the Round Change timer for the current round to timeout.
 	// (If we've restored RoundState such that we are in StateWaitingForRoundChange,
@@ -62,10 +68,11 @@ func (c *core) Stop() error {
 	// Make sure the handler goroutine exits
 	c.handlerWg.Wait()
 
+	err := c.rsdb.Close()
 	c.currentMu.Lock()
 	defer c.currentMu.Unlock()
 	c.current = nil
-	return nil
+	return err
 }
 
 // ----------------------------------------------------------------------------
@@ -200,12 +207,16 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	switch msg.Code {
 	case istanbul.MsgPreprepare:
 		return catchFutureMessages(c.handlePreprepare(msg))
+	case istanbul.MsgPreprepareV2:
+		return catchFutureMessages(c.handlePreprepareV2(msg))
 	case istanbul.MsgPrepare:
 		return catchFutureMessages(c.handlePrepare(msg))
 	case istanbul.MsgCommit:
 		return catchFutureMessages(c.handleCommit(msg))
 	case istanbul.MsgRoundChange:
 		return catchFutureMessages(c.handleRoundChange(msg))
+	case istanbul.MsgRoundChangeV2:
+		return catchFutureMessages(c.handleRoundChangeV2(msg))
 	default:
 		logger.Error("Invalid message", "m", msg)
 	}

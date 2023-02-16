@@ -2,6 +2,7 @@ package announce
 
 import "github.com/celo-org/celo-blockchain/common"
 
+// Network manages the communication needed for the announce protocol to work.
 type Network interface {
 	// Gossip gossips protocol messages
 	Gossip(payload []byte, ethMsgCode uint64) error

@@ -23,6 +23,7 @@ import (
 	"io"
 	"math/big"
 	"reflect"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -52,6 +53,11 @@ type Header struct {
 	GasUsed     uint64         `json:"gasUsed"          gencodec:"required"`
 	Time        uint64         `json:"timestamp"        gencodec:"required"`
 	Extra       []byte         `json:"extraData"        gencodec:"required"`
+
+	// Used to cache deserialized istanbul extra data
+	extraLock  sync.Mutex
+	extraValue *IstanbulExtra
+	extraError error
 }
 
 // field type overrides for gencodec
@@ -100,6 +106,10 @@ func (h *Header) SanityCheck() error {
 // EmptyBody returns true if there is no additional 'body' to complete the header
 // that is: no transactions.
 func (h *Header) EmptyBody() bool {
+	if _, err := h.IstanbulExtra(); err == nil {
+		return false
+	}
+
 	return h.TxHash == EmptyRootHash
 }
 
@@ -271,8 +281,19 @@ func NewBlockWithHeader(header *Header) *Block {
 // CopyHeader creates a deep copy of a block header to prevent side effects from
 // modifying a header variable.
 func CopyHeader(h *Header) *Header {
-	cpy := *h
-	if cpy.Number = new(big.Int); h.Number != nil {
+	cpy := Header{
+		ParentHash:  h.ParentHash,
+		Coinbase:    h.Coinbase,
+		Root:        h.Root,
+		TxHash:      h.TxHash,
+		ReceiptHash: h.ReceiptHash,
+		Bloom:       h.Bloom,
+		Number:      new(big.Int),
+		GasUsed:     h.GasUsed,
+		Time:        h.Time,
+	}
+
+	if h.Number != nil {
 		cpy.Number.Set(h.Number)
 	}
 	if len(h.Extra) > 0 {
@@ -366,10 +387,10 @@ func (c *writeCounter) Write(b []byte) (int, error) {
 // WithHeader returns a new block with the data from b but the header replaced with
 // the sealed one.
 func (b *Block) WithHeader(header *Header) *Block {
-	cpy := *header
+	cpy := CopyHeader(header)
 
 	return &Block{
-		header:         &cpy,
+		header:         cpy,
 		transactions:   b.transactions,
 		randomness:     b.randomness,
 		epochSnarkData: b.epochSnarkData,

@@ -33,8 +33,10 @@ type Config struct {
 	Reserve                    ReserveParameters
 	StableToken                StableTokenParameters
 	StableTokenEUR             StableTokenParameters
+	StableTokenBRL             StableTokenParameters
 	Exchange                   ExchangeParameters
 	ExchangeEUR                ExchangeParameters
+	ExchangeBRL                ExchangeParameters
 	LockedGold                 LockedGoldParameters
 	GoldToken                  GoldTokenParameters
 	Validators                 ValidatorsParameters
@@ -49,6 +51,7 @@ type Config struct {
 	DoubleSigningSlasher       DoubleSigningSlasherParameters
 	DowntimeSlasher            DowntimeSlasherParameters
 	Governance                 GovernanceParameters
+	GrandaMento                GrandaMentoParameters
 }
 
 // Save will write config into a json file
@@ -275,6 +278,32 @@ type GasPriceMinimumParameters struct {
 type GasPriceMinimumParametersMarshaling struct {
 	MinimumFloor *bigintstr.BigIntStr `json:"minimumFloor"`
 }
+
+// GrandaMentoParameters are the initial configuration parameters for GrandaMento
+type GrandaMentoParameters struct {
+	Approver                      common.Address                `json:"approver"`
+	MaxApprovalExchangeRateChange *fixed.Fixed                  `json:"maxApprovalExchangeRateChange"`
+	Spread                        *fixed.Fixed                  `json:"spread"`
+	VetoPeriodSeconds             uint64                        `json:"vetoPeriodSeconds"`
+	StableTokenExchangeLimits     StableTokenExchangeLimitsList `json:"stableTokenExchangeLimits"`
+}
+
+//go:generate gencodec -type StableTokenExchangeLimit -field-override StableTokenExchangeLimitsMarshaling -out gen_stable_token_exchange_limit_json.go
+
+// StableTokenExchangeLimit represents the granda mento's exchange limit for a specific stable
+type StableTokenExchangeLimit struct {
+	StableToken       string   `json:"stableToken"`
+	MinExchangeAmount *big.Int `json:"minExchangeAmount"`
+	MaxExchangeAmount *big.Int `json:"maxExchangeAmount"`
+}
+
+type StableTokenExchangeLimitsMarshaling struct {
+	MinExchangeAmount *bigintstr.BigIntStr `json:"minExchangeAmount"`
+	MaxExchangeAmount *bigintstr.BigIntStr `json:"maxExchangeAmount"`
+}
+
+// BalanceList list of balances
+type StableTokenExchangeLimitsList []StableTokenExchangeLimit
 
 //go:generate gencodec -type ReserveParameters -field-override ReserveParametersMarshaling -out gen_reserve_parameters_json.go
 

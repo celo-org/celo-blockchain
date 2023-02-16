@@ -86,8 +86,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		sysCtx  *SysContractCallCtx
 	)
 	if p.bc.Config().IsEspresso(blockNumber) {
-		sysVmRunner := p.bc.NewEVMRunner(header, statedb)
-		sysCtx = NewSysContractCallCtx(sysVmRunner)
+		sysCtx = NewSysContractCallCtx(header, statedb, p.bc)
 		if p.bc.Config().Faker {
 			sysCtx = MockSysContractCallCtx()
 		}

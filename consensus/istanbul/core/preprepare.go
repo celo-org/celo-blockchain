@@ -17,6 +17,7 @@
 package core
 
 import (
+	"errors"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -46,6 +47,12 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	logger.Trace("Got preprepare message", "m", msg)
 
 	preprepare := msg.Preprepare()
+	// Check consensus fork
+	if c.isConsensusFork(preprepare.View.Sequence) {
+		logger.Info("Received Preprepare (V1) for forked block sequence", "sequence", preprepare.View.Sequence.Uint64())
+		return errors.New("Received Preprepare (V1) for forked block")
+	}
+
 	logger = logger.New("msg_num", preprepare.Proposal.Number(), "msg_hash", preprepare.Proposal.Hash(), "msg_seq", preprepare.View.Sequence, "msg_round", preprepare.View.Round)
 
 	// Verify that the proposal is for the sequence number of the view we verified.

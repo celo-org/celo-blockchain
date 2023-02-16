@@ -31,11 +31,11 @@ import (
 	"github.com/celo-org/celo-blockchain/core/bloombits"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/eth/filters"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/internal/ethapi"
+	"github.com/celo-org/celo-blockchain/les/downloader"
 	"github.com/celo-org/celo-blockchain/les/vflux"
 	vfc "github.com/celo-org/celo-blockchain/les/vflux/client"
 	"github.com/celo-org/celo-blockchain/light"
@@ -83,7 +83,7 @@ type LightEthereum struct {
 // New creates an instance of the light client.
 func New(stack *node.Node, config *ethconfig.Config) (*LightEthereum, error) {
 	var chainName string
-	syncMode := config.SyncMode
+	syncMode := downloader.FromString(config.SyncMode.String())
 	var fullChainAvailable bool
 	if syncMode == downloader.LightSync {
 		chainName = "lightchaindata"

@@ -31,12 +31,12 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		LightEgress             int                    `toml:",omitempty"`
 		LightPeers              int                    `toml:",omitempty"`
 		LightNoPrune            bool                   `toml:",omitempty"`
+		LightNoSyncServe        bool                   `toml:",omitempty"`
+		SyncFromCheckpoint      bool                   `toml:",omitempty"`
 		GatewayFee              *big.Int               `toml:",omitempty"`
 		Validator               common.Address         `toml:",omitempty"`
 		TxFeeRecipient          common.Address         `toml:",omitempty"`
 		BLSbase                 common.Address         `toml:",omitempty"`
-		LightNoSyncServe        bool                   `toml:",omitempty"`
-		SyncFromCheckpoint      bool                   `toml:",omitempty"`
 		UltraLightServers       []string               `toml:",omitempty"`
 		UltraLightFraction      int                    `toml:",omitempty"`
 		UltraLightOnlyAnnounce  bool                   `toml:",omitempty"`
@@ -56,11 +56,14 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		EnablePreimageRecording bool
 		Istanbul                istanbul.Config
 		DocRoot                 string `toml:"-"`
+		RPCGasInflationRate     float64
 		RPCGasCap               uint64
 		RPCTxFeeCap             float64
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
 		OverrideEHardfork       *big.Int                       `toml:",omitempty"`
+		OverrideV2IstanbulFork  *big.Int                       `toml:",omitempty"`
+		MinSyncPeers            int                            `toml:",omitempty"`
 	}
 	var enc Config
 	enc.Genesis = c.Genesis
@@ -77,12 +80,12 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.LightEgress = c.LightEgress
 	enc.LightPeers = c.LightPeers
 	enc.LightNoPrune = c.LightNoPrune
+	enc.LightNoSyncServe = c.LightNoSyncServe
+	enc.SyncFromCheckpoint = c.SyncFromCheckpoint
 	enc.GatewayFee = c.GatewayFee
 	enc.Validator = c.Validator
 	enc.TxFeeRecipient = c.TxFeeRecipient
 	enc.BLSbase = c.BLSbase
-	enc.LightNoSyncServe = c.LightNoSyncServe
-	enc.SyncFromCheckpoint = c.SyncFromCheckpoint
 	enc.UltraLightServers = c.UltraLightServers
 	enc.UltraLightFraction = c.UltraLightFraction
 	enc.UltraLightOnlyAnnounce = c.UltraLightOnlyAnnounce
@@ -102,11 +105,14 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.EnablePreimageRecording = c.EnablePreimageRecording
 	enc.Istanbul = c.Istanbul
 	enc.DocRoot = c.DocRoot
+	enc.RPCGasInflationRate = c.RPCGasInflationRate
 	enc.RPCGasCap = c.RPCGasCap
 	enc.RPCTxFeeCap = c.RPCTxFeeCap
 	enc.Checkpoint = c.Checkpoint
 	enc.CheckpointOracle = c.CheckpointOracle
 	enc.OverrideEHardfork = c.OverrideEHardfork
+	enc.OverrideV2IstanbulFork = c.OverrideV2IstanbulFork
+	enc.MinSyncPeers = c.MinSyncPeers
 	return &enc, nil
 }
 
@@ -127,12 +133,12 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		LightEgress             *int                   `toml:",omitempty"`
 		LightPeers              *int                   `toml:",omitempty"`
 		LightNoPrune            *bool                  `toml:",omitempty"`
+		LightNoSyncServe        *bool                  `toml:",omitempty"`
+		SyncFromCheckpoint      *bool                  `toml:",omitempty"`
 		GatewayFee              *big.Int               `toml:",omitempty"`
 		Validator               *common.Address        `toml:",omitempty"`
 		TxFeeRecipient          *common.Address        `toml:",omitempty"`
 		BLSbase                 *common.Address        `toml:",omitempty"`
-		LightNoSyncServe        *bool                  `toml:",omitempty"`
-		SyncFromCheckpoint      *bool                  `toml:",omitempty"`
 		UltraLightServers       []string               `toml:",omitempty"`
 		UltraLightFraction      *int                   `toml:",omitempty"`
 		UltraLightOnlyAnnounce  *bool                  `toml:",omitempty"`
@@ -152,11 +158,14 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		EnablePreimageRecording *bool
 		Istanbul                *istanbul.Config
 		DocRoot                 *string `toml:"-"`
+		RPCGasInflationRate     *float64
 		RPCGasCap               *uint64
 		RPCTxFeeCap             *float64
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
-		OverrideEhardfork       *big.Int                       `toml:",omitempty"`
+		OverrideEHardfork       *big.Int                       `toml:",omitempty"`
+		OverrideV2IstanbulFork  *big.Int                       `toml:",omitempty"`
+		MinSyncPeers            *int                           `toml:",omitempty"`
 	}
 	var dec Config
 	if err := unmarshal(&dec); err != nil {
@@ -204,6 +213,12 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.LightNoPrune != nil {
 		c.LightNoPrune = *dec.LightNoPrune
 	}
+	if dec.LightNoSyncServe != nil {
+		c.LightNoSyncServe = *dec.LightNoSyncServe
+	}
+	if dec.SyncFromCheckpoint != nil {
+		c.SyncFromCheckpoint = *dec.SyncFromCheckpoint
+	}
 	if dec.GatewayFee != nil {
 		c.GatewayFee = dec.GatewayFee
 	}
@@ -215,12 +230,6 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.BLSbase != nil {
 		c.BLSbase = *dec.BLSbase
-	}
-	if dec.LightNoSyncServe != nil {
-		c.LightNoSyncServe = *dec.LightNoSyncServe
-	}
-	if dec.SyncFromCheckpoint != nil {
-		c.SyncFromCheckpoint = *dec.SyncFromCheckpoint
 	}
 	if dec.UltraLightServers != nil {
 		c.UltraLightServers = dec.UltraLightServers
@@ -279,6 +288,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.DocRoot != nil {
 		c.DocRoot = *dec.DocRoot
 	}
+	if dec.RPCGasInflationRate != nil {
+		c.RPCGasInflationRate = *dec.RPCGasInflationRate
+	}
 	if dec.RPCGasCap != nil {
 		c.RPCGasCap = *dec.RPCGasCap
 	}
@@ -291,8 +303,14 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.CheckpointOracle != nil {
 		c.CheckpointOracle = dec.CheckpointOracle
 	}
-	if dec.OverrideEhardfork != nil {
-		c.OverrideEHardfork = dec.OverrideEhardfork
+	if dec.OverrideEHardfork != nil {
+		c.OverrideEHardfork = dec.OverrideEHardfork
+	}
+	if dec.OverrideV2IstanbulFork != nil {
+		c.OverrideV2IstanbulFork = dec.OverrideV2IstanbulFork
+	}
+	if dec.MinSyncPeers != nil {
+		c.MinSyncPeers = *dec.MinSyncPeers
 	}
 	return nil
 }

@@ -4,21 +4,44 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
+	"os"
+	"os/exec"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/node"
+	"github.com/celo-org/celo-blockchain/rpc"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestMain(m *testing.M) {
+	println("====== RUNNING e2e tests with original consensus protocol")
+	code1 := m.Run()
+
+	// Activate V2 consensus block
+	test.BaseEthConfig.Istanbul.V2Block = big.NewInt(0)
+	println("====== RUNNING e2e tests with v2 consensus protocol")
+	code2 := m.Run()
+	os.Exit(code1 | code2)
+}
+
 func init() {
 	// This statement is commented out but left here since its very useful for
 	// debugging problems and its non trivial to construct.
 	//
-	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlDebug, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
+	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
+
+	// This disables all logging which in general we want, because there is a lot
+	log.Root().SetHandler(log.DiscardHandler())
 }
 
 // This test starts a network submits a transaction and waits for the whole
@@ -30,7 +53,7 @@ func TestSendCelo(t *testing.T) {
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
 	defer shutdown()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
 	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
@@ -42,6 +65,33 @@ func TestSendCelo(t *testing.T) {
 	// Wait for the whole network to process the transaction.
 	err = network.AwaitTransactions(ctx, tx)
 	require.NoError(t, err)
+}
+
+// This test verifies correct behavior in a network of size one, in the case that
+// this fails we know that the problem does not lie with our network code.
+func TestSingleNodeNetworkManyTxs(t *testing.T) {
+	iterations := 5
+	txsPerIteration := 5
+	ac := test.AccountConfig(1, 1)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	gc.Istanbul.Epoch = uint64(iterations) * 50 // avoid the epoch for this test
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+	for r := 0; r < iterations; r++ {
+		txs := make([]*types.Transaction, 0, txsPerIteration)
+		for j := 0; j < txsPerIteration; j++ {
+			tx, err := accounts[0].SendCelo(ctx, common.Address{}, 1, network[0])
+			require.NoError(t, err)
+			require.NotNil(t, tx)
+		}
+		err = network.AwaitTransactions(ctx, txs...)
+		require.NoError(t, err)
+	}
 }
 
 // This test is intended to ensure that epoch blocks can be correctly marshalled.
@@ -146,6 +196,14 @@ func TestStartStopValidators(t *testing.T) {
 	err = network[2].Start()
 	require.NoError(t, err)
 
+	// We need to wait here to allow the call to "Backend.RefreshValPeers" to
+	// complete before adding peers. This is because "Backend.RefreshValPeers"
+	// deletes all peers and then re-adds any peers from the cached
+	// connections, but in the case that peers were recently added there may
+	// not have been enough time to connect to them and populate the connection
+	// cache, and in that case "Backend.RefreshValPeers" simply removes all the
+	// peers.
+	time.Sleep(250 * time.Millisecond)
 	// Connect last stopped node to running nodes
 	network[2].AddPeers(network[:2]...)
 	time.Sleep(25 * time.Millisecond)
@@ -171,6 +229,14 @@ func TestStartStopValidators(t *testing.T) {
 	err = network[3].Start()
 	require.NoError(t, err)
 
+	// We need to wait here to allow the call to "Backend.RefreshValPeers" to
+	// complete before adding peers. This is because "Backend.RefreshValPeers"
+	// deletes all peers and then re-adds any peers from the cached
+	// connections, but in the case that peers were recently added there may
+	// not have been enough time to connect to them and populate the connection
+	// cache, and in that case "Backend.RefreshValPeers" simply removes all the
+	// peers.
+	time.Sleep(250 * time.Millisecond)
 	// Connect final node to rest of network
 	network[3].AddPeers(network[:3]...)
 	time.Sleep(25 * time.Millisecond)
@@ -188,4 +254,322 @@ func TestStartStopValidators(t *testing.T) {
 	err = network.AwaitTransactions(ctx, txs...)
 	require.NoError(t, err)
 
+}
+
+// This test was created to reproduce the concurrent map access error in
+// https://github.com/celo-org/celo-blockchain/issues/1799
+//
+// It does this by calling debug_traceBlockByNumber a number of times since the
+// trace block code was the source of the concurrent map access.
+func TestBlockTracingConcurrentMapAccess(t *testing.T) {
+	ac := test.AccountConfig(1, 2)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
+	defer cancel()
+
+	n := network[0]
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	var txs []*types.Transaction
+	// Send one celo from external account 0 to 1 via node 0.
+	for i := 0; i < 10; i++ {
+		tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, n)
+		require.NoError(t, err)
+		txs = append(txs, tx)
+	}
+
+	// Wait for the whole network to process the transactions.
+	err = network.AwaitTransactions(ctx, txs...)
+	require.NoError(t, err)
+
+	lastTx := txs[len(txs)-1]
+
+	b := n.Tracker.GetProcessedBlockForTx(lastTx.Hash())
+
+	var wg sync.WaitGroup
+	for i := 1; i < +int(b.NumberU64()); i++ {
+		wg.Add(1)
+		num := i
+		go func() {
+			defer wg.Done()
+			c, err := rpc.DialContext(ctx, n.WSEndpoint())
+			require.NoError(t, err)
+
+			var result []interface{}
+			err = c.CallContext(ctx, &result, "debug_traceBlockByNumber", hexutil.EncodeUint64(uint64(num)))
+			require.NoError(t, err)
+		}()
+
+	}
+	wg.Wait()
+}
+
+type rpcCustomTransaction struct {
+	BlockNumber *hexutil.Big `json:"blockNumber"`
+	BlockHash   *common.Hash `json:"blockHash"`
+	GasPrice    *hexutil.Big `json:"gasPrice"`
+}
+
+// TestRPCDynamicTxGasPriceWithBigFeeCap test that after a dynamic tx
+// was added to a block, the rpc sends in the gasPrice the actual consumed
+// price by the tx, which could be less than the feeCap (as in this example)
+func TestRPCDynamicTxGasPriceWithBigFeeCap(t *testing.T) {
+	ac := test.AccountConfig(3, 2)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	suggestedGasPrice, err := network[0].WsClient.SuggestGasPrice(ctx)
+	require.NoError(t, err)
+	gasFeeCap := big.NewInt(0).Mul(suggestedGasPrice, big.NewInt(90))
+	gasTipCap := big.NewInt(0).Mul(suggestedGasPrice, big.NewInt(2))
+
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCeloWithDynamicFee(ctx, accounts[1].Address, 1, gasFeeCap, gasTipCap, network[0])
+	require.NoError(t, err)
+
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+
+	var json *rpcCustomTransaction
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &json, "eth_getTransactionByHash", tx.Hash())
+	require.NoError(t, err)
+	require.NotNil(t, json.BlockNumber)
+	gasPrice := json.GasPrice.ToInt()
+	require.NotNil(t, json.GasPrice)
+	require.Greater(t, gasPrice.Int64(), gasTipCap.Int64())
+	require.Less(t, gasPrice.Int64(), gasFeeCap.Int64())
+}
+
+// TestRPCDynamicTxGasPriceWithState aims to test the scenario where a
+// an old dynamic tx is requested via rpc, to an archive node.
+// As right now on Celo, we are not storing the baseFee in the header (as ethereum does),
+// to know the exactly gasPrice expent in a dynamic tx, depends on consuming the
+// GasPriceMinimum contract
+func TestRPCDynamicTxGasPriceWithState(t *testing.T) {
+	ac := test.AccountConfig(3, 2)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	ec.TxLookupLimit = 0
+	ec.NoPruning = true
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	suggestedGasPrice, err := network[0].WsClient.SuggestGasPrice(ctx)
+	require.NoError(t, err)
+	gasFeeCap := big.NewInt(0).Mul(suggestedGasPrice, big.NewInt(90))
+	gasTipCap := big.NewInt(0).Mul(suggestedGasPrice, big.NewInt(2))
+
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCeloWithDynamicFee(ctx, accounts[1].Address, 1, gasFeeCap, gasTipCap, network[0])
+	require.NoError(t, err)
+
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+
+	var json *rpcCustomTransaction
+	// Check that the transaction can be retrieved via the rpc api
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &json, "eth_getTransactionByHash", tx.Hash())
+	require.NoError(t, err)
+	// Blocknumber != nil it means that it eas already processed
+	require.NotNil(t, json.BlockNumber)
+
+	// Create a block containing a transaction, we will prune the state of this block.
+	_, err = accounts[0].SendCeloTracked(ctx, accounts[1].Address, 1, network[0])
+	require.NoError(t, err)
+
+	// Prune state
+	err = pruneStateOfBlock(ctx, network[0], *json.BlockHash)
+	require.NoError(t, err)
+
+	var json2 *rpcCustomTransaction
+	// Check that the transaction can still be retrieved via the rpc api
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &json2, "eth_getTransactionByHash", tx.Hash())
+	require.NoError(t, err)
+	// if the object is nil, it means that was not found
+	require.NotNil(t, json2)
+	// Blocknumber != nil it means that it eas already processed
+	require.NotNil(t, json2.BlockNumber)
+	require.Equal(t, json.GasPrice, json2.GasPrice)
+}
+
+// TestRPCDynamicTxGasPriceWithoutState aims to test the scenario where a
+// an old dynamic tx is requested via rpc, to a full node that does not have
+// the state anymore.
+// As right now on Celo, we are not storing the baseFee in the header (as ethereum does),
+// to know the exactly gasPrice expent in a dynamic tx, depends on consuming the
+// GasPriceMinimum contract
+func TestRPCDynamicTxGasPriceWithoutState(t *testing.T) {
+	ac := test.AccountConfig(3, 2)
+	gc, ec, err := test.BuildConfig(ac)
+	ec.TrieDirtyCache = 5
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*90)
+	defer cancel()
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	suggestedGasPrice, err := network[0].WsClient.SuggestGasPrice(ctx)
+	require.NoError(t, err)
+	gasFeeCap := big.NewInt(0).Mul(suggestedGasPrice, big.NewInt(90))
+	gasTipCap := big.NewInt(0).Mul(suggestedGasPrice, big.NewInt(2))
+
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCeloWithDynamicFee(ctx, accounts[1].Address, 1, gasFeeCap, gasTipCap, network[0])
+	require.NoError(t, err)
+
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+
+	var json *rpcCustomTransaction
+	// Check that the transaction can be retrieved via the rpc api
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &json, "eth_getTransactionByHash", tx.Hash())
+	require.NoError(t, err)
+	// Blocknumber != nil it means that it eas already processed
+	require.NotNil(t, json.BlockNumber)
+
+	// Create one block to be able to prune the last state
+	_, err = accounts[0].SendCeloTracked(ctx, accounts[1].Address, 1, network[0])
+	require.NoError(t, err)
+
+	// Prune state
+	err = pruneStateOfBlock(ctx, network[0], *json.BlockHash)
+	require.NoError(t, err)
+
+	var json2 *rpcCustomTransaction
+	// Check that the transaction can still be retrieved via the rpc api
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &json2, "eth_getTransactionByHash", tx.Hash())
+	require.NoError(t, err)
+	// if the object is nil, it means that was not found
+	require.NotNil(t, json2)
+	// Blocknumber != nil it means that it eas already processed
+	require.NotNil(t, json2.BlockNumber)
+
+	require.Nil(t, json2.GasPrice)
+}
+
+func pruneStateOfBlock(ctx context.Context, node *test.Node, blockHash common.Hash) error {
+	var block *types.Block
+	block, err := node.WsClient.BlockByHash(ctx, blockHash)
+	if err != nil {
+		return err
+	}
+	root := block.Root()
+	node.Eth.BlockChain().StateCache().TrieDB().Dereference(root)
+
+	return nil
+}
+
+func TestEthersJSCompatibility(t *testing.T) {
+	ac := test.AccountConfig(1, 1)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	num, err := network[0].WsClient.BlockNumber(ctx)
+	require.NoError(t, err)
+
+	// Execute typescript tests to check ethers.js compatibility.
+	//
+	// The '--networkaddr' and '--blocknum' flags are npm config variables, the
+	// values become available under 'process.env.npm_config_networkaddr' and
+	// 'process.env.npm_config_blocknum' in typescript test. Everything after
+	// '--' are flags that are passed to mocha and these flags are controlling
+	// which tests to run.
+
+	// The tests don't seem to work on CI with IPV6 addresses so we convert to IPV4 here
+	addr := strings.Replace(network[0].Node.HTTPEndpoint(), "[::]", "127.0.0.1", 1)
+
+	cmd := exec.Command("npm", "run", "test", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "ethers.js compatibility tests with state")
+	cmd.Dir = "./ethersjs-api-check/"
+	println("executing mocha test with", cmd.String())
+	output, err := cmd.CombinedOutput()
+	println(string(output))
+	require.NoError(t, err)
+
+	err = network[0].Tracker.AwaitBlock(ctx, num+1)
+	require.NoError(t, err)
+	block := network[0].Tracker.GetProcessedBlock(num)
+
+	// Prune state
+	err = pruneStateOfBlock(ctx, network[0], block.Hash())
+	require.NoError(t, err)
+
+	// Execute typescript tests to check what happens with a pruned block.
+	cmd = exec.Command("npm", "run", "test", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "ethers.js compatibility tests with no state")
+	cmd.Dir = "./ethersjs-api-check/"
+	println("executing mocha test with", cmd.String())
+	output, err = cmd.CombinedOutput()
+	println(string(output))
+	require.NoError(t, err)
+}
+
+// This test checks the functionality of the configuration to enable/disable
+// returning the 'gasLimit' and 'baseFeePerGas' fields on RPC blocks.
+func TestEthersJSCompatibilityDisable(t *testing.T) {
+	ac := test.AccountConfig(1, 1)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+
+	// Check fields present (compatibility set by default)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	result := make(map[string]interface{})
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
+	require.NoError(t, err)
+
+	_, ok := result["gasLimit"]
+	assert.True(t, ok, "gasLimit field should be present on RPC block")
+	_, ok = result["baseFeePerGas"]
+	assert.True(t, ok, "baseFeePerGas field should be present on RPC block")
+
+	// Turn of compatibility and check fields are not present
+	ec.RPCEthCompatibility = false
+	network, shutdown, err = test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	result = make(map[string]interface{})
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
+	require.NoError(t, err)
+
+	_, ok = result["gasLimit"]
+	assert.False(t, ok, "gasLimit field should not be present on RPC block")
+	_, ok = result["baseFeePerGas"]
+	assert.False(t, ok, "baseFeePerGas field should not be present on RPC block")
 }

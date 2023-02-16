@@ -49,6 +49,11 @@ var genesisAddresses = map[string]common.Address{
 	"Governance":                 addr("0xf023"),
 	"StableTokenEUR":             addr("0xf024"),
 	"ExchangeEUR":                addr("0xf025"),
+	"StableTokenBRL":             addr("0xf026"),
+	"ExchangeBRL":                addr("0xf027"),
+	"GrandaMento":                addr("0xf028"),
+	"FederatedAttestations":      addr("0xf029"),
+	"OdisPayments":               addr("0xf030"),
 
 	// Contract Proxies
 	"RegistryProxy":                   addr("0xce10"),
@@ -77,6 +82,11 @@ var genesisAddresses = map[string]common.Address{
 	"GovernanceProxy":                 addr("0xd023"),
 	"StableTokenEURProxy":             addr("0xd024"),
 	"ExchangeEURProxy":                addr("0xd025"),
+	"StableTokenBRLProxy":             addr("0xd026"),
+	"ExchangeBRLProxy":                addr("0xd027"),
+	"GrandaMentoProxy":                addr("0xd028"),
+	"FederatedAttestationsProxy":      addr("0xd029"),
+	"OdisPaymentsProxy":               addr("0xd030"),
 }
 
 var libraries = []string{

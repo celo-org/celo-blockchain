@@ -64,13 +64,14 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		ChurritoBlock:       big.NewInt(6774000),
 		DonutBlock:          big.NewInt(6774000),
-		EspressoBlock:       nil,
+		EspressoBlock:       big.NewInt(11838440),
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
 			BlockPeriod:    5,
 			RequestTimeout: 3000,
 			LookbackWindow: 12,
+			V2Block:        big.NewInt(16068685),
 		},
 	}
 
@@ -89,13 +90,14 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		ChurritoBlock:       big.NewInt(2719099),
 		DonutBlock:          big.NewInt(5002000),
-		EspressoBlock:       nil,
+		EspressoBlock:       big.NewInt(9195000),
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
 			BlockPeriod:    5,
 			RequestTimeout: 3000,
 			LookbackWindow: 12,
+			V2Block:        big.NewInt(13612887),
 		},
 	}
 
@@ -114,13 +116,14 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		ChurritoBlock:       big.NewInt(4960000),
 		DonutBlock:          big.NewInt(4960000),
-		EspressoBlock:       nil,
+		EspressoBlock:       big.NewInt(9472000),
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
 			BlockPeriod:    5,
 			RequestTimeout: 10000,
 			LookbackWindow: 12,
+			V2Block:        big.NewInt(14287656),
 		},
 	}
 
@@ -252,6 +255,8 @@ type IstanbulConfig struct {
 	// have timeouts of this + additional time that increases with round
 	// number.
 	RequestTimeout uint64 `json:"requesttimeout,omitempty"`
+
+	V2Block *big.Int `json:"v2block,omitempty"` // Activation block for the V2 istanbul consensus fork (nil = no fork, 0 = already activated)
 }
 
 // String implements the stringer interface, returning the consensus engine details.

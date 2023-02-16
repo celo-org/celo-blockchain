@@ -55,6 +55,15 @@ func BaseConfig() *Config {
 			GoldPrice:                   fixed("1"),
 			ExchangeIdentifier:          "ExchangeEUR",
 		},
+		StableTokenBRL: StableTokenParameters{
+			Name:                        "Celo Brazilian Real",
+			Symbol:                      "cREAL",
+			Decimals:                    18,
+			Rate:                        fixed("1"),
+			InflationFactorUpdatePeriod: 2 * Year,
+			GoldPrice:                   fixed("1"),
+			ExchangeIdentifier:          "ExchangeBRL",
+		},
 		Validators: ValidatorsParameters{
 			GroupLockedGoldRequirements: LockedGoldRequirements{
 				Value:    bigIntStr("10000000000000000000000"), // 10k CELO per validator
@@ -94,6 +103,13 @@ func BaseConfig() *Config {
 			Frozen:          false,
 		},
 		ExchangeEUR: ExchangeParameters{
+			Spread:          fixed("0.005"),
+			ReserveFraction: fixed("0.01"),
+			UpdateFrequency: 5 * Minute,
+			MinimumReports:  1,
+			Frozen:          false,
+		},
+		ExchangeBRL: ExchangeParameters{
 			Spread:          fixed("0.005"),
 			ReserveFraction: fixed("0.01"),
 			UpdateFrequency: 5 * Minute,
@@ -161,6 +177,28 @@ func BaseConfig() *Config {
 			ParticipationFloor:      fixed("0.01"),
 			BaselineUpdateFactor:    fixed("0.2"),
 			BaselineQuorumFactor:    fixed("1"),
+		},
+		GrandaMento: GrandaMentoParameters{
+			MaxApprovalExchangeRateChange: fixed("0.3"),
+			Spread:                        fixed("0.005"),
+			VetoPeriodSeconds:             10,
+			StableTokenExchangeLimits: []StableTokenExchangeLimit{
+				{
+					StableToken:       "StableToken",
+					MinExchangeAmount: bigIntStr("50000000000000000000000"),
+					MaxExchangeAmount: bigIntStr("50000000000000000000000000"),
+				},
+				{
+					StableToken:       "StableTokenEUR",
+					MinExchangeAmount: bigIntStr("40000000000000000000000"),
+					MaxExchangeAmount: bigIntStr("40000000000000000000000000"),
+				},
+				{
+					StableToken:       "StableTokenBRL",
+					MinExchangeAmount: bigIntStr("40000000000000000000000"),
+					MaxExchangeAmount: bigIntStr("40000000000000000000000000"),
+				},
+			},
 		},
 	}
 }

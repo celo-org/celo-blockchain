@@ -31,7 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/forkid"
 	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/les/downloader"
 	"github.com/celo-org/celo-blockchain/light"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
@@ -174,11 +174,11 @@ func (h *clientHandler) runPeer(version uint, p *p2p.Peer, rw p2p.MsgReadWriter)
 	defer peer.close()
 	h.wg.Add(1)
 	defer h.wg.Done()
-	err := h.handle(peer)
+	err := h.handle(peer, false)
 	return err
 }
 
-func (h *clientHandler) handle(p *serverPeer) error {
+func (h *clientHandler) handle(p *serverPeer, noInitAnnounce bool) error {
 	// KJUE - Remove the server not nil check after restoring peer check in server.go
 	if p.Peer.Server != nil {
 		if err := p.Peer.Server.CheckPeerCounts(p.Peer); err != nil {
@@ -227,8 +227,11 @@ func (h *clientHandler) handle(p *serverPeer) error {
 		connectionTimer.Update(time.Duration(mclock.Now() - connectedAt))
 		serverConnectionGauge.Update(int64(h.backend.peers.len()))
 	}()
-	h.fetcher.announce(p, &announceData{Hash: p.headInfo.Hash, Number: p.headInfo.Number, Td: p.headInfo.Td})
-
+	// It's mainly used in testing which requires discarding initial
+	// signal to prevent syncing.
+	if !noInitAnnounce {
+		h.fetcher.announce(p, &announceData{Hash: p.headInfo.Hash, Number: p.headInfo.Number, Td: p.headInfo.Td})
+	}
 	// Loop until we receive a RequestEtherbase response or timeout.
 	go func() {
 		maxRequests := 10
@@ -610,7 +613,7 @@ func (d *downloaderPeerNotify) registerPeer(p *serverPeer) {
 		handler: h,
 		peer:    p,
 	}
-	h.downloader.RegisterLightPeer(p.id, istanbul.Celo66, pc)
+	h.downloader.RegisterLightPeer(p.id, istanbul.Celo67, pc)
 }
 
 func (d *downloaderPeerNotify) unregisterPeer(p *serverPeer) {

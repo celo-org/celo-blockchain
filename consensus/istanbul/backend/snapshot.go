@@ -130,7 +130,7 @@ func (s *Snapshot) apply(headers []*types.Header, db ethdb.Database) (*Snapshot,
 		}
 
 		// Ensure that the extra data format is satisfied
-		istExtra, err := types.ExtractIstanbulExtra(header)
+		istExtra, err := header.IstanbulExtra()
 		if err != nil {
 			log.Error("Unable to extract the istanbul extra field from the header", "header", header)
 			return nil, err

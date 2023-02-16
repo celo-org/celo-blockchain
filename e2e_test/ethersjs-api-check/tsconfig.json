@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES2016",
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "strict": true,
+    "rootDir": ".",
+    "outDir": "dist",
+	"moduleResolution": "node",
+	"useUnknownInCatchVariables": true
+  }
+}

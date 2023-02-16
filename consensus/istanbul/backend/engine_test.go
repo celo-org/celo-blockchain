@@ -177,7 +177,7 @@ func TestVerifySeal(t *testing.T) {
 
 	// modify seal bitmap and expect to fail the quorum check
 	header = block.Header()
-	extra, err := types.ExtractIstanbulExtra(header)
+	extra, err := header.IstanbulExtra()
 	g.Expect(err).ToNot(HaveOccurred())
 	extra.AggregatedSeal.Bitmap = big.NewInt(0)
 	encoded, err := rlp.EncodeToBytes(extra)
@@ -357,7 +357,7 @@ func TestPrepareExtra(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// the header must have the updated extra data
-	updatedExtra, err := types.ExtractIstanbulExtra(h)
+	updatedExtra, err := h.IstanbulExtra()
 	g.Expect(err).ToNot(HaveOccurred())
 
 	var updatedExtraVals []istanbul.ValidatorData
@@ -407,7 +407,7 @@ func TestWriteSeal(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 
 	// verify istanbul extra-data
-	actualIstExtra, err := types.ExtractIstanbulExtra(h)
+	actualIstExtra, err := h.IstanbulExtra()
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(actualIstExtra).To(Equal(expectedIstExtra))
 
@@ -457,7 +457,7 @@ func TestWriteAggregatedSeal(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 
 	// verify istanbul extra-data
-	actualIstExtra, err := types.ExtractIstanbulExtra(h)
+	actualIstExtra, err := h.IstanbulExtra()
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(actualIstExtra).To(Equal(expectedIstExtra))
 

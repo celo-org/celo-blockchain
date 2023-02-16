@@ -612,113 +612,6 @@ func (h *priceHeap) Pop() interface{} {
 	return x
 }
 
-// multiCurrencyPriceHeap is a heap.Interface implementation over transactions
-// with different fee currencies for retrieving price-sorted transactions to discard
-// when the pool fills up. If baseFee is set then the heap is sorted based on the
-// effective tip based on the given base fee. If baseFee is nil then the sorting
-// is based on gasFeeCap.
-type multiCurrencyPriceHeap struct {
-	currencyCmpFn       func(*big.Int, *common.Address, *big.Int, *common.Address) int
-	baseFeeFn           func(*common.Address) *big.Int // heap should always be re-sorted after baseFee is changed
-	nonNilCurrencyHeaps map[common.Address]*priceHeap  // Heap of prices of all the stored non-nil currency transactions
-	nilCurrencyHeap     *priceHeap                     // Heap of prices of all the stored nil currency transactions
-
-}
-
-// Add to the heap. Must call Init afterwards to retain the heap invariants.
-func (h *multiCurrencyPriceHeap) Add(tx *types.Transaction) {
-	if fc := tx.FeeCurrency(); fc == nil {
-		h.nilCurrencyHeap.list = append(h.nilCurrencyHeap.list, tx)
-	} else {
-		if _, ok := h.nonNilCurrencyHeaps[*fc]; !ok {
-			h.nonNilCurrencyHeaps[*fc] = &priceHeap{
-				baseFee: h.baseFeeFn(fc),
-			}
-
-		}
-		sh := h.nonNilCurrencyHeaps[*fc]
-		sh.list = append(sh.list, tx)
-	}
-}
-
-func (h *multiCurrencyPriceHeap) Push(tx *types.Transaction) {
-	if fc := tx.FeeCurrency(); fc == nil {
-		h.nilCurrencyHeap.Push(tx)
-	} else {
-		if _, ok := h.nonNilCurrencyHeaps[*fc]; !ok {
-			h.nonNilCurrencyHeaps[*fc] = &priceHeap{
-				baseFee: h.baseFeeFn(fc),
-			}
-
-		}
-		sh := h.nonNilCurrencyHeaps[*fc]
-		sh.Push(tx)
-	}
-}
-
-func (h *multiCurrencyPriceHeap) Pop() *types.Transaction {
-	var cheapestHeap *priceHeap
-	var cheapestTxn *types.Transaction
-
-	if len(h.nilCurrencyHeap.list) > 0 {
-		cheapestHeap = h.nilCurrencyHeap
-		cheapestTxn = h.nilCurrencyHeap.list[0]
-	}
-
-	for _, priceHeap := range h.nonNilCurrencyHeaps {
-		if len(priceHeap.list) > 0 {
-			if cheapestHeap == nil {
-				cheapestHeap = priceHeap
-				cheapestTxn = cheapestHeap.list[0]
-			} else {
-				txn := priceHeap.list[0]
-				if h.currencyCmpFn(txn.GasPrice(), txn.FeeCurrency(), cheapestTxn.GasPrice(), cheapestTxn.FeeCurrency()) < 0 {
-					cheapestHeap = priceHeap
-					cheapestTxn = txn
-				}
-			}
-		}
-	}
-
-	if cheapestHeap != nil {
-		return heap.Pop(cheapestHeap).(*types.Transaction)
-	}
-	return nil
-
-}
-
-func (h *multiCurrencyPriceHeap) Len() int {
-	r := len(h.nilCurrencyHeap.list)
-	for _, priceHeap := range h.nonNilCurrencyHeaps {
-		r += len(priceHeap.list)
-	}
-	return r
-}
-
-func (h *multiCurrencyPriceHeap) Init() {
-	heap.Init(h.nilCurrencyHeap)
-	for _, priceHeap := range h.nonNilCurrencyHeaps {
-		heap.Init(priceHeap)
-	}
-}
-
-func (h *multiCurrencyPriceHeap) Clear() {
-	h.nilCurrencyHeap.list = nil
-	for _, priceHeap := range h.nonNilCurrencyHeaps {
-		priceHeap.list = nil
-	}
-}
-
-func (h *multiCurrencyPriceHeap) SetBaseFee(txCtx *txPoolContext) {
-	h.currencyCmpFn = txCtx.CmpValues
-	h.baseFeeFn = txCtx.GetGasPriceMinimum
-	h.nilCurrencyHeap.baseFee = txCtx.GetGasPriceMinimum(nil)
-	for currencyAddr, heap := range h.nonNilCurrencyHeaps {
-		heap.baseFee = txCtx.GetGasPriceMinimum(&currencyAddr)
-	}
-
-}
-
 // txPricedList is a price-sorted heap to allow operating on transactions pool
 // contents in a price-incrementing way. It's built opon the all transactions
 // in txpool but only interested in the remote part. It means only remote transactions
@@ -731,11 +624,16 @@ func (h *multiCurrencyPriceHeap) SetBaseFee(txCtx *txPoolContext) {
 // better candidates for inclusion while in other cases (at the top of the baseFee peak)
 // the floating heap is better. When baseFee is decreasing they behave similarly.
 type txPricedList struct {
+	// Number of stale price points to (re-heap trigger).
+	// This field is accessed atomically, and must be the first field
+	// to ensure it has correct alignment for atomic.AddInt64.
+	// See https://golang.org/pkg/sync/atomic/#pkg-note-BUG.
+	stales    int64
+	maxStales int64 // Maximum amount of stale price points allowed before a forced re-heap
+
 	ctx              *atomic.Value
 	all              *txLookup              // Pointer to the map of all transactions
 	urgent, floating multiCurrencyPriceHeap // Heaps of prices of all the stored **remote** transactions
-	stales           int64                  // Number of stale price points to (re-heap trigger)
-	maxStales        int64                  // Maximum amount of stale price points allowed before a forced re-heap
 	reheapMu         sync.Mutex             // Mutex asserts that only one routine is reheaping the list
 }
 
@@ -752,18 +650,8 @@ func newTxPricedList(all *txLookup, ctx *atomic.Value, maxStales int64) *txPrice
 		ctx:       ctx,
 		all:       all,
 		maxStales: maxStales,
-		urgent: multiCurrencyPriceHeap{
-			currencyCmpFn:       txCtx.CmpValues,
-			nilCurrencyHeap:     &priceHeap{},
-			nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
-			baseFeeFn:           txCtx.GetGasPriceMinimum,
-		},
-		floating: multiCurrencyPriceHeap{
-			currencyCmpFn:       txCtx.CmpValues,
-			nilCurrencyHeap:     &priceHeap{},
-			nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
-			baseFeeFn:           txCtx.GetGasPriceMinimum,
-		},
+		urgent:    newMultiCurrencyPriceHeap(txCtx.CmpValues, txCtx.SysContractCallCtx.GetCurrentGasPriceMinimumMap()),
+		floating:  newMultiCurrencyPriceHeap(txCtx.CmpValues, txCtx.SysContractCallCtx.GetCurrentGasPriceMinimumMap()),
 	}
 }
 
@@ -808,8 +696,8 @@ func (l *txPricedList) Underpriced(tx *types.Transaction) bool {
 }
 
 func (l *txPricedList) underpricedForMulti(h *multiCurrencyPriceHeap, tx *types.Transaction) bool {
-	underpriced := l.underpricedFor(h.nilCurrencyHeap, tx)
-	for _, sh := range h.nonNilCurrencyHeaps {
+	underpriced := l.underpricedFor(h.nativeCurrencyHeap, tx)
+	for _, sh := range h.currencyHeaps {
 		if l.underpricedFor(sh, tx) {
 			underpriced = true
 		}
@@ -911,6 +799,6 @@ func (l *txPricedList) Reheap() {
 // SetBaseFee updates the base fee and triggers a re-heap. Note that Removed is not
 // necessary to call right before SetBaseFee when processing a new block.
 func (l *txPricedList) SetBaseFee(txCtx *txPoolContext) {
-	l.urgent.SetBaseFee(txCtx)
+	l.urgent.UpdateFeesAndCurrencies(txCtx.CmpValues, txCtx.SysContractCallCtx.GetCurrentGasPriceMinimumMap())
 	l.Reheap()
 }

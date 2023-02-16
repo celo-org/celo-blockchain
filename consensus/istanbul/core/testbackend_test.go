@@ -284,6 +284,18 @@ func (self *testSystemBackend) getPreprepareMessage(view istanbul.View, roundCha
 	return self.finalizeAndReturnMessage(msg)
 }
 
+func (self *testSystemBackend) getPreprepareV2Message(view istanbul.View,
+	roundChangeCertificateV2 istanbul.RoundChangeCertificateV2,
+	proposal istanbul.Proposal) (istanbul.Message, error) {
+	msg := istanbul.NewPreprepareV2Message(&istanbul.PreprepareV2{
+		View:                     &view,
+		RoundChangeCertificateV2: roundChangeCertificateV2,
+		Proposal:                 proposal,
+	}, self.address)
+
+	return self.finalizeAndReturnMessage(msg)
+}
+
 func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest common.Hash) (istanbul.Message, error) {
 	msg := istanbul.NewPrepareMessage(&istanbul.Subject{
 		View:   &view,
@@ -328,6 +340,29 @@ func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, prepare
 	}, common.Address{})
 
 	return self.finalizeAndReturnMessage(msg)
+}
+
+func (self *testSystemBackend) getRoundChangeV2Message(view istanbul.View, preparedCertV2 istanbul.PreparedCertificateV2, proposal istanbul.Proposal) (istanbul.Message, error) {
+	req, err := self.getRoundChangeRequest(view, preparedCertV2)
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+	msg := istanbul.NewRoundChangeV2Message(&istanbul.RoundChangeV2{
+		Request:          *req,
+		PreparedProposal: proposal,
+	}, common.Address{})
+
+	return self.finalizeAndReturnMessage(msg)
+}
+
+func (self *testSystemBackend) getRoundChangeRequest(view istanbul.View, preparedCertV2 istanbul.PreparedCertificateV2) (*istanbul.RoundChangeRequest, error) {
+	req := &istanbul.RoundChangeRequest{
+		View:                  view,
+		PreparedCertificateV2: preparedCertV2,
+		Address:               self.engine.(*core).address,
+	}
+	err := req.Sign(self.engine.(*core).backend.Sign)
+	return req, err
 }
 
 func (self *testSystemBackend) Enode() *enode.Node {
@@ -391,7 +426,7 @@ func newTestValidatorSet(n int) istanbul.ValidatorSet {
 	return validator.NewSet(validators)
 }
 
-func newTestSystemWithBackend(n, f uint64) *testSystem {
+func newTestSystemWithBackend(n, f uint64, v2Block *big.Int) *testSystem {
 
 	validators, blsKeys, keys := generateValidators(int(n))
 	sys := newTestSystem(n, f, blsKeys)
@@ -402,6 +437,7 @@ func newTestSystemWithBackend(n, f uint64) *testSystem {
 	config.TimeoutBackoffFactor = 100
 	config.MinResendRoundChangeTimeout = 1000
 	config.MaxResendRoundChangeTimeout = 10000
+	config.V2Block = v2Block
 
 	for i := uint64(0); i < n; i++ {
 		vset := validator.NewSet(validators)
@@ -457,14 +493,23 @@ func NewTestSystemWithBackendDonut(n, f, epoch uint64, donutBlock int64) *testSy
 // FIXME: int64 is needed for N and F
 func NewTestSystemWithBackend(n, f uint64) *testSystem {
 	testLogger.SetHandler(elog.StdoutHandler)
-	return newTestSystemWithBackend(n, f)
+	return newTestSystemWithBackend(n, f, nil)
+}
+
+func NewTestSystemWithBackendV2(n, f uint64) *testSystem {
+	testLogger.SetHandler(elog.StdoutHandler)
+	return newTestSystemWithBackend(n, f, big.NewInt(0))
 }
 
 // FIXME: int64 is needed for N and F
 func NewMutedTestSystemWithBackend(n, f uint64) *testSystem {
 	testLogger.SetHandler(elog.DiscardHandler())
-	return newTestSystemWithBackend(n, f)
+	return newTestSystemWithBackend(n, f, nil)
+}
 
+func NewMutedTestSystemWithBackendV2(n, f uint64) *testSystem {
+	testLogger.SetHandler(elog.DiscardHandler())
+	return newTestSystemWithBackend(n, f, big.NewInt(0))
 }
 
 // listen will consume messages from queue and deliver a message to core
@@ -562,6 +607,11 @@ func (sys *testSystem) getPreparedCertificate(t ErrorReporter, views []istanbul.
 	return preparedCertificate
 }
 
+func (sys *testSystem) getPreparedCertificateV2(t ErrorReporter, views []istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificateV2 {
+	pc := sys.getPreparedCertificate(t, views, proposal)
+	return istanbul.PCV2FromPCV1(pc)
+}
+
 func (sys *testSystem) getRoundChangeCertificate(t ErrorReporter, views []istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
 	var roundChangeCertificate istanbul.RoundChangeCertificate
 	for i, backend := range sys.backends {
@@ -575,6 +625,21 @@ func (sys *testSystem) getRoundChangeCertificate(t ErrorReporter, views []istanb
 		roundChangeCertificate.RoundChangeMessages = append(roundChangeCertificate.RoundChangeMessages, msg)
 	}
 	return roundChangeCertificate
+}
+
+func (sys *testSystem) getRoundChangeCertificateV2(t ErrorReporter, views []istanbul.View, preparedCertificateV2 istanbul.PreparedCertificateV2) istanbul.RoundChangeCertificateV2 {
+	var roundChangeCertificateV2 istanbul.RoundChangeCertificateV2
+	for i, backend := range sys.backends {
+		if uint64(i) == sys.MinQuorumSize() {
+			break
+		}
+		req, err := backend.getRoundChangeRequest(views[i%len(views)], preparedCertificateV2)
+		if err != nil {
+			t.Errorf("Failed to create ROUND CHANGE message: %v", err)
+		}
+		roundChangeCertificateV2.Requests = append(roundChangeCertificateV2.Requests, *req)
+	}
+	return roundChangeCertificateV2
 }
 
 // ==============================================
