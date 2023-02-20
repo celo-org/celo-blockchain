@@ -75,15 +75,15 @@ var (
 func init() {
 	testTxPoolConfig = core.DefaultTxPoolConfig
 	testTxPoolConfig.Journal = ""
-	istanbulChainConfig = params.IstanbulEHFTestChainConfig
+	istanbulChainConfig = params.IstanbulTestChainConfig
 	istanbulChainConfig.Istanbul = &params.IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
 	}
 
-	signer := types.LatestSigner(params.IstanbulEHFTestChainConfig)
+	signer := types.LatestSigner(params.IstanbulTestChainConfig)
 	tx1 := types.MustSignNewTx(testBankKey, signer, &types.AccessListTx{
-		ChainID:  params.IstanbulEHFTestChainConfig.ChainID,
+		ChainID:  params.IstanbulTestChainConfig.ChainID,
 		Nonce:    0,
 		To:       &testUserAddress,
 		Value:    big.NewInt(1000),
@@ -197,7 +197,7 @@ func TestGenerateBlockAndImport(t *testing.T) {
 		chainConfig *params.ChainConfig
 		db          = rawdb.NewMemoryDatabase()
 	)
-	chainConfig = params.IstanbulEHFTestChainConfig
+	chainConfig = params.IstanbulTestChainConfig
 
 	engine = mockEngine.NewFaker()
 

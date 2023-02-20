@@ -135,6 +135,11 @@ func (b *BlockGen) Number() *big.Int {
 	return new(big.Int).Set(b.header.Number)
 }
 
+// MinimumGasPrice returns the EIP-1559 base fee of the block being generated.
+func (b *BlockGen) MinimumGasPrice(currency *common.Address) *big.Int {
+	return MockSysContractCallCtx().GetGasPriceMinimum(currency)
+}
+
 // AddUncheckedReceipt forcefully adds a receipts to the block without a
 // backing transaction.
 //
