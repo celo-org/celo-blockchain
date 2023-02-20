@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
-	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -275,7 +274,7 @@ func createGQLService(t *testing.T, stack *node.Node) {
 	// create backend
 	ethConf := &ethconfig.Config{
 		Genesis: &core.Genesis{
-			Config: params.IstanbulTestChainConfig,
+			Config: params.TestChainConfig,
 		},
 		NetworkId:               1337,
 		TrieCleanCache:          5,
@@ -286,14 +285,13 @@ func createGQLService(t *testing.T, stack *node.Node) {
 		SnapshotCache:           5,
 		RPCGasInflationRate:     1,
 	}
-	ethConf.Genesis.Config.Faker = true
 	ethBackend, err := eth.New(stack, ethConf)
 	if err != nil {
 		t.Fatalf("could not create eth backend: %v", err)
 	}
 	// Create some blocks and import them
-	chain, _ := core.GenerateChain(params.IstanbulTestChainConfig, ethBackend.BlockChain().Genesis(),
-		mockEngine.NewFaker(), ethBackend.ChainDb(), 10, func(i int, gen *core.BlockGen) {})
+	chain, _ := core.GenerateChain(ethBackend.Config().Genesis.Config, ethBackend.BlockChain().Genesis(),
+		ethBackend.Engine(), ethBackend.ChainDb(), 10, func(i int, gen *core.BlockGen) {})
 	_, err = ethBackend.BlockChain().InsertChain(chain)
 	if err != nil {
 		t.Fatalf("could not create import blocks: %v", err)
@@ -314,7 +312,7 @@ func createGQLServiceWithTransactions(t *testing.T, stack *node.Node) {
 
 	ethConf := &ethconfig.Config{
 		Genesis: &core.Genesis{
-			Config: params.IstanbulEHFTestChainConfig,
+			Config: params.TestChainConfig,
 			Alloc: core.GenesisAlloc{
 				address: {Balance: funds},
 				// The address 0xdad sloads 0x00 and 0x01
@@ -339,7 +337,6 @@ func createGQLServiceWithTransactions(t *testing.T, stack *node.Node) {
 		TrieTimeout:             60 * time.Minute,
 		SnapshotCache:           5,
 	}
-	ethConf.Genesis.Config.Faker = true
 
 	ethBackend, err := eth.New(stack, ethConf)
 	if err != nil {
@@ -378,8 +375,8 @@ func createGQLServiceWithTransactions(t *testing.T, stack *node.Node) {
 	})
 
 	// Create some blocks and import them
-	chain, _ := core.GenerateChain(params.IstanbulEHFTestChainConfig, ethBackend.BlockChain().Genesis(),
-		mockEngine.NewFaker(), ethBackend.ChainDb(), 1, func(i int, b *core.BlockGen) {
+	chain, _ := core.GenerateChain(ethConf.Genesis.Config, ethBackend.BlockChain().Genesis(),
+		ethBackend.Engine(), ethBackend.ChainDb(), 1, func(i int, b *core.BlockGen) {
 			b.SetCoinbase(common.Address{1})
 			b.AddTx(legacyTx)
 			b.AddTx(envelopTx)
