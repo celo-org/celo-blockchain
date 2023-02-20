@@ -284,7 +284,7 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 				}
 				// Trace all the transactions contained within
 				for i, tx := range task.block.Transactions() {
-					baseFee := getBaseFee(isEspresso, sysCtx, tx)
+					baseFee := getBaseFee(isEspresso, sysCtx, tx.FeeCurrency())
 					msg, _ := tx.AsMessage(signer, baseFee)
 					txctx := &Context{
 						BlockHash: task.block.Hash(),
@@ -434,14 +434,6 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 	return sub, nil
 }
 
-func getBaseFee(isEspresso bool, sysCtx *core.SysContractCallCtx, tx *types.Transaction) *big.Int {
-	var baseFee *big.Int
-	if isEspresso && sysCtx != nil {
-		baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
-	}
-	return baseFee
-}
-
 // TraceBlockByNumber returns the structured logs created during the execution of
 // EVM and returns them as a JSON object.
 func (api *API) TraceBlockByNumber(ctx context.Context, number rpc.BlockNumber, config *TraceConfig) ([]*txTraceResult, error) {
@@ -545,7 +537,7 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 	vmRunner := api.backend.NewEVMRunner(block.Header(), statedb)
 	for i, tx := range block.Transactions() {
 		var (
-			baseFee   = getBaseFee(isEspresso, sysCtx, tx)
+			baseFee   = getBaseFee(isEspresso, sysCtx, tx.FeeCurrency())
 			msg, _    = tx.AsMessage(signer, baseFee)
 			txContext = core.NewEVMTxContext(msg)
 			vmenv     = vm.NewEVM(vmctx, txContext, statedb, chainConfig, vm.Config{})
@@ -625,7 +617,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 			defer pend.Done()
 			// Fetch and execute the next transaction trace tasks
 			for task := range jobs {
-				baseFee := getBaseFee(isEspresso, sysCtx, txs[task.index])
+				baseFee := getBaseFee(isEspresso, sysCtx, txs[task.index].FeeCurrency())
 				msg, _ := txs[task.index].AsMessage(signer, baseFee)
 				txctx := &Context{
 					BlockHash: blockHash,
@@ -650,7 +642,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		jobs <- &txTraceTask{statedb: statedb.Copy(), index: i}
 
 		// Generate the next state snapshot fast without tracing
-		baseFee := getBaseFee(isEspresso, sysCtx, tx)
+		baseFee := getBaseFee(isEspresso, sysCtx, tx.FeeCurrency())
 		msg, _ := tx.AsMessage(signer, baseFee)
 		statedb.Prepare(tx.Hash(), i)
 		vmenv := vm.NewEVM(blockCtx, core.NewEVMTxContext(msg), statedb, api.backend.ChainConfig(), vm.Config{})
@@ -741,7 +733,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 	for i, tx := range block.Transactions() {
 		// Prepare the transaction for un-traced execution
 		var (
-			baseFee   = getBaseFee(isEspresso, sysCtx, tx)
+			baseFee   = getBaseFee(isEspresso, sysCtx, tx.FeeCurrency())
 			msg, _    = tx.AsMessage(signer, baseFee)
 			txContext = core.NewEVMTxContext(msg)
 			vmConf    vm.Config
@@ -795,6 +787,14 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 		}
 	}
 	return dumps, nil
+}
+
+func getBaseFee(isEspresso bool, sysCtx *core.SysContractCallCtx, feeCurrency *common.Address) *big.Int {
+	var baseFee *big.Int
+	if isEspresso && sysCtx != nil {
+		baseFee = sysCtx.GetGasPriceMinimum(feeCurrency)
+	}
+	return baseFee
 }
 
 // containsTx reports whether the transaction with a certain hash
