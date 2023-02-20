@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"os"
 	"runtime"
 	"sync"
@@ -275,13 +276,16 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 			for task := range tasks {
 				signer := types.MakeSigner(api.backend.ChainConfig(), task.block.Number())
 				blockCtx := core.NewEVMBlockContext(task.block.Header(), api.chainContext(localctx), nil)
+
+				isEspresso := api.backend.ChainConfig().IsEspresso(blockCtx.BlockNumber)
 				var sysCtx *core.SysContractCallCtx
-				if api.backend.ChainConfig().IsEspresso(blockCtx.BlockNumber) {
+				if isEspresso {
 					sysCtx = core.NewSysContractCallCtx(task.block.Header(), task.statedb, api.backend)
 				}
 				// Trace all the transactions contained within
 				for i, tx := range task.block.Transactions() {
-					msg, _ := tx.AsMessage(signer, nil)
+					baseFee := getBaseFee(isEspresso, sysCtx, tx)
+					msg, _ := tx.AsMessage(signer, baseFee)
 					txctx := &Context{
 						BlockHash: task.block.Hash(),
 						TxIndex:   i,
@@ -430,6 +434,14 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 	return sub, nil
 }
 
+func getBaseFee(isEspresso bool, sysCtx *core.SysContractCallCtx, tx *types.Transaction) *big.Int {
+	var baseFee *big.Int
+	if isEspresso && sysCtx != nil {
+		baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
+	}
+	return baseFee
+}
+
 // TraceBlockByNumber returns the structured logs created during the execution of
 // EVM and returns them as a JSON object.
 func (api *API) TraceBlockByNumber(ctx context.Context, number rpc.BlockNumber, config *TraceConfig) ([]*txTraceResult, error) {
@@ -525,14 +537,16 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 		vmctx              = core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 		deleteEmptyObjects = chainConfig.IsEIP158(block.Number())
 	)
+	isEspresso := api.backend.ChainConfig().IsEspresso(block.Number())
 	var sysCtx *core.SysContractCallCtx
-	if api.backend.ChainConfig().IsEspresso(block.Number()) {
+	if isEspresso {
 		sysCtx = core.NewSysContractCallCtx(block.Header(), statedb, api.backend)
 	}
 	vmRunner := api.backend.NewEVMRunner(block.Header(), statedb)
 	for i, tx := range block.Transactions() {
 		var (
-			msg, _    = tx.AsMessage(signer, nil)
+			baseFee   = getBaseFee(isEspresso, sysCtx, tx)
+			msg, _    = tx.AsMessage(signer, baseFee)
 			txContext = core.NewEVMTxContext(msg)
 			vmenv     = vm.NewEVM(vmctx, txContext, statedb, chainConfig, vm.Config{})
 		)
@@ -611,7 +625,8 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 			defer pend.Done()
 			// Fetch and execute the next transaction trace tasks
 			for task := range jobs {
-				msg, _ := txs[task.index].AsMessage(signer, nil)
+				baseFee := getBaseFee(isEspresso, sysCtx, txs[task.index])
+				msg, _ := txs[task.index].AsMessage(signer, baseFee)
 				txctx := &Context{
 					BlockHash: blockHash,
 					TxIndex:   task.index,
@@ -635,7 +650,8 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		jobs <- &txTraceTask{statedb: statedb.Copy(), index: i}
 
 		// Generate the next state snapshot fast without tracing
-		msg, _ := tx.AsMessage(signer, nil)
+		baseFee := getBaseFee(isEspresso, sysCtx, tx)
+		msg, _ := tx.AsMessage(signer, baseFee)
 		statedb.Prepare(tx.Hash(), i)
 		vmenv := vm.NewEVM(blockCtx, core.NewEVMTxContext(msg), statedb, api.backend.ChainConfig(), vm.Config{})
 		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), vmRunner, sysCtx); err != nil {
@@ -716,14 +732,17 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 			canon = false
 		}
 	}
+
+	isEspresso := api.backend.ChainConfig().IsEspresso(block.Number())
 	var sysCtx *core.SysContractCallCtx
-	if api.backend.ChainConfig().IsEspresso(block.Number()) {
+	if isEspresso {
 		sysCtx = core.NewSysContractCallCtx(block.Header(), statedb, api.backend)
 	}
 	for i, tx := range block.Transactions() {
-		// Prepare the trasaction for un-traced execution
+		// Prepare the transaction for un-traced execution
 		var (
-			msg, _    = tx.AsMessage(signer, nil)
+			baseFee   = getBaseFee(isEspresso, sysCtx, tx)
+			msg, _    = tx.AsMessage(signer, baseFee)
 			txContext = core.NewEVMTxContext(msg)
 			vmConf    vm.Config
 			dump      *os.File
