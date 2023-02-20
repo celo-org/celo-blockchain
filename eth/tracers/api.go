@@ -599,8 +599,10 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	}
 	blockCtx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 	blockHash := block.Hash()
+
+	isEspresso := api.backend.ChainConfig().IsEspresso(block.Number())
 	var sysCtx *core.SysContractCallCtx
-	if api.backend.ChainConfig().IsEspresso(block.Number()) {
+	if isEspresso {
 		sysCtx = core.NewSysContractCallCtx(block.Header(), statedb, api.backend)
 	}
 	for th := 0; th < threads; th++ {
