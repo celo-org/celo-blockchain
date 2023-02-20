@@ -127,31 +127,49 @@ var (
 		},
 	}
 
-	DeveloperChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
-		Epoch:          300,
-		ProposerPolicy: 0,
-		RequestTimeout: 1000,
-		BlockPeriod:    1,
-	}, true, false}
+	TestChainConfig = &ChainConfig{
+		ChainID:        big.NewInt(1),
+		HomesteadBlock: big.NewInt(0),
 
-	IstanbulTestChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, nil, &IstanbulConfig{
-		Epoch:          300,
-		ProposerPolicy: 0,
-		RequestTimeout: 1000,
-		BlockPeriod:    1,
-	}, true, false}
+		DAOForkBlock:   nil,
+		DAOForkSupport: false,
 
-	IstanbulEHFTestChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), big.NewInt(0), big.NewInt(0), &IstanbulConfig{
-		Epoch:          300,
-		ProposerPolicy: 0,
-		RequestTimeout: 1000,
-		BlockPeriod:    1,
-	}, true, false}
+		EIP150Block: big.NewInt(0),
+		EIP150Hash:  common.Hash{},
 
-	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, nil, &IstanbulConfig{
-		Epoch:          30000,
-		ProposerPolicy: 0,
-	}, true, true}
+		EIP155Block: big.NewInt(0),
+		EIP158Block: big.NewInt(0),
+
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		EWASMBlock:          nil,
+
+		ChurritoBlock: big.NewInt(0),
+		DonutBlock:    big.NewInt(0),
+		EspressoBlock: big.NewInt(0),
+
+		Istanbul: &IstanbulConfig{
+			Epoch:          30000,
+			ProposerPolicy: 0,
+		},
+
+		FullHeaderChainAvailable: true,
+		Faker:                    true,
+	}
+	IstanbulTestChainConfig = TestChainConfig.
+				deepCopy().
+				OverrideFakerConfig(false).
+				OverrideChainIdConfig(big.NewInt(1337)).
+				OverrideIstanbulConfig(
+			&IstanbulConfig{
+				Epoch:          300,
+				ProposerPolicy: 0,
+				RequestTimeout: 1000,
+				BlockPeriod:    1,
+			},
+		)
 	TestRules = TestChainConfig.Rules(new(big.Int))
 )
 
@@ -563,4 +581,60 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsDonut:          c.IsDonut(num),
 		IsEspresso:       c.IsEspresso(num),
 	}
+}
+
+func (c *ChainConfig) OverrideIstanbulConfig(istanbulConfig *IstanbulConfig) *ChainConfig {
+	c.Istanbul = istanbulConfig
+	return c
+}
+
+func (c *ChainConfig) OverrideFakerConfig(faker bool) *ChainConfig {
+	c.Faker = faker
+	return c
+}
+
+func (c *ChainConfig) OverrideChainIdConfig(chainId *big.Int) *ChainConfig {
+	c.ChainID = chainId
+	return c
+}
+
+func (c *ChainConfig) deepCopy() *ChainConfig {
+	cpy := &ChainConfig{
+		ChainID:             copyBigIntOrNil(c.ChainID),
+		HomesteadBlock:      copyBigIntOrNil(c.HomesteadBlock),
+		DAOForkBlock:        copyBigIntOrNil(c.DAOForkBlock),
+		DAOForkSupport:      c.DAOForkSupport,
+		EIP150Block:         copyBigIntOrNil(c.EIP150Block),
+		EIP150Hash:          c.EIP150Hash,
+		EIP155Block:         copyBigIntOrNil(c.EIP155Block),
+		EIP158Block:         copyBigIntOrNil(c.EIP158Block),
+		ByzantiumBlock:      copyBigIntOrNil(c.ByzantiumBlock),
+		ConstantinopleBlock: copyBigIntOrNil(c.ConstantinopleBlock),
+		PetersburgBlock:     copyBigIntOrNil(c.PetersburgBlock),
+		IstanbulBlock:       copyBigIntOrNil(c.IstanbulBlock),
+		EWASMBlock:          copyBigIntOrNil(c.EWASMBlock),
+		ChurritoBlock:       copyBigIntOrNil(c.ChurritoBlock),
+		DonutBlock:          copyBigIntOrNil(c.DonutBlock),
+		EspressoBlock:       copyBigIntOrNil(c.EspressoBlock),
+
+		Istanbul: &IstanbulConfig{
+			Epoch:          c.Istanbul.Epoch,
+			ProposerPolicy: c.Istanbul.ProposerPolicy,
+			LookbackWindow: c.Istanbul.LookbackWindow,
+			BlockPeriod:    c.Istanbul.BlockPeriod,
+			RequestTimeout: c.Istanbul.RequestTimeout,
+			V2Block:        copyBigIntOrNil(c.Istanbul.V2Block),
+		},
+
+		FullHeaderChainAvailable: c.FullHeaderChainAvailable,
+		Faker:                    c.Faker,
+	}
+	return cpy
+}
+
+func copyBigIntOrNil(num *big.Int) *big.Int {
+	if num == nil {
+		return nil
+	}
+	return new(big.Int).Set(num)
 }
