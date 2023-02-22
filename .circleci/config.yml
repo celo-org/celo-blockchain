@@ -292,7 +292,7 @@ jobs:
 
       - run:
           name: "authenticate to akeyless via OIDC"
-          command: akeyless auth --access-id $accessid --access-type jwt --jwt $CIRCLE_OIDC_TOKEN --json | jq '.token' -r  > ~/.vault_token
+          command: akeyless auth --access-id p-apiygzv96zv5 --access-type jwt --jwt $CIRCLE_OIDC_TOKEN --json | jq '.token' -r  > ~/.vault_token
 
       - run:
           name: "Get PR Comment token (and remove unnecessary information and punctuation)"
