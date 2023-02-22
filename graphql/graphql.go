@@ -228,9 +228,9 @@ func (t *Transaction) GasPrice(ctx context.Context) (hexutil.Big, error) {
 	switch tx.Type() {
 	case types.AccessListTxType:
 		return hexutil.Big(*tx.GasPrice()), nil
-	case types.DynamicFeeTxType:
+	case types.DynamicFeeTxType, types.CeloDynamicFeeTxType:
 		if t.block != nil {
-			if baseFee, _ := t.block.BaseFeePerGas(ctx); baseFee != nil {
+			if baseFee, _ := t.block.BaseFeePerGasForCurrency(ctx, tx.FeeCurrency()); baseFee != nil {
 				// price = min(tip, gasFeeCap - baseFee) + baseFee
 				return (hexutil.Big)(*math.BigMin(new(big.Int).Add(tx.GasTipCap(), baseFee.ToInt()), tx.GasFeeCap())), nil
 			}
@@ -246,16 +246,16 @@ func (t *Transaction) EffectiveGasPrice(ctx context.Context) (*hexutil.Big, erro
 	if err != nil || tx == nil {
 		return nil, err
 	}
-	header, err := t.block.resolveHeader(ctx)
-	if err != nil || header == nil {
-		return nil, err
+	switch tx.Type() {
+	case types.DynamicFeeTxType, types.CeloDynamicFeeTxType:
+		if t.block != nil {
+			if baseFee, _ := t.block.BaseFeePerGasForCurrency(ctx, tx.FeeCurrency()); baseFee != nil {
+				// price = min(tip, gasFeeCap - baseFee) + baseFee
+				return (*hexutil.Big)(math.BigMin(new(big.Int).Add(tx.GasTipCap(), baseFee.ToInt()), tx.GasFeeCap())), nil
+			}
+		}
 	}
-	return (*hexutil.Big)(tx.GasPrice()), nil
-	// TODO: Substitute GPM
-	// if header.BaseFee == nil {
-	// 	return (*hexutil.Big)(tx.GasPrice()), nil
-	// }
-	// return (*hexutil.Big)(math.BigMin(new(big.Int).Add(tx.GasTipCap(), header.BaseFee), tx.GasFeeCap())), nil
+	return nil, nil
 }
 
 func (t *Transaction) MaxFeePerGas(ctx context.Context) (*hexutil.Big, error) {
@@ -579,18 +579,23 @@ func (b *Block) GasUsed(ctx context.Context) (Long, error) {
 	return Long(header.GasUsed), nil
 }
 
-// TODO: Enable GasLimit graphQL interface
-
 func (b *Block) BaseFeePerGas(ctx context.Context) (*hexutil.Big, error) {
-	// header, err := b.resolveHeader(ctx)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// if header.BaseFee == nil {
-	// 	return nil, nil
-	// }
-	// return (*hexutil.Big)(header.BaseFee), nil
-	return nil, nil
+	// To have an external API as compatible to geth as possible, we return the
+	// base for celo gold, here. We can add a separate variable for the base
+	// fees for each currency.
+	return b.BaseFeePerGasForCurrency(ctx, nil)
+}
+
+func (b *Block) BaseFeePerGasForCurrency(ctx context.Context, feeCurrency *common.Address) (*hexutil.Big, error) {
+	header, err := b.resolveHeader(ctx)
+	if err != nil {
+		return nil, err
+	}
+	baseFee, err := b.backend.GasPriceMinimumForHeader(ctx, feeCurrency, header)
+	if err != nil {
+		return nil, err
+	}
+	return (*hexutil.Big)(baseFee), nil
 }
 
 func (b *Block) Parent(ctx context.Context) (*Block, error) {
