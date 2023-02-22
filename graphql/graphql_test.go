@@ -161,6 +161,43 @@ func TestGraphQLBlockSerialization(t *testing.T) {
 	}
 }
 
+// Tests that a graphQL request is successfully handled when graphql is enabled on the specified endpoint
+func TestGraphQLTransactionSerialization(t *testing.T) {
+	stack := createNode(t, true, true)
+	defer stack.Close()
+	// start node
+	if err := stack.Start(); err != nil {
+		t.Fatalf("could not start node: %v", err)
+	}
+
+	for i, tt := range []struct {
+		body string
+		want string
+		code int
+	}{
+		{
+			body: `{"query":"{ transaction(hash: \"0x22f565cfeb33d5e6f81c8923ef0633a49fef0848a089a6d8564b655d5605fb13\") { gas gasUsed gasPrice maxFeePerGas maxPriorityFeePerGas effectiveGasPrice index from { address } to { address } value inputData block { transactionCount baseFeePerGas } status type }}"}`,
+			want: `{"data":{"transaction":{"gas":"0xc350","gasUsed":22604,"gasPrice":"0xa","maxFeePerGas":"0x7530","maxPriorityFeePerGas":"0xa","effectiveGasPrice":"0xa","index":2,"from":{"address":"0x71562b71999873db5b286df957af199ec94617f7"},"to":{"address":"0x0000000000000000000000000000000000000dad"},"value":"0x32","inputData":"0x","block":{"transactionCount":3,"baseFeePerGas":"0x0"},"status":1,"type":2}}}`,
+			code: 200,
+		},
+	} {
+		resp, err := http.Post(fmt.Sprintf("%s/graphql", stack.HTTPEndpoint()), "application/json", strings.NewReader(tt.body))
+		if err != nil {
+			t.Fatalf("could not post: %v", err)
+		}
+		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("could not read from response body: %v", err)
+		}
+		if have := string(bodyBytes); have != tt.want {
+			t.Errorf("testcase %d %s,\nhave:\n%v\nwant:\n%v", i, tt.body, have, tt.want)
+		}
+		if tt.code != resp.StatusCode {
+			t.Errorf("testcase %d %s,\nwrong statuscode, have: %v, want: %v", i, tt.body, resp.StatusCode, tt.code)
+		}
+	}
+}
+
 func TestGraphQLBlockSerializationEIP2718(t *testing.T) {
 	stack := createNode(t, true, true)
 	defer stack.Close()
@@ -176,7 +213,7 @@ func TestGraphQLBlockSerializationEIP2718(t *testing.T) {
 	}{
 		{
 			body: `{"query": "{block {number transactions { from { address } to { address } value hash type accessList { address storageKeys } index}}}"}`,
-			want: `{"data":{"block":{"number":1,"transactions":[{"from":{"address":"0x71562b71999873db5b286df957af199ec94617f7"},"to":{"address":"0x0000000000000000000000000000000000000dad"},"value":"0x64","hash":"0x46933b8a43e70320bb41910f015c4b2aded1caaba32b55b56054e4d1811d06d6","type":0,"accessList":[],"index":0},{"from":{"address":"0x71562b71999873db5b286df957af199ec94617f7"},"to":{"address":"0x0000000000000000000000000000000000000dad"},"value":"0x32","hash":"0x03682ed7cc9cf9e9fa3bb6f58a62d6a350c09ec4d22b71b884503ae469e8640b","type":1,"accessList":[{"address":"0x0000000000000000000000000000000000000dad","storageKeys":["0x0000000000000000000000000000000000000000000000000000000000000000"]}],"index":1}]}}}`,
+			want: `{"data":{"block":{"number":1,"transactions":[{"from":{"address":"0x71562b71999873db5b286df957af199ec94617f7"},"to":{"address":"0x0000000000000000000000000000000000000dad"},"value":"0x64","hash":"0x46933b8a43e70320bb41910f015c4b2aded1caaba32b55b56054e4d1811d06d6","type":0,"accessList":[],"index":0},{"from":{"address":"0x71562b71999873db5b286df957af199ec94617f7"},"to":{"address":"0x0000000000000000000000000000000000000dad"},"value":"0x32","hash":"0x03682ed7cc9cf9e9fa3bb6f58a62d6a350c09ec4d22b71b884503ae469e8640b","type":1,"accessList":[{"address":"0x0000000000000000000000000000000000000dad","storageKeys":["0x0000000000000000000000000000000000000000000000000000000000000000"]}],"index":1},{"from":{"address":"0x71562b71999873db5b286df957af199ec94617f7"},"to":{"address":"0x0000000000000000000000000000000000000dad"},"value":"0x32","hash":"0x22f565cfeb33d5e6f81c8923ef0633a49fef0848a089a6d8564b655d5605fb13","type":2,"accessList":[],"index":2}]}}}`,
 			code: 200,
 		},
 	} {
@@ -330,6 +367,15 @@ func createGQLServiceWithTransactions(t *testing.T, stack *node.Node) {
 			StorageKeys: []common.Hash{{0}},
 		}},
 	})
+	dynamicTx, _ := types.SignNewTx(key, signer, &types.DynamicFeeTx{
+		ChainID:   ethConf.Genesis.Config.ChainID,
+		Nonce:     uint64(2),
+		To:        &dad,
+		Gas:       50000,
+		GasFeeCap: big.NewInt(30000),
+		GasTipCap: big.NewInt(10),
+		Value:     big.NewInt(50),
+	})
 
 	// Create some blocks and import them
 	chain, _ := core.GenerateChain(params.IstanbulEHFTestChainConfig, ethBackend.BlockChain().Genesis(),
@@ -337,6 +383,7 @@ func createGQLServiceWithTransactions(t *testing.T, stack *node.Node) {
 			b.SetCoinbase(common.Address{1})
 			b.AddTx(legacyTx)
 			b.AddTx(envelopTx)
+			b.AddTx(dynamicTx)
 		})
 
 	_, err = ethBackend.BlockChain().InsertChain(chain)
