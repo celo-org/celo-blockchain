@@ -791,7 +791,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 
 func getBaseFee(isEspresso bool, sysCtx *core.SysContractCallCtx, feeCurrency *common.Address) *big.Int {
 	var baseFee *big.Int
-	if isEspresso && sysCtx != nil {
+	if isEspresso {
 		baseFee = sysCtx.GetGasPriceMinimum(feeCurrency)
 	}
 	return baseFee

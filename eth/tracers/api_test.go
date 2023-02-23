@@ -644,11 +644,13 @@ func TestTraceBlockWithEIP1559Tx(t *testing.T) {
 		// The account balance is chosen in a way that the second transaction won't be able to execute if the
 		// calculation is wrong.
 
+		bf := core.MockSysContractCallCtx().GetGasPriceMinimum(nil)
 		tip := big.NewInt(2)
-		cap := big.NewInt(6)
+		cap := new(big.Int).Set(common.Big1)
+		cap = cap.Add(cap, tip).Add(cap, bf)
 
 		txdata1 := types.NewTx(&types.CeloDynamicFeeTx{
-			ChainID:   params.IstanbulEHFTestChainConfig.ChainID,
+			ChainID:   b.Config().ChainID,
 			Nonce:     0,
 			GasTipCap: tip,
 			GasFeeCap: cap,
@@ -657,13 +659,13 @@ func TestTraceBlockWithEIP1559Tx(t *testing.T) {
 		})
 		tx1, _ := types.SignTx(
 			txdata1,
-			types.LatestSignerForChainID(params.IstanbulEHFTestChainConfig.ChainID),
+			types.LatestSignerForChainID(b.Config().ChainID),
 			accounts[0].key,
 		)
 		b.AddTx(tx1)
 
 		txdata2 := types.NewTx(&types.CeloDynamicFeeTx{
-			ChainID:   params.IstanbulEHFTestChainConfig.ChainID,
+			ChainID:   b.Config().ChainID,
 			Nonce:     1,
 			GasTipCap: tip,
 			GasFeeCap: cap,
@@ -672,7 +674,7 @@ func TestTraceBlockWithEIP1559Tx(t *testing.T) {
 		})
 		tx2, _ := types.SignTx(
 			txdata2,
-			types.LatestSignerForChainID(params.IstanbulEHFTestChainConfig.ChainID),
+			types.LatestSignerForChainID(b.Config().ChainID),
 			accounts[0].key,
 		)
 		b.AddTx(tx2)
