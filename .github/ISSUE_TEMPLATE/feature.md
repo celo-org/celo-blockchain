@@ -6,12 +6,12 @@ labels: triage, 'type:feature'
 assignees: ''
 ---
 
-# Rationale
+## Rationale
 
 Why should this feature exist?
 What are the use-cases?
 
-# Implementation
+## Implementation
 
 Do you have ideas regarding the implementation of this feature?
 Are you willing to implement this feature?
