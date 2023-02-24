@@ -21,7 +21,7 @@ _Explain what the current behavior is._
 
 ## Backtrace
 
-```bash
+```
   error output with backtrace
 ```
 
