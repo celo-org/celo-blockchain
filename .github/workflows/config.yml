@@ -1,0 +1,735 @@
+name: celo-blockchain
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+env:
+  # Increment these to force cache rebuilding
+  SYSTEM_CONTRACTS_CACHE_VERSION: 2
+  CHECKOUT_MONOREPO_CACHE_VERSION: 3
+  GO_VERSION: '1.17.5'
+  # Location where compiled system contracts are stored under the root of this
+  # repo.
+  SYSTEM_CONTRACTS_PATH: "compiled-system-contracts"
+
+jobs:
+  prepare-system-contracts:
+    name: Build celo-monorepo
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: 12
+      PYTHON_VERSION: '2.7'
+      CONTRACTS_BUILD_PATH: packages/protocol/build/contracts
+
+    steps:
+    - name: Checkout celo-blockchain repo
+      uses: actions/checkout@v3
+      with:
+        path: geth
+    - name: Get monorepo commit
+      run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
+    - name: Get monorepo commit id
+      run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
+    - name: Restore celo-monorepo cache
+      id: celo-monorepo-cache
+      uses: actions/cache@v3
+      with:
+        path: celo-monorepo
+        key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
+        restore-keys: |
+          celo-monorepo-cache-
+    # If there is a cached version, there is no need to rebuild it
+    - name: Conditionally checkout monorepo
+      if: steps.celo-monorepo-cache.outputs.cache-hit != 'true'
+      uses: actions/checkout@v3
+      with:
+        repository: celo-org/celo-monorepo
+        path: celo-monorepo
+        ref: ${{ env.MONOREPO_COMMIT }}
+    - name: Conditionally setup Node.js
+      if: steps.celo-monorepo-cache.outputs.cache-hit != 'true'
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: yarn
+        cache-dependency-path: celo-monorepo/yarn.lock
+    # Python is required for node-gyp rebuild
+    - name: Conditionally setup python
+      if: steps.celo-monorepo-cache.outputs.cache-hit != 'true'
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    - name: Conditionally build monorepo
+      if: steps.celo-monorepo-cache.outputs.cache-hit != 'true'
+      run: |
+        cd celo-monorepo
+        yarn
+        yarn build
+        cd packages/protocol
+        yarn run build:sol
+    - name: Upload built system contracts
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: system-contracts
+        path: 'celo-monorepo/${{ env.CONTRACTS_BUILD_PATH }}'
+
+  go-modules:
+    name: Setup go
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+    - name: Setup go
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+
+  check-imports:
+    name: Check imports
+    needs: go-modules
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+    - name: Setup golang
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+    - name: Check imports to ensure we are using github.com/celo-org/celo-blockchain
+      run: ./scripts/check_imports.sh
+
+  lint:
+    name: Lint code
+    runs-on: ubuntu-latest
+    needs: go-modules
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+    - name: Setup golang
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+    - name: Run linter
+      run: |
+        # so that the tee call at the end doesn't hide the real exit code
+        set -o pipefail
+        mkdir -p /tmp/test-results
+        go run build/ci.go ensure-linter
+        ./build/cache/golangci-lint-1.42.0-linux-amd64/golangci-lint run --config .golangci.yml --out-format junit-xml ./... | tee /tmp/test-results/go-lint-report.xml
+    - name: Upload linter report
+      uses: actions/upload-artifact@v3
+      with:
+        name: linter-report
+        path: /tmp/test-results
+
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    needs:
+    - go-modules
+    - prepare-system-contracts
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+    - name: Setup golang
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+    - name: Restore system contracts
+      uses: actions/download-artifact@v3
+      with:
+        name: system-contracts
+        path: ${{ env.SYSTEM_CONTRACTS_PATH }}
+    - name: Prepare ethersjs project
+      run: make prepare-ethersjs-project
+    - name: Install JUnit report
+      run: go get github.com/jstemmer/go-junit-report
+    - name: Run tests
+      run: |
+        mkdir -p /tmp/test-results
+        trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
+        CI=true go test -v -cover -coverprofile=coverage.out ./... | tee /tmp/test-results/go-test.out
+    # TODO: figure out if we need a token
+    - name: Upload coverage to codecov
+      uses: codecov/codecov-action@v3
+    - name: Upload test report
+      uses: actions/upload-artifact@v3
+      with:
+        name: unit-test-report
+        path: /tmp/test-results
+
+  publish-test-results:
+    name: Publish unit tests results
+    runs-on: ubuntu-latest
+    needs:
+      - unit-tests
+    if: always()
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: unit-test-report
+          path: artifacts
+      - name: Publish unit test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: artifacts/**/*.xml
+
+  race:
+    name: Data race detector
+    if: ${{ github.ref == 'refs/heads/master' || contains(github.ref, 'release') }}
+    runs-on: ubuntu-latest
+    needs:
+    - go-modules
+    - prepare-system-contracts
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+    - name: Setup golang
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+    - name: Restore system contracts
+      uses: actions/download-artifact@v3
+      with:
+        name: system-contracts
+        path: ${{ env.SYSTEM_CONTRACTS_PATH }}
+    - name: Prepare ethersjs project
+      run: make prepare-ethersjs-project
+    - name: Install JUnit report
+      run: go get github.com/jstemmer/go-junit-report
+    - name: Run tests
+      run: |
+        set -o pipefail
+        mkdir -p /tmp/test-results
+        trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
+        go test -p 1 -v -race ./... | tee /tmp/test-results/go-test.out
+    - name: Upload test report
+      uses: actions/upload-artifact@v3
+      with:
+        name: data-race-detector-report
+        path: /tmp/test-results
+
+  build-and-store-binaries:
+    name: Build and store binaries
+    runs-on: ubuntu-latest
+    needs:
+      - go-modules
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+    - name: Setup golang
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+    - name: Run and compress executables
+      run: |
+        make all
+    - name: Upload binaries
+      uses: actions/upload-artifact@v3
+      with:
+        name: binaries
+        path: ./build/bin
+
+  istanbul-e2e-coverage:
+    name: Istanbul consensus coverage
+    runs-on: ubuntu-latest
+    # Needed to publish the summary PR comment
+    permissions:
+      pull-requests: write
+
+    needs:
+    - go-modules
+    - prepare-system-contracts
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+    - name: Setup golang
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+    - name: Prepare ethersjs project
+      run: make prepare-ethersjs-project
+    - name: Restore system contracts
+      uses: actions/download-artifact@v3
+      with:
+        name: system-contracts
+        path: ${{ env.SYSTEM_CONTRACTS_PATH }}
+    - name: Run tests and print coverage summary
+      run: |
+        go test -v -coverprofile cov.out -coverpkg ./consensus/istanbul/... ./e2e_test
+        go run tools/parsecov/main.go -packagePrefix github.com/celo-org/celo-blockchain/ cov.out > summary
+        cat summary
+    - name: Build summary message
+      run: |
+        EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+        echo "PR_SUMMARY_MESSAGE<<$EOF" >> $GITHUB_ENV
+        echo "Coverage from tests in \`./e2e_test/...\` for \`./consensus/istanbul/...\` at commit $GITHUB_SHA" >> $GITHUB_ENV
+        echo "<details><summary>" >> $GITHUB_ENV
+        head -n 1 summary >> $GITHUB_ENV
+        echo "</summary><br><pre>" >> $GITHUB_ENV
+        tail -n +2 summary >> $GITHUB_ENV
+        echo "</pre>" >> $GITHUB_ENV
+        echo "$EOF" >> $GITHUB_ENV
+    - name: Post summary comment on PR
+      uses: mshick/add-pr-comment@v2
+      with:
+        message: "${{ env.PR_SUMMARY_MESSAGE }}"
+
+  lightest-sync-test:
+    name: Lightest sync test
+    runs-on: ubuntu-latest
+
+    needs:
+    - build-and-store-binaries
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+    - name: Setup golang
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+    - name: Download pre-built binaries
+      uses: actions/download-artifact@v3
+      with:
+        name: binaries
+        path: ./build/bin
+    - name: Fix permissions
+      run: |
+        chmod +x ./build/bin/*
+    - name: Run sync test
+      run: |
+        DATADIR=/tmp/lightest_sync_test_data MODE=lightest ./scripts/sync_test.sh
+
+  e2e-benchmarks:
+    name: End-to-end benchmarks
+    runs-on: ubuntu-latest
+
+    needs:
+    - go-modules
+    - prepare-system-contracts
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+    - name: Setup golang
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+    - name: Restore system contracts
+      uses: actions/download-artifact@v3
+      with:
+        name: system-contracts
+        path: ${{ env.SYSTEM_CONTRACTS_PATH }}
+    - name: Run benchmarks
+      run: |
+        set -o pipefail
+        mkdir -p /tmp/bench-results
+        trap "grep -E 'goos: |^goarch: |^pkg: |^cpu: |^Benchmark' /tmp/bench-results/go-bench.out > /tmp/bench-results/go-bench-results.txt" EXIT
+        go test ./e2e_test -run Bench -bench . | tee /tmp/bench-results/go-bench.out
+    - name: Upload results
+      uses: actions/upload-artifact@v3
+      with:
+        name: e2e-benchmarks
+        path: /tmp/bench-results
+
+  end-to-end-blockchain-parameters-test:
+    name: End-to-end blockchain parameters test
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: 12
+
+    needs:
+    - go-modules
+    - prepare-system-contracts
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+      with:
+        path: geth
+    - name: Setup golang
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+        cache-dependency-path: geth/go.sum
+    - name: Get monorepo commit
+      run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
+    - name: Get monorepo commit id
+      run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
+    - name: Restore celo-monorepo cache
+      id: celo-monorepo-cache
+      uses: actions/cache@v3
+      with:
+        path: celo-monorepo
+        key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
+        restore-keys: |
+          celo-monorepo-cache-
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: yarn
+        cache-dependency-path: celo-monorepo/yarn.lock
+    - name: Run e2e test
+      run: |
+        export E2E_TESTS_FORCE_USE_MYCELO=true
+        cd celo-monorepo/packages/celotool
+        ./ci_test_blockchain_parameters.sh local "$GITHUB_WORKSPACE/geth"
+
+  end-to-end-governance-test:
+    name: End-to-end governance test
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: 12
+
+    needs:
+    - go-modules
+    - prepare-system-contracts
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+      with:
+        path: geth
+    - name: Setup golang
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+        cache-dependency-path: geth/go.sum
+    - name: Get monorepo commit
+      run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
+    - name: Get monorepo commit id
+      run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
+    - name: Restore celo-monorepo cache
+      id: celo-monorepo-cache
+      uses: actions/cache@v3
+      with:
+        path: celo-monorepo
+        key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
+        restore-keys: |
+          celo-monorepo-cache-
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: yarn
+        cache-dependency-path: celo-monorepo/yarn.lock
+    - name: Run e2e test
+      run: |
+        export E2E_TESTS_FORCE_USE_MYCELO=true
+        cd celo-monorepo/packages/celotool
+        ./ci_test_governance.sh local "$GITHUB_WORKSPACE/geth"
+
+
+  end-to-end-sync-test:
+    name: End-to-end sync test
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: 12
+
+    needs:
+    - go-modules
+    - prepare-system-contracts
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+      with:
+        path: geth
+    - name: Setup golang
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+        cache-dependency-path: geth/go.sum
+    - name: Get monorepo commit
+      run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
+    - name: Get monorepo commit id
+      run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
+    - name: Restore celo-monorepo cache
+      id: celo-monorepo-cache
+      uses: actions/cache@v3
+      with:
+        path: celo-monorepo
+        key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
+        restore-keys: |
+          celo-monorepo-cache-
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: yarn
+        cache-dependency-path: celo-monorepo/yarn.lock
+    - name: Run e2e test
+      run: |
+        export E2E_TESTS_FORCE_USE_MYCELO=true
+        cd celo-monorepo/packages/celotool
+        ./ci_test_sync.sh local "$GITHUB_WORKSPACE/geth"
+
+  end-to-end-slashing-test:
+    name: End-to-end slashing test
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: 12
+
+    needs:
+    - go-modules
+    - prepare-system-contracts
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+      with:
+        path: geth
+    - name: Setup golang
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+        cache-dependency-path: geth/go.sum
+    - name: Get monorepo commit
+      run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
+    - name: Get monorepo commit id
+      run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
+    - name: Restore celo-monorepo cache
+      id: celo-monorepo-cache
+      uses: actions/cache@v3
+      with:
+        path: celo-monorepo
+        key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
+        restore-keys: |
+          celo-monorepo-cache-
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: yarn
+        cache-dependency-path: celo-monorepo/yarn.lock
+    - name: Run e2e test
+      run: |
+        export E2E_TESTS_FORCE_USE_MYCELO=true
+        cd celo-monorepo/packages/celotool
+        ./ci_test_slashing.sh local "$GITHUB_WORKSPACE/geth"
+
+  end-to-end-transfers-test:
+    name: End-to-end transfers test
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: 12
+
+    needs:
+    - go-modules
+    - prepare-system-contracts
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+      with:
+        path: geth
+    - name: Setup golang
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+        cache-dependency-path: geth/go.sum
+    - name: Get monorepo commit
+      run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
+    - name: Get monorepo commit id
+      run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
+    - name: Restore celo-monorepo cache
+      id: celo-monorepo-cache
+      uses: actions/cache@v3
+      with:
+        path: celo-monorepo
+        key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
+        restore-keys: |
+          celo-monorepo-cache-
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: yarn
+        cache-dependency-path: celo-monorepo/yarn.lock
+    - name: Run e2e test
+      run: |
+        export E2E_TESTS_FORCE_USE_MYCELO=true
+        cd celo-monorepo/packages/celotool
+        ./ci_test_transfers.sh local "$GITHUB_WORKSPACE/geth"
+
+  end-to-end-validator-order-test:
+    name: End-to-end validator order test
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: 12
+
+    needs:
+    - go-modules
+    - prepare-system-contracts
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+      with:
+        path: geth
+    - name: Setup golang
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+        cache-dependency-path: geth/go.sum
+    - name: Get monorepo commit
+      run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
+    - name: Get monorepo commit id
+      run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
+    - name: Restore celo-monorepo cache
+      id: celo-monorepo-cache
+      uses: actions/cache@v3
+      with:
+        path: celo-monorepo
+        key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
+        restore-keys: |
+          celo-monorepo-cache-
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: yarn
+        cache-dependency-path: celo-monorepo/yarn.lock
+    - name: Run e2e test
+      run: |
+        export E2E_TESTS_FORCE_USE_MYCELO=true
+        cd celo-monorepo/packages/celotool
+        ./ci_test_validator_order.sh local "$GITHUB_WORKSPACE/geth"
+
+  end-to-end-cip35-eth-compatibility-test:
+    name: End-to-end CIP35-eth compatibility test
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: 12
+
+    needs:
+    - go-modules
+    - prepare-system-contracts
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+      with:
+        path: geth
+    - name: Setup golang
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+        cache-dependency-path: geth/go.sum
+    - name: Get monorepo commit
+      run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
+    - name: Get monorepo commit id
+      run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
+    - name: Restore celo-monorepo cache
+      id: celo-monorepo-cache
+      uses: actions/cache@v3
+      with:
+        path: celo-monorepo
+        key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
+        restore-keys: |
+          celo-monorepo-cache-
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: yarn
+        cache-dependency-path: celo-monorepo/yarn.lock
+    - name: Run e2e test
+      run: |
+        export E2E_TESTS_FORCE_USE_MYCELO=true
+        cd celo-monorepo/packages/celotool
+        ./ci_test_cip35.sh local "$GITHUB_WORKSPACE/geth"
+
+  end-to-end-replica-test:
+    name: End-to-end replica test
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: 12
+
+    needs:
+    - go-modules
+    - prepare-system-contracts
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+      with:
+        path: geth
+    - name: Setup golang
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+        cache-dependency-path: geth/go.sum
+    - name: Get monorepo commit
+      run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
+    - name: Get monorepo commit id
+      run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
+    - name: Restore celo-monorepo cache
+      id: celo-monorepo-cache
+      uses: actions/cache@v3
+      with:
+        path: celo-monorepo
+        key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
+        restore-keys: |
+          celo-monorepo-cache-
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: yarn
+        cache-dependency-path: celo-monorepo/yarn.lock
+    - name: Run e2e test
+      run: |
+        export E2E_TESTS_FORCE_USE_MYCELO=true
+        cd celo-monorepo/packages/celotool
+        ./ci_test_replicas.sh local "$GITHUB_WORKSPACE/geth"
