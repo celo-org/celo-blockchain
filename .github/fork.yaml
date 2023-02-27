@@ -1,0 +1,33 @@
+title: "celo - go-ethereum fork diff overview"
+footer: |
+  Fork-diff overview of [`celo`](https://github.com/celo-org/celo-blockchain), a fork of [`go-ethereum`](https://github.com/ethereum/go-ethereum).
+base:
+  name: go-ethereum
+  url: https://github.com/ethereum/go-ethereum
+  hash: eae3b1946a276ac099e0018fc792d9e8c3bfda6d
+fork:
+  name: celo
+  url: https://github.com/celo-org/celo-blockchain
+  ref: refs/heads/paul/forkdiff
+def:
+  title: "celo"
+  description: |
+    This is an overview of the changes in [`celo`](https://github.com/celo-org/celo-blockchain),
+    a fork of [`go-ethereum`](https://github.com/ethereum/go-ethereum).
+  sub:
+    - title: "Core modifications"
+      sub:
+        - title: "Istanbul"
+          description: ""
+          globs:
+            - "consensus/istanbul/**"
+    - title: "mycelo"
+      description: ""
+      globs:
+        - "mycelo/**"
+# ignored globally, does not count towards line count
+ignore:
+  - ".circleci/*"
+  - ".github/*"
+  - "*.sum"
+  - "docs/**"
