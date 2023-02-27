@@ -236,7 +236,6 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 	{
 		Name: "MISC",
 		Flags: []cli.Flag{
-			utils.VersionCheckFlag,
 			utils.SnapshotFlag,
 			utils.BloomFilterSizeFlag,
 			cli.HelpFlag,

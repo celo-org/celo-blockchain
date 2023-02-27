@@ -635,10 +635,6 @@ var (
 		Usage: "Specifies whether to use an in memory discovery table",
 	}
 
-	VersionCheckFlag = cli.BoolFlag{
-		Name:  "disable-version-check",
-		Usage: "Disable version check. Use if the parameter is set erroneously",
-	}
 	DNSDiscoveryFlag = cli.StringFlag{
 		Name:  "discovery.dns",
 		Usage: "Sets DNS discovery entry points (use \"\" to disable DNS)",
