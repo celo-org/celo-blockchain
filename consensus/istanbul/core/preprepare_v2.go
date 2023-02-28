@@ -34,15 +34,9 @@ func (c *core) ResendPreprepare() error {
 	if st != StatePreprepared && st != StatePrepared && st != StateCommitted {
 		return errors.New("Cant resend preprepare if not in preprepared, prepared, or committed state")
 	}
-	if c.isConsensusFork(c.current.Sequence()) {
-		m := istanbul.NewPreprepareV2Message(c.current.PreprepareV2(), c.address)
-		logger.Debug("Re-Sending preprepare v2", "m", m)
-		c.broadcast(m)
-	} else {
-		m := istanbul.NewPreprepareMessage(c.current.Preprepare(), c.address)
-		logger.Debug("Re-Sending preprepare", "m", m)
-		c.broadcast(m)
-	}
+	m := istanbul.NewPreprepareV2Message(c.current.PreprepareV2(), c.address)
+	logger.Debug("Re-Sending preprepare v2", "m", m)
+	c.broadcast(m)
 	return nil
 }
 
@@ -53,11 +47,6 @@ func (c *core) handlePreprepareV2(msg *istanbul.Message) error {
 	logger.Trace("Got preprepareV2 message", "m", msg)
 
 	preprepareV2 := msg.PreprepareV2()
-	// Check consensus fork
-	if !c.isConsensusFork(preprepareV2.View.Sequence) {
-		logger.Info("Received PreprepareV2 for unforked block sequence", "sequence", preprepareV2.View.Sequence.Uint64())
-		return errors.New("Received PreprepareV2 for not forked block")
-	}
 
 	logger = logger.New("msg_num", preprepareV2.Proposal.Number(), "msg_hash",
 		preprepareV2.Proposal.Hash(), "msg_seq", preprepareV2.View.Sequence, "msg_round", preprepareV2.View.Round)

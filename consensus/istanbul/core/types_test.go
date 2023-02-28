@@ -28,14 +28,14 @@ import (
 )
 
 func testPreprepare(t *testing.T) {
-	pp := &istanbul.Preprepare{
+	pp := &istanbul.PreprepareV2{
 		View: &istanbul.View{
 			Round:    big.NewInt(1),
 			Sequence: big.NewInt(2),
 		},
 		Proposal: makeBlock(1),
 	}
-	m := istanbul.NewPreprepareMessage(pp, common.HexToAddress("0x1234567890"))
+	m := istanbul.NewPreprepareV2Message(pp, common.HexToAddress("0x1234567890"))
 	msgPayload, err := m.Payload()
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
@@ -47,7 +47,7 @@ func testPreprepare(t *testing.T) {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 
-	decodedPP := decodedMsg.Preprepare()
+	decodedPP := decodedMsg.PreprepareV2()
 	// if block is encoded/decoded by rlp, we cannot to compare interface data type using reflect.DeepEqual. (like istanbul.Proposal)
 	// so individual comparison here.
 	if !reflect.DeepEqual(pp.Proposal.Hash(), decodedPP.Proposal.Hash()) {

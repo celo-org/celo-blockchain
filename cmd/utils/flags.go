@@ -241,12 +241,6 @@ var (
 		Usage: "Manually specify the espresso fork block, overriding the bundled setting",
 	}
 
-	// V2 Istanbul fork activation overrides
-	OverrideV2IstanbulForkFlag = cli.Uint64Flag{
-		Name:  "override.v2istanbul",
-		Usage: "Manually specify the v2 istanbul consensus fork block, overriding the bundled setting",
-	}
-
 	BloomFilterSizeFlag = cli.Uint64Flag{
 		Name:  "bloomfilter.size",
 		Usage: "Megabytes of memory allocated to bloom-filter for pruning",

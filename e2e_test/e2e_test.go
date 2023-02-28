@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -22,17 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestMain(m *testing.M) {
-	println("====== RUNNING e2e tests with original consensus protocol")
-	code1 := m.Run()
-
-	// Activate V2 consensus block
-	test.BaseEthConfig.Istanbul.V2Block = big.NewInt(0)
-	println("====== RUNNING e2e tests with v2 consensus protocol")
-	code2 := m.Run()
-	os.Exit(code1 | code2)
-}
 
 func init() {
 	// This statement is commented out but left here since its very useful for
