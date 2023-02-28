@@ -81,7 +81,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 			"Invalid PREPARED certificate, includes preprepare message",
 			func() istanbul.PreparedCertificate {
 				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view}, proposal)
-				testInvalidMsg, _ := sys.backends[0].getRoundChangeMessage(view, sys.getPreparedCertificate(t, []istanbul.View{view}, proposal))
+				testInvalidMsg, _ := sys.backends[0].getRoundChangeV2Message(view, sys.getPreparedCertificateV2(t, []istanbul.View{view}, proposal), proposal)
 				preparedCertificate.PrepareOrCommitMessages[0] = testInvalidMsg
 				return preparedCertificate
 			}(),
@@ -169,7 +169,7 @@ func TestHandlePrepare(t *testing.T) {
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
 
-					c.current = newTestRoundState(
+					c.current = newTestRoundStateV2(
 						&istanbul.View{
 							Round:    big.NewInt(0),
 							Sequence: big.NewInt(1),
@@ -202,7 +202,7 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.current = newTestRoundState(
+					c.current = newTestRoundStateV2(
 						&istanbul.View{
 							Round:    big.NewInt(0),
 							Sequence: big.NewInt(1),
@@ -236,7 +236,7 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.current = newTestRoundState(
+					c.current = newTestRoundStateV2(
 						&istanbul.View{
 							Round:    big.NewInt(0),
 							Sequence: big.NewInt(1),
@@ -263,13 +263,13 @@ func TestHandlePrepare(t *testing.T) {
 					c := backend.engine.(*core)
 					if i == 0 {
 						// replica 0 is the proposer
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							expectedSubject.View,
 							backend.peers,
 						)
 						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							&istanbul.View{
 								Round:    big.NewInt(2),
 								Sequence: big.NewInt(3),
@@ -291,13 +291,13 @@ func TestHandlePrepare(t *testing.T) {
 					c := backend.engine.(*core)
 					if i == 0 {
 						// replica 0 is the proposer
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							expectedSubject.View,
 							backend.peers,
 						)
 						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							&istanbul.View{
 								Round:    big.NewInt(0),
 								Sequence: big.NewInt(0),
@@ -319,13 +319,13 @@ func TestHandlePrepare(t *testing.T) {
 					c := backend.engine.(*core)
 					if i == 0 {
 						// replica 0 is the proposer
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							expectedSubject.View,
 							backend.peers,
 						)
 						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							&istanbul.View{
 								Round:    big.NewInt(0),
 								Sequence: big.NewInt(1)},
@@ -347,7 +347,7 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.current = newTestRoundState(
+					c.current = newTestRoundStateV2(
 						expectedSubject.View,
 						backend.peers,
 					)
@@ -455,7 +455,7 @@ func TestVerifyPrepare(t *testing.T) {
 				View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
 				Digest: newTestProposal().Hash(),
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
 				valSet,
 			),
@@ -467,7 +467,7 @@ func TestVerifyPrepare(t *testing.T) {
 				View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
 				Digest: newTestProposal().Hash(),
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
 				valSet,
 			),
@@ -479,7 +479,7 @@ func TestVerifyPrepare(t *testing.T) {
 				View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
 				Digest: common.BytesToHash([]byte("1234567890")),
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
 				valSet,
 			),
@@ -491,7 +491,7 @@ func TestVerifyPrepare(t *testing.T) {
 				View:   &istanbul.View{Round: big.NewInt(0), Sequence: nil},
 				Digest: newTestProposal().Hash(),
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
 				valSet,
 			),
@@ -503,7 +503,7 @@ func TestVerifyPrepare(t *testing.T) {
 				View:   &istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(0)},
 				Digest: newTestProposal().Hash(),
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
 				valSet,
 			),
@@ -515,7 +515,7 @@ func TestVerifyPrepare(t *testing.T) {
 				View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(1)},
 				Digest: newTestProposal().Hash(),
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
 				valSet,
 			),
@@ -544,7 +544,7 @@ func BenchmarkHandlePrepare(b *testing.B) {
 	for i, backend := range sys.backends {
 		c := backend.engine.(*core)
 
-		c.current = newTestRoundState(
+		c.current = newTestRoundStateV2(
 			&istanbul.View{
 				Round:    big.NewInt(0),
 				Sequence: big.NewInt(1),

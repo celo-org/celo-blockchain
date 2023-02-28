@@ -50,11 +50,8 @@ func (rsp *rsSaveDecorator) StartNewRound(nextRound *big.Int, validatorSet istan
 	return rsp.persistOnNoError(rsp.rs.StartNewRound(nextRound, validatorSet, nextProposer))
 }
 func (rsp *rsSaveDecorator) StartNewSequence(nextSequence *big.Int, validatorSet istanbul.ValidatorSet,
-	nextProposer istanbul.Validator, parentCommits MessageSet, consensusFork bool) error {
-	return rsp.persistOnNoError(rsp.rs.StartNewSequence(nextSequence, validatorSet, nextProposer, parentCommits, consensusFork))
-}
-func (rsp *rsSaveDecorator) TransitionToPreprepared(preprepare *istanbul.Preprepare) error {
-	return rsp.persistOnNoError(rsp.rs.TransitionToPreprepared(preprepare))
+	nextProposer istanbul.Validator, parentCommits MessageSet) error {
+	return rsp.persistOnNoError(rsp.rs.StartNewSequence(nextSequence, validatorSet, nextProposer, parentCommits))
 }
 func (rsp *rsSaveDecorator) TransitionToPrepreparedV2(preprepareV2 *istanbul.PreprepareV2) error {
 	return rsp.persistOnNoError(rsp.rs.TransitionToPrepreparedV2(preprepareV2))
@@ -120,9 +117,6 @@ func (rsp *rsSaveDecorator) Sequence() *big.Int { return rsp.rs.Sequence() }
 
 // View implements RoundState.View
 func (rsp *rsSaveDecorator) View() *istanbul.View { return rsp.rs.View() }
-
-// Preprepare implements RoundState.Preprepare
-func (rsp *rsSaveDecorator) Preprepare() *istanbul.Preprepare { return rsp.rs.Preprepare() }
 
 // PreprepareV2 implements RoundState.PreprepareV2
 func (rsp *rsSaveDecorator) PreprepareV2() *istanbul.PreprepareV2 { return rsp.rs.PreprepareV2() }

@@ -208,8 +208,6 @@ func TestHandleRoundChangeCertificateV2(t *testing.T) {
 			sys := NewTestSystemWithBackend(N, F)
 			for i, backend := range sys.backends {
 				c := backend.engine.(*core)
-				// activate v2 consensus block
-				c.config.V2Block = big.NewInt(0)
 				c.Start()
 				certificate, prop := test.getCertificate(t, sys)
 				err := c.handleRoundChangeCertificateV2(view, certificate, prop)
@@ -309,8 +307,6 @@ func TestHandleRoundChangeV2(t *testing.T) {
 
 			for _, v := range sys.backends {
 				c := v.engine.(*core)
-				// activate v2 consensus block
-				c.config.V2Block = big.NewInt(0)
 				c.Start()
 			}
 			test.prepareSystem(sys)
@@ -437,8 +433,6 @@ func TestCommitsBlocksAfterRoundChangeV2(t *testing.T) {
 	sys := NewTestSystemWithBackend(4, 1)
 
 	for _, b := range sys.backends {
-		// activate v2 consensus block
-		b.engine.(*core).config.V2Block = big.NewInt(0)
 		b.engine.Start() // start Istanbul core
 		block := makeBlock(1)
 		b.NewRequest(block)
@@ -504,8 +498,6 @@ func TestUseRoundChangeCertificateWithPC(t *testing.T) {
 	sys := NewTestSystemWithBackend(4, 1)
 
 	for i, b := range sys.backends {
-		// activate v2 consensus block
-		b.engine.(*core).config.V2Block = big.NewInt(0)
 		b.engine.Start() // start Istanbul core
 		block := makeBlock(1)
 		block.Header().GasUsed = uint64(i)
@@ -588,8 +580,6 @@ func TestPreparedCertificatePersistsThroughRoundChangesV2(t *testing.T) {
 	sys := NewTestSystemWithBackend(4, 1)
 
 	for _, b := range sys.backends {
-		// activate v2 consensus block
-		b.engine.(*core).config.V2Block = big.NewInt(0)
 		b.engine.Start() // start Istanbul core
 		block := makeBlock(1)
 		b.NewRequest(block)
@@ -658,8 +648,6 @@ func TestPeriodicRoundChangesV2(t *testing.T) {
 	sys := NewTestSystemWithBackend(4, 1)
 
 	for _, b := range sys.backends {
-		// activate v2 consensus block
-		b.engine.(*core).config.V2Block = big.NewInt(0)
 		b.engine.Start() // start Istanbul core
 		block := makeBlock(1)
 		b.NewRequest(block)
