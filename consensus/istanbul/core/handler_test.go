@@ -47,7 +47,7 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	}, v0.Address())
 
 	// Prepare message but preprepare message code
-	m.Code = istanbul.MsgPreprepare
+	m.Code = istanbul.MsgPreprepareV2
 
 	payload, err := m.Payload()
 	require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	err = msg.FromPayload(payload, r0.validateFn)
 	assert.Error(t, err)
 
-	m = istanbul.NewPreprepareMessage(&istanbul.Preprepare{
+	m = istanbul.NewPreprepareV2Message(&istanbul.PreprepareV2{
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
@@ -74,7 +74,7 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	err = msg.FromPayload(payload, r0.validateFn)
 	assert.Error(t, err)
 
-	m = istanbul.NewPreprepareMessage(&istanbul.Preprepare{
+	m = istanbul.NewPreprepareV2Message(&istanbul.PreprepareV2{
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
@@ -92,7 +92,7 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	err = msg.FromPayload(payload, r0.validateFn)
 	assert.Error(t, err)
 
-	m = istanbul.NewPreprepareMessage(&istanbul.Preprepare{
+	m = istanbul.NewPreprepareV2Message(&istanbul.PreprepareV2{
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
@@ -125,7 +125,7 @@ func BenchmarkHandleMsg(b *testing.B) {
 	for i, backend := range sys.backends {
 		c := backend.engine.(*core)
 
-		c.current = newTestRoundState(
+		c.current = newTestRoundStateV2(
 			&istanbul.View{
 				Round:    big.NewInt(0),
 				Sequence: big.NewInt(1),
@@ -183,7 +183,7 @@ func newInitializedTestSystem(b *testing.B, useRoundStateDB bool) *testSystem {
 				b.Errorf("Failed to create rsdb: %v", err)
 			}
 
-			c.current = withSavingDecorator(rsdb, newTestRoundState(
+			c.current = withSavingDecorator(rsdb, newTestRoundStateV2(
 				&istanbul.View{
 					Round:    big.NewInt(0),
 					Sequence: big.NewInt(1),
@@ -196,7 +196,7 @@ func newInitializedTestSystem(b *testing.B, useRoundStateDB bool) *testSystem {
 				c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = StatePreprepared
 			}
 		} else {
-			c.current = newTestRoundState(
+			c.current = newTestRoundStateV2(
 				&istanbul.View{
 					Round:    big.NewInt(0),
 					Sequence: big.NewInt(1),

@@ -38,7 +38,6 @@ func (c *core) Start() error {
 	}
 
 	c.current = roundState
-	c.roundChangeSet = newRoundChangeSet(c.current.ValidatorSet())
 	c.roundChangeSetV2 = newRoundChangeSetV2(c.current.ValidatorSet())
 
 	// Reset the Round Change timer for the current round to timeout.
@@ -205,16 +204,12 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	}
 
 	switch msg.Code {
-	case istanbul.MsgPreprepare:
-		return catchFutureMessages(c.handlePreprepare(msg))
 	case istanbul.MsgPreprepareV2:
 		return catchFutureMessages(c.handlePreprepareV2(msg))
 	case istanbul.MsgPrepare:
 		return catchFutureMessages(c.handlePrepare(msg))
 	case istanbul.MsgCommit:
 		return catchFutureMessages(c.handleCommit(msg))
-	case istanbul.MsgRoundChange:
-		return catchFutureMessages(c.handleRoundChange(msg))
 	case istanbul.MsgRoundChangeV2:
 		return catchFutureMessages(c.handleRoundChangeV2(msg))
 	default:

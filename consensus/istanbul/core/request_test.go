@@ -35,7 +35,7 @@ func TestCheckRequestMsg(t *testing.T) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
-		}, valSet, valSet.GetByIndex(0), false),
+		}, valSet, valSet.GetByIndex(0)),
 	}
 
 	// invalid request
@@ -91,7 +91,7 @@ func TestStoreRequestMsg(t *testing.T) {
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
-		}, valSet, valSet.GetByIndex(0), false),
+		}, valSet, valSet.GetByIndex(0)),
 		pendingRequests:   prque.New(nil),
 		pendingRequestsMu: new(sync.Mutex),
 	}

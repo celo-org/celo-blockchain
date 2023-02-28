@@ -18,7 +18,6 @@ package istanbul
 
 import (
 	"fmt"
-	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
@@ -69,8 +68,6 @@ type Config struct {
 	AnnounceAggressiveQueryEnodeGossipOnEnablement bool   `toml:",omitempty"` // Specifies if this node should aggressively query enodes on announce enablement
 	AnnounceAdditionalValidatorsToGossip           int64  `toml:",omitempty"` // Specifies the number of additional non-elected validators to gossip an announce
 
-	V2Block *big.Int `toml:",omitempty"` // Activation block for the V2 istanbul consensus fork (nil = no fork, 0 = already activated)
-
 	// Load test config
 	LoadTestCSVFile string `toml:",omitempty"` // If non-empty, specifies the file to write out csv metrics about the block production cycle to.
 }
@@ -107,9 +104,6 @@ var DefaultConfig = &Config{
 
 //ApplyParamsChainConfigToConfig applies the istanbul config values from params.chainConfig to the istanbul.Config config
 func ApplyParamsChainConfigToConfig(chainConfig *params.ChainConfig, config *Config) error {
-	if chainConfig.Istanbul.V2Block != nil {
-		config.V2Block = chainConfig.Istanbul.V2Block
-	}
 	if chainConfig.Istanbul.Epoch != 0 {
 		if chainConfig.Istanbul.Epoch < MinEpochSize {
 			return fmt.Errorf("istanbul.Epoch must be greater than %d", MinEpochSize-1)

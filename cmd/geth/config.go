@@ -161,9 +161,6 @@ func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 	if ctx.GlobalIsSet(utils.OverrideEHardforkFlag.Name) {
 		cfg.Eth.OverrideEHardfork = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideEHardforkFlag.Name))
 	}
-	if ctx.GlobalIsSet(utils.OverrideV2IstanbulForkFlag.Name) {
-		cfg.Eth.OverrideV2IstanbulFork = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideV2IstanbulForkFlag.Name))
-	}
 	backend, _ := utils.RegisterEthService(stack, &cfg.Eth)
 
 	// Configure GraphQL if requested
