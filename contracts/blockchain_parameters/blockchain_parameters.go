@@ -18,7 +18,6 @@ package blockchain_parameters
 
 import (
 	"math/big"
-	"time"
 
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contracts"
@@ -35,7 +34,6 @@ const (
 )
 
 var (
-	getMinimumClientVersionMethod               = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "getMinimumClientVersion", maxGasForReadBlockchainParameter)
 	intrinsicGasForAlternativeFeeCurrencyMethod = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "intrinsicGasForAlternativeFeeCurrency", maxGasForReadBlockchainParameter)
 	blockGasLimitMethod                         = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "blockGasLimit", maxGasForReadBlockchainParameter)
 	getUptimeLookbackWindowMethod               = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "getUptimeLookbackWindow", maxGasForReadBlockchainParameter)

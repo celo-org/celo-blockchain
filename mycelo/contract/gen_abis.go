@@ -3594,31 +3594,6 @@ func init() {
       "anonymous": false,
       "inputs": [
         {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "major",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "minor",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "patch",
-          "type": "uint256"
-        }
-      ],
-      "name": "MinimumClientVersionSet",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
           "indexed": true,
           "internalType": "address",
           "name": "previousOwner",
@@ -4188,31 +4163,6 @@ func init() {
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "major",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "minor",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "patch",
-          "type": "uint256"
-        }
-      ],
-      "name": "setMinimumClientVersion",
-      "outputs": [],
-      "payable": false,
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "constant": false,
-      "inputs": [
-        {
-          "internalType": "uint256",
           "name": "gasLimit",
           "type": "uint256"
         }
@@ -4261,31 +4211,6 @@ func init() {
         {
           "internalType": "uint256",
           "name": "lookbackWindow",
-          "type": "uint256"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "constant": true,
-      "inputs": [],
-      "name": "getMinimumClientVersion",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "major",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "minor",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "patch",
           "type": "uint256"
         }
       ],
