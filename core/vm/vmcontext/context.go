@@ -148,25 +148,30 @@ func VerifySealFn(ref *types.Header, chain chainContext) func(*types.Header) boo
 // If the calculation or transfer of the tax amount fails for any reason, the regular transfer goes ahead.
 // NB: Gas is not charged or accounted for this calculation.
 func TobinTransfer(evm *vm.EVM, sender, recipient common.Address, amount *big.Int) {
-	// Run only primary evm.Call() with tracer
-	if evm.GetDebug() {
-		evm.SetDebug(false)
-		defer func() { evm.SetDebug(true) }()
-	}
-
-	if amount.Cmp(big.NewInt(0)) != 0 {
-		caller := &SharedEVMRunner{evm}
-		tax, taxRecipient, err := reserve.ComputeTobinTax(caller, sender, amount)
-		if err == nil {
-			Transfer(evm.StateDB, sender, recipient, new(big.Int).Sub(amount, tax))
-			Transfer(evm.StateDB, sender, taxRecipient, tax)
-			return
-		} else {
-			log.Error("Failed to get tobin tax", "error", err)
+	// Only deduct tobin tax before the g hardfork
+	if evm.ChainConfig().IsGFork(evm.Context.BlockNumber) {
+		Transfer(evm.StateDB, sender, recipient, amount)
+	} else {
+		// Run only primary evm.Call() with tracer
+		if evm.GetDebug() {
+			evm.SetDebug(false)
+			defer func() { evm.SetDebug(true) }()
 		}
-	}
 
-	// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
-	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
-	Transfer(evm.StateDB, sender, recipient, amount)
+		if amount.Cmp(big.NewInt(0)) != 0 {
+			caller := &SharedEVMRunner{evm}
+			tax, taxRecipient, err := reserve.ComputeTobinTax(caller, sender, amount)
+			if err == nil {
+				Transfer(evm.StateDB, sender, recipient, new(big.Int).Sub(amount, tax))
+				Transfer(evm.StateDB, sender, taxRecipient, tax)
+				return
+			} else {
+				log.Error("Failed to get tobin tax", "error", err)
+			}
+		}
+
+		// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
+		// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
+		Transfer(evm.StateDB, sender, recipient, amount)
+	}
 }
