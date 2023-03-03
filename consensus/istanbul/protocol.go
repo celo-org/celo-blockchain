@@ -22,10 +22,6 @@ import (
 
 // Constants to match up protocol versions and messages
 const (
-	// No longer supported, can be removed.
-	// The corresponding version upstream (eth/66) is removed in upstream PR #23120.
-	// Celo66 = 66
-
 	// Supported versions
 	Celo67 = 67 // incorporates changes from eth/66 (EIP-2481)
 )
