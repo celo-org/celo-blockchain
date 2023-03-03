@@ -36,7 +36,6 @@ var (
 	errDecodeFailed = errors.New("fail to decode istanbul message")
 )
 
-// If you want to add a code, you need to increment the Lengths Array size!
 const (
 	handshakeTimeout = 5 * time.Second
 )

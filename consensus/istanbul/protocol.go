@@ -38,13 +38,8 @@ const ProtocolName = "istanbul"
 var ProtocolVersions = []uint{Celo67}
 
 // protocolLengths are the number of implemented message corresponding to different protocol versions.
-var ProtocolLengths = map[uint]uint64{Celo67: 25}
-
-// NOTICE:
 // celo/67, uses as the last message the 0x18, so it has 25 messages (including the 0x00)
-// celo/66 has 27 as an unharm effect of removing 2 messages before the mainnet launch, that were
-// never updated with the actual number (https://github.com/celo-org/celo-blockchain/pull/893)
-// The Celo66 protocol has actually 25 messages, but we keep it with 27 to avoid problems.
+var ProtocolLengths = map[uint]uint64{Celo67: 25}
 
 // Message codes for istanbul related messages
 // If you want to add a code, you need to increment the protocolLengths Array size
