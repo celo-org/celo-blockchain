@@ -27,7 +27,7 @@ import (
 
 // Start implements core.Engine.Start
 func (c *core) Start() error {
-	rsdb, err := newRoundStateDB(c.config.RoundStateDBPath, nil)
+	rsdb, err := newRoundStateDB2(c.config.RoundStateDBPath, nil)
 	if err != nil {
 		log.Crit("Failed to open RoundStateDB", "err", err)
 	}
