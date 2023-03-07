@@ -1015,7 +1015,7 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM) ([]byt
 	// input is comprised of two arguments:
 	//   index: 32 byte integer representing the index of the validator to get
 	//   blockNumber: 32 byte integer representing the block number to access
-	if len(input) < 64 {
+	if len(input) != 64 {
 		return nil, ErrInputLength
 	}
 
