@@ -1174,7 +1174,21 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 		// Rewind may have occurred, skip in that case.
 		if bc.CurrentHeader().Number.Cmp(head.Number()) >= 0 {
 			currentFastBlock, td := bc.CurrentFastBlock(), bc.GetTd(head.Hash(), head.NumberU64())
-			if bc.GetTd(currentFastBlock.Hash(), currentFastBlock.NumberU64()).Cmp(td) < 0 {
+			fastBlockTd := bc.GetTd(currentFastBlock.Hash(), currentFastBlock.NumberU64())
+
+			// These two should not be nil under normal circumstances,
+			// but it apparently can happen in edge cases. See
+			// https://github.com/celo-org/celo-blockchain/issues/1920
+			if fastBlockTd == nil {
+				log.Warn("InsertReceiptChain: fastBlockTd is nil")
+				return false
+			}
+			if td == nil {
+				log.Warn("InsertReceiptChain: td is nil")
+				return false
+			}
+
+			if fastBlockTd.Cmp(td) < 0 {
 				rawdb.WriteHeadFastBlockHash(bc.db, head.Hash())
 				bc.currentFastBlock.Store(head)
 				headFastBlockGauge.Update(int64(head.NumberU64()))
