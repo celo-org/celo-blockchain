@@ -33,9 +33,9 @@ var valSetSizeFlag = cli.Int64Flag{
 var reportUptimeCommand = cli.Command{
 	Name:      "report",
 	Usage:     "Reports uptime for all validators",
-	Action:    reportUptime,
+	Action:    utils.MigrateFlags(reportUptime),
 	ArgsUsage: "",
-	Flags:     []cli.Flag{epochFlag, lookbackFlag, valSetSizeFlag},
+	Flags:     []cli.Flag{epochFlag, lookbackFlag, valSetSizeFlag, utils.DataDirFlag},
 }
 
 // getHeaderByNumber retrieves a block header from the database by number,
