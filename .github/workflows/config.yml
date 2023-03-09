@@ -125,17 +125,7 @@ jobs:
         check-latest: false
         cache: true
     - name: Run linter
-      run: |
-        # so that the tee call at the end doesn't hide the real exit code
-        set -o pipefail
-        mkdir -p /tmp/test-results
-        go run build/ci.go ensure-linter
-        ./build/cache/golangci-lint-1.42.0-linux-amd64/golangci-lint run --config .golangci.yml --out-format junit-xml ./... | tee /tmp/test-results/go-lint-report.xml
-    - name: Upload linter report
-      uses: actions/upload-artifact@v3
-      with:
-        name: linter-report
-        path: /tmp/test-results
+      uses: golangci/golangci-lint-action@v3
 
   unit-tests:
     name: Unit tests
