@@ -202,6 +202,18 @@ func (rsdb *roundStateDBImpl) UpdateLastRoundState(rs RoundState) error {
 	}
 	rsdb.dbSaveTimer.UpdateSince(before)
 
+	stats, _ := rsdb.db.GetProperty("leveldb.stats")
+	logger.Warn(stats)
+
+	compcount, _ := rsdb.db.GetProperty("leveldb.compcount")
+	logger.Warn(compcount)
+
+	iostats, _ := rsdb.db.GetProperty("leveldb.iostats")
+	logger.Warn(iostats)
+
+	writedelay, _ := rsdb.db.GetProperty("leveldb.writedelay")
+	logger.Warn(writedelay)
+
 	return err
 }
 
