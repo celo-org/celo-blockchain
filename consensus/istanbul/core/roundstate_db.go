@@ -119,7 +119,8 @@ func newRoundStateDB(path string, opts *RoundStateDBOptions) (RoundStateDB, erro
 
 // newMemoryDB creates a new in-memory node database without a persistent backend.
 func newMemoryDB() (*leveldb.DB, error) {
-	db, err := leveldb.Open(storage.NewMemStorage(), nil)
+	opts := &opt.Options{DisableSeeksCompaction: true}
+	db, err := leveldb.Open(storage.NewMemStorage(), opts)
 	if err != nil {
 		return nil, err
 	}
