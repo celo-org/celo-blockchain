@@ -175,6 +175,7 @@ jobs:
       uses: mshick/add-pr-comment@v2
       with:
         message-path: test-summary.md
+        message-id: test-summary
     # TODO: figure out if we need a token
     - name: Upload coverage to codecov
       uses: codecov/codecov-action@v3
@@ -288,6 +289,7 @@ jobs:
       uses: mshick/add-pr-comment@v2
       with:
         message: "${{ env.PR_SUMMARY_MESSAGE }}"
+        message-id: istanbul-cov-summary
 
   lightest-sync-test:
     name: Lightest sync test
