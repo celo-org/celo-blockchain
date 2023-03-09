@@ -27,6 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/task"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/syndtr/goleveldb/leveldb"
 	lvlerrors "github.com/syndtr/goleveldb/leveldb/errors"
@@ -63,7 +64,9 @@ type roundStateDBImpl struct {
 	db                   *leveldb.DB
 	stopGarbageCollector task.StopFn
 	opts                 RoundStateDBOptions
-	logger               log.Logger
+
+	roundStateRLPMeter metrics.Meter
+	logger             log.Logger
 }
 
 var defaultRoundStateDBOptions = RoundStateDBOptions{
@@ -105,9 +108,10 @@ func newRoundStateDB(path string, opts *RoundStateDBOptions) (RoundStateDB, erro
 	}
 
 	rsdb := &roundStateDBImpl{
-		db:     db,
-		opts:   coerceOptions(opts),
-		logger: logger,
+		db:                 db,
+		opts:               coerceOptions(opts),
+		roundStateRLPMeter: metrics.NewRegisteredMeter("istanbul/roundstate/db/rlp", nil),
+		logger:             logger,
 	}
 
 	if rsdb.opts.withGarbageCollector {
@@ -177,6 +181,7 @@ func (rsdb *roundStateDBImpl) UpdateLastRoundState(rs RoundState) error {
 		logger.Error("Failed to save roundState", "reason", "rlp encoding", "err", err)
 		return err
 	}
+	rsdb.roundStateRLPMeter.Mark(int64(len(entryBytes)))
 
 	batch := new(leveldb.Batch)
 	batch.Put([]byte(lastViewKey), viewKey)
