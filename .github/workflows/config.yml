@@ -164,7 +164,7 @@ jobs:
       if: always()
       uses: EnricoMi/publish-unit-test-result-action@v2
       with:
-        files: /tmp/test-results/**/*.xml
+        files: /tmp/test-results/*.xml
     # TODO: figure out if we need a token
     - name: Upload coverage to codecov
       uses: codecov/codecov-action@v3
