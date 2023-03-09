@@ -162,12 +162,19 @@ jobs:
       run: |
         go-junit-report -set-exit-code < go-test.out > report.xml
     - name: Test summary
+      id: unit-tests-summary
       if: always()
       uses: test-summary/action@v2
       with:
         paths: |
           report.xml
-        show: "fail, skip"
+        output: test-summary.md
+        show: "fail"
+    - name: Post test summary comment on PR
+      if: always()
+      uses: mshick/add-pr-comment@v2
+      with:
+        message-path: test-summary.md
     # TODO: figure out if we need a token
     - name: Upload coverage to codecov
       uses: codecov/codecov-action@v3
