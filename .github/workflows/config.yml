@@ -178,6 +178,7 @@ jobs:
         message-id: test-summary
     # TODO: figure out if we need a token
     - name: Upload coverage to codecov
+      if: always()
       uses: codecov/codecov-action@v3
 
   race:
