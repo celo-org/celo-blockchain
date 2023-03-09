@@ -156,10 +156,11 @@ jobs:
     - name: Run tests
       run: |
         go install github.com/jstemmer/go-junit-report@latest
-        CI=true go test -v -cover -coverprofile=coverage.out ./... | go-junit-report -set-exit-code > report.xml
-    - name: Debug output
+        CI=true go test -v -cover -coverprofile=coverage.out ./... | tee go-test.out
+    - name: Generate test report
+      if: always()
       run: |
-        cat report.xml
+        go-junit-report -set-exit-code < go-test.out > report.xml
     - name: Test summary
       if: always()
       uses: test-summary/action@v2
