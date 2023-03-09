@@ -66,6 +66,8 @@ type roundStateDBImpl struct {
 	opts                 RoundStateDBOptions
 
 	roundStateRLPMeter metrics.Meter
+	rlpTimer           metrics.Timer
+	dbSaveTimer        metrics.Timer
 	logger             log.Logger
 }
 
@@ -110,7 +112,9 @@ func newRoundStateDB(path string, opts *RoundStateDBOptions) (RoundStateDB, erro
 	rsdb := &roundStateDBImpl{
 		db:                 db,
 		opts:               coerceOptions(opts),
-		roundStateRLPMeter: metrics.NewRegisteredMeter("istanbul/roundstate/db/rlp", nil),
+		roundStateRLPMeter: metrics.NewRegisteredMeter("consensus/istanbul/core/roundstate/rlp/size", nil),
+		rlpTimer:           metrics.NewRegisteredTimer("consensus/istanbul/core/roundstate/rlp/time", nil),
+		dbSaveTimer:        metrics.NewRegisteredTimer("consensus/istanbul/core/roundstate/db/save/time", nil),
 		logger:             logger,
 	}
 
@@ -176,13 +180,18 @@ func (rsdb *roundStateDBImpl) UpdateLastRoundState(rs RoundState) error {
 	logger := rsdb.logger.New("func", "UpdateLastRoundState")
 	viewKey := view2Key(rs.View())
 
+	// Encode and measure time
+	before := time.Now()
 	entryBytes, err := rlp.EncodeToBytes(rs)
+	rsdb.rlpTimer.UpdateSince(before)
+
 	if err != nil {
 		logger.Error("Failed to save roundState", "reason", "rlp encoding", "err", err)
 		return err
 	}
 	rsdb.roundStateRLPMeter.Mark(int64(len(entryBytes)))
 
+	before = time.Now()
 	batch := new(leveldb.Batch)
 	batch.Put([]byte(lastViewKey), viewKey)
 	batch.Put(viewKey, entryBytes)
@@ -191,6 +200,7 @@ func (rsdb *roundStateDBImpl) UpdateLastRoundState(rs RoundState) error {
 	if err != nil {
 		logger.Error("Failed to save roundState", "reason", "levelDB write", "err", err, "func")
 	}
+	rsdb.dbSaveTimer.UpdateSince(before)
 
 	return err
 }
