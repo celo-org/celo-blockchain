@@ -126,6 +126,8 @@ jobs:
         cache: true
     - name: Run linter
       uses: golangci/golangci-lint-action@v3
+      with:
+        only-new-issues: true
 
   unit-tests:
     name: Unit tests
