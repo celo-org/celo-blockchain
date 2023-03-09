@@ -153,27 +153,20 @@ jobs:
         path: ${{ env.SYSTEM_CONTRACTS_PATH }}
     - name: Prepare ethersjs project
       run: make prepare-ethersjs-project
-    - name: Install JUnit report
-      run: go get github.com/jstemmer/go-junit-report
     - name: Run tests
       run: |
-        mkdir -p /tmp/test-results
-        trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
-        CI=true go test -v -cover -coverprofile=coverage.out ./... | tee /tmp/test-results/go-test.out
-    - name: Publish unit test results
+        go install github.com/jstemmer/go-junit-report@latest
+        go generate ./...
+        CI=true go test -v -cover -coverprofile=coverage.out ./... | go-junit-report -set-exit-code > report.xml
+    - name: Test summary
       if: always()
-      uses: EnricoMi/publish-unit-test-result-action@v2
+      uses: test-summary/action@v1
       with:
-        files: |
-          test-results/**/*.xml
+        paths: |
+          report.xml
     # TODO: figure out if we need a token
     - name: Upload coverage to codecov
       uses: codecov/codecov-action@v3
-    - name: Upload test report
-      uses: actions/upload-artifact@v3
-      with:
-        name: unit-test-report
-        path: /tmp/test-results
 
   race:
     name: Data race detector
