@@ -89,7 +89,7 @@ $(MONOREPO_PATH): monorepo_commit
 	@set -e; \
 	mc=`cat monorepo_commit`; \
 	echo "monorepo_commit is $${mc}"; \
-	if git show-ref --verify refs/heads/$${mc} > /dev/null 2>&1; \
+	if git ls-remote --heads --exit-code git@github.com:celo-org/celo-monorepo.git $${mc} > /dev/null 2>&1; \
 	then \
 		echo "Expected commit hash or tag in 'monorepo_commit' instead found branch name '$${mc}'"; \
 		exit 1; \
