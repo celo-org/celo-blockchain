@@ -25,7 +25,7 @@ endif
 # We checkout the monorepo as a sibling to the celo-blockchain dir because the
 # huge amount of files in the monorepo interferes with tooling such as gopls,
 # which becomes very slow.
-MONOREPO_PATH=../.celo-blockchain-monorepo-checkout
+MONOREPO_PATH=../.celo-blockchain-monorepo-checkouts/$(shell cat monorepo_commit)
 
 # This either evaluates to the contract source files if they exist or NOT_FOUND
 # if celo-monorepo has not been checked out yet.
@@ -78,13 +78,9 @@ $(MONOREPO_PATH)/packages/protocol/build: $(CONTRACT_SOURCE_FILES)
 # as a prerequisite of this will be run at most once.
 $(CONTRACT_SOURCE_FILES): $(MONOREPO_PATH)
 
-# Clone the monorepo.
+# Clone the monorepo at the commit in the file `monorepo_commit`.
 #
-# If the repo has not been cloned then clone it at the commit contained in
-# monorepo_commit and store that commit in a file.  Otherwise if the repo has
-# been cloned and the commit contained in monorepo_commit doesn't match the
-# contents of current_commit then checkout the new commit, and update the file
-# that stores the current commit.  This will fail if there are local changes.
+# The checkouts are kept separate by commit to make switching between commits. Use `make clean-old-monorepos` to remove all checkouts but the once currently indicated by `monorepo_commit`.
 $(MONOREPO_PATH): monorepo_commit
 	@set -e; \
 	mc=`cat monorepo_commit`; \
@@ -97,17 +93,19 @@ $(MONOREPO_PATH): monorepo_commit
 	if  [ ! -e $(MONOREPO_PATH) ]; \
 	then \
 		echo "Cloning monorepo at $${mc}"; \
-		git clone --quiet --depth 1 --branch $${mc} https://github.com/celo-org/celo-monorepo.git $(MONOREPO_PATH); \
-		echo $${mc} > $(MONOREPO_PATH)/current_commit; \
-	elif [ $${mc} != $(shell cat $(MONOREPO_PATH)/current_commit 2>/dev/null || echo "") ]; \
-	then \
-		echo "Checking out monorepo at $${mc}"; \
-		cd $(MONOREPO_PATH); \
+		mkdir -p $(MONOREPO_PATH) && cd $(MONOREPO_PATH); \
+		git init; \
+		git remote add origin https://github.com/celo-org/celo-monorepo.git; \
 		git fetch --quiet --depth 1 origin $${mc}; \
 		git checkout FETCH_HEAD; \
-		sleep 0.5; \
-		echo $${mc} > current_commit; \
 	fi
+
+
+clean-old-monorepos:
+	@all_repos_dir=$$(realpath $(MONOREPO_PATH)/..); \
+	delete_dirs=$$(ls -d -1 $${all_repos_dir}/*/ | grep -v $$(cat monorepo_commit)); \
+	echo Deleting $$delete_dirs; \
+	rm -fr $$delete_dirs
 
 
 geth-musl:
