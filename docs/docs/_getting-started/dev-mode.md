@@ -13,20 +13,19 @@ Starting geth in dev mode does the following:
 -   Sets the gas price to 0
 -   Uses the Clique PoA consensus engine with which allows blocks to be mined as-needed without excessive CPU and memory consumption
 -   By default produces a block per second
-    -   To instead produce blocks on-demand when transactions are waiting to be mined, set `--dev.period 0`
+    -   To instead produce blocks on-demand when transactions are waiting to be mined, set `--dev.period 0`)
 
 ## Start Geth in Dev Mode
 
-Note: this command currently does not work as intended in ephemeral mode and must be run with a data dictionary that contains a keystore file with the hard-coded developer account `0x47e172f6cfb6c7d01c1574fa3e2be7cc73269d95`. The easiest way of doing this is to:
+You can specify a data directory to maintain state between runs using the `--datadir` option, otherwise, databases are ephemeral and in-memory:
 
-1. Run the command with the desired `--datadir` (and `--dev.period` if a specific block period is desired): `geth --datadir test-chain-dir --dev.period 5`.
-    This will create the required genesis file in `test-chain-dir` and import the hard-coded developer account `0x47e172f6cfb6c7d01c1574fa3e2be7cc73269d95`
+```shell
+geth --dev
+```
 
-2. Then run: `geth --dev --miner.validator 0x47e172f6cfb6c7d01c1574fa3e2be7cc73269d95 --datadir test-chain-dir`
-    Note that this will use the block period configured in the first step.
+Optionally specify `--dev.period` if a block period other than 1 per second is desired.
 
-3. Re-run with the same state by repeating step 2. To start the chain without previous state, delete the datadir and start from step 1.
-
+Whether run ephemerally or with a persistent data directory, this uses the hard-coded developer account `0x47e172f6cfb6c7d01c1574fa3e2be7cc73269d95` to configure the validator and tx fee recipient. Note that currently dev mode does not function properly when setting the validator and tx fee recipient params to accounts other than the hard-coded developer account.
 
 ### Example with Remix
 
@@ -34,7 +33,7 @@ For this guide, start geth in dev mode as described above, and enable [RPC](../_
 
 ```shell
 geth --dev --datadir test-chain-dir
-geth --dev --datadir test-chain-dir --miner.validator 0x47e172f6cfb6c7d01c1574fa3e2be7cc73269d95 --http --http.corsdomain "https://remix.ethereum.org,http://remix.ethereum.org"
+geth --dev --datadir test-chain-dir --http --http.corsdomain "https://remix.ethereum.org,http://remix.ethereum.org"
 ```
 
 Connect to the IPC console on the node from another terminal window:

@@ -1836,7 +1836,18 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		if err := ks.Unlock(developer, passphrase); err != nil {
 			Fatalf("Failed to unlock developer account: %v", err)
 		}
-		log.Info("Using developer account", "address", developer.Address)
+
+		// These must be set in order for dev mode to work out of the box with the developer account.
+		if cfg.Miner.Validator == (common.Address{}) {
+			log.Info("Setting developer account as validator", "address", developer.Address)
+			cfg.Miner.Validator = developer.Address
+		}
+		if cfg.TxFeeRecipient == (common.Address{}) {
+			log.Info("Setting developer account as txFeeRecipient", "address", developer.Address)
+			cfg.TxFeeRecipient = developer.Address
+		}
+
+		log.Info("Using developer account as validator & txFeeRecipient", "address", developer.Address)
 
 		// Create a new developer genesis block or reuse existing one
 		cfg.Genesis = core.DeveloperGenesisBlock(ctx.GlobalUint64(DeveloperPeriodFlag.Name))
