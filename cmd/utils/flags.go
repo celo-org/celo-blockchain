@@ -150,6 +150,7 @@ var (
 	DeveloperPeriodFlag = cli.IntFlag{
 		Name:  "dev.period",
 		Usage: "Block period to use in developer mode (0 = mine only if transaction pending)",
+		Value: 1,
 	}
 	IdentityFlag = cli.StringFlag{
 		Name:  "identity",
@@ -1838,7 +1839,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		log.Info("Using developer account", "address", developer.Address)
 
 		// Create a new developer genesis block or reuse existing one
-		cfg.Genesis = core.DeveloperGenesisBlock()
+		cfg.Genesis = core.DeveloperGenesisBlock(ctx.GlobalUint64(DeveloperPeriodFlag.Name))
 		if ctx.GlobalIsSet(DataDirFlag.Name) {
 			// Check if we have an already initialized chain and fall back to
 			// that if so. Otherwise we need to generate a new genesis spec.
