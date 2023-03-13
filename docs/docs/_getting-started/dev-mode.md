@@ -8,12 +8,12 @@ Geth has a development mode that sets up a single node Ethereum test network wit
 Starting geth in dev mode does the following:
 
 -   Initializes the data directory with a testing genesis block
-    - Sets default block period to 1 second
 -   Sets max peers to 0
 -   Turns off discovery by other nodes
 -   Sets the gas price to 0
 -   Uses the Clique PoA consensus engine with which allows blocks to be mined as-needed without excessive CPU and memory consumption
--   Uses on-demand block generation, producing blocks when transactions are waiting to be mined
+-   By default produces a block per second
+    -   To instead produce blocks on-demand when transactions are waiting to be mined, set `--dev.period 0`
 
 ## Start Geth in Dev Mode
 
