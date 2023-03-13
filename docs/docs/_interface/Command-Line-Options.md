@@ -68,7 +68,7 @@ LIGHT CLIENT OPTIONS:
 
 DEVELOPER CHAIN OPTIONS:
   --dev                               Ephemeral proof-of-authority network with a pre-funded developer account, mining enabled
-  --dev.period value                  Block period to use in developer mode (0 = mine only if transaction pending) (default: 0)
+  --dev.period value                  Block period to use in developer mode (0 = mine only if transaction pending) (default: 1)
 
 ETHASH OPTIONS:
   --ethash.cachedir value             Directory to store the ethash verification caches (default = inside the datadir)
