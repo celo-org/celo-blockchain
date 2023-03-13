@@ -8,7 +8,7 @@ Geth has a development mode that sets up a single node Ethereum test network wit
 Starting geth in dev mode does the following:
 
 -   Initializes the data directory with a testing genesis block
-  -   Sets default block period to 1 second
+    - Sets default block period to 1 second
 -   Sets max peers to 0
 -   Turns off discovery by other nodes
 -   Sets the gas price to 0
