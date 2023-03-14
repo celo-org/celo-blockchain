@@ -137,7 +137,11 @@ func newMemoryDB() (*leveldb.DB, error) {
 // newPersistentNodeDB creates/opens a leveldb backed persistent node database,
 // also flushing its contents in case of a version mismatch.
 func newPersistentDB(path string) (*leveldb.DB, error) {
-	opts := &opt.Options{OpenFilesCacheCapacity: 5}
+	opts := &opt.Options{
+		BlockCacheCapacity: 512 * opt.MiB,
+		WriteBuffer: 256 * opt.MiB,
+		OpenFilesCacheCapacity: 256,
+	}
 	db, err := leveldb.OpenFile(path, opts)
 	if _, iscorrupted := err.(*lvlerrors.ErrCorrupted); iscorrupted {
 		db, err = leveldb.RecoverFile(path, nil)
