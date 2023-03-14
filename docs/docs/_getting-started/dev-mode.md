@@ -13,7 +13,7 @@ Starting geth in dev mode does the following:
 -   Sets the gas price to 0
 -   Uses the Clique PoA consensus engine with which allows blocks to be mined as-needed without excessive CPU and memory consumption
 -   By default produces a block per second
-    -   To instead produce blocks on-demand when transactions are waiting to be mined, set `--dev.period 0`)
+    -   To instead produce blocks on-demand when transactions are waiting to be mined, set `--dev.period 0`
 
 ## Start Geth in Dev Mode
 
