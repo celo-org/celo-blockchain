@@ -1,0 +1,695 @@
+# The structure of this workflow
+#
+# We have a central folder ~/repos under which there are paths which are used
+# throughout the workflow:
+#
+# - geth: The celo-blockchain checkout
+# - celo-monorepo: The celo-monorepo checkout
+# - golang: A golang installation
+# - gocache: A folder containing intermediate compilation results for golang
+# - gomodcache: A folder containing downloaded modules for golang
+
+####################
+#
+# A note on performance.
+#
+# TL;DR: Storing and retrieving from workspaces is slow so use it sparingly.
+#
+# Workspaces are useful in sharing data between jobs where the overhead
+# involved in using a cache and providing functionality to rebuild the cache in
+# each job is too high.
+#
+# Lang version:
+#
+# Storing and retrieving data from workspaces seems to be slow. And
+# caches/checkouts/plain downloads appear to be faster. Some numbers ...
+#
+####
+#
+# Restoring repo dir (no binaries) (65M) + gocache (243M) + gomodcache (1.5G)
+# from a workspace takes approx 121s
+#
+# Restoring repo dir (no binaries) (65M) + gocache (243M) from a workspace
+# takes approx 52s and then restoring the gomodcache (1.5G) from a cache takes
+# approx 12s, so 64s total, so a reduction of 57s which is almost half the
+# time!
+#
+####
+#
+# Restoring monorepo dir + celo-blockchain  + go install (684M) from workspace
+# approx 51s.
+#
+# Restoring monorepo dir + go install (659M) from workspace approx 37s +
+# shallow checkout celo-blockchain 2s, so a total of 39s a 12 second improvement.
+#
+####
+#
+# Restoring monorepo dir + golang install from workspace (659M) takes
+# approx 35s.
+#
+# Downloading and installing go (109M) takes approx 4s and restoring monorepo
+# dir from (414M) takes approx 28s, so a total of 32s, so a 3s improvement.
+#
+#######
+#
+# As can be seen from the above numbers restoring from workspaces are
+# significantly slower than caches, a fair bit slower than github checkouts and
+# a little bit slower than downloading and installing go.
+#
+# Since workspaces are scoped to a workflow you need to persist to a workspace
+# in your workflow before you can read from it, which further slows the build
+# time and persisting seems to take about twice as long as retrieving. And on
+# top of that remember that before persisting you will need to run the task
+# that you would otherwise run directly in a downstream job.
+#
+# Workspaces work best for small amounts of data that take a long time to
+# generate that we want to share between many jobs without having to duplicate
+# everywhere the logic to generate the data.
+#
+# How are we using them?
+#
+# We are currently using workspaces to store the compiled-system-contracts
+# (4.7M) which take about 5 minutes to generate, 2s to persist to the workspace
+# and 0s to restore from the workspace, we also cache them so that most of the
+# time we can skip the build step and simply persist the cache to the
+# workspace. Having this functionality contained in one job makes the config
+# simpler than if we tried to add compiled system contract generation to all of
+# the downstream jobs and since this job is quite fast and not in the critical
+# path for the workflow it's ok to be a bit slower here.
+#
+version: 2.1
+parameters:
+  # Increment these to force cache rebuilding
+  system-contracts-cache-version:
+    type: integer
+    default: 2
+  go-mod-cache-version:
+    type: integer
+    default: 3
+  go-cache-version:
+    type: integer
+    default: 3
+  checkout-monorepo-cache-version:
+    type: integer
+    default: 3
+  # Location where compiled system contracts are stored under the root of this
+  # repo.
+  system-contracts-path:
+    type: string
+    default: "compiled-system-contracts"
+  system-contracts-executor-image:
+    type:
+      string
+      # The system contracts executor currently needs node 12 to function,
+      # this should only be changed when the version in `monorepo_commit` is
+      # changed.
+    default: "us.gcr.io/celo-testnet/circleci-node12:1.0.0"
+  e2e-executor-image:
+    type:
+      string
+      # The system contracts executor currently needs node 12 to function,
+      # this should only be changed when the version in `monorepo_commit` is
+      # changed.
+    default: "us.gcr.io/celo-testnet/circleci-node12:1.0.0"
+executors:
+  golang:
+    docker:
+      - image: "us.gcr.io/celo-testnet/circleci-node12-golang1.17.5"
+    working_directory: ~/repos/geth
+    environment:
+      # Change the go modules to be cached under ~/repos so that we can add
+      # them to the workspace, this doesn't seem to work if you use the ~
+      # symbol to represent the home dir.
+      GOMODCACHE: /home/circleci/repos/gomodcache
+      GOCACHE: /home/circleci/repos/gocache
+  system-contracts-executor:
+    docker:
+      - image: <<pipeline.parameters.system-contracts-executor-image>>
+    working_directory: ~/repos/geth
+  e2e:
+    docker:
+      - image: <<pipeline.parameters.e2e-executor-image>>
+    environment:
+      # Change the go modules and build cache to be cached under ~/repos so
+      # that we can add them to the workspace, this doesn't seem to work if you
+      # use the ~ symbol to represent the home dir.
+      GOMODCACHE: /home/circleci/repos/gomodcache
+      GOCACHE: /home/circleci/repos/gocache
+
+# Unfortunately we cannot use anchors to represent a set of standard steps and
+# then add or override one or more of those steps when referencing the anchor.
+# This would be useful because a lot of jobs share many steps, it is not
+# possible because anchors can be used to represent dictionaries but not
+# sequences, and steps are defined as a sequence. So we are limited here to only
+# reusing a small segment of our jobs. See this link for a discussion of this limitation.
+# https://stackoverflow.com/questions/4948933/is-there-a-way-to-alias-anchor-an-array-in-yaml
+unit-tests-defaults: &unit-tests-defaults
+  executor: golang
+  resource_class: medium+
+
+# The default circle ci checkout does a full checkout and that brings about
+# 450M of history that we don't need.
+shallow-checkout: &shallow-checkout
+  run:
+    name: shallow checkout
+    command: |
+      mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+      # CIRCLE_PR_NUMBER is only set for forked PRs and for forked PRs we need
+      # a different approach to check out the branch.
+      if [ -z ${CIRCLE_PR_NUMBER} ]; then
+        # Non forked PR
+        git clone --quiet --depth 1 ${CIRCLE_REPOSITORY_URL} --branch ${CIRCLE_BRANCH} ~/repos/geth 
+      else
+        # Forked PR, in this case we need to fetch the remote ref (because its not a branch so we can't clone directly to it)
+        # See https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/checking-out-pull-requests-locally
+        
+        # Use the github api to get the branch name
+        git clone --quiet --depth 1 ${CIRCLE_REPOSITORY_URL} ~/repos/geth  
+        cd ~/repos/geth
+        git fetch --depth 1 origin pull/${CIRCLE_PR_NUMBER}/head:${CIRCLE_BRANCH}
+        git checkout ${CIRCLE_BRANCH}
+      fi
+
+install-go: &install-go
+  run:
+    name: install go
+    command: |
+      # Install go so the e2e tests can build geth
+      mkdir -p ~/repos/golang
+      wget https://dl.google.com/go/go1.16.4.linux-amd64.tar.gz
+      tar xf go1.16.4.linux-amd64.tar.gz -C ~/repos/golang
+      ~/repos/golang/go/bin/go version
+
+save-go-cache: &save-go-cache
+  save_cache:
+    key: go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}-{{ checksum "~/repos/month" }}
+    paths:
+      - ~/repos/gocache
+
+restore-go-cache: &restore-go-cache
+  restore_cache:
+    keys:
+      - go-cache-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}-{{ checksum "~/repos/month" }}
+
+save-go-mod-cache: &save-go-mod-cache
+  save_cache:
+    key: go-mod-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+    paths:
+      - ~/repos/gocache
+
+restore-go-mod-cache: &restore-go-mod-cache
+  restore_cache:
+    keys:
+      - go-mod-<<pipeline.parameters.go-cache-version>>-{{ checksum "~/repos/geth/go.sum" }}
+
+store-month-in-file: &store-month-in-file
+  # output the current month to a file, we'll use this to rotate the gocache
+  # monthly.  This is because most of what is in the gocache will be related to
+  # the go modules but some of it will be related to the repo code, but we
+  # don't want to rebuild on every commit, so instead we regenerate the cache
+  # monthly and of course if the modules change that will change the cache key.
+  run: date +%m > ~/repos/month
+
+end-to-end-test: &end-to-end-test
+  executor: e2e
+  resource_class: large
+  working_directory: ~/repos
+  parameters:
+    cache-key:
+      type: string
+      default: checkout-monorepo-{{ checksum "~/repos/geth/monorepo_commit" }}-v<<pipeline.parameters.checkout-monorepo-cache-version>>-<<pipeline.parameters.e2e-executor-image>>
+  steps:
+    - *shallow-checkout
+    - restore_cache:
+        keys:
+          - <<parameters.cache-key>>
+    - run:
+        name: Setup celo-monorepo for e2e tests
+        command: |
+          set -e
+          # only run this if the cache was not restored
+          if [ ! -d ./celo-monorepo ]; then
+            mc=`cat geth/monorepo_commit`
+            git clone --quiet --depth 1 --branch ${mc} https://github.com/celo-org/celo-monorepo.git
+            cd celo-monorepo
+
+            # Github is phasing out the git protocol so we ensure that we use
+            # https for all git operations that yarn may perform.
+            git config --global url."https://github.com".insteadOf git://github.com
+
+            # See if we can chuck some files by autocleaning
+            yarn autoclean --init
+
+            # Note we can't install for production only since the the build
+            # script and many others depend on lerna, which is a dev
+            # dependency.
+            yarn install
+            yarn build --scope @celo/celotool --include-filtered-dependencies
+
+            # Clear out unnecessary stuff
+            rm -rf .git
+          fi
+    - save_cache:
+        key: <<parameters.cache-key>>
+        paths:
+          - ~/repos/celo-monorepo
+    - *install-go
+    - *restore-go-mod-cache
+    - *store-month-in-file
+    - *restore-go-cache
+    - run:
+        name: Run e2e test
+        no_output_timeout: 15m
+        command: |
+          export PATH=${PATH}:~/repos/golang/go/bin
+          export E2E_TESTS_FORCE_USE_MYCELO=true
+          cd celo-monorepo/packages/celotool
+          ./${TEST_NAME} local ~/repos/geth
+    # Note, all e2e tests call 'make all' in ~/repos/geth, this causes most code
+    # to be built and so results in a fairly well populated go cache.
+    - *save-go-cache
+
+jobs:
+  go-modules:
+    executor: golang
+    resource_class: small
+    steps:
+      - *shallow-checkout
+      - *restore-go-mod-cache
+      - run: go mod download
+      - *save-go-mod-cache
+
+  akeyless-get-token:
+    docker:
+      - image: akeyless/ci_base
+    environment:
+      PR_WRITE_TOKEN_PATH: /dynamic-secrets/keys/github/celo-blockchain/pull_requests=write
+    steps:
+      - checkout
+      - run:
+          name: "update akeyless cli tool to latest version"
+          command: akeyless update
+
+      - run:
+          name: "authenticate to akeyless via OIDC"
+          command: akeyless auth --access-id p-apiygzv96zv5 --access-type jwt --jwt $CIRCLE_OIDC_TOKEN --json | jq '.token' -r  > ~/.vault_token
+
+      - run:
+          name: "Get PR Comment token (and remove unnecessary information and punctuation)"
+          command: TOKEN=$(cat ~/.vault_token) && echo export PR_COMMENT_TOKEN2=$(akeyless get-dynamic-secret-value --name $PR_WRITE_TOKEN_PATH --token $TOKEN |grep token | awk '{print $2}' | tr -d '"",' ) >> "$BASH_ENV"
+
+      - run:
+          name: "Copy $BASH_ENV to bash.env file so we can persist that to workspaces"
+          command: cp $BASH_ENV bash.env
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - bash.env
+
+  prepare-system-contracts:
+    parameters:
+      cache-key:
+        type: string
+        default: system-contracts-cache-{{ checksum "monorepo_commit" }}-<<pipeline.parameters.system-contracts-path>>-v<<pipeline.parameters.system-contracts-cache-version>>-<<pipeline.parameters.system-contracts-executor-image>>
+    executor: system-contracts-executor
+    resource_class: medium+
+    steps:
+      - *shallow-checkout
+      - restore_cache:
+          keys:
+            - <<parameters.cache-key>>
+      - run:
+          name: prepare system contracts
+          # Runs make prepare-system-contracts and sets the MONOREPO_COMMIT to
+          # use We also need to add the fingerprint id for the github ssh key
+          # to our known hosts in order for the monorepo post install script to
+          # work. We only do this if the cache has not been restored.
+          command: |
+            set -e
+            if [ ! -d <<pipeline.parameters.system-contracts-path>> ]; then
+              # Github is phasing out the git protocol so we ensure that we use
+              # https for all git operations that yarn may perform. Yarn is used by
+              # the prepare-system-contracts make rule since it partially builds celo-monorepo.
+              git config --global url."https://github.com".insteadOf git://github.com
+
+              mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+              make prepare-system-contracts 
+            fi
+      - save_cache:
+          key: <<parameters.cache-key>>
+          paths:
+            - ~/repos/geth/<<pipeline.parameters.system-contracts-path>>
+      - persist_to_workspace:
+          root: ~/repos
+          paths:
+            - geth/<<pipeline.parameters.system-contracts-path>>
+
+  race:
+    <<: *unit-tests-defaults
+    steps:
+      - *shallow-checkout
+      - attach_workspace:
+          at: ~/repos
+      - *restore-go-mod-cache
+      - run: make prepare-ethersjs-project
+      - run: go get github.com/jstemmer/go-junit-report
+      - run:
+          name: Run tests
+          command: |
+            mkdir -p /tmp/test-results
+            trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
+            go test -p 1 -v -race ./... | tee /tmp/test-results/go-test.out
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results:
+          path: /tmp/test-results
+
+  unit-tests:
+    executor: golang
+    resource_class: xlarge
+    steps:
+      - *shallow-checkout
+      - attach_workspace:
+          at: ~/repos
+      - *restore-go-mod-cache
+      - run: make prepare-ethersjs-project
+      - run: go get github.com/jstemmer/go-junit-report
+      - run:
+          name: Run tests
+          command: |
+            mkdir -p /tmp/test-results
+            trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
+            go test -v -cover -coverprofile=coverage.out ./... | tee /tmp/test-results/go-test.out
+            bash <(curl -s https://codecov.io/bash)
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results:
+          path: /tmp/test-results
+
+  istanbul-e2e-coverage:
+    <<: *unit-tests-defaults
+    steps:
+      - *shallow-checkout
+      - attach_workspace:
+          at: ~/repos
+      - *restore-go-mod-cache
+      - run: make prepare-ethersjs-project
+        # Run the tests with coverage parse the coverage and output the summary
+      - run:
+          name: Run tests and print coverage summary
+          command: |
+            go test -v -coverprofile cov.out -coverpkg ./consensus/istanbul/... ./e2e_test 
+            go run tools/parsecov/main.go -packagePrefix github.com/celo-org/celo-blockchain/ cov.out > summary
+            cat summary
+
+      - attach_workspace:
+          at: .
+      - run: |
+          cat bash.env > $BASH_ENV
+
+      - run:
+          name: Post summary comment on PR
+          command: |
+            # Only post on PR if this build is running on a PR. If this build
+            # is running on a PR then CIRCLE_PULL_REQUEST contains the link to
+            # the PR.
+            if [[ -z ${CIRCLE_PULL_REQUEST} ]] ; then
+              exit 0
+            fi
+
+            # Generate per PR MARKER for this comment.
+            COMMENT_MARKER=`echo ${CIRCLE_PULL_REQUEST}| shasum | head -c 10`
+
+            line1=`head -n 1 summary`
+            remainder=`tail -n +2 summary`
+
+            # Build comment
+            echo "Coverage from tests in \`./e2e_test/...\` for \`./consensus/istanbul/...\` at commit ${CIRCLE_SHA1}" > comment
+            echo "<details><summary>${line1}</summary><br>" >> comment
+            echo "<pre>" >> comment
+            echo "${remainder}" >> comment
+            echo "</pre>" >> comment
+            # Add a per PR unique ID to the comment
+            echo "CommentID: `echo ${COMMENT_MARKER}`" >> comment
+            echo "</details>" >> comment
+
+            # This expansion deletes everything up to and including the final slash
+            # leaving just the PR ID.
+            PR_ID=${CIRCLE_PULL_REQUEST##*/}
+
+            # Note all the api paths here seem to be referencing issue comments
+            # rather than pr comments, but this is correct, since github's
+            # definition of an issue comment is a comment not attached to a
+            # review or attached to a specific section of code.
+
+            # This command grabs the list of comments for this PR and selects
+            # the id of the first one that contains the comment marker in its
+            # body, jq returns 'null' when it doesn't find anything.
+            COMMENT_ID=`curl https://api.github.com/repos/celo-org/celo-blockchain/issues/${PR_ID}/comments | jq "[.[] | select(.body | contains(\"${COMMENT_MARKER}\"))][0]| .id"`
+
+            # Determine if we are posting  a new comment or patching an
+            # existing one.
+            if [[ $COMMENT_ID == "null" ]]; then
+              # There was no previous comment
+              CURL_VERB=POST
+              URL=https://api.github.com/repos/celo-org/celo-blockchain/issues/${PR_ID}/comments
+            else
+              # We are updating a previous comment
+              CURL_VERB=PATCH
+              URL=https://api.github.com/repos/celo-org/celo-blockchain/issues/comments/${COMMENT_ID}
+            fi
+
+            # This command is quite involved, it's posting the comment on the
+            # associated PR.
+            # "{\"body\":\"`awk -v ORS='\\\\n' '1' comment`\"}" evaluates to
+            # a json object with comment as the content of body with newlines
+            # replaced by '\n'. Using backtics causes there to be a round of
+            # backslash processing on the command before execution, so we
+            # need to double the backslashes in the awk command.
+            curl -u celo-org:${PR_COMMENT_TOKEN2} -X ${CURL_VERB} $URL -d "{\"body\":\"`awk -v ORS='\\\\n' '1' comment`\"}" ;
+
+
+  e2e-benchmarks:
+    executor: golang
+    resource_class: medium+
+    steps:
+      - *shallow-checkout
+      - attach_workspace:
+          at: ~/repos
+      - *restore-go-mod-cache
+      - run:
+          name: Run benchmarks
+          command: |
+            mkdir -p /tmp/bench-results
+            trap "grep -E 'goos: |^goarch: |^pkg: |^cpu: |^Benchmark' /tmp/bench-results/go-bench.out > /tmp/bench-results/go-bench-results.txt" EXIT
+            go test ./e2e_test -run Bench -bench . | tee /tmp/bench-results/go-bench.out
+      - store_artifacts:
+          path: /tmp/bench-results
+
+  lint:
+    executor: golang
+    resource_class: medium+
+    steps:
+      - *shallow-checkout
+      - run: go get github.com/jstemmer/go-junit-report
+      - run:
+          name: Run Linter
+          command: |
+            mkdir -p /tmp/test-results
+            go run build/ci.go ensure-linter
+            ./build/cache/golangci-lint-1.42.0-linux-amd64/golangci-lint run --config .golangci.yml --out-format junit-xml ./... | tee /tmp/test-results/go-lint-report.xml
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results:
+          path: /tmp/test-results
+
+  check-imports:
+    executor: golang
+    steps:
+      - *shallow-checkout
+      - run:
+          name: Check imports to ensure we are using github.com/celo-org/celo-blockchain
+          command: ./scripts/check_imports.sh
+
+          # This build started failing on all branches unrelated to any change in this repo.
+          # The below link links to a build on master that failed, the previous build of the
+          # same commit 24 days prior succeed.
+          # https://app.circleci.com/pipelines/github/celo-org/celo-blockchain/8386/workflows/6d117662-83e7-4e8b-8d0c-d6891d6af94c/jobs/87995
+          # android:
+          # docker:
+          #  - image: us.gcr.io/celo-testnet/android:v3
+          # working_directory: ~/repos/geth
+          # steps:
+          #  - *shallow-checkout
+          # - *restore-go-mod-cache
+          # - run:
+          #  name: Compile android client
+          # command: make android
+          # - persist_to_workspace:
+          # root: ~/repos
+          # paths:
+          #  - geth/build/bin/geth.aar
+
+  # ios:
+  #   macos:
+  #     xcode: "12.5.1"
+  #   working_directory: ~/repos/geth
+  #   steps:
+  #     # Note the macos executor does not seem to be able to restore caches.
+  #     - *shallow-checkout
+  #     - run:
+  #         name: Setup Go language
+  #         command: |
+  #           brew install go@1.16
+  #           brew link go@1.16
+  #           # Check that homebrew installed the expected go version
+  #           if [[ "$(go version)" != "go version go1.16"* ]]; then
+  #             echo "go1.16 is required"
+  #             exit 1
+  #           fi
+  #     - run:
+  #         name: Compile ios client
+  #         command: make ios
+  #     - persist_to_workspace:
+  #         root: ~/repos
+  #         paths:
+  #           - geth/build/bin/Geth.framework.tgz
+  #           - geth/libbls_snark_sys.a
+
+  lightest-sync-test:
+    executor: golang
+    steps:
+      - *shallow-checkout
+      - *restore-go-mod-cache
+      - *store-month-in-file
+      - *restore-go-cache
+      - run: make geth
+      - run: DATADIR=/tmp/lightest_sync_test_data MODE=lightest ./scripts/sync_test.sh
+
+  build-and-store-binaries:
+    executor: golang
+    steps:
+      - *shallow-checkout
+      - *restore-go-mod-cache
+      - *store-month-in-file
+      - *restore-go-cache
+      - run:
+          name: Build and compress executables
+          command: |
+            make all
+            tar -cvzf geth.tar ./build/bin
+      - store_artifacts:
+          path: ./geth.tar
+          destination: geth.tar
+
+  end-to-end-blockchain-parameters-test:
+    environment:
+      TEST_NAME: ci_test_blockchain_parameters.sh
+    <<: *end-to-end-test
+
+  end-to-end-governance-test:
+    environment:
+      TEST_NAME: ci_test_governance.sh
+    resource_class: xlarge
+    <<: *end-to-end-test
+
+  end-to-end-sync-test:
+    environment:
+      TEST_NAME: ci_test_sync.sh
+    <<: *end-to-end-test
+
+  end-to-end-slashing-test:
+    environment:
+      TEST_NAME: ci_test_slashing.sh
+    <<: *end-to-end-test
+
+  end-to-end-transfer-test:
+    environment:
+      TEST_NAME: ci_test_transfers.sh
+    <<: *end-to-end-test
+
+  end-to-end-validator-order-test:
+    environment:
+      TEST_NAME: ci_test_validator_order.sh
+    resource_class: xlarge
+    <<: *end-to-end-test
+
+  end-to-end-cip35-eth-compatibility-test:
+    environment:
+      TEST_NAME: ci_test_cip35.sh
+    resource_class: xlarge
+    <<: *end-to-end-test
+
+  end-to-end-replica-test:
+    environment:
+      TEST_NAME: ci_test_replicas.sh
+    resource_class: xlarge
+    <<: *end-to-end-test
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - go-modules
+      - prepare-system-contracts
+      - check-imports
+      - lint
+      - unit-tests:
+          requires:
+            - go-modules
+            - prepare-system-contracts
+      - race:
+          filters:
+            branches:
+              only: /master|release.*/
+          requires:
+            - go-modules
+            - prepare-system-contracts
+      - akeyless-get-token:
+          context:
+            - akeyless
+      - istanbul-e2e-coverage:
+          requires:
+            - go-modules
+            - prepare-system-contracts
+            - akeyless-get-token
+      - e2e-benchmarks:
+          requires:
+            - go-modules
+            - prepare-system-contracts
+      # - android
+      # - ios
+      - lightest-sync-test:
+          requires:
+            - go-modules
+      - build-and-store-binaries:
+          requires:
+            - go-modules
+      - end-to-end-blockchain-parameters-test:
+          requires:
+            - go-modules
+      - end-to-end-governance-test:
+          requires:
+            - go-modules
+      - end-to-end-slashing-test:
+          requires:
+            - go-modules
+      - end-to-end-sync-test:
+          requires:
+            - go-modules
+      - end-to-end-transfer-test:
+          requires:
+            - go-modules
+      - end-to-end-validator-order-test:
+          requires:
+            - go-modules
+      - end-to-end-cip35-eth-compatibility-test:
+          requires:
+            - go-modules
+      - end-to-end-replica-test:
+          requires:
+            - go-modules
