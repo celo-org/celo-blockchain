@@ -150,7 +150,6 @@ var (
 	DeveloperPeriodFlag = cli.IntFlag{
 		Name:  "dev.period",
 		Usage: "Block period to use in developer mode (0 = mine only if transaction pending)",
-		Value: 1,
 	}
 	IdentityFlag = cli.StringFlag{
 		Name:  "identity",
