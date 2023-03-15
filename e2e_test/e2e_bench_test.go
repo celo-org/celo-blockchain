@@ -13,7 +13,27 @@ import (
 )
 
 func BenchmarkNet100EmptyBlocks(b *testing.B) {
-	for _, n := range []int{1, 3, 9} {
+	for _, n := range []int{1, 3, 5, 6, 7, 8} {
+		b.Run(fmt.Sprintf("%dNodes", n), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				ac := test.AccountConfig(n, 0)
+				gc, ec, err := test.BuildConfig(ac)
+				require.NoError(b, err)
+				network, shutdown, err := test.NewNetwork(ac, gc, ec)
+				require.NoError(b, err)
+				defer shutdown()
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second*60*time.Duration(n))
+				defer cancel()
+				b.ResetTimer()
+				err = network.AwaitBlock(ctx, 100)
+				require.NoError(b, err)
+			}
+		})
+	}
+}
+
+func BenchmarkNet100EmptyBlocks9Only(b *testing.B) {
+	for _, n := range []int{9} {
 		b.Run(fmt.Sprintf("%dNodes", n), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				ac := test.AccountConfig(n, 0)
