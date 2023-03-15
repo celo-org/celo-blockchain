@@ -112,6 +112,7 @@ ignore:
   - ".github/*"
   - "*.sum"
   - "docs/*"
+  # TODO EN: can this not be summarized as docs/**/*?
   - "docs/_data/*"
   - "docs/_includes/*"
   - "docs/_layouts/*"

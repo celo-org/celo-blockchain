@@ -15,6 +15,10 @@ jobs:
         with:
           fetch-depth: 1000  # make sure to fetch the old commit we diff against
 
+      - name: Replace github.com/celo-org/celo-blockchain
+        run: |
+          grep -rl "github.com/celo-org/celo-blockchain" . | xargs sed -i "s#github.com/celo-org/celo-blockchain#github.com/ethereum/go-ethereum#"
+
       - name: Build forkdiff
         uses: "docker://protolambda/forkdiff:latest"
         with:
