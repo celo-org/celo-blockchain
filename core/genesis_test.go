@@ -183,8 +183,10 @@ func TestRegistryInGenesis(t *testing.T) {
 		genesis func() *Genesis
 	}{
 		{
-			name:    "dev",
-			genesis: DeveloperGenesisBlock,
+			name: "dev",
+			genesis: func() *Genesis {
+				return DeveloperGenesisBlock(1)
+			},
 		},
 		{
 			name:    "alfajores",
