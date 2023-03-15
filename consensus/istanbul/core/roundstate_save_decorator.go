@@ -45,6 +45,14 @@ func (rsp *rsSaveDecorator) persistOnNoError(err error) error {
 	return rsp.db.UpdateLastRoundState(rsp.rs)
 }
 
+func (rsp *rsSaveDecorator) persistRcvdOnNoError(err error) error {
+	if err != nil {
+		return err
+	}
+
+	return rsp.db.UpdateLastRcvd(rsp.rs)
+}
+
 // mutation functions
 func (rsp *rsSaveDecorator) StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) error {
 	return rsp.persistOnNoError(rsp.rs.StartNewRound(nextRound, validatorSet, nextProposer))
@@ -66,13 +74,13 @@ func (rsp *rsSaveDecorator) TransitionToPrepared(quorumSize int) error {
 	return rsp.persistOnNoError(rsp.rs.TransitionToPrepared(quorumSize))
 }
 func (rsp *rsSaveDecorator) AddCommit(msg *istanbul.Message) error {
-	return rsp.persistOnNoError(rsp.rs.AddCommit(msg))
+	return rsp.persistRcvdOnNoError(rsp.rs.AddCommit(msg))
 }
 func (rsp *rsSaveDecorator) AddPrepare(msg *istanbul.Message) error {
-	return rsp.persistOnNoError(rsp.rs.AddPrepare(msg))
+	return rsp.persistRcvdOnNoError(rsp.rs.AddPrepare(msg))
 }
 func (rsp *rsSaveDecorator) AddParentCommit(msg *istanbul.Message) error {
-	return rsp.persistOnNoError(rsp.rs.AddParentCommit(msg))
+	return rsp.persistRcvdOnNoError(rsp.rs.AddParentCommit(msg))
 }
 func (rsp *rsSaveDecorator) SetPendingRequest(pendingRequest *istanbul.Request) error {
 	return rsp.persistOnNoError(rsp.rs.SetPendingRequest(pendingRequest))

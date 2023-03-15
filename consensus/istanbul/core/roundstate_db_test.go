@@ -7,11 +7,38 @@ import (
 	"testing"
 
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 )
+
+func mockViewMsg(view *istanbul.View, code uint64, addr common.Address) *istanbul.Message {
+	var msg []byte = []byte{}
+	subj := &istanbul.Subject{
+		View:   view,
+		Digest: common.BytesToHash([]byte("1234567890")),
+	}
+	if code == istanbul.MsgPrepare {
+		msg, _ = rlp.EncodeToBytes(subj)
+	}
+	if code == istanbul.MsgCommit {
+		cs := &istanbul.CommittedSubject{
+			Subject:               subj,
+			CommittedSeal:         []byte("commSeal"),
+			EpochValidatorSetSeal: []byte("epochVS"),
+		}
+		msg, _ = rlp.EncodeToBytes(cs)
+	}
+	return &istanbul.Message{
+		Code:      code,
+		Address:   addr,
+		Msg:       msg,
+		Signature: []byte("sigg"),
+	}
+}
 
 func TestRSDBRoundStateDB(t *testing.T) {
 	pubkey1 := blscrypto.SerializedPublicKey{1, 2, 3}
@@ -21,7 +48,12 @@ func TestRSDBRoundStateDB(t *testing.T) {
 			{Address: common.BytesToAddress([]byte(string(rune(2)))), BLSPublicKey: pubkey1},
 			{Address: common.BytesToAddress([]byte(string(rune(4)))), BLSPublicKey: pubkey2},
 		})
-		return newRoundState(newView(2, 1), valSet, valSet.GetByIndex(0))
+		view := newView(2, 1)
+		rs := newRoundState(view, valSet, valSet.GetByIndex(0))
+		rs.AddPrepare(mockViewMsg(view, istanbul.MsgPrepare, valSet.GetByIndex(0).Address()))
+		rs.AddCommit(mockViewMsg(view, istanbul.MsgPrepare, valSet.GetByIndex(0).Address()))
+		rs.AddParentCommit(mockViewMsg(view, istanbul.MsgPrepare, valSet.GetByIndex(0).Address()))
+		return rs
 	}
 
 	t.Run("Should save view & roundState", func(t *testing.T) {
@@ -37,6 +69,59 @@ func TestRSDBRoundStateDB(t *testing.T) {
 		savedRs, err := rsdb.GetRoundStateFor(view)
 		finishOnError(t, err)
 		assertEqualRoundState(t, savedRs, rs)
+	})
+
+	t.Run("Should save rcvd messages", func(t *testing.T) {
+		rsdb, _ := newRoundStateDB("", &RoundStateDBOptions{withGarbageCollector: false})
+		rs := dummyRoundState()
+		rs.Prepares().Add(
+			mockViewMsg(
+				rs.View(), istanbul.MsgPrepare, rs.ValidatorSet().GetByIndex(1).Address(),
+			),
+		)
+
+		// prepares: 2(0, 1), commits: 1(0), parentCommits: 1(0)
+		assert.Nil(t, rsdb.UpdateLastRoundState(rs))
+
+		// Delete messages to be reconstructed from rcvd
+		// Prepares will have 1 less
+		// Commits will have 1 more
+		// ParentCommits will be equal as before
+		// save the msg for comparing later
+		prepRemoved := rs.Prepares().Values()[0]
+		rs.Prepares().Remove(prepRemoved.Address)
+		rs.Commits().Add(mockViewMsg(rs.View(), istanbul.MsgCommit, rs.ValidatorSet().GetByIndex(1).Address()))
+
+		err := rsdb.UpdateLastRcvd(rs)
+		finishOnError(t, err)
+
+		view, err := rsdb.GetLastView()
+		finishOnError(t, err)
+		assertEqualView(t, view, rs.View())
+
+		savedRs, err := rsdb.GetRoundStateFor(view)
+		assert.NoError(t, err)
+		assert.NotNil(t, savedRs)
+		finishOnError(t, err)
+
+		// ReAdd to the original RoundState
+		rs.Prepares().Add(prepRemoved)
+		// Commits should both have the new amount
+		assertEqualRoundState(t, savedRs, rs)
+
+		// Add one more ParentCommit
+		newPc := mockViewMsg(view, istanbul.MsgCommit, rs.ValidatorSet().GetByIndex(1).Address())
+		rs.ParentCommits().Add(newPc)
+
+		err = rsdb.UpdateLastRcvd(rs)
+		finishOnError(t, err)
+
+		savedRs2, err := rsdb.GetRoundStateFor(view)
+		assert.NoError(t, err)
+		assert.NotNil(t, savedRs2)
+		finishOnError(t, err)
+
+		assertEqualRoundState(t, savedRs2, rs)
 	})
 
 	t.Run("Should save view from last saved roundState", func(t *testing.T) {
@@ -95,6 +180,26 @@ func TestRSDBDeleteEntriesOlderThan(t *testing.T) {
 
 }
 
+func TestRcvdSerialization(t *testing.T) {
+	valSet := newTestValidatorSet(0)
+	r := rcvd{
+		Prepares:      newMessageSet(valSet),
+		Commits:       newMessageSet(valSet),
+		ParentCommits: newMessageSet(valSet),
+	}
+	rRLP, err := r.ToRLP()
+	assert.NoError(t, err)
+	bytes, err := rlp.EncodeToBytes(rRLP)
+	assert.NoError(t, err)
+	var r2RLP *rcvdRLP = &rcvdRLP{}
+	err = rlp.DecodeBytes(bytes, r2RLP)
+	assert.NoError(t, err)
+	var r2 rcvd
+	err = r2.FromRLP(r2RLP)
+	assert.NoError(t, err)
+	assert.Equal(t, r, r2)
+}
+
 func TestRSDBKeyEncodingOrder(t *testing.T) {
 	iterations := 1000
 
@@ -116,6 +221,26 @@ func TestRSDBKeyEncodingOrder(t *testing.T) {
 
 			viewB := newView(rand.Uint64(), rand.Uint64())
 			keyB := view2Key(viewB)
+
+			if viewA.Cmp(viewB) != bytes.Compare(keyA, keyB) {
+				t.Errorf("view order != key order (viewA: %v, viewB: %v, keyA:%v, keyB:%v )",
+					viewA,
+					viewB,
+					hex.EncodeToString(keyA),
+					hex.EncodeToString(keyB),
+				)
+
+			}
+		}
+	})
+
+	t.Run("RcvdViewKey encoding should maintain sort order", func(t *testing.T) {
+		for i := 0; i < iterations; i++ {
+			viewA := newView(rand.Uint64(), rand.Uint64())
+			keyA := rcvdView2Key(viewA)
+
+			viewB := newView(rand.Uint64(), rand.Uint64())
+			keyB := rcvdView2Key(viewB)
 
 			if viewA.Cmp(viewB) != bytes.Compare(keyA, keyB) {
 				t.Errorf("view order != key order (viewA: %v, viewB: %v, keyA:%v, keyB:%v )",
