@@ -499,12 +499,12 @@ func (st *StateTransition) distributeTxFees(espresso bool) error {
 		gatewayFeeRecipient = &common.ZeroAddress
 	}
 
-	governanceAddress, err := st.getGovernanceAddress()
+	feeHandlerAddress, err := st.getFeeHandlerAddress()
 	if err != nil {
 		return err
 	}
-	if governanceAddress == common.ZeroAddress {
-		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", toPayBase)
+	if feeHandlerAddress == common.ZeroAddress {
+		log.Trace("Cannot credit gas fee to fee handler: refunding fee to sender", "error", err, "fee", toPayBase)
 		toRefund.Add(toRefund, toPayBase)
 		toPayBase = new(big.Int)
 	}
@@ -512,20 +512,20 @@ func (st *StateTransition) distributeTxFees(espresso bool) error {
 	log.Trace("distributeTxFees", "from", st.msg.From(), "refund", toRefund, "feeCurrency", st.msg.FeeCurrency(),
 		"gatewayFeeRecipient", *gatewayFeeRecipient, "gatewayFee", st.msg.GatewayFee(),
 		"coinbaseFeeRecipient", st.evm.Context.Coinbase, "coinbaseFee", toPayTip,
-		"comunityFundRecipient", governanceAddress, "communityFundFee", toPayBase)
+		"feeHandler", feeHandlerAddress, "communityFundFee", toPayBase)
 
 	if st.msg.FeeCurrency() == nil {
 		if gatewayFeeRecipient != &common.ZeroAddress {
 			st.state.AddBalance(*gatewayFeeRecipient, st.msg.GatewayFee())
 		}
-		if governanceAddress != common.ZeroAddress {
-			st.state.AddBalance(governanceAddress, toPayBase)
+		if feeHandlerAddress != common.ZeroAddress {
+			st.state.AddBalance(feeHandlerAddress, toPayBase)
 		}
 		st.state.AddBalance(st.evm.Context.Coinbase, toPayTip)
 		st.state.AddBalance(st.msg.From(), toRefund)
 	} else {
-		if err = erc20gas.CreditFees(st.evm, st.msg.From(), st.evm.Context.Coinbase, gatewayFeeRecipient, governanceAddress, toRefund, toPayTip, st.msg.GatewayFee(), toPayBase, st.msg.FeeCurrency()); err != nil {
-			log.Error("Error crediting", "from", st.msg.From(), "coinbase", st.evm.Context.Coinbase, "gateway", gatewayFeeRecipient, "fund", governanceAddress)
+		if err = erc20gas.CreditFees(st.evm, st.msg.From(), st.evm.Context.Coinbase, gatewayFeeRecipient, feeHandlerAddress, toRefund, toPayTip, st.msg.GatewayFee(), toPayBase, st.msg.FeeCurrency()); err != nil {
+			log.Error("Error crediting", "from", st.msg.From(), "coinbase", st.evm.Context.Coinbase, "gateway", gatewayFeeRecipient, "fund", feeHandlerAddress)
 			return err
 		}
 
@@ -533,21 +533,22 @@ func (st *StateTransition) distributeTxFees(espresso bool) error {
 	return nil
 }
 
-func (st *StateTransition) getGovernanceAddress() (common.Address, error) {
+func (st *StateTransition) getFeeHandlerAddress() (common.Address, error) {
 	// Run only primary evm.Call() with tracer
 	if st.evm.GetDebug() {
 		st.evm.SetDebug(false)
 		defer func() { st.evm.SetDebug(true) }()
 	}
 	caller := &vmcontext.SharedEVMRunner{EVM: st.evm}
-	governanceAddress, err := contracts.GetRegisteredAddress(caller, config.GovernanceRegistryId)
+	// TODO: pre gfork governance
+	feeHandlerAddress, err := contracts.GetRegisteredAddress(caller, config.FeeHandlerId)
 	if err != nil {
 		if err != contracts.ErrSmartContractNotDeployed && err != contracts.ErrRegistryContractNotDeployed {
 			return common.ZeroAddress, err
 		}
 		return common.ZeroAddress, nil
 	}
-	return governanceAddress, nil
+	return feeHandlerAddress, nil
 }
 
 // byGasAlternativeCurrency checks whether accountOwner's balance can cover transaction fee.
