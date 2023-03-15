@@ -18,7 +18,13 @@ jobs:
       - name: Replace github.com/celo-org/celo-blockchain
         run: |
           grep -rl "github.com/celo-org/celo-blockchain" . | xargs sed -i "s#github.com/celo-org/celo-blockchain#github.com/ethereum/go-ethereum#"
-          git add -u && git commit -m "Replace github.com/celo-org/celo-blockchain locally"
+
+      - name: Commit changes locally
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: "Replace github.com/celo-org/celo-blockchain locally"
+          add: '-u'
+          push: false
 
       - name: Build forkdiff
         uses: "docker://protolambda/forkdiff:latest"
