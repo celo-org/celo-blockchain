@@ -8,7 +8,7 @@ base:
 fork:
   name: celo
   url: https://github.com/celo-org/celo-blockchain
-  ref: refs/heads/paul/forkdiff
+  ref: refs/heads/eelanagaraj/reduce-diff-forkdiff
 def:
   title: "celo"
   description: |
