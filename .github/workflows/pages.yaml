@@ -57,7 +57,7 @@ jobs:
       - name: Build forkdiff
         uses: "docker://eelaclabs/forkdiff:latest"
         with:
-          args: -repo=/github/workspace/celo-blockchain -upstream-repo=/github/workspace/go-ethereum -fork=/github/workspace/.github/celo-blockchain/fork.yaml -out=/github/workspace/index.html
+          args: -repo=/github/workspace/celo-blockchain -upstream-repo=/github/workspace/go-ethereum -fork=/github/workspace/celo-blockchain/.github/fork.yaml -out=/github/workspace/index.html
 
       - name: Build pages
         run: |

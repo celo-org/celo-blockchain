@@ -4,7 +4,7 @@ footer: |
 base:
   name: go-ethereum
   url: https://github.com/ethereum/go-ethereum
-  hash: HEAD  # the specific forked commit is checked out as part of the GitHub workflow
+  ref: HEAD  # the specific forked commit is checked out as part of the GitHub workflow
 fork:
   name: celo
   url: https://github.com/celo-org/celo-blockchain
