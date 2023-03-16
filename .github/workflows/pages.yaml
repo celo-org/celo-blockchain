@@ -10,14 +10,21 @@ jobs:
     concurrency: ci-${{ github.ref }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout celo-blockchain
         uses: actions/checkout@v3
         with:
-          fetch-depth: 1000  # make sure to fetch the old commit we diff against
+          path: celo-blockchain
 
-      - name: Replace github.com/celo-org/celo-blockchain
+      - name: Checkout go-ethereum
+        uses: actions/checkout@v3
+        with:
+          path: go-ethereum
+          url: https://github.com/ethereum/go-ethereum
+          ref: eae3b1946a276ac099e0018fc792d9e8c3bfda6d
+
+      - name: Replace github.com/celo-org/celo-blockchain in celo-blockchain
         run: |
-          grep -rl "github.com/celo-org/celo-blockchain" . | xargs sed -i "s#github.com/celo-org/celo-blockchain#github.com/ethereum/go-ethereum#"
+          grep -rl "github.com/celo-org/celo-blockchain" celo-blockchain/. | xargs sed -i "s#github.com/celo-org/celo-blockchain#github.com/ethereum/go-ethereum#"
 
       - name: Commit changes locally
         uses: EndBug/add-and-commit@v9
@@ -27,9 +34,9 @@ jobs:
           push: false
 
       - name: Build forkdiff
-        uses: "docker://protolambda/forkdiff:latest"
+        uses: "docker://eelaclabs/forkdiff:latest"
         with:
-          args: -repo=/github/workspace -fork=/github/workspace/.github/fork.yaml -out=/github/workspace/index.html
+          args: -repo=/github/workspace/celo-blockchain -upstream-repo=/github/workspace/go-ethereum -fork=/github/workspace/.github/celo-blockchain/fork.yaml -out=/github/workspace/index.html
 
       - name: Build pages
         run: |

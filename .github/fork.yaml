@@ -4,7 +4,7 @@ footer: |
 base:
   name: go-ethereum
   url: https://github.com/ethereum/go-ethereum
-  hash: eae3b1946a276ac099e0018fc792d9e8c3bfda6d
+  hash: HEAD  # the specific forked commit is checked out as part of the GitHub workflow
 fork:
   name: celo
   url: https://github.com/celo-org/celo-blockchain
@@ -106,9 +106,37 @@ def:
         - "crypto/bls/*"
         - "crypto/bls12377/*"
         - "crypto/bls12381/*"
+    - title: "TODO"
+      globs:
+        - "interfaces.go"
 # ignored globally, does not count towards line count
 ignore:
+  # Double ** globbing is not currently available
   - ".circleci/*"
-  - ".github/**/*"
+  - ".github/*"
+  - ".github/*/*"
+  # Configuration files in root
+  - ".git*"
+  - "*.yaml"
+  - "*.yml"
+  - "*.md"
+  - "Dockerfile*"
+  - ".dockerignore"
   - "*.sum"
-  - "docs/**/*"
+  - "go.mod"
+  - ".mailmap"
+  - "AUTHORS"
+  - "COPYING"
+  - "COPYING.LESSER"
+  - "Makefile"
+  - "default.profraw"
+  - "geth-sources.jar"
+  - "monorepo_commit"
+  - "oss-fuzz.sh"
+  # Docs
+  - "docs/*"
+  - "docs/*/*"
+  - "docs/*/*/*"
+  - "docs/*/*/*/*"
+  # This is one layer deeper than currently exists
+  - "docs/*/*/*/*/*"
