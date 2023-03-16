@@ -5,6 +5,11 @@ on:
   push:
     branches:
       - eelanagaraj/reduce-diff-forkdiff
+env:
+  GO_VERSION: '1.17.5'
+# TODO EN: clean this up using env vars
+  CELO_BLOCKCHAIN_PATH: 'celo-blockchain'
+  GO_ETHEREUM_PATH: 'go-ethereum'
 jobs:
   deploy:
     concurrency: ci-${{ github.ref }}
@@ -26,12 +31,28 @@ jobs:
         run: |
           grep -rl "github.com/celo-org/celo-blockchain" celo-blockchain/. | xargs sed -i "s#github.com/celo-org/celo-blockchain#github.com/ethereum/go-ethereum#"
 
-      - name: Commit changes locally
+      - name: Setup golang
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: false
+          run: gofmt -w ./celo-blockchain ./go-ethereum
+
+      - name: Commit changes locally (celo-blockchain)
         uses: EndBug/add-and-commit@v9
         with:
-          message: "Replace github.com/celo-org/celo-blockchain locally"
+          message: "Replace github.com/celo-org/celo-blockchain and run gofmt locally"
           add: '-u'
           push: false
+          cwd: './celo-blockchain'
+
+      - name: Commit changes locally (go-ethereum)
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: "TODO EN: Run gofmt locally"
+          add: '-u'
+          push: false
+          cwd: './go-ethereum'
 
       - name: Build forkdiff
         uses: "docker://eelaclabs/forkdiff:latest"
