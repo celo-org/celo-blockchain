@@ -39,7 +39,7 @@ jobs:
         # Applies gofmt to both repositories to minimize formatting differences
         run: |
           grep -rl "github.com/celo-org/celo-blockchain" ${{ env.CELO_BLOCKCHAIN_PATH }}/. | xargs sed -i "s#github.com/celo-org/celo-blockchain#github.com/ethereum/go-ethereum#"
-          grep -rl "github.com/ethereum/go-ethereum/crypto/bls" ${{ env.CELO_BLOCKCHAIN_PATH }}/. | xargs sed -i '' -e "s#github.com/ethereum/go-ethereum/crypto/bls#github.com/celo-org/celo-blockchain/crypto/bls#"
+          grep -rl "github.com/ethereum/go-ethereum/crypto/bls" ${{ env.CELO_BLOCKCHAIN_PATH }}/. | xargs sed -i "s#github.com/ethereum/go-ethereum/crypto/bls#github.com/celo-org/celo-blockchain/crypto/bls#"
           gofmt -w ./${{ env.CELO_BLOCKCHAIN_PATH }} ./${{ env.GO_ETHEREUM_PATH }}
 
       # TODO EN: debug for now separate but can add to the same stage above
