@@ -74,6 +74,9 @@ jobs:
 
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
+        run: |
+          pwd
+          ls -la
         with:
           folder: ${{ env.CELO_BLOCKCHAIN_PATH }}/tmp/pages
           clean: true
