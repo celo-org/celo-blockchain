@@ -7,12 +7,12 @@ on:
       - eelanagaraj/reduce-diff-forkdiff
 env:
   GO_VERSION: '1.17.5'
+  # TODO EN: doesn't seem to have been the cause -- delete
   # N.B. cannot be 'celo-blockchain', as this causes issues with page deployment.
   CELO_BLOCKCHAIN_PATH: 'celo-blockchain-repo'
   GO_ETHEREUM_PATH: 'go-ethereum'
 jobs:
-  deploy:
-    concurrency: ci-${{ github.ref }}
+  create-forkdiff:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout celo-blockchain
@@ -27,11 +27,11 @@ jobs:
           repository: ethereum/go-ethereum
           ref: eae3b1946a276ac099e0018fc792d9e8c3bfda6d
 
-      # - name: Setup golang
-      #   uses: actions/setup-go@v3
-      #   with:
-      #     go-version: ${{ env.GO_VERSION }}
-      #     check-latest: false
+      - name: Setup golang
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: false
 
       - name: Replace github.com/celo-org/celo-blockchain in ${{ env.CELO_BLOCKCHAIN_PATH }}
         run: |
@@ -39,44 +39,51 @@ jobs:
 
       # TODO EN: debug for now separate but can add to the same stage above
       # TODO EN: double check if this is actually running gofmt for geth
-      # - name: Run gofmt
-      #   run: |
-      #       gofmt -w ./${{ env.CELO_BLOCKCHAIN_PATH }} ./${{ env.GO_ETHEREUM_PATH }}
+      - name: Run gofmt
+        run: |
+            gofmt -w ./${{ env.CELO_BLOCKCHAIN_PATH }} ./${{ env.GO_ETHEREUM_PATH }}
 
-      # - name: Commit changes locally (${{ env.CELO_BLOCKCHAIN_PATH }})
-      #   uses: EndBug/add-and-commit@v9
-      #   with:
-      #     message: "Replace github.com/celo-org/celo-blockchain and run gofmt locally"
-      #     add: '-u'
-      #     push: false
-      #     cwd: './${{ env.CELO_BLOCKCHAIN_PATH }}'
+      - name: Commit changes locally (${{ env.CELO_BLOCKCHAIN_PATH }})
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: "Replace github.com/celo-org/celo-blockchain and run gofmt locally"
+          add: '-u'
+          push: false
+          cwd: './${{ env.CELO_BLOCKCHAIN_PATH }}'
 
-      # - name: Commit changes locally (${{ env.GO_ETHEREUM_PATH }})
-      #   uses: EndBug/add-and-commit@v9
-      #   with:
-      #     message: "TODO EN: Run gofmt locally"
-      #     add: '-u'
-      #     push: false
-      #     cwd: './${{ env.GO_ETHEREUM_PATH }}'
+      - name: Commit changes locally (${{ env.GO_ETHEREUM_PATH }})
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: "TODO EN: Run gofmt locally"
+          add: '-u'
+          push: false
+          cwd: './${{ env.GO_ETHEREUM_PATH }}'
 
       - name: Build forkdiff
         uses: "docker://eelaclabs/forkdiff:latest"
         with:
-          args: -repo=/github/workspace/${{ env.CELO_BLOCKCHAIN_PATH }} -upstream-repo=/github/workspace/${{ env.GO_ETHEREUM_PATH }} -fork=/github/workspace/${{ env.CELO_BLOCKCHAIN_PATH }}/.github/fork.yaml -out=/github/workspace/${{ env.CELO_BLOCKCHAIN_PATH }}/index.html
+          args: -repo=/github/workspace/${{ env.CELO_BLOCKCHAIN_PATH }} -upstream-repo=/github/workspace/${{ env.GO_ETHEREUM_PATH }} -fork=/github/workspace/${{ env.CELO_BLOCKCHAIN_PATH }}/.github/fork.yaml -out=/github/workspace/index.html
 
-      - name: Build pages
-        run: |
-          cd ${{ env.CELO_BLOCKCHAIN_PATH }}
-          ls -la
-          mkdir -p ./tmp/pages
-          mv index.html ./tmp/pages/index.html
-          touch ./tmp/pages/.nojekyll
-
-      - name: Deploy
-        uses: JamesIves/github-pages-deploy-action@v4
-        run: |
-          pwd
-          ls -la
+      - name: Upload forkdiff index.html
+        uses: actions/upload-artifact@v3
         with:
-          folder: ${{ env.CELO_BLOCKCHAIN_PATH }}/tmp/pages
-          clean: true
+          name: forkdiff-output
+          path: ./index.html
+
+  # deploy:
+  #   needs:
+  #     - create-forkdiff
+  #   concurrency: ci-${{ github.ref }}
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Build pages
+  #       run: |
+  #         mkdir -p /tmp/pages
+  #         mv index.html /tmp/pages/index.html
+  #         touch /tmp/pages/.nojekyll
+
+  #     - name: Deploy
+  #       uses: JamesIves/github-pages-deploy-action@v4
+  #       with:
+  #         folder: ${{ env.CELO_BLOCKCHAIN_PATH }}/tmp/pages
+  #         clean: true

@@ -319,39 +319,39 @@ jobs:
   #     run: |
   #       DATADIR=/tmp/lightest_sync_test_data MODE=lightest ./scripts/sync_test.sh
 
-  e2e-benchmarks:
-    name: End-to-end benchmarks
-    runs-on: ubuntu-latest
+  # e2e-benchmarks:
+  #   name: End-to-end benchmarks
+  #   runs-on: ubuntu-latest
 
-    needs:
-    - go-modules
-    - prepare-system-contracts
+  #   needs:
+  #   - go-modules
+  #   - prepare-system-contracts
 
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
-    - name: Setup golang
-      uses: actions/setup-go@v3
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        check-latest: false
-        cache: true
-    - name: Restore system contracts
-      uses: actions/download-artifact@v3
-      with:
-        name: system-contracts
-        path: ${{ env.SYSTEM_CONTRACTS_PATH }}
-    - name: Run benchmarks
-      run: |
-        set -o pipefail
-        mkdir -p /tmp/bench-results
-        trap "grep -E 'goos: |^goarch: |^pkg: |^cpu: |^Benchmark' /tmp/bench-results/go-bench.out > /tmp/bench-results/go-bench-results.txt" EXIT
-        go test ./e2e_test -run Bench -bench . | tee /tmp/bench-results/go-bench.out
-    - name: Upload results
-      uses: actions/upload-artifact@v3
-      with:
-        name: e2e-benchmarks
-        path: /tmp/bench-results
+  #   steps:
+  #   - name: Checkout repo
+  #     uses: actions/checkout@v3
+  #   - name: Setup golang
+  #     uses: actions/setup-go@v3
+  #     with:
+  #       go-version: ${{ env.GO_VERSION }}
+  #       check-latest: false
+  #       cache: true
+  #   - name: Restore system contracts
+  #     uses: actions/download-artifact@v3
+  #     with:
+  #       name: system-contracts
+  #       path: ${{ env.SYSTEM_CONTRACTS_PATH }}
+  #   - name: Run benchmarks
+  #     run: |
+  #       set -o pipefail
+  #       mkdir -p /tmp/bench-results
+  #       trap "grep -E 'goos: |^goarch: |^pkg: |^cpu: |^Benchmark' /tmp/bench-results/go-bench.out > /tmp/bench-results/go-bench-results.txt" EXIT
+  #       go test ./e2e_test -run Bench -bench . | tee /tmp/bench-results/go-bench.out
+  #   - name: Upload results
+  #     uses: actions/upload-artifact@v3
+  #     with:
+  #       name: e2e-benchmarks
+  #       path: /tmp/bench-results
 
   # end-to-end-blockchain-parameters-test:
   #   name: End-to-end blockchain parameters test
