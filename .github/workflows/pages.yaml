@@ -24,14 +24,14 @@ jobs:
         uses: actions/checkout@v3
         with:
           path: ${{ env.GO_ETHEREUM_PATH }}
-          url: https://github.com/ethereum/go-ethereum
+          repository: ethereum/go-ethereum
           ref: eae3b1946a276ac099e0018fc792d9e8c3bfda6d
 
-      - name: Setup golang
-        uses: actions/setup-go@v3
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          check-latest: false
+      # - name: Setup golang
+      #   uses: actions/setup-go@v3
+      #   with:
+      #     go-version: ${{ env.GO_VERSION }}
+      #     check-latest: false
 
       - name: Replace github.com/celo-org/celo-blockchain in ${{ env.CELO_BLOCKCHAIN_PATH }}
         run: |
@@ -39,25 +39,25 @@ jobs:
 
       # TODO EN: debug for now separate but can add to the same stage above
       # TODO EN: double check if this is actually running gofmt for geth
-      - name: Run gofmt
-        run: |
-            gofmt -w ./${{ env.CELO_BLOCKCHAIN_PATH }} ./${{ env.GO_ETHEREUM_PATH }}
+      # - name: Run gofmt
+      #   run: |
+      #       gofmt -w ./${{ env.CELO_BLOCKCHAIN_PATH }} ./${{ env.GO_ETHEREUM_PATH }}
 
-      - name: Commit changes locally (${{ env.CELO_BLOCKCHAIN_PATH }})
-        uses: EndBug/add-and-commit@v9
-        with:
-          message: "Replace github.com/celo-org/celo-blockchain and run gofmt locally"
-          add: '-u'
-          push: false
-          cwd: './${{ env.CELO_BLOCKCHAIN_PATH }}'
+      # - name: Commit changes locally (${{ env.CELO_BLOCKCHAIN_PATH }})
+      #   uses: EndBug/add-and-commit@v9
+      #   with:
+      #     message: "Replace github.com/celo-org/celo-blockchain and run gofmt locally"
+      #     add: '-u'
+      #     push: false
+      #     cwd: './${{ env.CELO_BLOCKCHAIN_PATH }}'
 
-      - name: Commit changes locally (${{ env.GO_ETHEREUM_PATH }})
-        uses: EndBug/add-and-commit@v9
-        with:
-          message: "TODO EN: Run gofmt locally"
-          add: '-u'
-          push: false
-          cwd: './${{ env.GO_ETHEREUM_PATH }}'
+      # - name: Commit changes locally (${{ env.GO_ETHEREUM_PATH }})
+      #   uses: EndBug/add-and-commit@v9
+      #   with:
+      #     message: "TODO EN: Run gofmt locally"
+      #     add: '-u'
+      #     push: false
+      #     cwd: './${{ env.GO_ETHEREUM_PATH }}'
 
       - name: Build forkdiff
         uses: "docker://eelaclabs/forkdiff:latest"
