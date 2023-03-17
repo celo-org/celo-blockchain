@@ -7,10 +7,9 @@ on:
       - eelanagaraj/reduce-diff-forkdiff
 env:
   GO_VERSION: '1.17.5'
-  # TODO EN: doesn't seem to have been the cause -- delete
-  # N.B. cannot be 'celo-blockchain', as this causes issues with page deployment.
-  CELO_BLOCKCHAIN_PATH: 'celo-blockchain-repo'
+  CELO_BLOCKCHAIN_PATH: 'celo-blockchain'
   GO_ETHEREUM_PATH: 'go-ethereum'
+
 jobs:
   create-forkdiff:
     runs-on: ubuntu-latest
@@ -42,12 +41,6 @@ jobs:
           grep -rl "github.com/ethereum/go-ethereum/crypto/bls" ${{ env.CELO_BLOCKCHAIN_PATH }}/. | xargs sed -i "s#github.com/ethereum/go-ethereum/crypto/bls#github.com/celo-org/celo-blockchain/crypto/bls#"
           gofmt -w ./${{ env.CELO_BLOCKCHAIN_PATH }} ./${{ env.GO_ETHEREUM_PATH }}
 
-      # TODO EN: debug for now separate but can add to the same stage above
-      # TODO EN: double check if this is actually running gofmt for geth
-      # - name: Run gofmt
-      #   run: |
-      #     gofmt -w ./${{ env.CELO_BLOCKCHAIN_PATH }} ./${{ env.GO_ETHEREUM_PATH }}
-
       - name: Commit changes locally (${{ env.CELO_BLOCKCHAIN_PATH }})
         uses: EndBug/add-and-commit@v9
         with:
@@ -59,7 +52,7 @@ jobs:
       - name: Commit changes locally (${{ env.GO_ETHEREUM_PATH }})
         uses: EndBug/add-and-commit@v9
         with:
-          message: "TODO EN: Run gofmt locally"
+          message: "Run gofmt locally"
           add: '-u'
           push: false
           cwd: './${{ env.GO_ETHEREUM_PATH }}'
@@ -74,6 +67,10 @@ jobs:
         with:
           name: forkdiff-output
           path: ./index.html
+
+  # Split into a separate step since JamesIves/github-pages-deploy-action@v4
+  # requires running actions/checkout from the main workspace,
+  # which we do not do above as we need to checkout two repositories.
 
   deploy:
     needs:
