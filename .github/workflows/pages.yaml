@@ -67,12 +67,13 @@ jobs:
       - name: Build pages
         run: |
           cd ${{ env.CELO_BLOCKCHAIN_PATH }}
-          mkdir -p tmp/pages
-          mv index.html tmp/pages/index.html
-          touch tmp/pages/.nojekyll
+          ls -la
+          mkdir -p ./tmp/pages
+          mv index.html ./tmp/pages/index.html
+          touch ./tmp/pages/.nojekyll
 
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: tmp/pages
+          folder: ${{ env.CELO_BLOCKCHAIN_PATH }}/tmp/pages
           clean: true
