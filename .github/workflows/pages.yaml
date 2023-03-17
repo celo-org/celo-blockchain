@@ -35,12 +35,12 @@ jobs:
       - name: Minimize unhelpful differences (formatting, imports)
         # Replace github.com/celo-org/celo-blockchain -> github.com/ethereum/go-ethereum
         # Re-replaces crypto/bls as this is specific to Celo, to avoid confusing diffs
-        # Removes 'ethereum "github.com/ethereum/go-ethereum"' imports (Celo renaming)
+        # Replaces 'ethereum "github.com/ethereum/go-ethereum"' imports (Celo renaming)
         # Applies gofmt to both repositories to minimize formatting differences
         run: |
           grep -rl "github.com/celo-org/celo-blockchain" ${{ env.CELO_BLOCKCHAIN_PATH }}/. | xargs sed -i "s#github.com/celo-org/celo-blockchain#github.com/ethereum/go-ethereum#"
           grep -rl "github.com/ethereum/go-ethereum/crypto/bls" ${{ env.CELO_BLOCKCHAIN_PATH }}/. | xargs sed -i "s#github.com/ethereum/go-ethereum/crypto/bls#github.com/celo-org/celo-blockchain/crypto/bls#"
-          grep -rl 'ethereum "github.com/ethereum/go-ethereum' ${{ env.CELO_BLOCKCHAIN_PATH }}/. | xargs sed -i 's#ethereum "github.com/ethereum/go-ethereum"#"github.com/ethereum/go-ethereum"#'
+          grep -rl 'ethereum "github.com/ethereum/go-ethereum"' . | xargs sed -i 's#ethereum "github.com/ethereum/go-ethereum"#"github.com/ethereum/go-ethereum"#'
           gofmt -w ./${{ env.CELO_BLOCKCHAIN_PATH }} ./${{ env.GO_ETHEREUM_PATH }}
 
       - name: Commit changes locally (${{ env.CELO_BLOCKCHAIN_PATH }})
