@@ -62,10 +62,11 @@ jobs:
       - name: Build forkdiff
         uses: "docker://eelaclabs/forkdiff:latest"
         with:
-          args: -repo=/github/workspace/${{ env.CELO_BLOCKCHAIN_PATH }} -upstream-repo=/github/workspace/${{ env.GO_ETHEREUM_PATH }} -fork=/github/workspace/${{ env.CELO_BLOCKCHAIN_PATH }}/.github/fork.yaml -out=/github/workspace/index.html
+          args: -repo=/github/workspace/${{ env.CELO_BLOCKCHAIN_PATH }} -upstream-repo=/github/workspace/${{ env.GO_ETHEREUM_PATH }} -fork=/github/workspace/${{ env.CELO_BLOCKCHAIN_PATH }}/.github/fork.yaml -out=/github/workspace/${{ env.CELO_BLOCKCHAIN_PATH }}/index.html
 
       - name: Build pages
         run: |
+          cd ${{ env.CELO_BLOCKCHAIN_PATH }}
           mkdir -p tmp/pages
           mv index.html tmp/pages/index.html
           touch tmp/pages/.nojekyll
