@@ -10,45 +10,150 @@ fork:
   url: https://github.com/celo-org/celo-blockchain
   ref: HEAD
 def:
-  title: "celo"
+  title: "celo-blockchain"
   description: |
-    This is an overview of the changes in [`celo`](https://github.com/celo-org/celo-blockchain),
+    This is an overview of the changes in [`celo-blockchain`](https://github.com/celo-org/celo-blockchain),
     a fork of [`go-ethereum`](https://github.com/ethereum/go-ethereum).
+
+    To minimize changes in this diff, we have replaced `github.com/celo-org/celo-blockchain`
+    with `github.com/ethereum/go-ethereum` in imports, removed "ethereum" named imports,
+    and applied `gofmt` to both codebases.
+    When using individual diffs, double check any changes in the original codebases.
+
+    Since the diffs between the two codebases are currently so large, the categories
+    below often reflect different packages as opposed to broader features or logical units.
   sub:
-    - title: "Core modifications"
-      sub:
-        - title: "Consensus"
-          globs:
-            - "consensus/*"
-            - "consensus/consensustest/*"
-            - "consensus/istanbul/*"
-            - "consensus/istanbul/announce/*"
-            - "consensus/istanbul/backend/*"
-            - "consensus/istanbul/backend/backendtest/*"
-            - "consensus/istanbul/backend/internal/*"
-            - "consensus/istanbul/backend/internal/replica/*"
-            - "consensus/istanbul/core/*"
-            - "consensus/istanbul/db/*"
-            - "consensus/istanbul/proxy/*"
-            - "consensus/istanbul/uptime/*"
-            - "consensus/istanbul/validator/*"
-            - "consensus/istanbul/validator/random/*"
-            - "consensus/misc/*"
-    - title: "mycelo"
+    - title: "accounts"
       globs:
-        - "mycelo/*"
-        - "mycelo/cluster/*"
-        - "mycelo/contract/*"
-        - "mycelo/env/*"
-        - "mycelo/genesis/*"
-        - "mycelo/hdwallet/*"
-        - "mycelo/internal/*"
-        - "mycelo/internal/console/*"
-        - "mycelo/internal/scripts/*"
-        - "mycelo/internal/scripts/generate/*"
-        - "mycelo/internal/utils/*"
-        - "mycelo/loadbot/*"
-    - title: "Contracts"
+        - "accounts/accounts.go"
+        - "accounts/manager.go"
+      sub:
+        - title: "external"
+          globs:
+          - "accounts/external/*"
+        - title: "keystore"
+          globs:
+          - "accounts/keystore/*"
+        - title: "hd"
+          globs:
+          - "accounts/hd.go"
+          - "accounts/hd_test.go"
+        - title: "usbwallet"
+          globs:
+            - "accounts/usbwallet/*"
+            - "accounts/usbwallet/*/*"
+        - title: "abi"
+          globs:
+          - "accounts/abi/*"
+          - "accounts/abi/bind/*"
+          - "accounts/abi/bind/*/*"
+          - "accounts/abi/bind_v2/*"
+        - title: "scwallet"
+          globs:
+          - "accounts/scwallet/*"
+    - title: "consensus"
+      globs:
+        - "consensus/*"
+        - "consensus/consensustest/*"
+      sub:
+        - title: "istanbul"
+          description: |
+            Celo implements Istanbul BFT, loosely based off of [EIP 650](https://github.com/ethereum/EIPs/issues/650).
+            This section is almost entirely Celo-specific.
+          globs:
+            - "consensus/istanbul/*"
+            - "consensus/istanbul/*/*"
+            - "consensus/istanbul/*/*/*"
+            - "consensus/istanbul/*/*/*/*"
+        - title: "misc"
+          globs:
+            - "consensus/misc/*"
+        - title: "ethash"
+          globs:
+            - "consensus/ethash/*"
+        - title: "clique"
+          globs:
+            - "consensus/clique/*"
+    - title: "core"
+      globs:
+        - "core/*"
+        - "core/forkid/*"
+        - "core/asm/*"
+        - "core/state/*"
+      sub:
+        - title: "rawDB"
+          globs:
+            - "core/rawdb/*"
+        - title: "types"
+          globs:
+            - "core/types/*"
+        - title: "vm"
+          globs:
+            - "core/vm/*"
+            - "core/vm/*/*"
+          sub:
+            - title: "testdata"
+              globs:
+                - "core/vm/testdata/*/*"
+        - title: "miner"
+          globs:
+            - "miner/*"
+          sub:
+            - title: "Miner stress tests"
+              globs:
+              - "miner/stress/*/*"
+        - title: "p2p"
+          globs:
+            - "p2p/*"
+            - "p2p/*/*"
+            - "p2p/*/*/*"
+    - title: "cmd"
+      sub:
+        - title: "geth"
+          globs:
+            - "cmd/geth/*"
+            - "cmd/geth/*/*"
+            - "cmd/geth/*/*/*"
+        - title: "bootnode"
+          globs:
+            - "cmd/bootnode/*"
+        - title: "utils"
+          globs:
+            - "cmd/utils/*"
+        - title: "abigen"
+          globs:
+            - "cmd/abigen/*"
+        - title: "uptime"
+          globs:
+            - "cmd/uptime/*"
+        - title: "clef"
+          globs:
+            - "cmd/clef/*"
+            - "cmd/clef/*/*"
+            - "cmd/clef/*/*/*"
+        - title: "evm"
+          globs:
+            - "cmd/evm/*"
+            - "cmd/evm/*/*"
+            - "cmd/evm/*/*/*"
+            - "cmd/evm/*/*/*/*"
+        - title: "blspopchecker"
+          globs:
+            - "cmd/blspopchecker/*"
+        - title: "devp2p"
+          globs:
+            - "cmd/devp2p/*"
+            - "cmd/devp2p/*/*"
+            - "cmd/devp2p/*/*/*"
+            - "cmd/devp2p/*/*/*/*"
+        - title: "faucet"
+          globs:
+            - "cmd/faucet/*"
+        - title: "puppeth"
+          globs:
+            - "cmd/puppeth/*"
+            - "cmd/puppeth/*/*"
+    - title: "contracts"
       globs:
         - "contracts/*"
         - "contracts/abis/*"
@@ -65,50 +170,149 @@ def:
         - "contracts/reserve/*"
         - "contracts/testutil/*"
         - "contracts/validators/*"
-    - title: "Tests"
+    - title: "crypto"
+      globs:
+        - "crypto/*"
+      sub:
+        - title: "bls"
+          globs:
+            - "crypto/bls/*"
+        - title: "bls12377"
+          globs:
+            - "crypto/bls12377/*"
+        - title: "bls12381"
+          globs:
+            - "crypto/bls12381/*"
+        - title: "blake2b"
+          globs:
+            - "crypto/blake2b/*"
+        - title: "bn256"
+          globs:
+            - "crypto/bn256/*"
+            - "crypto/bn256/*/*"
+        - title: "blake2s"
+          globs:
+            - "crypto/blake2s/*"
+    - title: "common"
+      globs:
+        - "common/*"
+        - "common/*/*"
+        - "common/*/*/*"
+        - "common/*/*/*/*"
+    - title: "console"
+      globs:
+        - "console/*"
+    - title: "eth"
+      globs:
+        - "eth/*"
+      sub:
+        - title: "catalyst"
+          globs:
+            - "eth/catalyst/*"
+        - title: "downloader"
+          globs:
+            - "eth/downloader/*"
+        - title: "ethconfig"
+          globs:
+            - "eth/ethconfig/*"
+        - title: "fetcher"
+          globs:
+            - "eth/fetcher/*"
+        - title: "filters"
+          globs:
+            - "eth/filters/*"
+        - title: "gasprice"
+          globs:
+            - "eth/gasprice/*"
+        - title: "protocols"
+          globs:
+            - "eth/protocols/*"
+            - "eth/protocols/*/*"
+            - "eth/protocols/*/*/*"
+        - title: "tracers"
+          globs:
+            - "eth/tracers/*"
+            - "eth/tracers/*/*"
+            - "eth/tracers/*/*/*"
+    - title: "ethclient"
+      globs:
+        - "ethclient/*"
+        - "ethclient/*/*"
+    - title: "ethstats"
+      globs:
+        - "ethstats/*"
+    - title: "graphql"
+      globs:
+        - "graphql/*"
+    - title: "internal"
+      globs:
+        - "internal/*"
+        - "internal/*/*"
+        - "internal/*/*/*"
+    - title: "les"
+      globs:
+        - "les/*"
+      sub:
+        - title: "fetcher"
+          globs:
+            - "les/fetcher/*"
+        - title: "downloader"
+          globs:
+            - "les/downloader/*"
+        - title: "flowcontrol"
+          globs:
+            - "les/flowcontrol/*"
+    - title: "light"
+      globs:
+        - "light/*"
+    - title: "metrics"
+      globs:
+        - "metrics/*"
+    - title: "mobile"
+      globs:
+        - "mobile/*"
+    - title: "mycelo"
+      description: |
+        [mycelo](https://github.com/celo-org/celo-blockchain/blob/dbd09899efecd39651f6546a2a42a76bf1667ec3/cmd/mycelo/README.md) is a developer tool to run blockchain testnets with Celo Core Contracts already deployed.
+        This is entirely specific to the Celo blockchain.
+      globs:
+        - "mycelo/*"
+        - "mycelo/*/*"
+        - "mycelo/*/*/*"
+        - "mycelo/*/*/*/*"
+        - "cmd/mycelo/*"
+    - title: "node"
+      globs:
+        - "node/*"
+    - title: "params"
+      globs:
+        - "params/*"
+    - title: "rpc"
+      globs:
+        - "rpc/*"
+    - title: "signer"
+      globs:
+        - "signer/*"
+        - "signer/*/*"
+        - "signer/*/*/*"
+        - "signer/*/*/*/*"
+    - title: "shared signer"
+      globs:
+        - "shared/signer/*"
+      sub:
+        - title: "testdata"
+          globs:
+            - "shared/signer/testdata/*"
+            - "shared/signer/testdata/*/*"
+    - title: "tests, e2e_test"
       globs:
         - "test/*"
         - "tests/*"
-        - "tests/fuzzers/*"
-        - "tests/fuzzers/abi/*"
-        - "tests/fuzzers/bitutil/*"
-        - "tests/fuzzers/bls12381/*"
-        - "tests/fuzzers/bls12381/testdata/*"
-        - "tests/fuzzers/bn256/*"
-        - "tests/fuzzers/keystore/*"
-        - "tests/fuzzers/keystore/corpus/*"
-        - "tests/fuzzers/les/*"
-        - "tests/fuzzers/les/debug/*"
-        - "tests/fuzzers/rangeproof/*"
-        - "tests/fuzzers/rangeproof/corpus/*"
-        - "tests/fuzzers/rangeproof/debug/*"
-        - "tests/fuzzers/rlp/*"
-        - "tests/fuzzers/rlp/corpus/*"
-        - "tests/fuzzers/runtime/*"
-        - "tests/fuzzers/secp256k1/*"
-        - "tests/fuzzers/stacktrie/*"
-        - "tests/fuzzers/stacktrie/debug/*"
-        - "tests/fuzzers/trie/*"
-        - "tests/fuzzers/trie/corpus/*"
-        - "tests/fuzzers/txfetcher/*"
-        - "tests/fuzzers/txfetcher/corpus/*"
-        - "tests/fuzzers/vflux/*"
-        - "tests/fuzzers/vflux/debug/*"
-        - "tests/solidity/*"
-        - "tests/solidity/contracts/*"
-        - "tests/solidity/migrations/*"
-        - "tests/solidity/test/*"
-        - "tests/testdata/*"
-    - title: "Crypto"
-      globs:
-        - "crypto/blake2b/*"
-        - "crypto/blake2s/*"
-        - "crypto/bls/*"
-        - "crypto/bls12377/*"
-        - "crypto/bls12381/*"
-    - title: "TODO"
-      globs:
-        - "interfaces.go"
+        - "tests/*/*"
+        - "tests/*/*/*"
+        - "tests/*/*/*/*"
+        - "e2e_test/*"
+        - "e2e_test/*/*/*"
 # ignored globally, does not count towards line count
 ignore:
   # Double ** globbing is not currently available
@@ -133,6 +337,8 @@ ignore:
   - "geth-sources.jar"
   - "monorepo_commit"
   - "oss-fuzz.sh"
+  - "scripts/*"
+  - "scripts/*/*"
   # Docs
   - "docs/*"
   - "docs/*/*"
@@ -140,3 +346,6 @@ ignore:
   - "docs/*/*/*/*"
   # This is one layer deeper than currently exists
   - "docs/*/*/*/*/*"
+  - "e2e_test/ethersjs-api-check/*.json"
+  - "e2e_test/ethersjs-api-check/*/*.json"
+  - "e2e_test/ethersjs-api-check/.gitignore"
