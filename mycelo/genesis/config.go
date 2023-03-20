@@ -51,6 +51,7 @@ type Config struct {
 	DowntimeSlasher            DowntimeSlasherParameters
 	Governance                 GovernanceParameters
 	GrandaMento                GrandaMentoParameters
+	FeeHandler                 FeeHandlerParameters
 }
 
 // Save will write config into a json file
@@ -280,6 +281,14 @@ type GrandaMentoParameters struct {
 	Spread                        *fixed.Fixed                  `json:"spread"`
 	VetoPeriodSeconds             uint64                        `json:"vetoPeriodSeconds"`
 	StableTokenExchangeLimits     StableTokenExchangeLimitsList `json:"stableTokenExchangeLimits"`
+}
+
+// FeeHandlerParameters are the initial configuration parameters for FeeHandler
+type FeeHandlerParameters struct {
+	Tokens          []common.Address `json:"tokens"`
+	NewLimits       []*big.Int       `json:"newLimits"`
+	NewMaxSlippages []*big.Int       `json:"newMaxSlippages"`
+	NewRouters      []common.Address `json:"newRouters"`
 }
 
 //go:generate gencodec -type StableTokenExchangeLimit -field-override StableTokenExchangeLimitsMarshaling -out gen_stable_token_exchange_limit_json.go

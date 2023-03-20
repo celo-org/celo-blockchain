@@ -198,5 +198,11 @@ func BaseConfig() *Config {
 				},
 			},
 		},
+		FeeHandler: FeeHandlerParameters{
+			Tokens:          []common.Address{},
+			NewLimits:       []*big.Int{},
+			NewMaxSlippages: []*big.Int{},
+			NewRouters:      []common.Address{},
+		},
 	}
 }
