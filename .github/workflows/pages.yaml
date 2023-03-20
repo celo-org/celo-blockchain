@@ -42,6 +42,7 @@ jobs:
         # Replaces 'ethereum "github.com/ethereum/go-ethereum"' imports (Celo renaming)
         # Applies gofmt to both repositories to minimize formatting differences
         run: |
+          grep -rl "//\s*nolint:\s*unused$" ${{ env.CELO_BLOCKCHAIN_PATH }}/. | xargs sed -i "s#//\s*nolint:\s*unused\$##"
           grep -rl "github.com/celo-org/celo-blockchain" ${{ env.CELO_BLOCKCHAIN_PATH }}/. | xargs sed -i "s#github.com/celo-org/celo-blockchain#github.com/ethereum/go-ethereum#"
           grep -rl "github.com/ethereum/go-ethereum/crypto/bls" ${{ env.CELO_BLOCKCHAIN_PATH }}/. | xargs sed -i "s#github.com/ethereum/go-ethereum/crypto/bls#github.com/celo-org/celo-blockchain/crypto/bls#"
           grep -rl 'ethereum "github.com/ethereum/go-ethereum"' . | xargs sed -i 's#ethereum "github.com/ethereum/go-ethereum"#"github.com/ethereum/go-ethereum"#'
