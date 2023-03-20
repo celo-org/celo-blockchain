@@ -58,7 +58,7 @@ def:
       sub:
         - title: "istanbul"
           description: |
-            Celo implements Istanbul BFT, loosely based off of [EIP 650](https://github.com/ethereum/EIPs/issues/650).
+            Celo implements Istanbul BFT, specified in the [Celo IBFT Spec](https://github.com/celo-org/celo-blockchain/blob/dbd09899efecd39651f6546a2a42a76bf1667ec3/consensus/istanbul/celo-ibft-spec.md), and loosely based off of [EIP 650](https://github.com/ethereum/EIPs/issues/650).
             This section is almost entirely Celo-specific.
           globs:
             - "consensus/istanbul/*"
