@@ -51,62 +51,6 @@ def:
         - title: "scwallet"
           globs:
           - "accounts/scwallet/*"
-    - title: "consensus"
-      globs:
-        - "consensus/*"
-        - "consensus/consensustest/*"
-      sub:
-        - title: "istanbul"
-          description: |
-            Celo implements Istanbul BFT, specified in the [Celo IBFT Spec](https://github.com/celo-org/celo-blockchain/blob/dbd09899efecd39651f6546a2a42a76bf1667ec3/consensus/istanbul/celo-ibft-spec.md), and loosely based off of [EIP 650](https://github.com/ethereum/EIPs/issues/650).
-            This section is almost entirely Celo-specific.
-          globs:
-            - "consensus/istanbul/*"
-            - "consensus/istanbul/*/*"
-            - "consensus/istanbul/*/*/*"
-            - "consensus/istanbul/*/*/*/*"
-        - title: "misc"
-          globs:
-            - "consensus/misc/*"
-        - title: "ethash"
-          globs:
-            - "consensus/ethash/*"
-        - title: "clique"
-          globs:
-            - "consensus/clique/*"
-    - title: "core"
-      globs:
-        - "core/*"
-        - "core/forkid/*"
-        - "core/asm/*"
-        - "core/state/*"
-      sub:
-        - title: "rawDB"
-          globs:
-            - "core/rawdb/*"
-        - title: "types"
-          globs:
-            - "core/types/*"
-        - title: "vm"
-          globs:
-            - "core/vm/*"
-            - "core/vm/*/*"
-          sub:
-            - title: "testdata"
-              globs:
-                - "core/vm/testdata/*/*"
-        - title: "miner"
-          globs:
-            - "miner/*"
-          sub:
-            - title: "Miner stress tests"
-              globs:
-              - "miner/stress/*/*"
-        - title: "p2p"
-          globs:
-            - "p2p/*"
-            - "p2p/*/*"
-            - "p2p/*/*/*"
     - title: "cmd"
       sub:
         - title: "geth"
@@ -153,6 +97,38 @@ def:
           globs:
             - "cmd/puppeth/*"
             - "cmd/puppeth/*/*"
+    - title: "common"
+      globs:
+        - "common/*"
+        - "common/*/*"
+        - "common/*/*/*"
+        - "common/*/*/*/*"
+    - title: "consensus"
+      globs:
+        - "consensus/*"
+        - "consensus/consensustest/*"
+      sub:
+        - title: "istanbul"
+          description: |
+            Celo implements Istanbul BFT, specified in the [Celo IBFT Spec](https://github.com/celo-org/celo-blockchain/blob/dbd09899efecd39651f6546a2a42a76bf1667ec3/consensus/istanbul/celo-ibft-spec.md), and loosely based off of [EIP 650](https://github.com/ethereum/EIPs/issues/650).
+            This section is almost entirely Celo-specific.
+          globs:
+            - "consensus/istanbul/*"
+            - "consensus/istanbul/*/*"
+            - "consensus/istanbul/*/*/*"
+            - "consensus/istanbul/*/*/*/*"
+        - title: "misc"
+          globs:
+            - "consensus/misc/*"
+        - title: "ethash"
+          globs:
+            - "consensus/ethash/*"
+        - title: "clique"
+          globs:
+            - "consensus/clique/*"
+    - title: "console"
+      globs:
+        - "console/*"
     - title: "contracts"
       globs:
         - "contracts/*"
@@ -170,6 +146,39 @@ def:
         - "contracts/reserve/*"
         - "contracts/testutil/*"
         - "contracts/validators/*"
+    - title: "core"
+      globs:
+        - "core/*"
+        - "core/forkid/*"
+        - "core/asm/*"
+        - "core/state/*"
+      sub:
+        - title: "rawDB"
+          globs:
+            - "core/rawdb/*"
+        - title: "types"
+          globs:
+            - "core/types/*"
+        - title: "vm"
+          globs:
+            - "core/vm/*"
+            - "core/vm/*/*"
+          sub:
+            - title: "testdata"
+              globs:
+                - "core/vm/testdata/*/*"
+        - title: "miner"
+          globs:
+            - "miner/*"
+          sub:
+            - title: "Miner stress tests"
+              globs:
+              - "miner/stress/*/*"
+        - title: "p2p"
+          globs:
+            - "p2p/*"
+            - "p2p/*/*"
+            - "p2p/*/*/*"
     - title: "crypto"
       globs:
         - "crypto/*"
@@ -193,15 +202,6 @@ def:
         - title: "blake2s"
           globs:
             - "crypto/blake2s/*"
-    - title: "common"
-      globs:
-        - "common/*"
-        - "common/*/*"
-        - "common/*/*/*"
-        - "common/*/*/*/*"
-    - title: "console"
-      globs:
-        - "console/*"
     - title: "eth"
       globs:
         - "eth/*"
@@ -290,12 +290,6 @@ def:
     - title: "rpc"
       globs:
         - "rpc/*"
-    - title: "signer"
-      globs:
-        - "signer/*"
-        - "signer/*/*"
-        - "signer/*/*/*"
-        - "signer/*/*/*/*"
     - title: "shared signer"
       globs:
         - "shared/signer/*"
@@ -304,6 +298,12 @@ def:
           globs:
             - "shared/signer/testdata/*"
             - "shared/signer/testdata/*/*"
+    - title: "signer"
+      globs:
+        - "signer/*"
+        - "signer/*/*"
+        - "signer/*/*/*"
+        - "signer/*/*/*/*"
     - title: "tests, e2e_test"
       globs:
         - "test/*"
