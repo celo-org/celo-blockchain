@@ -50,8 +50,8 @@ jobs:
           grep -rl 'ethereum "github.com/ethereum/go-ethereum"' . | xargs sed -i 's#ethereum "github.com/ethereum/go-ethereum"#"github.com/ethereum/go-ethereum"#'
           gofmt -w ./${{ env.CELO_BLOCKCHAIN_PATH }} ./${{ env.GO_ETHEREUM_PATH }}
           goimports -w ./${{ env.CELO_BLOCKCHAIN_PATH }} ./${{ env.GO_ETHEREUM_PATH }}
-          grep -rl " \{2,\}" ${{ env.CELO_BLOCKCHAIN_PATH }}/. --include \*.go | xargs sed -i '' -e "s# \{2,\}# #"
-          grep -rl " \{2,\}" ${{ env.GO_ETHEREUM_PATH }}/. --include \*.go | xargs sed -i '' -e "s# \{2,\}# #"
+          grep -rl " \{2,\}" ${{ env.CELO_BLOCKCHAIN_PATH }}/. --include \*.go | xargs sed -i "s# \{2,\}# #"
+          grep -rl " \{2,\}" ${{ env.GO_ETHEREUM_PATH }}/. --include \*.go | xargs sed -i "s# \{2,\}# #"
 
       - name: Commit changes locally (${{ env.CELO_BLOCKCHAIN_PATH }})
         uses: EndBug/add-and-commit@v9
