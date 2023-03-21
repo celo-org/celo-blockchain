@@ -51,8 +51,8 @@ func TestRSDBRoundStateDB(t *testing.T) {
 		view := newView(2, 1)
 		rs := newRoundState(view, valSet, valSet.GetByIndex(0))
 		rs.AddPrepare(mockViewMsg(view, istanbul.MsgPrepare, valSet.GetByIndex(0).Address()))
-		rs.AddCommit(mockViewMsg(view, istanbul.MsgPrepare, valSet.GetByIndex(0).Address()))
-		rs.AddParentCommit(mockViewMsg(view, istanbul.MsgPrepare, valSet.GetByIndex(0).Address()))
+		rs.AddCommit(mockViewMsg(view, istanbul.MsgCommit, valSet.GetByIndex(0).Address()))
+		rs.AddParentCommit(mockViewMsg(view, istanbul.MsgCommit, valSet.GetByIndex(0).Address()))
 		return rs
 	}
 
