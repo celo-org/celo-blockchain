@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/stretchr/testify/assert"
 )
 
 func newView(seq, round uint64) *istanbul.View {
@@ -52,15 +53,30 @@ func assertEqualRoundState(t *testing.T, have, want RoundState) {
 		}
 	}
 
+	testEqualMessageSet := func(name string, have, want MessageSet) {
+		wantValues := want.Values()
+		haveValues := have.Values()
+		if len(haveValues) != len(wantValues) {
+			t.Errorf("RoundState.%s size mismatch: have %v, want %v", name, have, want)
+			return
+		}
+		for i := range wantValues {
+			wantValues[i] = wantValues[i].Copy()
+			haveValues[i] = haveValues[i].Copy()
+		}
+		assert.ElementsMatch(t, wantValues, haveValues,
+			"RoundState.%s mismatch (values w/o order): have %v, want %v", name, haveValues, wantValues)
+	}
+
 	testEqual("State", have.State(), want.State())
 	testEqual("Round", have.Round(), want.Round())
 	testEqual("DesiredRound", have.DesiredRound(), want.DesiredRound())
 	testEqual("Sequence", have.Sequence(), want.Sequence())
 	testEqual("ValidatorSet", have.ValidatorSet(), want.ValidatorSet())
 	testEqual("Proposer", have.Proposer(), want.Proposer())
-	testEqual("ParentCommits", have.ParentCommits(), want.ParentCommits())
-	testEqual("Commits", have.Commits(), want.Commits())
-	testEqual("Prepares", have.Prepares(), want.Prepares())
+	testEqualMessageSet("ParentCommits", have.ParentCommits(), want.ParentCommits())
+	testEqualMessageSet("Commits", have.Commits(), want.Commits())
+	testEqualMessageSet("Prepares", have.Prepares(), want.Prepares())
 
 	if have.PendingRequest() == nil || want.PendingRequest() == nil {
 		testEqual("PendingRequest", have.PendingRequest(), want.PendingRequest())
