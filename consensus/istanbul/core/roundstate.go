@@ -409,18 +409,30 @@ func (rs *roundStateImpl) TransitionToPrepared(quorumSize int) error {
 }
 
 func (rs *roundStateImpl) AddCommit(msg *istanbul.Message) error {
+	// IMPORTANT: due to how in the roundstate_save_decorator
+	// & roundstate_db we are breaking encapsulation of this type,
+	// this method CANNOT and SHOULD NOT modify ANYTHING OTHER than
+	// the 'commits' message set.
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 	return rs.commits.Add(msg)
 }
 
 func (rs *roundStateImpl) AddPrepare(msg *istanbul.Message) error {
+	// IMPORTANT: due to how in the roundstate_save_decorator
+	// & roundstate_db we are breaking encapsulation of this type,
+	// this method CANNOT and SHOULD NOT modify ANYTHING OTHER than
+	// the 'prepares' message set.
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 	return rs.prepares.Add(msg)
 }
 
 func (rs *roundStateImpl) AddParentCommit(msg *istanbul.Message) error {
+	// IMPORTANT: due to how in the roundstate_save_decorator
+	// & roundstate_db we are breaking encapsulation of this type,
+	// this method CANNOT and SHOULD NOT modify ANYTHING OTHER than
+	// the 'parentCommits' message set.
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 	return rs.parentCommits.Add(msg)
