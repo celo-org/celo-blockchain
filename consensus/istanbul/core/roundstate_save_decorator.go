@@ -45,16 +45,21 @@ func (rsp *rsSaveDecorator) persistOnNoError(err error) error {
 	return rsp.db.UpdateLastRoundState(rsp.rs)
 }
 
+func (rsp *rsSaveDecorator) persistRcvdOnNoError(err error) error {
+	if err != nil {
+		return err
+	}
+
+	return rsp.db.UpdateLastRcvd(rsp.rs)
+}
+
 // mutation functions
 func (rsp *rsSaveDecorator) StartNewRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) error {
 	return rsp.persistOnNoError(rsp.rs.StartNewRound(nextRound, validatorSet, nextProposer))
 }
 func (rsp *rsSaveDecorator) StartNewSequence(nextSequence *big.Int, validatorSet istanbul.ValidatorSet,
-	nextProposer istanbul.Validator, parentCommits MessageSet, consensusFork bool) error {
-	return rsp.persistOnNoError(rsp.rs.StartNewSequence(nextSequence, validatorSet, nextProposer, parentCommits, consensusFork))
-}
-func (rsp *rsSaveDecorator) TransitionToPreprepared(preprepare *istanbul.Preprepare) error {
-	return rsp.persistOnNoError(rsp.rs.TransitionToPreprepared(preprepare))
+	nextProposer istanbul.Validator, parentCommits MessageSet) error {
+	return rsp.persistOnNoError(rsp.rs.StartNewSequence(nextSequence, validatorSet, nextProposer, parentCommits))
 }
 func (rsp *rsSaveDecorator) TransitionToPrepreparedV2(preprepareV2 *istanbul.PreprepareV2) error {
 	return rsp.persistOnNoError(rsp.rs.TransitionToPrepreparedV2(preprepareV2))
@@ -69,13 +74,13 @@ func (rsp *rsSaveDecorator) TransitionToPrepared(quorumSize int) error {
 	return rsp.persistOnNoError(rsp.rs.TransitionToPrepared(quorumSize))
 }
 func (rsp *rsSaveDecorator) AddCommit(msg *istanbul.Message) error {
-	return rsp.persistOnNoError(rsp.rs.AddCommit(msg))
+	return rsp.persistRcvdOnNoError(rsp.rs.AddCommit(msg))
 }
 func (rsp *rsSaveDecorator) AddPrepare(msg *istanbul.Message) error {
-	return rsp.persistOnNoError(rsp.rs.AddPrepare(msg))
+	return rsp.persistRcvdOnNoError(rsp.rs.AddPrepare(msg))
 }
 func (rsp *rsSaveDecorator) AddParentCommit(msg *istanbul.Message) error {
-	return rsp.persistOnNoError(rsp.rs.AddParentCommit(msg))
+	return rsp.persistRcvdOnNoError(rsp.rs.AddParentCommit(msg))
 }
 func (rsp *rsSaveDecorator) SetPendingRequest(pendingRequest *istanbul.Request) error {
 	return rsp.persistOnNoError(rsp.rs.SetPendingRequest(pendingRequest))
@@ -120,9 +125,6 @@ func (rsp *rsSaveDecorator) Sequence() *big.Int { return rsp.rs.Sequence() }
 
 // View implements RoundState.View
 func (rsp *rsSaveDecorator) View() *istanbul.View { return rsp.rs.View() }
-
-// Preprepare implements RoundState.Preprepare
-func (rsp *rsSaveDecorator) Preprepare() *istanbul.Preprepare { return rsp.rs.Preprepare() }
 
 // PreprepareV2 implements RoundState.PreprepareV2
 func (rsp *rsSaveDecorator) PreprepareV2() *istanbul.PreprepareV2 { return rsp.rs.PreprepareV2() }

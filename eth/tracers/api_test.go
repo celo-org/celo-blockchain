@@ -60,8 +60,13 @@ type testBackend struct {
 }
 
 func newTestBackend(t *testing.T, n int, gspec *core.Genesis, generator func(i int, b *core.BlockGen)) *testBackend {
+	chainConfig := params.TestChainConfig
+	if gspec.Config != nil {
+		chainConfig = gspec.Config
+	}
+	chainConfig.Faker = true
 	backend := &testBackend{
-		chainConfig: params.TestChainConfig,
+		chainConfig: chainConfig,
 		engine:      mockEngine.NewFaker(),
 		chaindb:     rawdb.NewMemoryDatabase(),
 	}
@@ -598,6 +603,82 @@ func TestTraceBlock(t *testing.T) {
 				t.Errorf("Result mismatch, want %v, get %v", testspec.expect, result)
 			}
 		}
+	}
+}
+
+// Regression test for https://github.com/celo-org/celo-blockchain/issues/2002
+// The tracer module didn't correctly calculate gas prices when EIP1559 style
+// transactions are used.
+func TestTraceBlockWithEIP1559Tx(t *testing.T) {
+	// Initialize test accounts
+	accounts := newAccounts(2)
+	genesis := &core.Genesis{
+		Config: params.IstanbulEHFTestChainConfig,
+		Alloc: core.GenesisAlloc{
+			accounts[0].addr: {Balance: big.NewInt(231001)},
+			accounts[1].addr: {Balance: common.Big0},
+			common.HexToAddress("0xce10"): { // Registry Proxy
+				Code: testutil.RegistryProxyOpcodes,
+				Storage: map[common.Hash]common.Hash{
+					common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"): common.HexToHash("0xce11"), // Registry Implementation
+					common.HexToHash("0x91646b8507bf2e54d7c3de9155442ba111546b81af1cbdd1f68eeb6926b98d58"): common.HexToHash("0xd023"), // Governance Proxy
+				},
+				Balance: big.NewInt(0),
+			},
+			common.HexToAddress("0xce11"): { // Registry Implementation
+				Code:    testutil.RegistryOpcodes,
+				Balance: big.NewInt(0),
+			},
+		},
+	}
+
+	api := NewAPI(newTestBackend(t, 1, genesis, func(i int, b *core.BlockGen) {
+		// The block base fee is mocked to be 3
+		// Two transactions are build, so that the correct gas price is 5 (base fee of 3 + tip of 2), but the
+		// incorrect calculation leads to a gas price of 6.
+		// The account balance is chosen in a way that the second transaction won't be able to execute if the
+		// calculation is wrong.
+
+		bf := core.MockSysContractCallCtx().GetGasPriceMinimum(nil)
+		tip := big.NewInt(2)
+		cap := new(big.Int).Set(common.Big1)
+		cap = cap.Add(cap, tip).Add(cap, bf)
+
+		txdata1 := types.NewTx(&types.CeloDynamicFeeTx{
+			ChainID:   b.Config().ChainID,
+			Nonce:     0,
+			GasTipCap: tip,
+			GasFeeCap: cap,
+			Gas:       21_000,
+			To:        &accounts[1].addr,
+		})
+		tx1, _ := types.SignTx(
+			txdata1,
+			types.LatestSignerForChainID(b.Config().ChainID),
+			accounts[0].key,
+		)
+		b.AddTx(tx1)
+
+		txdata2 := types.NewTx(&types.CeloDynamicFeeTx{
+			ChainID:   b.Config().ChainID,
+			Nonce:     1,
+			GasTipCap: tip,
+			GasFeeCap: cap,
+			Gas:       21_000,
+			To:        &accounts[1].addr,
+		})
+		tx2, _ := types.SignTx(
+			txdata2,
+			types.LatestSignerForChainID(b.Config().ChainID),
+			accounts[0].key,
+		)
+		b.AddTx(tx2)
+	}))
+
+	// Run tracing, this should not throw
+	_, err := api.TraceBlockByNumber(context.Background(), rpc.LatestBlockNumber, nil)
+	if err != nil {
+		t.Errorf("Expect no error, get %v", err)
 	}
 }
 

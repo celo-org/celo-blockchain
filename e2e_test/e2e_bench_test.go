@@ -22,7 +22,7 @@ func BenchmarkNet100EmptyBlocks(b *testing.B) {
 				network, shutdown, err := test.NewNetwork(ac, gc, ec)
 				require.NoError(b, err)
 				defer shutdown()
-				ctx, cancel := context.WithTimeout(context.Background(), time.Second*30*time.Duration(n))
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second*60*time.Duration(n))
 				defer cancel()
 				b.ResetTimer()
 				err = network.AwaitBlock(ctx, 100)
@@ -48,7 +48,7 @@ func BenchmarkNet1000Txs(b *testing.B) {
 				network, shutdown, err := test.NewNetwork(ac, gc, ec)
 				require.NoError(b, err)
 				defer shutdown()
-				ctx, cancel := context.WithTimeout(context.Background(), time.Second*30*time.Duration(n))
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second*60*time.Duration(n))
 				defer cancel()
 				b.ResetTimer()
 

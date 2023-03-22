@@ -1,0 +1,27 @@
+title: "[Feature] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Let us know what feature is missing and why you think it should exist!
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Rationale
+      description: "Why do you think it should exist?"
+      value: |
+         Why should this feature exist?
+         What are the use-cases?
+    validations:
+      required: true
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation
+      description: "Your thoughts about the implementation"
+      value: |
+        Do you have ideas regarding the implementation of this feature?
+        Are you willing to implement it?
+    validations:
+      required: true
+

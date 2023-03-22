@@ -25,31 +25,37 @@ import (
 	"github.com/celo-org/celo-blockchain/rlp"
 )
 
-func TestMessageSetWithSubject(t *testing.T) {
-	valSet := newTestValidatorSet(4)
-
-	ms := newMessageSet(valSet)
-
+func mockSub() *istanbul.Subject {
 	view := &istanbul.View{
 		Round:    new(big.Int),
 		Sequence: new(big.Int),
 	}
 
-	sub := &istanbul.Subject{
+	return &istanbul.Subject{
 		View:   view,
 		Digest: common.BytesToHash([]byte("1234567890")),
 	}
+}
 
-	rawSub, err := rlp.EncodeToBytes(sub)
+func mockMsg(rawSub []byte, valIndex uint64, valSet istanbul.ValidatorSet) *istanbul.Message {
+	return &istanbul.Message{
+		Code:    istanbul.MsgPrepare,
+		Msg:     rawSub,
+		Address: valSet.GetByIndex(valIndex).Address(),
+	}
+}
+
+func TestMessageSetWithSubject(t *testing.T) {
+	valSet := newTestValidatorSet(4)
+
+	ms := newMessageSet(valSet)
+
+	rawSub, err := rlp.EncodeToBytes(mockSub())
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 
-	msg := &istanbul.Message{
-		Code:    istanbul.MsgPrepare,
-		Msg:     rawSub,
-		Address: valSet.GetByIndex(0).Address(),
-	}
+	msg := mockMsg(rawSub, 0, valSet)
 
 	err = ms.Add(msg)
 	if err != nil {
@@ -63,5 +69,43 @@ func TestMessageSetWithSubject(t *testing.T) {
 
 	if ms.Size() != 1 {
 		t.Errorf("the size of message set mismatch: have %v, want 1", ms.Size())
+	}
+}
+
+func TestAddAll(t *testing.T) {
+	valSet := newTestValidatorSet(16)
+
+	ms := newMessageSet(valSet)
+
+	rawSub, err := rlp.EncodeToBytes(mockSub())
+	if err != nil {
+		t.Errorf("error mismatch: have %v, want nil", err)
+	}
+
+	ms.Add(mockMsg(rawSub, 0, valSet))
+	ms.Add(mockMsg(rawSub, 1, valSet))
+	ms.Add(mockMsg(rawSub, 2, valSet))
+	ms.Add(mockMsg(rawSub, 3, valSet))
+	ms.Add(mockMsg(rawSub, 4, valSet))
+
+	if ms.Size() != 5 {
+		t.Errorf("the size of message set mismatch: have %v, want 5", ms.Size())
+	}
+
+	msgs := []*istanbul.Message{
+		mockMsg(rawSub, 3, valSet),
+		mockMsg(rawSub, 5, valSet),
+		mockMsg(rawSub, 6, valSet),
+		mockMsg(rawSub, 7, valSet),
+	}
+
+	added := ms.AddAll(msgs)
+
+	if ms.Size() != 8 {
+		t.Errorf("the size of message set mismatch: have %v, want 8", ms.Size())
+	}
+
+	if added != 3 {
+		t.Errorf("added amount to message set mismatch: have %v, want 3", added)
 	}
 }

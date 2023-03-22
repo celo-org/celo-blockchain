@@ -56,7 +56,7 @@ func TestHandleCommit(t *testing.T) {
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
 					// same view as the expected one to everyone
-					c.current = newTestRoundState(
+					c.current = newTestRoundStateV2(
 						expectedSubject.View,
 						backend.peers,
 					)
@@ -80,13 +80,13 @@ func TestHandleCommit(t *testing.T) {
 					c := backend.engine.(*core)
 					if i == 0 {
 						// replica 0 is the proposer
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							expectedSubject.View,
 							backend.peers,
 						)
 						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							&istanbul.View{
 								Round: big.NewInt(0),
 								// proposal from 1 round in the future
@@ -111,13 +111,13 @@ func TestHandleCommit(t *testing.T) {
 
 					if i == 0 {
 						// replica 0 is the proposer
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							expectedSubject.View,
 							backend.peers,
 						)
 						c.current.(*roundStateImpl).state = StatePreprepared
 					} else {
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							&istanbul.View{
 								Round: big.NewInt(0),
 								// we're 2 blocks before so this is indeed a
@@ -141,7 +141,7 @@ func TestHandleCommit(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
-					c.current = newTestRoundState(
+					c.current = newTestRoundStateV2(
 						&istanbul.View{
 							Round:    big.NewInt(0),
 							Sequence: proposal.Number(),
@@ -174,13 +174,13 @@ func TestHandleCommit(t *testing.T) {
 					c := backend.engine.(*core)
 					if i == 0 {
 						// replica 0 is the proposer
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							expectedSubject.View,
 							backend.peers,
 						)
 						c.current.(*roundStateImpl).state = StatePrepared
 					} else {
-						c.current = newTestRoundState(
+						c.current = newTestRoundStateV2(
 							&istanbul.View{
 								Round:    big.NewInt(1),
 								Sequence: big.NewInt(0).Sub(proposal.Number(), common.Big1),
@@ -297,7 +297,7 @@ func TestVerifyCommit(t *testing.T) {
 					Digest: newTestProposal().Hash(),
 				},
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
 				valSet,
 			),
@@ -311,7 +311,7 @@ func TestVerifyCommit(t *testing.T) {
 					Digest: newTestProposal().Hash(),
 				},
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
 				valSet,
 			),
@@ -325,7 +325,7 @@ func TestVerifyCommit(t *testing.T) {
 					Digest: common.BytesToHash([]byte("1234567890")),
 				},
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
 				valSet,
 			),
@@ -339,7 +339,7 @@ func TestVerifyCommit(t *testing.T) {
 					Digest: newTestProposal().Hash(),
 				},
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
 				valSet,
 			),
@@ -353,7 +353,7 @@ func TestVerifyCommit(t *testing.T) {
 					Digest: newTestProposal().Hash(),
 				},
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
 				valSet,
 			),
@@ -367,7 +367,7 @@ func TestVerifyCommit(t *testing.T) {
 					Digest: newTestProposal().Hash(),
 				},
 			},
-			roundState: newTestRoundState(
+			roundState: newTestRoundStateV2(
 				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
 				valSet,
 			),
@@ -404,7 +404,7 @@ func BenchmarkHandleCommit(b *testing.B) {
 	for i, backend := range sys.backends {
 		c := backend.engine.(*core)
 		// same view as the expected one to everyone
-		c.current = newTestRoundState(
+		c.current = newTestRoundStateV2(
 			expectedSubject.View,
 			backend.peers,
 		)

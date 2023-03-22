@@ -59,10 +59,10 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		RPCGasInflationRate     float64
 		RPCGasCap               uint64
 		RPCTxFeeCap             float64
+		RPCEthCompatibility     bool
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
 		OverrideEHardfork       *big.Int                       `toml:",omitempty"`
-		OverrideV2IstanbulFork  *big.Int                       `toml:",omitempty"`
 		MinSyncPeers            int                            `toml:",omitempty"`
 	}
 	var enc Config
@@ -108,10 +108,10 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.RPCGasInflationRate = c.RPCGasInflationRate
 	enc.RPCGasCap = c.RPCGasCap
 	enc.RPCTxFeeCap = c.RPCTxFeeCap
+	enc.RPCEthCompatibility = c.RPCEthCompatibility
 	enc.Checkpoint = c.Checkpoint
 	enc.CheckpointOracle = c.CheckpointOracle
 	enc.OverrideEHardfork = c.OverrideEHardfork
-	enc.OverrideV2IstanbulFork = c.OverrideV2IstanbulFork
 	enc.MinSyncPeers = c.MinSyncPeers
 	return &enc, nil
 }
@@ -161,10 +161,10 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		RPCGasInflationRate     *float64
 		RPCGasCap               *uint64
 		RPCTxFeeCap             *float64
+		RPCEthCompatibility     *bool
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
 		OverrideEHardfork       *big.Int                       `toml:",omitempty"`
-		OverrideV2IstanbulFork  *big.Int                       `toml:",omitempty"`
 		MinSyncPeers            *int                           `toml:",omitempty"`
 	}
 	var dec Config
@@ -297,6 +297,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.RPCTxFeeCap != nil {
 		c.RPCTxFeeCap = *dec.RPCTxFeeCap
 	}
+	if dec.RPCEthCompatibility != nil {
+		c.RPCEthCompatibility = *dec.RPCEthCompatibility
+	}
 	if dec.Checkpoint != nil {
 		c.Checkpoint = dec.Checkpoint
 	}
@@ -305,9 +308,6 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.OverrideEHardfork != nil {
 		c.OverrideEHardfork = dec.OverrideEHardfork
-	}
-	if dec.OverrideV2IstanbulFork != nil {
-		c.OverrideV2IstanbulFork = dec.OverrideV2IstanbulFork
 	}
 	if dec.MinSyncPeers != nil {
 		c.MinSyncPeers = *dec.MinSyncPeers

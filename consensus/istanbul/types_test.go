@@ -26,7 +26,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/rlp"
 	"golang.org/x/crypto/sha3"
-	"gotest.tools/assert"
 )
 
 // testHasher is the helper tool for transaction/receipt list hashing.
@@ -135,32 +134,6 @@ func dummyMessage(code uint64) *Message {
 	return msg
 }
 
-func dummyRoundChangeMessage() *Message {
-	msg := NewPrepareMessage(dummySubject(), common.HexToAddress("AABB"))
-	// Set empty rather than nil signature since this is how rlp decodes non
-	// existent slices.
-	msg.Signature = []byte{}
-	msg.Code = MsgRoundChange
-	roundChange := &RoundChange{
-		View: &View{
-			Round:    common.Big1,
-			Sequence: common.Big2,
-		},
-		PreparedCertificate: PreparedCertificate{
-			PrepareOrCommitMessages: []Message{},
-			Proposal:                dummyBlock(2),
-		},
-	}
-	setMessageBytes(msg, roundChange)
-	return msg
-}
-
-func dummyRoundChangeCertificate() *RoundChangeCertificate {
-	return &RoundChangeCertificate{
-		RoundChangeMessages: []Message{*dummyRoundChangeMessage(), *dummyRoundChangeMessage(), *dummyRoundChangeMessage()},
-	}
-}
-
 func dummyPreparedCertificate() *PreparedCertificate {
 	return &PreparedCertificate{
 		PrepareOrCommitMessages: []Message{*dummyMessage(42), *dummyMessage(32), *dummyMessage(15)},
@@ -210,85 +183,6 @@ func TestMessageRLPEncoding(t *testing.T) {
 	}
 }
 
-func TestRoundChangeCertificateRLPEncoding(t *testing.T) {
-	var result, original *RoundChangeCertificate
-	original = dummyRoundChangeCertificate()
-
-	rawVal, err := rlp.EncodeToBytes(original)
-	if err != nil {
-		t.Fatalf("Error %v", err)
-	}
-
-	if err = rlp.DecodeBytes(rawVal, &result); err != nil {
-		t.Fatalf("Error %v", err)
-	}
-
-	assert.Equal(t, len(original.RoundChangeMessages), len(original.RoundChangeMessages))
-	o1 := original.RoundChangeMessages[0]
-	r1 := result.RoundChangeMessages[0]
-	if !reflect.DeepEqual(o1.Code, r1.Code) {
-		t.Fatalf("RLP Encode/Decode mismatch at first Code")
-	}
-
-	if !reflect.DeepEqual(o1.Code, r1.Code) {
-		t.Fatalf("RLP Encode/Decode mismatch at first Code")
-	}
-
-	if !reflect.DeepEqual(o1.Address, r1.Address) {
-		t.Fatalf("RLP Encode/Decode mismatch at first Address")
-	}
-
-	if !reflect.DeepEqual(o1.Signature, r1.Signature) {
-		t.Fatalf("RLP Encode/Decode mismatch at first Signature")
-	}
-
-	if !reflect.DeepEqual(o1.Msg, r1.Msg) {
-		t.Fatalf("RLP Encode/Decode mismatch at first internal Msg bytes. %v ----- %v", o1.Msg, r1.Msg)
-	}
-
-	original.RoundChangeMessages[0].prepare = nil
-	original.RoundChangeMessages[1].prepare = nil
-	original.RoundChangeMessages[2].prepare = nil
-	result.RoundChangeMessages[0].roundChange = nil
-	result.RoundChangeMessages[1].roundChange = nil
-	result.RoundChangeMessages[2].roundChange = nil
-	if !reflect.DeepEqual(original, result) {
-		t.Fatalf("RLP Encode/Decode mismatch. Got %v, expected %v", result, original)
-	}
-}
-
-func TestPreprepareRLPEncoding(t *testing.T) {
-	var result, original *Preprepare
-	original = &Preprepare{
-		View:                   dummyView(),
-		RoundChangeCertificate: *dummyRoundChangeCertificate(),
-		Proposal:               dummyBlock(1),
-	}
-
-	rawVal, err := rlp.EncodeToBytes(original)
-	if err != nil {
-		t.Fatalf("Error %v", err)
-	}
-
-	if err = rlp.DecodeBytes(rawVal, &result); err != nil {
-		t.Fatalf("Error %v", err)
-	}
-
-	o := original.RoundChangeCertificate
-	o.RoundChangeMessages[0].prepare = nil
-	o.RoundChangeMessages[1].prepare = nil
-	o.RoundChangeMessages[2].prepare = nil
-	r := result.RoundChangeCertificate
-	r.RoundChangeMessages[0].roundChange = nil
-	r.RoundChangeMessages[1].roundChange = nil
-	r.RoundChangeMessages[2].roundChange = nil
-
-	// decoded Blocks don't equal Original ones so we need to check equality differently
-	assertEqual(t, "RLP Encode/Decode mismatch: View", result.View, original.View)
-	assertEqual(t, "RLP Encode/Decode mismatch: RoundChangeCertificate", result.RoundChangeCertificate, original.RoundChangeCertificate)
-	assertEqual(t, "RLP Encode/Decode mismatch: BlockHash", result.Proposal.Hash(), original.Proposal.Hash())
-}
-
 func TestPreparedCertificateRLPEncoding(t *testing.T) {
 	var result, original *PreparedCertificate
 	original = dummyPreparedCertificate()
@@ -305,28 +199,6 @@ func TestPreparedCertificateRLPEncoding(t *testing.T) {
 	// decoded Blocks don't equal Original ones so we need to check equality differently
 	assertEqual(t, "RLP Encode/Decode mismatch: PrepareOrCommitMessages", result.PrepareOrCommitMessages, original.PrepareOrCommitMessages)
 	assertEqual(t, "RLP Encode/Decode mismatch: BlockHash", result.Proposal.Hash(), original.Proposal.Hash())
-}
-
-func TestRoundChangeRLPEncoding(t *testing.T) {
-	var result, original *RoundChange
-	original = &RoundChange{
-		View:                dummyView(),
-		PreparedCertificate: *dummyPreparedCertificate(),
-	}
-
-	rawVal, err := rlp.EncodeToBytes(original)
-	if err != nil {
-		t.Fatalf("Error %v", err)
-	}
-
-	if err = rlp.DecodeBytes(rawVal, &result); err != nil {
-		t.Fatalf("Error %v", err)
-	}
-
-	// decoded Blocks don't equal Original ones so we need to check equality differently
-	assertEqual(t, "RLP Encode/Decode mismatch: View", result.View, original.View)
-	assertEqual(t, "RLP Encode/Decode mismatch: PreparedCertificate.PrepareOrCommitMessages", result.PreparedCertificate.PrepareOrCommitMessages, original.PreparedCertificate.PrepareOrCommitMessages)
-	assertEqual(t, "RLP Encode/Decode mismatch: PreparedCertificate.BlockHash", result.PreparedCertificate.Proposal.Hash(), original.PreparedCertificate.Proposal.Hash())
 }
 
 func TestSubjectRLPEncoding(t *testing.T) {

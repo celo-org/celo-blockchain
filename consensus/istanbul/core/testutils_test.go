@@ -22,20 +22,15 @@ import (
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/stretchr/testify/assert"
 )
 
 func newView(seq, round uint64) *istanbul.View {
 	return &istanbul.View{Round: new(big.Int).SetUint64(round), Sequence: new(big.Int).SetUint64(seq)}
 }
 
-func newTestRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) RoundState {
-	current := newRoundState(view, validatorSet, validatorSet.GetByIndex(0), false)
-	current.(*roundStateImpl).preprepare = newTestPreprepare(view)
-	return current
-}
-
 func newTestRoundStateV2(view *istanbul.View, validatorSet istanbul.ValidatorSet) RoundState {
-	current := newRoundState(view, validatorSet, validatorSet.GetByIndex(0), true)
+	current := newRoundState(view, validatorSet, validatorSet.GetByIndex(0))
 	current.(*roundStateImpl).preprepareV2 = newTestPreprepareV2(view)
 	return current
 }
@@ -58,15 +53,30 @@ func assertEqualRoundState(t *testing.T, have, want RoundState) {
 		}
 	}
 
+	testEqualMessageSet := func(name string, have, want MessageSet) {
+		wantValues := want.Values()
+		haveValues := have.Values()
+		if len(haveValues) != len(wantValues) {
+			t.Errorf("RoundState.%s size mismatch: have %v, want %v", name, have, want)
+			return
+		}
+		for i := range wantValues {
+			wantValues[i] = wantValues[i].Copy()
+			haveValues[i] = haveValues[i].Copy()
+		}
+		assert.ElementsMatch(t, wantValues, haveValues,
+			"RoundState.%s mismatch (values w/o order): have %v, want %v", name, haveValues, wantValues)
+	}
+
 	testEqual("State", have.State(), want.State())
 	testEqual("Round", have.Round(), want.Round())
 	testEqual("DesiredRound", have.DesiredRound(), want.DesiredRound())
 	testEqual("Sequence", have.Sequence(), want.Sequence())
 	testEqual("ValidatorSet", have.ValidatorSet(), want.ValidatorSet())
 	testEqual("Proposer", have.Proposer(), want.Proposer())
-	testEqual("ParentCommits", have.ParentCommits(), want.ParentCommits())
-	testEqual("Commits", have.Commits(), want.Commits())
-	testEqual("Prepares", have.Prepares(), want.Prepares())
+	testEqualMessageSet("ParentCommits", have.ParentCommits(), want.ParentCommits())
+	testEqualMessageSet("Commits", have.Commits(), want.Commits())
+	testEqualMessageSet("Prepares", have.Prepares(), want.Prepares())
 
 	if have.PendingRequest() == nil || want.PendingRequest() == nil {
 		testEqual("PendingRequest", have.PendingRequest(), want.PendingRequest())
@@ -76,15 +86,15 @@ func assertEqualRoundState(t *testing.T, have, want RoundState) {
 		testEqual("PendingRequest.Proposal.Hash", haveBlock.Hash(), wantBlock.Hash())
 	}
 
-	if have.Preprepare() == nil || want.Preprepare() == nil {
-		testEqual("Preprepare", have.Preprepare(), want.Preprepare())
+	if have.PreprepareV2() == nil || want.PreprepareV2() == nil {
+		testEqual("PreprepareV2", have.PreprepareV2(), want.PreprepareV2())
 	} else {
-		testEqual("Preprepare.Proposal.Hash", have.Preprepare().Proposal.Hash(), want.Preprepare().Proposal.Hash())
-		testEqual("Preprepare.View", have.Preprepare().View, want.Preprepare().View)
-		testEqual("Preprepare.RoundChangeCertificate.IsEmpty", have.Preprepare().RoundChangeCertificate.IsEmpty(), want.Preprepare().RoundChangeCertificate.IsEmpty())
+		testEqual("PreprepareV2.Proposal.Hash", have.PreprepareV2().Proposal.Hash(), want.PreprepareV2().Proposal.Hash())
+		testEqual("PreprepareV2.View", have.PreprepareV2().View, want.PreprepareV2().View)
+		testEqual("PreprepareV2.RoundChangeCertificateV2.IsEmpty", have.PreprepareV2().RoundChangeCertificateV2.IsEmpty(), want.PreprepareV2().RoundChangeCertificateV2.IsEmpty())
 
-		if !have.Preprepare().RoundChangeCertificate.IsEmpty() && !want.Preprepare().RoundChangeCertificate.IsEmpty() {
-			testEqual("Preprepare.RoundChangeCertificate.RoundChangeMessages", have.Preprepare().RoundChangeCertificate.RoundChangeMessages, want.Preprepare().RoundChangeCertificate.RoundChangeMessages)
+		if !have.PreprepareV2().RoundChangeCertificateV2.IsEmpty() && !want.PreprepareV2().RoundChangeCertificateV2.IsEmpty() {
+			testEqual("PreprepareV2.RoundChangeCertificateV2.RoundChangeMessages", have.PreprepareV2().RoundChangeCertificateV2.Requests, want.PreprepareV2().RoundChangeCertificateV2.Requests)
 		}
 
 	}
