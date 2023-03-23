@@ -92,7 +92,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
         cache: true
-
+        cache-dependency-path: go.sum
   check-imports:
     name: Check imports
     needs: go-modules
@@ -107,6 +107,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
         cache: true
+        cache-dependency-path: go.sum
     - name: Check imports to ensure we are using github.com/celo-org/celo-blockchain
       run: ./scripts/check_imports.sh
 
@@ -124,6 +125,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
         cache: true
+        cache-dependency-path: go.sum
     - name: Run linter
       uses: golangci/golangci-lint-action@v3
       with:
@@ -146,6 +148,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
         cache: true
+        cache-dependency-path: go.sum
     - name: Restore system contracts
       uses: actions/download-artifact@v3
       with:
@@ -197,6 +200,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
         cache: true
+        cache-dependency-path: go.sum
     - name: Restore system contracts
       uses: actions/download-artifact@v3
       with:
@@ -233,6 +237,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
         cache: true
+        cache-dependency-path: go.sum
     - name: Run and compress executables
       run: |
         make all
@@ -263,6 +268,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
         cache: true
+        cache-dependency-path: go.sum
     - name: Prepare ethersjs project
       run: make prepare-ethersjs-project
     - name: Restore system contracts
@@ -308,6 +314,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
         cache: true
+        cache-dependency-path: go.sum
     - name: Download pre-built binaries
       uses: actions/download-artifact@v3
       with:
@@ -337,6 +344,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
         cache: true
+        cache-dependency-path: go.sum
     - name: Restore system contracts
       uses: actions/download-artifact@v3
       with:
