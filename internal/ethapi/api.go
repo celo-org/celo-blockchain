@@ -1149,6 +1149,15 @@ func RPCMarshalHeader(head *types.Header) map[string]interface{} {
 		"transactionsRoot": head.TxHash,
 		"receiptsRoot":     head.ReceiptHash,
 	}
+	// Former proof-of-work fields, now constants, see https://eips.ethereum.org/EIPS/eip-3675#block-structure
+	// Set after GFork
+	if head.Difficulty != nil {
+		result["difficulty"] = (*hexutil.Big)(head.Difficulty)
+		result["nonce"] = head.Nonce
+		result["sha3Uncles"] = head.UncleHash
+		result["uncles"] = []interface{}{}
+		result["mixHash"] = head.MixDigest
+	}
 
 	return result
 }

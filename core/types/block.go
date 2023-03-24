@@ -18,6 +18,7 @@
 package types
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -35,24 +36,55 @@ import (
 
 var (
 	EmptyRootHash       = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+	emptyUncleHash      = rlpHash([]*Header(nil)) // 1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347
 	EmptyRandomness     = Randomness{}
 	EmptyEpochSnarkData = EpochSnarkData{}
 )
+
+// A BlockNonce is a 64-bit hash which proves (combined with the
+// mix-hash) that a sufficient amount of computation has been carried
+// out on a block.
+type BlockNonce [8]byte
+
+// EncodeNonce converts the given integer to a block nonce.
+func EncodeNonce(i uint64) BlockNonce {
+	var n BlockNonce
+	binary.BigEndian.PutUint64(n[:], i)
+	return n
+}
+
+// Uint64 returns the integer value of a block nonce.
+func (n BlockNonce) Uint64() uint64 {
+	return binary.BigEndian.Uint64(n[:])
+}
+
+// MarshalText encodes n as a hex string with 0x prefix.
+func (n BlockNonce) MarshalText() ([]byte, error) {
+	return hexutil.Bytes(n[:]).MarshalText()
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (n *BlockNonce) UnmarshalText(input []byte) error {
+	return hexutil.UnmarshalFixedText("BlockNonce", input, n[:])
+}
 
 //go:generate gencodec -type Header -field-override headerMarshaling -out gen_header_json.go
 
 // Header represents a block header in the Ethereum blockchain.
 type Header struct {
 	ParentHash  common.Hash    `json:"parentHash"       gencodec:"required"`
+	UncleHash   common.Hash    `json:"sha3Uncles"       gencodec:"required"`
 	Coinbase    common.Address `json:"miner"            gencodec:"required"`
 	Root        common.Hash    `json:"stateRoot"        gencodec:"required"`
 	TxHash      common.Hash    `json:"transactionsRoot" gencodec:"required"`
 	ReceiptHash common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 	Bloom       Bloom          `json:"logsBloom"        gencodec:"required"`
+	Difficulty  *big.Int       `json:"difficulty"       gencodec:"required"`
 	Number      *big.Int       `json:"number"           gencodec:"required"`
 	GasUsed     uint64         `json:"gasUsed"          gencodec:"required"`
 	Time        uint64         `json:"timestamp"        gencodec:"required"`
 	Extra       []byte         `json:"extraData"        gencodec:"required"`
+	Nonce       BlockNonce     `json:"nonce"`
 
 	// Used to cache deserialized istanbul extra data
 	extraLock  sync.Mutex
@@ -271,6 +303,8 @@ func NewBlock(header *Header, txs []*Transaction, receipts []*Receipt, randomnes
 		b.randomness = &EmptyRandomness
 	}
 
+	b.header.UncleHash = emptyUncleHash
+
 	return b
 }
 
@@ -286,15 +320,19 @@ func NewBlockWithHeader(header *Header) *Block {
 func CopyHeader(h *Header) *Header {
 	cpy := Header{
 		ParentHash:  h.ParentHash,
+		UncleHash:   h.UncleHash,
 		Coinbase:    h.Coinbase,
 		Root:        h.Root,
 		TxHash:      h.TxHash,
 		ReceiptHash: h.ReceiptHash,
 		Bloom:       h.Bloom,
+		Difficulty:  h.Difficulty,
 		Number:      new(big.Int),
 		GasLimit:    h.GasLimit,
 		GasUsed:     h.GasUsed,
 		Time:        h.Time,
+		MixDigest:   h.MixDigest,
+		Nonce:       h.Nonce,
 	}
 
 	if h.Number != nil {
