@@ -73,18 +73,15 @@ func (n *BlockNonce) UnmarshalText(input []byte) error {
 // Header represents a block header in the Ethereum blockchain.
 type Header struct {
 	ParentHash  common.Hash    `json:"parentHash"       gencodec:"required"`
-	UncleHash   common.Hash    `json:"sha3Uncles"       gencodec:"required"`
 	Coinbase    common.Address `json:"miner"            gencodec:"required"`
 	Root        common.Hash    `json:"stateRoot"        gencodec:"required"`
 	TxHash      common.Hash    `json:"transactionsRoot" gencodec:"required"`
 	ReceiptHash common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 	Bloom       Bloom          `json:"logsBloom"        gencodec:"required"`
-	Difficulty  *big.Int       `json:"difficulty"       gencodec:"required"`
 	Number      *big.Int       `json:"number"           gencodec:"required"`
 	GasUsed     uint64         `json:"gasUsed"          gencodec:"required"`
 	Time        uint64         `json:"timestamp"        gencodec:"required"`
 	Extra       []byte         `json:"extraData"        gencodec:"required"`
-	Nonce       BlockNonce     `json:"nonce"`
 
 	// Used to cache deserialized istanbul extra data
 	extraLock  sync.Mutex
@@ -92,16 +89,22 @@ type Header struct {
 	extraError error
 
 	GasLimit uint64 `json:"gasLimit" rlp:"optional"`
+	// Proof-of-work fields for Eth compatibility
+	Difficulty *big.Int    `json:"difficulty" rlp:"optional"`
+	Nonce      BlockNonce  `json:"nonce"      rlp:"optional"`
+	UncleHash  common.Hash `json:"sha3Uncles" rlp:"optional"`
+	MixDigest  common.Hash `json:"mixHash"    rlp:"optional"`
 }
 
 // field type overrides for gencodec
 type headerMarshaling struct {
-	Number   *hexutil.Big
-	GasLimit hexutil.Uint64
-	GasUsed  hexutil.Uint64
-	Time     hexutil.Uint64
-	Extra    hexutil.Bytes
-	Hash     common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
+	Number     *hexutil.Big
+	GasLimit   hexutil.Uint64
+	GasUsed    hexutil.Uint64
+	Time       hexutil.Uint64
+	Extra      hexutil.Bytes
+	Hash       common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
+	Difficulty *hexutil.Big
 }
 
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
@@ -302,8 +305,6 @@ func NewBlock(header *Header, txs []*Transaction, receipts []*Receipt, randomnes
 	if randomness == nil {
 		b.randomness = &EmptyRandomness
 	}
-
-	b.header.UncleHash = emptyUncleHash
 
 	return b
 }
