@@ -6,6 +6,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/internal/debug"
 )
 
 type CurrencyCmpFn func(*big.Int, *common.Address, *big.Int, *common.Address) int
@@ -28,7 +29,10 @@ type multiCurrencyPriceHeap struct {
 }
 
 func newMultiCurrencyPriceHeap(currencyCmp CurrencyCmpFn, gpm GasPriceMinimums) multiCurrencyPriceHeap {
-	return multiCurrencyPriceHeap{
+	return newMultiCurrencyPriceHeapName(currencyCmp, gpm, "")
+}
+func newMultiCurrencyPriceHeapName(currencyCmp CurrencyCmpFn, gpm GasPriceMinimums, name string) multiCurrencyPriceHeap {
+	h := multiCurrencyPriceHeap{
 		currencyCmp: currencyCmp,
 		gpm:         gpm,
 
@@ -37,6 +41,8 @@ func newMultiCurrencyPriceHeap(currencyCmp CurrencyCmpFn, gpm GasPriceMinimums) 
 		nativeCurrencyHeap: &priceHeap{},
 		currencyHeaps:      make(map[common.Address]*priceHeap),
 	}
+	debug.Memsize.Add(name+".nativeCurrencyHeap", h.nativeCurrencyHeap)
+	return h
 }
 
 // getHeapFor returns the proper heap for the given transaction, and creates it
