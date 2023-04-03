@@ -297,6 +297,56 @@ func TestBlockTracingConcurrentMapAccess(t *testing.T) {
 	wg.Wait()
 }
 
+// For debugging test failures in TestBlockTracingConcurrentMapAccess
+func TestEmptyBlockTracingSequentialAccess(t *testing.T) {
+	ac := test.AccountConfig(1, 2)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*300)
+	defer cancel()
+
+	n := network[0]
+	err = network[0].Tracker.AwaitBlock(ctx, 2)
+	require.NoError(t, err)
+	b := network[0].Tracker.GetProcessedBlock(1)
+	c, err := rpc.DialContext(ctx, n.WSEndpoint())
+	require.NoError(t, err)
+
+	var result []interface{}
+	err = c.CallContext(ctx, &result, "debug_traceBlockByNumber", hexutil.EncodeUint64(uint64(int(b.NumberU64()))))
+	fmt.Printf("result: %+v\n", result)
+	require.NoError(t, err)
+}
+
+// For debugging test failures in TestBlockTracingConcurrentMapAccess
+func TestBlockTracingSequentialAccessDebug(t *testing.T) {
+	ac := test.AccountConfig(1, 2)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*300)
+	defer cancel()
+	n := network[0]
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, n)
+	require.NoError(t, err)
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+	b := n.Tracker.GetProcessedBlockForTx(tx.Hash())
+	c, err := rpc.DialContext(ctx, n.WSEndpoint())
+	require.NoError(t, err)
+	var result []interface{}
+	err = c.CallContext(ctx, &result, "debug_traceBlockByNumber", hexutil.EncodeUint64(uint64(int(b.NumberU64()))))
+	require.NoError(t, err)
+}
+
 type rpcCustomTransaction struct {
 	BlockNumber *hexutil.Big `json:"blockNumber"`
 	BlockHash   *common.Hash `json:"blockHash"`
