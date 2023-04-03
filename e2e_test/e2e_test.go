@@ -533,6 +533,44 @@ func pruneStateOfBlock(ctx context.Context, node *test.Node, blockHash common.Ha
 	return nil
 }
 
+func TestPrecompileWrappers(t *testing.T) {
+	ac := test.AccountConfig(1, 1)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	num, err := network[0].WsClient.BlockNumber(ctx)
+	require.NoError(t, err)
+
+	// Execute typescript tests to check ethers.js compatibility.
+	//
+	// The '--networkaddr' and '--blocknum' flags are npm config variables, the
+	// values become available under 'process.env.npm_config_networkaddr' and
+	// 'process.env.npm_config_blocknum' in typescript test. Everything after
+	// '--' are flags that are passed to mocha and these flags are controlling
+	// which tests to run.
+
+	// The tests don't seem to work on CI with IPV6 addresses so we convert to IPV4 here
+	addr := strings.Replace(network[0].Node.HTTPEndpoint(), "[::]", "127.0.0.1", 1)
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+	privateKeyHex := fmt.Sprintf("0x%064x", accounts[0].Key.D)
+
+	cmd := exec.Command("npm", "run", "test-precompile-wrappers", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--signerkey="+privateKeyHex)
+	// , "--", "--grep", "ethers.js compatibility tests with state"
+
+	cmd.Dir = "./ethersjs-api-check/"
+	println("executing mocha test with", cmd.String())
+	output, err := cmd.CombinedOutput()
+	println(string(output))
+	require.NoError(t, err)
+}
+
 func TestEthersJSCompatibility(t *testing.T) {
 	ac := test.AccountConfig(1, 1)
 	gc, ec, err := test.BuildConfig(ac)
