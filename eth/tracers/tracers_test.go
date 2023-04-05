@@ -19,6 +19,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/json"
+
 	"io/ioutil"
 	"math/big"
 	"path/filepath"
@@ -110,7 +111,6 @@ type callContext struct {
 	Miner      common.Address        `json:"miner"`
 }
 
-// nolint:deadcode // Used in commented out test
 // callTracerTest defines a single test to check the call tracer against.
 type callTracerTest struct {
 	Genesis *core.Genesis `json:"genesis"`
@@ -205,12 +205,12 @@ func TestPrestateTracerCreate2(t *testing.T) {
 // TODO(kevjue/asaj): Figure out how to get the tracer tests to work with the new txn structure
 // Iterates over all the input-output datasets in the tracer test harness and
 // runs the JavaScript tracers against them.
-/*
 func TestCallTracerLegacy(t *testing.T) {
 	testCallTracer("callTracerLegacy", "call_tracer_legacy", t)
 }
 
 func testCallTracer(tracer string, dirPath string, t *testing.T) {
+	celoMock := testutil.NewCeloMock()
 	files, err := ioutil.ReadDir(filepath.Join("testdata", dirPath))
 	if err != nil {
 		t.Fatalf("failed to retrieve tracer test suite: %v", err)
@@ -238,6 +238,7 @@ func testCallTracer(tracer string, dirPath string, t *testing.T) {
 			if err := rlp.DecodeBytes(common.FromHex(test.Input), tx); err != nil {
 				t.Fatalf("failed to parse testcase input: %v", err)
 			}
+
 			signer := types.MakeSigner(test.Genesis.Config, new(big.Int).SetUint64(uint64(test.Context.Number)))
 			origin, _ := signer.Sender(tx)
 			txContext := vm.TxContext{
@@ -245,13 +246,12 @@ func testCallTracer(tracer string, dirPath string, t *testing.T) {
 				GasPrice: tx.GasPrice(),
 			}
 			context := vm.BlockContext{
-				CanTransfer: core.CanTransfer,
-				Transfer:    vm.Transfer,
+				CanTransfer: vmcontext.CanTransfer,
+				Transfer:    vmcontext.TobinTransfer,
 				Coinbase:    test.Context.Miner,
 				BlockNumber: new(big.Int).SetUint64(uint64(test.Context.Number)),
+
 				Time:        new(big.Int).SetUint64(uint64(test.Context.Time)),
-				GasLimit:    uint64(test.Context.GasLimit),
-				GetRegisteredAddress: contracts.GetRegisteredAddress,
 			}
 			_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false)
 
@@ -266,7 +266,7 @@ func testCallTracer(tracer string, dirPath string, t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to prepare transaction for tracing: %v", err)
 			}
-			st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()), nil)
+			st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()), celoMock.Runner, nil)
 			if _, err = st.TransitionDb(); err != nil {
 				t.Fatalf("failed to execute transaction: %v", err)
 			}
@@ -294,7 +294,6 @@ func testCallTracer(tracer string, dirPath string, t *testing.T) {
 func TestCallTracer(t *testing.T) {
 	testCallTracer("callTracer", "call_tracer", t)
 }
-*/
 
 // jsonEqual is similar to reflect.DeepEqual, but does a 'bounce' via json prior to
 // comparison
