@@ -745,17 +745,6 @@ func (s *PublicBlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Ha
 // rpc response that ethers.js depends upon.
 // See https://github.com/celo-org/celo-blockchain/issues/1945
 func addEthCompatibilityFields(ctx context.Context, block map[string]interface{}, b Backend, header *types.Header) {
-	hash := header.Hash()
-	numhash := rpc.BlockNumberOrHash{
-		BlockHash: &hash,
-	}
-	gasLimit, err := b.GetRealBlockGasLimit(ctx, numhash)
-	if err != nil {
-		log.Debug("Not adding gasLimit to RPC response, failed to retrieve it", "block", header.Number.Uint64(), "err", err)
-	} else {
-		block["gasLimit"] = hexutil.Uint64(gasLimit)
-	}
-
 	// Providing nil as the currency address gets the gas price minimum for the native celo asset.
 	baseFee, err := b.RealGasPriceMinimumForHeader(ctx, nil, header)
 	if err != nil {
@@ -1133,6 +1122,7 @@ func RPCMarshalHeader(head *types.Header) map[string]interface{} {
 		"miner":            head.Coinbase,
 		"extraData":        hexutil.Bytes(head.Extra),
 		"size":             hexutil.Uint64(head.Size()),
+		"gasLimit":         hexutil.Uint64(head.GasLimit),
 		"gasUsed":          hexutil.Uint64(head.GasUsed),
 		"timestamp":        hexutil.Uint64(head.Time),
 		"transactionsRoot": head.TxHash,

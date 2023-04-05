@@ -50,6 +50,7 @@ type Header struct {
 	ReceiptHash common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 	Bloom       Bloom          `json:"logsBloom"        gencodec:"required"`
 	Number      *big.Int       `json:"number"           gencodec:"required"`
+	GasLimit    uint64         `json:"gasLimit"         gencodec:"required"`
 	GasUsed     uint64         `json:"gasUsed"          gencodec:"required"`
 	Time        uint64         `json:"timestamp"        gencodec:"required"`
 	Extra       []byte         `json:"extraData"        gencodec:"required"`
@@ -62,11 +63,12 @@ type Header struct {
 
 // field type overrides for gencodec
 type headerMarshaling struct {
-	Number  *hexutil.Big
-	GasUsed hexutil.Uint64
-	Time    hexutil.Uint64
-	Extra   hexutil.Bytes
-	Hash    common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
+	Number   *hexutil.Big
+	GasLimit hexutil.Uint64
+	GasUsed  hexutil.Uint64
+	Time     hexutil.Uint64
+	Extra    hexutil.Bytes
+	Hash     common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
 }
 
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
@@ -289,6 +291,7 @@ func CopyHeader(h *Header) *Header {
 		ReceiptHash: h.ReceiptHash,
 		Bloom:       h.Bloom,
 		Number:      new(big.Int),
+		GasLimit:    h.GasLimit,
 		GasUsed:     h.GasUsed,
 		Time:        h.Time,
 	}
