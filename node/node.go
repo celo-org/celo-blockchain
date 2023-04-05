@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-blockchain/internal/debug"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/rpc"
@@ -166,6 +168,12 @@ func New(conf *Config) (*Node, error) {
 	node.http = newHTTPServer(node.log, conf.HTTPTimeouts)
 	node.ws = newHTTPServer(node.log, rpc.DefaultHTTPTimeouts)
 	node.ipc = newIPCServer(node.log, conf.IPCEndpoint())
+
+	debug.Memsize.Add("node.accman", node.accman)
+	debug.Memsize.Add("node.server", node.server)
+	debug.Memsize.Add("node.http", node.http)
+	debug.Memsize.Add("node.ws", node.ws)
+	debug.Memsize.Add("node.ipc", node.ipc)
 
 	return node, nil
 }
@@ -676,6 +684,7 @@ func (db *closeTrackingDB) Close() error {
 func (n *Node) wrapDatabase(db ethdb.Database) ethdb.Database {
 	wrapper := &closeTrackingDB{db, n}
 	n.databases[wrapper] = struct{}{}
+	debug.Memsize.Add("node.databases["+strconv.Itoa(len(n.databases))+"]", db)
 	return wrapper
 }
 

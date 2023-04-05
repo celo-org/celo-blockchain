@@ -335,7 +335,7 @@ func geth(ctx *cli.Context) error {
 // miner.
 func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend) {
 	debug.Memsize.Add("node", stack)
-
+	debug.Memsize.Add("backend", backend)
 	// Start up the node itself
 	utils.StartNode(ctx, stack)
 
