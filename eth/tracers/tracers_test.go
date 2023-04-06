@@ -202,7 +202,6 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	}
 }
 
-// TODO(kevjue/asaj): Figure out how to get the tracer tests to work with the new txn structure
 // Iterates over all the input-output datasets in the tracer test harness and
 // runs the JavaScript tracers against them.
 func TestCallTracerLegacy(t *testing.T) {
