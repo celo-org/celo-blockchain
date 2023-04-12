@@ -70,6 +70,7 @@ func TestEVM(t *testing.T) {
 
 	Execute([]byte{
 		byte(vm.TIMESTAMP),
+		byte(vm.GASLIMIT),
 		byte(vm.PUSH1),
 		byte(vm.ORIGIN),
 		byte(vm.BLOCKHASH),
