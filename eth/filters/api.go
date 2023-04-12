@@ -30,6 +30,8 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/internal/ethapi"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/rpc"
 )
 
@@ -223,7 +225,14 @@ func (api *PublicFilterAPI) NewHeads(ctx context.Context) (*rpc.Subscription, er
 		for {
 			select {
 			case h := <-headers:
-				notifier.Notify(rpcSub.ID, h)
+				jsonHeader := ethapi.RPCMarshalHeader(h)
+				baseFee, err := api.backend.RealGasPriceMinimumForHeader(ctx, nil, h)
+				if err != nil {
+					log.Debug("Not adding baseFeePerGas to header subscription, failed to retrieve gas price minimum", "block", h.Number.Uint64(), "err", err)
+				} else {
+					jsonHeader["baseFeePerGas"] = (*hexutil.Big)(baseFee)
+				}
+				notifier.Notify(rpcSub.ID, jsonHeader)
 			case <-rpcSub.Err():
 				headersSub.Unsubscribe()
 				return
