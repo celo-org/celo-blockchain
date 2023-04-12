@@ -709,13 +709,17 @@ func (s *PublicBlockChainAPI) GetBlockByNumber(ctx context.Context, number rpc.B
 	if block != nil && err == nil {
 		response, err := s.rpcMarshalBlock(ctx, block, true, fullTx)
 
-		if err == nil && s.b.RPCEthCompatibility() {
-			addEthCompatibilityFields(ctx, response, s.b, block.Header())
-			if number == rpc.PendingBlockNumber {
-				// Pending blocks need to nil out a few fields
-				for _, field := range []string{"hash", "nonce", "miner"} {
-					response[field] = nil
+		if err == nil {
+			if s.b.RPCEthCompatibility() {
+				addEthCompatibilityFields(ctx, response, s.b, block.Header())
+				if number == rpc.PendingBlockNumber {
+					// Pending blocks need to nil out a few fields
+					for _, field := range []string{"hash", "nonce", "miner"} {
+						response[field] = nil
+					}
 				}
+			} else {
+				delete(response, "gasLimit")
 			}
 		}
 		return response, err
@@ -734,6 +738,8 @@ func (s *PublicBlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Ha
 		}
 		if s.b.RPCEthCompatibility() {
 			addEthCompatibilityFields(ctx, result, s.b, block.Header())
+		} else {
+			delete(result, "gasLimit")
 		}
 		return result, nil
 	}
