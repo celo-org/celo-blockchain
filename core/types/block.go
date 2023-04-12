@@ -50,7 +50,6 @@ type Header struct {
 	ReceiptHash common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 	Bloom       Bloom          `json:"logsBloom"        gencodec:"required"`
 	Number      *big.Int       `json:"number"           gencodec:"required"`
-	GasLimit    uint64         `json:"gasLimit"         gencodec:"required"`
 	GasUsed     uint64         `json:"gasUsed"          gencodec:"required"`
 	Time        uint64         `json:"timestamp"        gencodec:"required"`
 	Extra       []byte         `json:"extraData"        gencodec:"required"`
@@ -59,6 +58,8 @@ type Header struct {
 	extraLock  sync.Mutex
 	extraValue *IstanbulExtra
 	extraError error
+
+	GasLimit uint64 `json:"gasLimit" rlp:"optional"`
 }
 
 // field type overrides for gencodec
