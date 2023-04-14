@@ -32,6 +32,7 @@ import (
 type MessageSet interface {
 	fmt.Stringer
 	Add(msg *istanbul.Message) error
+	AddAll(msgs []*istanbul.Message) int
 	GetAddressIndex(addr common.Address) (uint64, error)
 	Remove(address common.Address)
 	Values() (result []*istanbul.Message)
@@ -68,16 +69,38 @@ func deserializeMessageSet(binaryData []byte) (MessageSet, error) {
 
 // ----------------------------------------------------------------------------
 
+func (ms *messageSetImpl) checkValidToAdd(msg *istanbul.Message) error {
+	if !ms.valSet.ContainsByAddress(msg.Address) {
+		return istanbul.ErrUnauthorizedAddress
+	}
+	return nil
+}
+
 func (ms *messageSetImpl) Add(msg *istanbul.Message) error {
 	ms.messagesMu.Lock()
 	defer ms.messagesMu.Unlock()
 
-	if !ms.valSet.ContainsByAddress(msg.Address) {
-		return istanbul.ErrUnauthorizedAddress
+	if err := ms.checkValidToAdd(msg); err != nil {
+		return err
 	}
 	ms.messages[msg.Address] = msg
 
 	return nil
+}
+
+func (ms *messageSetImpl) AddAll(msgs []*istanbul.Message) int {
+	ms.messagesMu.Lock()
+	defer ms.messagesMu.Unlock()
+	var added = 0
+	for _, msg := range msgs {
+		err := ms.checkValidToAdd(msg)
+		// Do not overwrite existing message by the same address
+		if err == nil && ms.messages[msg.Address] == nil {
+			ms.messages[msg.Address] = msg
+			added++
+		}
+	}
+	return added
 }
 
 func (ms *messageSetImpl) GetAddressIndex(addr common.Address) (uint64, error) {

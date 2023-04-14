@@ -54,8 +54,3 @@ const (
 func IsIstanbulMsg(msg p2p.Msg) bool {
 	return msg.Code >= ConsensusMsg && msg.Code <= ValidatorHandshakeMsg
 }
-
-// IsGossipedMsg specifies which messages should be gossiped throughout the network (as opposed to directly sent to a peer).
-func IsGossipedMsg(msgCode uint64) bool {
-	return msgCode == QueryEnodeMsg || msgCode == VersionCertificatesMsg
-}
