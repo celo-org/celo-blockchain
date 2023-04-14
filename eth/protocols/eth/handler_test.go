@@ -327,9 +327,9 @@ func testGetBlockBodies(t *testing.T, protocol uint) {
 	for i, tt := range tests {
 		// Collect the hashes to request, and the response to expectva
 		var (
-			hashes               []common.Hash
-			bodiesAndBlockHashes BlockBodiesPacket
-			seen                 = make(map[int64]bool)
+			hashes []common.Hash
+			bodies BlockBodiesPacket
+			seen   = make(map[int64]bool)
 		)
 		for j := 0; j < tt.random; j++ {
 			for {
@@ -339,12 +339,10 @@ func testGetBlockBodies(t *testing.T, protocol uint) {
 
 					block := backend.chain.GetBlockByNumber(uint64(num))
 					hashes = append(hashes, block.Hash())
-					if len(bodiesAndBlockHashes) < tt.expected {
-						bhEntry := &blockBodyWithBlockHash{BlockHash: block.Hash(),
-							BlockBody: &types.Body{Transactions: block.Transactions(),
-								Randomness:     block.Randomness(),
-								EpochSnarkData: block.EpochSnarkData()}}
-						bodiesAndBlockHashes = append(bodiesAndBlockHashes, bhEntry)
+					if len(bodies) < tt.expected {
+						bodies = append(bodies, &types.Body{Transactions: block.Transactions(),
+							Randomness:     block.Randomness(),
+							EpochSnarkData: block.EpochSnarkData()})
 					}
 					break
 				}
@@ -352,13 +350,11 @@ func testGetBlockBodies(t *testing.T, protocol uint) {
 		}
 		for j, hash := range tt.explicit {
 			hashes = append(hashes, hash)
-			if tt.available[j] && len(bodiesAndBlockHashes) < tt.expected {
+			if tt.available[j] && len(bodies) < tt.expected {
 				block := backend.chain.GetBlockByHash(hash)
-				bhEntry := &blockBodyWithBlockHash{BlockHash: block.Hash(),
-					BlockBody: &types.Body{Transactions: block.Transactions(),
-						Randomness:     block.Randomness(),
-						EpochSnarkData: block.EpochSnarkData()}}
-				bodiesAndBlockHashes = append(bodiesAndBlockHashes, bhEntry)
+				bodies = append(bodies, &types.Body{Transactions: block.Transactions(),
+					Randomness:     block.Randomness(),
+					EpochSnarkData: block.EpochSnarkData()})
 			}
 		}
 		// Send the hash request and verify the response
@@ -368,7 +364,7 @@ func testGetBlockBodies(t *testing.T, protocol uint) {
 		})
 		if err := p2p.ExpectMsg(peer.app, BlockBodiesMsg, BlockBodiesPacket67{
 			RequestId:         123,
-			BlockBodiesPacket: bodiesAndBlockHashes,
+			BlockBodiesPacket: bodies,
 		}); err != nil {
 			t.Errorf("test %d: bodies mismatch: %v", i, err)
 		}

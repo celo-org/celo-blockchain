@@ -120,8 +120,7 @@ type headerFilterTask struct {
 // bodyFilterTask represents a batch of block bodies
 // needing fetcher filtering.
 type bodyFilterTask struct {
-	peer           string // The source peer of block bodies
-	blockHashes    []common.Hash
+	peer           string                 // The source peer of block bodies
 	transactions   [][]*types.Transaction // Collection of transactions per block bodies
 	randomness     []*types.Randomness
 	epochSnarkData []*types.EpochSnarkData
@@ -302,7 +301,7 @@ func (f *BlockFetcher) FilterHeaders(peer string, headers []*types.Header, time 
 
 // FilterBodies extracts all the block bodies that were explicitly requested by
 // the fetcher, returning those that should be handled differently.
-func (f *BlockFetcher) FilterBodies(peer string, blockHashes []common.Hash, transactions [][]*types.Transaction, randomness []*types.Randomness, epochSnarkData []*types.EpochSnarkData, time time.Time) ([]common.Hash, [][]*types.Transaction, []*types.Randomness, []*types.EpochSnarkData) {
+func (f *BlockFetcher) FilterBodies(peer string, transactions [][]*types.Transaction, randomness []*types.Randomness, epochSnarkData []*types.EpochSnarkData, time time.Time) ([][]*types.Transaction, []*types.Randomness, []*types.EpochSnarkData) {
 	log.Trace("Filtering bodies", "peer", peer, "txs", len(transactions))
 
 	// Send the filter channel to the fetcher
@@ -311,20 +310,20 @@ func (f *BlockFetcher) FilterBodies(peer string, blockHashes []common.Hash, tran
 	select {
 	case f.bodyFilter <- filter:
 	case <-f.quit:
-		return nil, nil, nil, nil
+		return nil, nil, nil
 	}
 	// Request the filtering of the body list
 	select {
-	case filter <- &bodyFilterTask{peer: peer, blockHashes: blockHashes, transactions: transactions, randomness: randomness, epochSnarkData: epochSnarkData, time: time}:
+	case filter <- &bodyFilterTask{peer: peer, transactions: transactions, randomness: randomness, epochSnarkData: epochSnarkData, time: time}:
 	case <-f.quit:
-		return nil, nil, nil, nil
+		return nil, nil, nil
 	}
 	// Retrieve the bodies remaining after filtering
 	select {
 	case task := <-filter:
-		return task.blockHashes, task.transactions, task.randomness, task.epochSnarkData
+		return task.transactions, task.randomness, task.epochSnarkData
 	case <-f.quit:
-		return nil, nil, nil, nil
+		return nil, nil, nil
 	}
 }
 
@@ -596,14 +595,12 @@ func (f *BlockFetcher) loop() {
 			blocks := []*types.Block{}
 			// abort early if there's nothing explicitly requested
 			if len(f.completing) > 0 {
-				for i := 0; i < len(task.blockHashes) && i < len(task.transactions) && i < len(task.randomness) && i < len(task.epochSnarkData); i++ {
+				// for i := 0; i < len(task.blockHashes) && i < len(task.transactions) && i < len(task.randomness) && i < len(task.epochSnarkData); i++ {
+				for i := 0; i < len(task.transactions) && i < len(task.randomness) && i < len(task.epochSnarkData); i++ {
 					// Match up a body to any possible completion request
 					var matched = false
 					for hash, announce := range f.completing {
 						if f.queued[hash] != nil || announce.origin != task.peer {
-							continue
-						}
-						if task.blockHashes[i] != announce.header.Hash() {
 							continue
 						}
 						// Mark the body matched, reassemble if still unknown
@@ -618,7 +615,7 @@ func (f *BlockFetcher) loop() {
 
 					}
 					if matched {
-						task.blockHashes = append(task.blockHashes[:i], task.blockHashes[i+1:]...)
+						// task.blockHashes = append(task.blockHashes[:i], task.blockHashes[i+1:]...)
 						task.transactions = append(task.transactions[:i], task.transactions[i+1:]...)
 						task.randomness = append(task.randomness[:i], task.randomness[i+1:]...)
 						task.epochSnarkData = append(task.epochSnarkData[:i], task.epochSnarkData[i+1:]...)

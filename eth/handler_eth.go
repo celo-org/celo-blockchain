@@ -166,7 +166,7 @@ func (h *ethHandler) handleBodies(peer *eth.Peer, blockHashes []common.Hash, tra
 	// Filter out any explicitly requested bodies, deliver the rest to the downloader
 	filter := len(blockHashes) > 0 || len(transactions) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0
 	if filter {
-		blockHashes, transactions, randomness, epochSnarkData = h.blockFetcher.FilterBodies(peer.ID(), blockHashes, transactions, randomness, epochSnarkData, time.Now())
+		transactions, randomness, epochSnarkData = h.blockFetcher.FilterBodies(peer.ID(), transactions, randomness, epochSnarkData, time.Now())
 	}
 	if len(blockHashes) > 0 || len(transactions) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0 || !filter {
 		err := h.downloader.DeliverBodies(peer.ID(), transactions, randomness, epochSnarkData)

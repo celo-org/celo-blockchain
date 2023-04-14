@@ -199,13 +199,8 @@ type GetBlockBodiesPacket67 struct {
 	GetBlockBodiesPacket
 }
 
-type blockBodyWithBlockHash struct {
-	BlockHash common.Hash
-	BlockBody *types.Body
-}
-
 // BlockBodiesPacket is the network packet for block content distribution.
-type BlockBodiesPacket []*blockBodyWithBlockHash
+type BlockBodiesPacket []*types.Body
 
 // BlockBodiesPacket is the network packet for block content distribution over celo/67 (eth/66).
 type BlockBodiesPacket67 struct {
@@ -240,11 +235,10 @@ func (p *BlockBodiesPacket) Unpack() ([]common.Hash, [][]*types.Transaction, []*
 		epochSnarkData = make([]*types.EpochSnarkData, len(*p))
 	)
 
-	for i, blockBodyWithBlockHash := range *p {
-		blockHashes[i] = blockBodyWithBlockHash.BlockHash
-		transactions[i] = blockBodyWithBlockHash.BlockBody.Transactions
-		randomness[i] = blockBodyWithBlockHash.BlockBody.Randomness
-		epochSnarkData[i] = blockBodyWithBlockHash.BlockBody.EpochSnarkData
+	for i, body := range *p {
+		transactions[i] = body.Transactions
+		randomness[i] = body.Randomness
+		epochSnarkData[i] = body.EpochSnarkData
 	}
 	return blockHashes, transactions, randomness, epochSnarkData
 }

@@ -140,27 +140,21 @@ func handleGetBlockBodies67(backend Backend, msg Decoder, peer *Peer) error {
 func answerGetBlockBodiesQuery(backend Backend, query GetBlockBodiesPacket, peer *Peer) ([]rlp.RawValue, error) {
 	// Gather blocks until the fetch or network limits is reached
 	var (
-		bytes                int
-		bodiesAndBlockHashes []rlp.RawValue
+		bytes  int
+		bodies []rlp.RawValue
 	)
 	for lookups, hash := range query {
-		if bytes >= softResponseLimit || len(bodiesAndBlockHashes) >= maxBodiesServe ||
+		if bytes >= softResponseLimit || len(bodies) >= maxBodiesServe ||
 			lookups >= 2*maxBodiesServe {
 			break
 		}
 		// Retrieve the requested block body, stopping if enough was found
-		if body := backend.Chain().GetBody(hash); body != nil {
-			bh := &blockBodyWithBlockHash{BlockHash: hash, BlockBody: body}
-			bhRLPbytes, err := rlp.EncodeToBytes(bh)
-			if err != nil {
-				return nil, err
-			}
-			bhRLP := rlp.RawValue(bhRLPbytes)
-			bodiesAndBlockHashes = append(bodiesAndBlockHashes, bhRLP)
-			bytes += len(bhRLP)
+		if data := backend.Chain().GetBodyRLP(hash); len(data) != 0 {
+			bodies = append(bodies, data)
+			bytes += len(data)
 		}
 	}
-	return bodiesAndBlockHashes, nil
+	return bodies, nil
 }
 
 func handleGetNodeData67(backend Backend, msg Decoder, peer *Peer) error {
