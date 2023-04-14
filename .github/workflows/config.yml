@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - "palango/test-remove-proto-changes"
   pull_request:
     branches:
       - master
