@@ -81,7 +81,7 @@ jobs:
 
   go-modules:
     name: Setup go
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repo
@@ -96,7 +96,7 @@ jobs:
   check-imports:
     name: Check imports
     needs: go-modules
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repo
