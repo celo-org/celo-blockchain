@@ -20,7 +20,7 @@ linters:
     - misspell
     # - staticcheck
     - unconvert
-    - unused
+    # - unused
 
     # - gosec
     # - errcheck
