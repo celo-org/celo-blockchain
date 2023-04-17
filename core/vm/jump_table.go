@@ -57,13 +57,21 @@ var (
 	constantinopleInstructionSet   = newConstantinopleInstructionSet()
 	istanbulInstructionSet         = newIstanbulInstructionSet()
 	espressoInstructionSet         = newEspressoInstructionSet()
+	gforkInstructionSet            = newGforkInstructionSet()
 )
 
 // JumpTable contains the EVM opcodes supported at a given fork.
 type JumpTable [256]*operation
 
+// newGforkInstructionSet returns the frontier, homestead, byzantium,
+// constantinople, istanbul, petersburg, espresso and g-fork instructions.
+func newGforkInstructionSet() JumpTable {
+	instructionSet := newEspressoInstructionSet()
+	return instructionSet
+}
+
 // newEspressoInstructionSet returns the frontier, homestead, byzantium,
-// constantinople, istanbul, petersburg, E instructions.
+// constantinople, istanbul, petersburg and espresso instructions.
 func newEspressoInstructionSet() JumpTable {
 	instructionSet := newIstanbulInstructionSet()
 	enable2929(&instructionSet) // Access lists for trie accesses https://eips.ethereum.org/EIPS/eip-2929
