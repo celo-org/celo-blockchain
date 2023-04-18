@@ -54,6 +54,10 @@ var templateFlags = []cli.Flag{
 		Name:  "forks.espresso",
 		Usage: "Optional flag to allow espresso fork overwritting (default: 0, disable: -1)",
 	},
+	cli.Int64Flag{
+		Name:  "forks.gfork",
+		Usage: "Optional flag to allow gfork fork overwritting (default: 0, disable: -1)",
+	},
 }
 
 var buildpathFlag = cli.StringFlag{
