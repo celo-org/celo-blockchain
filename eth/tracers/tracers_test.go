@@ -247,7 +247,6 @@ func testCallTracer(tracer string, dirPath string, t *testing.T) {
 				Transfer:    vmcontext.TobinTransfer,
 				Coinbase:    test.Context.Miner,
 				BlockNumber: new(big.Int).SetUint64(uint64(test.Context.Number)),
-
 				Time:        new(big.Int).SetUint64(uint64(test.Context.Time)),
 			}
 			_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false)
