@@ -34,7 +34,8 @@
       "eip155Block": 10,
       "eip158Block": 10,
       "ethash": {},
-      "homesteadBlock": 0
+      "homesteadBlock": 0,
+      "donutBlock": 0
     },
     "difficulty": "117066792",
     "extraData": "0xd783010502846765746887676f312e372e33856c696e7578",

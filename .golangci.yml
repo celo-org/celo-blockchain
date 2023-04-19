@@ -12,7 +12,6 @@ run:
 linters:
   disable-all: true
   enable:
-    - deadcode
     - goconst
     - goimports
     - gosimple
@@ -22,7 +21,6 @@ linters:
     # - staticcheck
     - unconvert
     # - unused
-    - varcheck
 
     # - gosec
     # - errcheck

@@ -874,6 +874,10 @@ func (fb *filterBackend) ServiceFilter(ctx context.Context, ms *bloombits.Matche
 	panic("not supported")
 }
 
+func (fb *filterBackend) RealGasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error) {
+	return nil, fmt.Errorf("filterBackend does not implement RealGasPriceMinimumForHeader")
+}
+
 func nullSubscription() event.Subscription {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
 		<-quit

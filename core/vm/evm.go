@@ -193,7 +193,10 @@ func (evm *EVM) GetDebug() bool {
 }
 
 func (evm *EVM) SetDebug(value bool) {
+	// Set both of these in sync since they refer to the same config data
+	// and are interchangeably used in the interpreter & evm.
 	evm.Config.Debug = value
+	evm.interpreter.cfg.Debug = value
 }
 
 // Call executes the contract associated with the addr with the given input as
