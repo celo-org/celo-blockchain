@@ -54,6 +54,10 @@ var templateFlags = []cli.Flag{
 		Name:  "forks.espresso",
 		Usage: "Optional flag to allow espresso fork overwritting (default: 0, disable: -1)",
 	},
+	cli.Int64Flag{
+		Name:  "forks.gfork",
+		Usage: "Optional flag to allow gfork fork overwritting (default: 0, disable: -1)",
+	},
 }
 
 var buildpathFlag = cli.StringFlag{
@@ -164,6 +168,15 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 			genesisConfig.Hardforks.EspressoBlock = nil
 		} else {
 			genesisConfig.Hardforks.EspressoBlock = big.NewInt(espressoBlockNumber)
+		}
+	}
+
+	if ctx.IsSet("forks.gFork") {
+		gForkBlockNumber := ctx.Int64("forks.gFork")
+		if gForkBlockNumber < 0 {
+			genesisConfig.Hardforks.GForkBlock = nil
+		} else {
+			genesisConfig.Hardforks.GForkBlock = big.NewInt(gForkBlockNumber)
 		}
 	}
 

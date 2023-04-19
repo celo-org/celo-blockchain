@@ -65,6 +65,7 @@ var (
 		ChurritoBlock:       big.NewInt(6774000),
 		DonutBlock:          big.NewInt(6774000),
 		EspressoBlock:       big.NewInt(11838440),
+		GForkBlock:          nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -90,6 +91,7 @@ var (
 		ChurritoBlock:       big.NewInt(2719099),
 		DonutBlock:          big.NewInt(5002000),
 		EspressoBlock:       big.NewInt(9195000),
+		GForkBlock:          nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -115,6 +117,7 @@ var (
 		ChurritoBlock:       big.NewInt(4960000),
 		DonutBlock:          big.NewInt(4960000),
 		EspressoBlock:       big.NewInt(9472000),
+		GForkBlock:          nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -124,28 +127,28 @@ var (
 		},
 	}
 
-	DeveloperChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
+	DeveloperChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), big.NewInt(0), nil, nil, &IstanbulConfig{
 		Epoch:          300,
 		ProposerPolicy: 0,
 		RequestTimeout: 1000,
 		BlockPeriod:    1,
 	}, true, false}
 
-	IstanbulTestChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, nil, &IstanbulConfig{
+	IstanbulTestChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, nil, nil, &IstanbulConfig{
 		Epoch:          300,
 		ProposerPolicy: 0,
 		RequestTimeout: 1000,
 		BlockPeriod:    1,
 	}, true, false}
 
-	IstanbulEHFTestChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), big.NewInt(0), big.NewInt(0), &IstanbulConfig{
+	IstanbulEHFTestChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), &IstanbulConfig{
 		Epoch:          300,
 		ProposerPolicy: 0,
 		RequestTimeout: 1000,
 		BlockPeriod:    1,
 	}, true, false}
 
-	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, nil, &IstanbulConfig{
+	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, nil, nil, &IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
 	}, true, true}
@@ -230,6 +233,7 @@ type ChainConfig struct {
 	ChurritoBlock       *big.Int `json:"churritoBlock,omitempty"`       // Churrito switch block (nil = no fork, 0 = already activated)
 	DonutBlock          *big.Int `json:"donutBlock,omitempty"`          // Donut switch block (nil = no fork, 0 = already activated)
 	EspressoBlock       *big.Int `json:"espressoBlock,omitempty"`       // Espresso switch block (nil = no fork, 0 = already activated)
+	GForkBlock          *big.Int `json:"gForkBlock,omitempty"`          // G Fork switch block (nil = no fork, 0 = already activated)
 
 	Istanbul *IstanbulConfig `json:"istanbul,omitempty"`
 	// This does not belong here but passing it to every function is not possible since that breaks
@@ -271,7 +275,7 @@ func (c *ChainConfig) String() string {
 	} else {
 		engine = "MockEngine"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v Churrito: %v, Donut: %v, Espresso: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v Churrito: %v, Donut: %v, Espresso: %v, GFork: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -286,6 +290,7 @@ func (c *ChainConfig) String() string {
 		c.ChurritoBlock,
 		c.DonutBlock,
 		c.EspressoBlock,
+		c.GForkBlock,
 		engine,
 	)
 }
@@ -352,9 +357,14 @@ func (c *ChainConfig) IsDonut(num *big.Int) bool {
 	return isForked(c.DonutBlock, num)
 }
 
-// IsEspresso returns whether num represents a block number after the E fork
+// IsEspresso returns whether num represents a block number after the Espresso fork
 func (c *ChainConfig) IsEspresso(num *big.Int) bool {
 	return isForked(c.EspressoBlock, num)
+}
+
+// IsGFork returns whether num represents a block number after the G fork
+func (c *ChainConfig) IsGFork(num *big.Int) bool {
+	return isForked(c.GForkBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -396,6 +406,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "churritoBlock", block: c.ChurritoBlock},
 		{name: "donutBlock", block: c.DonutBlock},
 		{name: "espressoBlock", block: c.EspressoBlock},
+		{name: "gForkBlock", block: c.GForkBlock},
 	} {
 		if lastFork.name != "" {
 			// Next one must be higher number
@@ -466,7 +477,10 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 		return newCompatError("Donut fork block", c.DonutBlock, newcfg.DonutBlock)
 	}
 	if isForkIncompatible(c.EspressoBlock, newcfg.EspressoBlock, head) {
-		return newCompatError("E fork block", c.EspressoBlock, newcfg.EspressoBlock)
+		return newCompatError("Espresso fork block", c.EspressoBlock, newcfg.EspressoBlock)
+	}
+	if isForkIncompatible(c.GForkBlock, newcfg.GForkBlock, head) {
+		return newCompatError("G fork block", c.GForkBlock, newcfg.GForkBlock)
 	}
 	return nil
 }
@@ -535,7 +549,7 @@ type Rules struct {
 	ChainID                                                 *big.Int
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
-	IsChurrito, IsDonut, IsEspresso                         bool
+	IsChurrito, IsDonut, IsEspresso, IsGFork                bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -557,5 +571,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsChurrito:       c.IsChurrito(num),
 		IsDonut:          c.IsDonut(num),
 		IsEspresso:       c.IsEspresso(num),
+		IsGFork:          c.IsGFork(num),
 	}
 }

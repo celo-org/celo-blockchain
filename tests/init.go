@@ -170,6 +170,21 @@ var Forks = map[string]*params.ChainConfig{
 		DonutBlock:          big.NewInt(0),
 		EspressoBlock:       big.NewInt(5),
 	},
+	"GFork": {
+		ChainID:             big.NewInt(1),
+		HomesteadBlock:      big.NewInt(0),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		ChurritoBlock:       big.NewInt(0),
+		DonutBlock:          big.NewInt(0),
+		EspressoBlock:       big.NewInt(0),
+		GForkBlock:          big.NewInt(0),
+	},
 }
 
 // Returns the set of defined fork names
