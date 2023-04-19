@@ -48,6 +48,7 @@ const (
 
 	ErrorJson = 10
 	ErrorIO   = 11
+	Test      = 12
 
 	stdinSelector = "stdin"
 )
