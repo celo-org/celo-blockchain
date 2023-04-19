@@ -35,7 +35,8 @@
       "eip155Block": 10,
       "eip158Block": 10,
       "ethash": {},
-      "homesteadBlock": 0
+      "homesteadBlock": 0,
+      "donutBlock": 0
     },
     "difficulty": "3509749784",
     "extraData": "0x4554482e45544846414e532e4f52472d4641313738394444",
@@ -54,7 +55,7 @@
     "error": "execution reverted",
     "from": "0xf7579c3d8a669c89d5ed246a22eb6db8f6fedbf1",
     "gas": "0x2d7308",
-    "gasUsed": "0x588",
+    "gasUsed": "0x330",
     "input": "0x5c19a95c000000000000000000000000f7579c3d8a669c89d5ed246a22eb6db8f6fedbf1",
     "to": "0xf58833cf0c791881b494eb79d461e08a1f043f52",
     "type": "CALL",

@@ -297,6 +297,33 @@ func TestBlockTracingConcurrentMapAccess(t *testing.T) {
 	wg.Wait()
 }
 
+// Sends and traces a single native transfer.
+// Helpful for debugging issues in TestBlockTracingConcurrentMapAccess.
+func TestBlockTracingSequentialAccess(t *testing.T) {
+	ac := test.AccountConfig(1, 2)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*300)
+	defer cancel()
+	n := network[0]
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, n)
+	require.NoError(t, err)
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+	b := n.Tracker.GetProcessedBlockForTx(tx.Hash())
+	c, err := rpc.DialContext(ctx, n.WSEndpoint())
+	require.NoError(t, err)
+	var result []interface{}
+	err = c.CallContext(ctx, &result, "debug_traceBlockByNumber", hexutil.EncodeUint64(uint64(int(b.NumberU64()))))
+	require.NoError(t, err)
+}
+
 type rpcCustomTransaction struct {
 	BlockNumber *hexutil.Big `json:"blockNumber"`
 	BlockHash   *common.Hash `json:"blockHash"`
