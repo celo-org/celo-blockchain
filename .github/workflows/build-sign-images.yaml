@@ -1,0 +1,129 @@
+name: Build and Sign Blockchain images
+
+on:
+  push:
+    branches:
+      - 'release/[0-9]+.[0-9]+'
+    tags:        
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+
+jobs:
+  Replace-Branch-Name:
+    runs-on: ubuntu-latest
+    # Map a step output to a job output
+    outputs:
+      replaced-branch: ${{ steps.replace.outputs.value }}
+    if: startsWith(github.ref, 'refs/heads/release')
+    steps:
+      - id: replace
+        uses: mad9000/actions-find-and-replace-string@3
+        with:
+          source: ${{ github.ref_name }}
+          find: '/'
+          replace: ''
+
+  Replace-Tag-V:
+    runs-on: ubuntu-latest
+    # Map a step output to a job output
+    outputs:
+      replaced-tag: ${{ steps.replace.outputs.value }}
+      major: ${{ steps.major-minor.outputs.MAJOR }}
+      major-minor: ${{ steps.major-minor.outputs.MAJOR_MINOR }}
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - id: replace
+        uses: mad9000/actions-find-and-replace-string@3
+        with:
+          source: ${{ github.ref_name }}
+          find: 'v'
+          replace: ''
+      - id: major-minor
+        run: |
+          version=${{ steps.replace.outputs.value }}
+          semver=( ${version//./ } )
+          echo "MAJOR=${semver[0]}" >> $GITHUB_OUTPUT
+          echo "MAJOR_MINOR=${semver[0]}.${semver[1]}" >> $GITHUB_OUTPUT
+
+  Build-Container-geth-dev:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
+    if: startsWith(github.ref, 'refs/heads/release')
+    needs:
+      - Replace-Branch-Name
+    with:
+      workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
+      service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
+      artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
+      tag: testing-${{needs.Replace-Branch-Name.outputs.replaced-branch}}
+      context: .
+
+  Build-Container-geth-all-dev:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
+    if: startsWith(github.ref, 'refs/heads/release')
+    needs:
+      - Replace-Branch-Name
+    with:
+      workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
+      service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
+      artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth-all
+      tag: testing-${{needs.Replace-Branch-Name.outputs.replaced-branch}}
+      context: .
+      file: Dockerfile.all
+
+  Build-Container-geth:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - Replace-Tag-V
+    with:
+      workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-tag/providers/github-by-repos'
+      service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
+      artifact-registry: us-west1-docker.pkg.dev/devopsre/clabs-public-images/geth-tag
+      tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
+      context: .
+
+  Build-Container-geth-all:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - Replace-Tag-V
+    with:
+      workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-tag/providers/github-by-repos'
+      service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
+      artifact-registry: us-west1-docker.pkg.dev/devopsre/clabs-public-images/geth-tag-all
+      tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
+      context: .
+      file: Dockerfile.all
+
+  Add-Baklava-tag:
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/add-docker-tag.yaml
+    needs:
+      - Replace-Tag-V
+      - Build-Container
+      - Build-Container-all
+    with:
+      origin-tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
+      destination-tag: baklava
+
+  Add-Major-tag:
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/add-docker-tag.yaml
+    needs:
+      - Replace-Tag-V
+      - Build-Container
+      - Build-Container-all
+    with:
+      origin-tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
+      destination-tag: ${{needs.Replace-Tag-V.outputs.major}}
+
+  Add-Major-Minor-tag:
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/add-docker-tag.yaml
+    needs:
+      - Replace-Tag-V
+      - Build-Container
+      - Build-Container-all
+    with:
+      origin-tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
+      destination-tag: ${{needs.Replace-Tag-V.outputs.major-minor}}
