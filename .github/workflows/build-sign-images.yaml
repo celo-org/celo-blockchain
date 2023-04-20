@@ -68,7 +68,7 @@ jobs:
       artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth-all
       tag: testing-${{needs.Replace-Branch-Name.outputs.replaced-branch}}
       context: .
-      file: Dockerfile.all
+      file: Dockerfile.alltools
 
   Build-Container-geth:
     uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
@@ -93,7 +93,7 @@ jobs:
       artifact-registry: us-west1-docker.pkg.dev/devopsre/clabs-public-images/geth-tag-all
       tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
       context: .
-      file: Dockerfile.all
+      file: Dockerfile.alltools
 
   Add-Baklava-tag:
     if: startsWith(github.ref, 'refs/tags/v')
