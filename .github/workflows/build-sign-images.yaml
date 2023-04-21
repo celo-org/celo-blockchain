@@ -17,11 +17,9 @@ jobs:
     if: startsWith(github.ref, 'refs/heads/release')
     steps:
       - id: replace
-        uses: mad9000/actions-find-and-replace-string@3
-        with:
-          source: ${{ github.ref_name }}
-          find: '/'
-          replace: ''
+        run: |
+          branch_name=$(echo ${{ github.ref_name }} | sed 's/\///' )
+          echo "value=${branch_name}" >> $GITHUB_OUTPUT
 
   Replace-Tag-V:
     runs-on: ubuntu-latest
@@ -33,11 +31,9 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - id: replace
-        uses: mad9000/actions-find-and-replace-string@3
-        with:
-          source: ${{ github.ref_name }}
-          find: 'v'
-          replace: ''
+        run: |
+          version=$(echo ${{ github.ref_name }} | sed 's/^v//' )
+          echo "value=${version}" >> $GITHUB_OUTPUT
       - id: major-minor
         run: |
           version=${{ steps.replace.outputs.value }}
