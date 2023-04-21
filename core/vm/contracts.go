@@ -698,7 +698,7 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM) ([]byte, e
 	//   to:    32 bytes representing the address of the recipient
 	//   value: 32 bytes, a 256 bit integer representing the amount of Celo Gold to transfer
 	// 3 arguments x 32 bytes each = 96 bytes total input
-	if len(input) != 96 {
+	if (evm.chainRules.IsGFork && len(input) != 96) || len(input) <= 96 {
 		return nil, ErrInputLength
 	}
 
@@ -781,7 +781,7 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM) ([]b
 	//   decimals:     32 bytes, 256 bit integer, places of precision
 	//
 	// 6 args x 32 bytes each = 192 bytes total input length
-	if len(input) != 192 {
+	if (evm.chainRules.IsGFork && len(input) != 192) || len(input) < 192 {
 		return nil, ErrInputLength
 	}
 
@@ -1015,7 +1015,7 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM) ([]byt
 	// input is comprised of two arguments:
 	//   index: 32 byte integer representing the index of the validator to get
 	//   blockNumber: 32 byte integer representing the block number to access
-	if len(input) != 64 {
+	if (evm.chainRules.IsGFork && len(input) != 64) || len(input) < 64 {
 		return nil, ErrInputLength
 	}
 
