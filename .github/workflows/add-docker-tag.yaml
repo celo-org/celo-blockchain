@@ -46,5 +46,5 @@ jobs:
 
       - id: add-tag
         run: |
-          gcloud container images add-tag us-west1-docker.pkg.dev/devopsre/clabs-public-images/test-wid-tag:${{ inputs.origin-tag }} us-west1-docker.pkg.dev/devopsre/clabs-public-images/test-wid-tag:${{ inputs.destination-tag }}
-          gcloud container images add-tag us-west1-docker.pkg.dev/devopsre/clabs-public-images/test-wid-tag-all:${{ inputs.origin-tag }} us-west1-docker.pkg.dev/devopsre/clabs-public-images/test-wid-tag-all:${{ inputs.destination-tag }}
+          gcloud container images add-tag us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/test-wid-tag:${{ inputs.origin-tag }} us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/test-wid-tag:${{ inputs.destination-tag }}
+          gcloud container images add-tag us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/test-wid-tag-all:${{ inputs.origin-tag }} us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/test-wid-tag-all:${{ inputs.destination-tag }}
