@@ -159,10 +159,6 @@ jobs:
       run: |
         go install github.com/jstemmer/go-junit-report@latest
         CI=true go test -v -cover -coverprofile=coverage.out ./... | tee go-test.out
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
-      with:
-        limit-access-to-actor: true
     - name: Generate test report
       if: always()
       run: |
