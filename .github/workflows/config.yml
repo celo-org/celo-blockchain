@@ -4,11 +4,14 @@ on:
   push:
     branches:
       - master
-      - jcortejoso/test-self-hosted-runners
 
   pull_request:
     branches:
       - master
+
+concurrency: 
+  group: ${{ github.head_ref }}
+  cancel-in-progress: true
 
 env:
   # Increment these to force cache rebuilding
