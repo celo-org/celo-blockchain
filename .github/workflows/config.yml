@@ -162,7 +162,7 @@ jobs:
     - name: Generate test report
       if: always()
       run: |
-        go-junit-report -set-exit-code < go-test.out > report.xml
+        go-junit-report -set-exit-code < go-test.out | tee -a report.xml
     - name: Test summary
       id: unit-tests-summary
       if: always()
