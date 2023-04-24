@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - master
+      - jcortejoso/test-self-hosted-runners
+
   pull_request:
     branches:
       - master
@@ -20,7 +22,7 @@ env:
 jobs:
   prepare-system-contracts:
     name: Build celo-monorepo
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
     env:
       NODE_VERSION: 12
       PYTHON_VERSION: '2.7'
@@ -81,7 +83,7 @@ jobs:
 
   go-modules:
     name: Setup go
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
 
     steps:
     - name: Checkout repo
@@ -96,7 +98,7 @@ jobs:
   check-imports:
     name: Check imports
     needs: go-modules
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
 
     steps:
     - name: Checkout repo
@@ -112,7 +114,7 @@ jobs:
 
   lint:
     name: Lint code
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
     needs: go-modules
 
     steps:
@@ -129,7 +131,7 @@ jobs:
 
   unit-tests:
     name: Unit tests
-    runs-on: ubuntu-latest-4-cores
+    runs-on: [self-hosted, blockchain, 8-cpu]
     needs:
     - go-modules
     - prepare-system-contracts
@@ -181,7 +183,7 @@ jobs:
   race:
     name: Data race detector
     if: ${{ github.ref == 'refs/heads/master' || contains(github.ref, 'release') }}
-    runs-on: ubuntu-latest-4-cores
+    runs-on: [self-hosted, blockchain, 8-cpu]
     needs:
     - go-modules
     - prepare-system-contracts
@@ -218,7 +220,7 @@ jobs:
 
   build-and-store-binaries:
     name: Build and store binaries
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
     needs:
       - go-modules
 
@@ -242,7 +244,7 @@ jobs:
 
   istanbul-e2e-coverage:
     name: Istanbul consensus coverage
-    runs-on: ubuntu-latest-4-cores
+    runs-on: [self-hosted, blockchain, 8-cpu]
     # Needed to publish the summary PR comment
     permissions:
       pull-requests: write
@@ -291,7 +293,7 @@ jobs:
 
   lightest-sync-test:
     name: Lightest sync test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
 
     needs:
     - build-and-store-binaries
@@ -319,7 +321,7 @@ jobs:
 
   e2e-benchmarks:
     name: End-to-end benchmarks
-    runs-on: ubuntu-latest-4-cores
+    runs-on: [self-hosted, blockchain, 8-cpu]
 
     needs:
     - go-modules
@@ -353,7 +355,7 @@ jobs:
 
   end-to-end-blockchain-parameters-test:
     name: End-to-end blockchain parameters test
-    runs-on: ubuntu-latest-4-cores
+    runs-on: [self-hosted, blockchain, 8-cpu]
     env:
       NODE_VERSION: 12
 
@@ -399,7 +401,7 @@ jobs:
 
   end-to-end-governance-test:
     name: End-to-end governance test
-    runs-on: ubuntu-latest-4-cores
+    runs-on: [self-hosted, blockchain, 8-cpu]
     env:
       NODE_VERSION: 12
 
@@ -446,7 +448,7 @@ jobs:
 
   end-to-end-sync-test:
     name: End-to-end sync test
-    runs-on: ubuntu-latest-4-cores
+    runs-on: [self-hosted, blockchain, 8-cpu]
     env:
       NODE_VERSION: 12
 
@@ -492,7 +494,7 @@ jobs:
 
   end-to-end-slashing-test:
     name: End-to-end slashing test
-    runs-on: ubuntu-latest-4-cores
+    runs-on: [self-hosted, blockchain, 8-cpu]
     env:
       NODE_VERSION: 12
 
@@ -538,7 +540,7 @@ jobs:
 
   end-to-end-transfers-test:
     name: End-to-end transfers test
-    runs-on: ubuntu-latest-4-cores
+    runs-on: [self-hosted, blockchain, 8-cpu]
     env:
       NODE_VERSION: 12
 
@@ -584,7 +586,7 @@ jobs:
 
   end-to-end-validator-order-test:
     name: End-to-end validator order test
-    runs-on: ubuntu-latest-4-cores
+    runs-on: [self-hosted, blockchain, 8-cpu]
     env:
       NODE_VERSION: 12
 
@@ -630,7 +632,7 @@ jobs:
 
   end-to-end-cip35-eth-compatibility-test:
     name: End-to-end CIP35-eth compatibility test
-    runs-on: ubuntu-latest-4-cores
+    runs-on: [self-hosted, blockchain, 8-cpu]
     env:
       NODE_VERSION: 12
 
@@ -676,7 +678,7 @@ jobs:
 
   end-to-end-replica-test:
     name: End-to-end replica test
-    runs-on: ubuntu-latest-4-cores
+    runs-on: [self-hosted, blockchain, 8-cpu]
     env:
       NODE_VERSION: 12
 
