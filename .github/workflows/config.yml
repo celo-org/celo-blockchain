@@ -12,8 +12,8 @@ on:
 
 env:
   # Increment these to force cache rebuilding
-  SYSTEM_CONTRACTS_CACHE_VERSION: 2
-  CHECKOUT_MONOREPO_CACHE_VERSION: 4
+  SYSTEM_CONTRACTS_CACHE_VERSION: 3
+  CHECKOUT_MONOREPO_CACHE_VERSION: 5
   GO_VERSION: '1.17.5'
   # Location where compiled system contracts are stored under the root of this
   # repo.
