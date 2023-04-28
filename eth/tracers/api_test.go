@@ -670,11 +670,10 @@ func TestCallTraceTransactionPrecompileTransfer(t *testing.T) {
 		t.Fatalf("failed to pack args: %v", err)
 	}
 
-	transferPrecompile := vm.TransferAddress
 	gas := params.TxGas * 2
 	api := NewAPI(newTestBackend(t, 1, genesis, func(i int, b *core.BlockGen) {
-		// Transfer via transferPrecompile by sending tx from GoldToken addr
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), transferPrecompile, big.NewInt(0), gas, big.NewInt(3), nil, nil, nil, data), signer, goldToken.key)
+		// Transfer via transfer precompile by sending tx from GoldToken addr
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), vm.TransferAddress, big.NewInt(0), gas, big.NewInt(3), nil, nil, nil, data), signer, goldToken.key)
 		b.AddTx(tx)
 		target = tx.Hash()
 	}))
@@ -696,7 +695,7 @@ func TestCallTraceTransactionPrecompileTransfer(t *testing.T) {
 		// Outer transaction call
 		Type:   "CALL",
 		From:   goldToken.addr,
-		To:     transferPrecompile,
+		To:     vm.TransferAddress,
 		Input:  data,
 		Output: data,
 		Gas:    newRPCUint64(20112),
