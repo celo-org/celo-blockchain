@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus"
@@ -541,6 +542,195 @@ func TestTraceTransactionWithRegistryDeployed(t *testing.T) {
 		StructLogs:  []ethapi.StructLogRes{},
 	}) {
 		t.Error("Transaction tracing result is different")
+	}
+}
+
+// Use the callTracer to trace a native CELO transfer after the
+// registry has been deployed, as above.
+func TestCallTraceTransactionNativeTransfer(t *testing.T) {
+	t.Parallel()
+
+	// Initialize test accounts
+	accounts := newAccounts(2)
+	genesis := &core.Genesis{Alloc: core.GenesisAlloc{
+		accounts[0].addr: {Balance: big.NewInt(params.Ether)},
+		accounts[1].addr: {Balance: big.NewInt(params.Ether)},
+		common.HexToAddress("0xce10"): { // Registry Proxy
+			Code: testutil.RegistryProxyOpcodes,
+			Storage: map[common.Hash]common.Hash{
+				// Hashes represent the storage slot for Registry.sol's `registry` mapping
+				// which is stored in the RegistryProxy's storage.
+				// Hashes are computed by taking: keccack(packed(params.GoldTokenRegistryId, 1)),
+				// where 1 is the storage offset)
+				common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"): common.HexToHash("0xce11"), // Registry Implementation
+				common.HexToHash("0x91646b8507bf2e54d7c3de9155442ba111546b81af1cbdd1f68eeb6926b98d58"): common.HexToHash("0xd023"), // Governance Proxy
+			},
+			Balance: big.NewInt(0),
+		},
+		common.HexToAddress("0xce11"): { // Registry Implementation
+			Code:    testutil.RegistryOpcodes,
+			Balance: big.NewInt(0),
+		},
+	}}
+
+	target := common.Hash{}
+	signer := types.HomesteadSigner{}
+	transferVal := big.NewInt(1000)
+	api := NewAPI(newTestBackend(t, 1, genesis, func(i int, b *core.BlockGen) {
+		// Transfer from account[0] to account[1]
+		//    value: 1000 wei
+		//    fee:   0 wei
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, transferVal, params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		b.AddTx(tx)
+		target = tx.Hash()
+	}))
+	tracerStr := "callTracer"
+	result, err := api.TraceTransaction(context.Background(), target, &TraceConfig{Tracer: &tracerStr})
+	if err != nil {
+		t.Errorf("Failed to trace transaction %v", err)
+	}
+
+	ret := new(callTrace)
+	if err := json.Unmarshal(result.(json.RawMessage), ret); err != nil {
+		t.Fatalf("failed to unmarshal trace result: %v", err)
+	}
+	expectedTrace := &callTrace{
+		Type:    "CALL",
+		From:    accounts[0].addr,
+		To:      accounts[1].addr,
+		Input:   hexutil.Bytes(common.Hex2Bytes("0x")),
+		Output:  hexutil.Bytes(common.Hex2Bytes("0x")),
+		Gas:     newRPCUint64(0),
+		GasUsed: newRPCUint64(0),
+		Value:   (*hexutil.Big)(transferVal),
+	}
+	if !jsonEqual(ret, expectedTrace) {
+		t.Fatalf("trace mismatch: \nhave %+v\nwant %+v", ret, expectedTrace)
+	}
+}
+
+// Use the callTracer to trace a CELO transfer made via the transfer
+// precompile (by sending this from the registered GoldToken contract).
+func TestCallTraceTransactionPrecompileTransfer(t *testing.T) {
+	// Invoke the transfer precompile by sending a transfer from an account
+	// registered as GoldToken in the mock registry
+	t.Parallel()
+	// Initialize test accounts
+	accounts := newAccounts(3)
+	goldToken := accounts[0]
+	registryProxyAddr := common.HexToAddress("0xce10")
+	registryImplAddr := common.HexToAddress("0xce11")
+	genesis := &core.Genesis{Alloc: core.GenesisAlloc{
+		goldToken.addr:   {Balance: big.NewInt(params.Ether)},
+		accounts[1].addr: {Balance: big.NewInt(params.Ether)},
+		accounts[2].addr: {Balance: big.NewInt(params.Ether)},
+		registryProxyAddr: { // Registry Proxy
+			Code: testutil.RegistryProxyOpcodes,
+			Storage: map[common.Hash]common.Hash{
+				common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"): common.HexToHash("0xce11"),                                                             // Registry Implementation
+				common.HexToHash("0x91646b8507bf2e54d7c3de9155442ba111546b81af1cbdd1f68eeb6926b98d58"): common.HexToHash("0xd023"),                                                             // Governance Proxy
+				common.HexToHash("0x773cc8652456781771d48fb3d560d7ba3d6d1882654492b68beec583d2c590aa"): goldToken.addr.Hash(),                                                                  // GoldToken Implementation
+				common.HexToHash("0x2131a4338f6fb8d4507e234a7c72af8efefbbf2f1817ed570bce33eb6667feb9"): common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000d007"), // Reserve Implementation
+			},
+			Balance: big.NewInt(0),
+		},
+		registryImplAddr: { // Registry Implementation
+			Code:    testutil.RegistryOpcodes,
+			Balance: big.NewInt(0),
+		},
+	}}
+
+	target := common.Hash{}
+	signer := types.HomesteadSigner{}
+	transferVal := big.NewInt(1000)
+
+	// Construct and pack data for transfer precompile representing [from, to, value]
+	addressTy, err := abi.NewType("address", "", nil)
+	if err != nil {
+		t.Fatalf("failed to create address type: %v", err)
+	}
+	uint256Ty, err := abi.NewType("uint256", "", nil)
+	if err != nil {
+		t.Fatalf("failed to create uint256 type: %v", err)
+	}
+
+	transferArgs := abi.Arguments{
+		{
+			Type: addressTy,
+		},
+		{
+			Type: addressTy,
+		},
+		{
+			Type: uint256Ty,
+		},
+	}
+	data, err := transferArgs.Pack(accounts[1].addr, accounts[2].addr, transferVal)
+	if err != nil {
+		t.Fatalf("failed to pack args: %v", err)
+	}
+
+	transferPrecompile := vm.TransferAddress
+	gas := params.TxGas * 2
+	api := NewAPI(newTestBackend(t, 1, genesis, func(i int, b *core.BlockGen) {
+		// Transfer via transferPrecompile by sending tx from GoldToken addr
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), transferPrecompile, big.NewInt(0), gas, big.NewInt(3), nil, nil, nil, data), signer, goldToken.key)
+		b.AddTx(tx)
+		target = tx.Hash()
+	}))
+	tracerStr := "callTracer"
+	result, err := api.TraceTransaction(context.Background(), target, &TraceConfig{Tracer: &tracerStr})
+
+	if err != nil {
+		t.Errorf("Failed to trace transaction %v", err)
+	}
+
+	ret := new(callTrace)
+	if err := json.Unmarshal(result.(json.RawMessage), ret); err != nil {
+		t.Fatalf("failed to unmarshal trace result: %v", err)
+	}
+
+	// Registry ABI packed version of Registry.getAddressFor("GoldToken")
+	packedGetAddressForGoldToken := common.FromHex("0xdd927233d7e89ade8430819f08bf97a087285824af3351ee12d72a2d132b0c6c0687bfaf")
+	expectedTrace := &callTrace{
+		// Outer transaction call
+		Type:   "CALL",
+		From:   goldToken.addr,
+		To:     transferPrecompile,
+		Input:  data,
+		Output: data,
+		Gas:    newRPCUint64(20112),
+		// Note that top-level traces do not currently include intrinsic gas
+		GasUsed: newRPCUint64(params.CallValueTransferGas),
+		Value:   (*hexutil.Big)(big.NewInt(0)),
+		Calls: []callTrace{
+			{
+				// Lookup of GoldToken contract address with capped gas
+				Type:    "STATICCALL",
+				From:    common.ZeroAddress,
+				To:      registryProxyAddr,
+				Input:   packedGetAddressForGoldToken,
+				Output:  common.LeftPadBytes(goldToken.addr.Bytes(), 32),
+				Gas:     newRPCUint64(params.MaxGasForGetAddressFor),
+				GasUsed: newRPCUint64(0),
+				Calls: []callTrace{
+					{
+						// RegistryProxy -> RegistryImpl delegate call to
+						// retrieve GoldToken address
+						Type:    "DELEGATECALL",
+						From:    registryProxyAddr,
+						To:      registryImplAddr,
+						Input:   packedGetAddressForGoldToken,
+						Output:  common.LeftPadBytes(goldToken.addr.Bytes(), 32),
+						Gas:     newRPCUint64(0),
+						GasUsed: newRPCUint64(0),
+					},
+				},
+			},
+		},
+	}
+	if !jsonEqual(ret, expectedTrace) {
+		t.Fatalf("trace mismatch: \nhave %+v\nwant %+v", ret, expectedTrace)
 	}
 }
 
