@@ -477,9 +477,9 @@ func (n Network) Shutdown() []error {
 	return errors
 }
 
-// ValueTransferTransaction builds a signed value transfer transaction from the
-// sender to the recipient with the given value and nonce, it uses the client
-// to suggest a gas price and to estimate the gas.
+// ValueTransferTransaction builds a signed transaction from the
+// sender to the recipient with the given value, nonce, and data.
+// It uses the client to suggest a gas price and to estimate the gas.
 func ValueTransferTransaction(
 	client *ethclient.Client,
 	senderKey *ecdsa.PrivateKey,
@@ -488,6 +488,7 @@ func ValueTransferTransaction(
 	nonce uint64,
 	value *big.Int,
 	signer types.Signer,
+	data []byte,
 ) (*types.Transaction, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
@@ -497,14 +498,13 @@ func ValueTransferTransaction(
 		return nil, fmt.Errorf("failed to suggest gas price: %v", err)
 	}
 
-	msg := ethereum.CallMsg{From: sender, To: &recipient, GasPrice: gasPrice, Value: value}
+	msg := ethereum.CallMsg{From: sender, To: &recipient, GasPrice: gasPrice, Value: value, Data: data}
 	gasLimit, err := client.EstimateGas(ctx, msg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to estimate gas needed: %v", err)
 	}
-
 	// Create the transaction and sign it
-	rawTx := types.NewTransactionEthCompatible(nonce, recipient, value, gasLimit, gasPrice, nil)
+	rawTx := types.NewTransactionEthCompatible(nonce, recipient, value, gasLimit, gasPrice, data)
 	signed, err := types.SignTx(rawTx, signer, senderKey)
 	if err != nil {
 		return nil, err

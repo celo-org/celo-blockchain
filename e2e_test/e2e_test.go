@@ -14,6 +14,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/eth/tracers"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/rpc"
@@ -53,6 +54,37 @@ func TestSendCelo(t *testing.T) {
 	// Wait for the whole network to process the transaction.
 	err = network.AwaitTransactions(ctx, tx)
 	require.NoError(t, err)
+}
+
+func TestTraceSendCeloViaGoldToken(t *testing.T) {
+	ac := test.AccountConfig(3, 2)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+	// Send 1 wei of CELO from accounts[0] to accounts[1] by calling GoldToken.transfer
+	tx, err := accounts[0].SendCeloViaGoldToken(ctx, accounts[1].Address, 1, network[0])
+	require.NoError(t, err)
+
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+	c, err := rpc.DialContext(ctx, network[0].WSEndpoint())
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	tracerStr := "callTracer"
+	err = c.CallContext(ctx, &result, "debug_traceTransaction", tx.Hash().String(), tracers.TraceConfig{Tracer: &tracerStr})
+
+	require.NoError(t, err)
+	// Check top level gas values
+	require.Equal(t, result["gasUsed"], "0x3a46")
+	require.Equal(t, result["gas"], "0x3ac4")
 }
 
 // This test verifies correct behavior in a network of size one, in the case that
