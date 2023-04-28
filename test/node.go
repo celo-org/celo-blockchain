@@ -477,10 +477,8 @@ func (n Network) Shutdown() []error {
 	return errors
 }
 
-// ValueTransferTransaction builds a signed transaction from the
-// sender to the recipient with the given value, nonce, and data.
-// It uses the client to suggest a gas price and to estimate the gas.
-func ValueTransferTransaction(
+// Uses the client to suggest a gas price and to estimate the gas.
+func BuildSignedTransaction(
 	client *ethclient.Client,
 	senderKey *ecdsa.PrivateKey,
 	sender,

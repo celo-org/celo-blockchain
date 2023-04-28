@@ -45,7 +45,7 @@ func (a *Account) SendCelo(ctx context.Context, recipient common.Address, value 
 	}
 
 	signer := types.MakeSigner(a.ChainConfig, new(big.Int).SetUint64(num))
-	tx, err := ValueTransferTransaction(
+	tx, err := BuildSignedTransaction(
 		node.WsClient,
 		a.Key,
 		a.Address,
@@ -150,7 +150,7 @@ func (a *Account) SendCeloViaGoldToken(ctx context.Context, recipient common.Add
 	if err != nil {
 		return nil, err
 	}
-	tx, err := ValueTransferTransaction(
+	tx, err := BuildSignedTransaction(
 		node.WsClient,
 		a.Key,
 		a.Address,
