@@ -8,6 +8,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/params"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,7 +37,7 @@ func TestNewRPCTransactionCeloDynamic(t *testing.T) {
 
 			GasFeeCap: smallFeeCap,
 			GasTipCap: gasTipCap,
-		}), blockHash, blockNumber, index, baseFeeFn, true)
+		}), blockHash, blockNumber, index, baseFeeFn, params.IstanbulTestChainConfig, true)
 		assert.Equal(t, (*hexutil.Big)(smallFeeCap), rpcTx.GasPrice)
 	})
 
@@ -47,18 +48,18 @@ func TestNewRPCTransactionCeloDynamic(t *testing.T) {
 
 			GasFeeCap: bigFeeCap,
 			GasTipCap: gasTipCap,
-		}), blockHash, blockNumber, index, baseFeeFn, true)
+		}), blockHash, blockNumber, index, baseFeeFn, params.IstanbulTestChainConfig, true)
 		assert.Equal(t, (*hexutil.Big)(big.NewInt(0).Add(gasTipCap, baseFee)), rpcTx.GasPrice)
 	})
 
-	t.Run("Unminned transaction. GasPrice == GasFeeCap", func(t *testing.T) {
+	t.Run("Unmined transaction. GasPrice == GasFeeCap", func(t *testing.T) {
 		rpcTx := newRPCTransaction(types.NewTx(&types.CeloDynamicFeeTx{
 			FeeCurrency: &currency,
 			ChainID:     chainId,
 
 			GasFeeCap: bigFeeCap,
 			GasTipCap: gasTipCap,
-		}), common.Hash{}, 0, 0, baseFeeFn, false)
+		}), common.Hash{}, 0, 0, baseFeeFn, params.IstanbulTestChainConfig, false)
 		assert.Equal(t, (*hexutil.Big)(bigFeeCap), rpcTx.GasPrice)
 	})
 }
@@ -83,7 +84,7 @@ func TestNewRPCTransactionDynamic(t *testing.T) {
 
 			GasFeeCap: smallFeeCap,
 			GasTipCap: gasTipCap,
-		}), blockHash, blockNumber, index, baseFeeFn, true)
+		}), blockHash, blockNumber, index, baseFeeFn, params.IstanbulTestChainConfig, true)
 		assert.Equal(t, (*hexutil.Big)(smallFeeCap), rpcTx.GasPrice)
 	})
 
@@ -93,17 +94,17 @@ func TestNewRPCTransactionDynamic(t *testing.T) {
 
 			GasFeeCap: bigFeeCap,
 			GasTipCap: gasTipCap,
-		}), blockHash, blockNumber, index, baseFeeFn, true)
+		}), blockHash, blockNumber, index, baseFeeFn, params.IstanbulTestChainConfig, true)
 		assert.Equal(t, (*hexutil.Big)(big.NewInt(0).Add(gasTipCap, baseFee)), rpcTx2.GasPrice)
 	})
 
-	t.Run("Unminned transaction. GasPrice == GasFeeCap", func(t *testing.T) {
+	t.Run("Unmined transaction. GasPrice == GasFeeCap", func(t *testing.T) {
 		rpcTx := newRPCTransaction(types.NewTx(&types.DynamicFeeTx{
 			ChainID: chainId,
 
 			GasFeeCap: bigFeeCap,
 			GasTipCap: gasTipCap,
-		}), common.Hash{}, 0, 0, baseFeeFn, false)
+		}), common.Hash{}, 0, 0, baseFeeFn, params.IstanbulTestChainConfig, false)
 		assert.Equal(t, (*hexutil.Big)(bigFeeCap), rpcTx.GasPrice)
 	})
 }
