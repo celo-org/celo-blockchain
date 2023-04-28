@@ -56,6 +56,10 @@ func TestSendCelo(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// This test starts a network, submits a GoldToken.transfer tx, waits for the whole
+// network to process the transaction, and traces that tx.
+// This tests that CELO transfers made via the transfer precompile work e2e
+// and can be useful for debugging these traces.
 func TestTraceSendCeloViaGoldToken(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
 	gc, ec, err := test.BuildConfig(ac)
