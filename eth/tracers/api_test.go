@@ -627,10 +627,10 @@ func TestCallTraceTransactionPrecompileTransfer(t *testing.T) {
 		registryProxyAddr: { // Registry Proxy
 			Code: testutil.RegistryProxyOpcodes,
 			Storage: map[common.Hash]common.Hash{
-				common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"): common.HexToHash("0xce11"),                                                             // Registry Implementation
-				common.HexToHash("0x91646b8507bf2e54d7c3de9155442ba111546b81af1cbdd1f68eeb6926b98d58"): common.HexToHash("0xd023"),                                                             // Governance Proxy
-				common.HexToHash("0x773cc8652456781771d48fb3d560d7ba3d6d1882654492b68beec583d2c590aa"): goldToken.addr.Hash(),                                                                  // GoldToken Implementation
-				common.HexToHash("0x2131a4338f6fb8d4507e234a7c72af8efefbbf2f1817ed570bce33eb6667feb9"): common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000d007"), // Reserve Implementation
+				common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"): common.HexToHash("0xce11"), // Registry Implementation
+				common.HexToHash("0x91646b8507bf2e54d7c3de9155442ba111546b81af1cbdd1f68eeb6926b98d58"): common.HexToHash("0xd023"), // Governance Proxy
+				common.HexToHash("0x773cc8652456781771d48fb3d560d7ba3d6d1882654492b68beec583d2c590aa"): goldToken.addr.Hash(),      // GoldToken Implementation
+				common.HexToHash("0x2131a4338f6fb8d4507e234a7c72af8efefbbf2f1817ed570bce33eb6667feb9"): common.HexToHash("0xd007"), // Reserve Implementation
 			},
 			Balance: big.NewInt(0),
 		},
@@ -669,11 +669,11 @@ func TestCallTraceTransactionPrecompileTransfer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to pack args: %v", err)
 	}
-
+	transferPrecompile := common.HexToAddress("0xfd")
 	gas := params.TxGas * 2
 	api := NewAPI(newTestBackend(t, 1, genesis, func(i int, b *core.BlockGen) {
 		// Transfer via transfer precompile by sending tx from GoldToken addr
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), vm.TransferAddress, big.NewInt(0), gas, big.NewInt(3), nil, nil, nil, data), signer, goldToken.key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), transferPrecompile, big.NewInt(0), gas, big.NewInt(3), nil, nil, nil, data), signer, goldToken.key)
 		b.AddTx(tx)
 		target = tx.Hash()
 	}))
@@ -695,7 +695,7 @@ func TestCallTraceTransactionPrecompileTransfer(t *testing.T) {
 		// Outer transaction call
 		Type:   "CALL",
 		From:   goldToken.addr,
-		To:     vm.TransferAddress,
+		To:     transferPrecompile,
 		Input:  data,
 		Output: data,
 		Gas:    newRPCUint64(20112),

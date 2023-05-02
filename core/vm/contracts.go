@@ -68,7 +68,7 @@ func celoPrecompileAddress(index byte) common.Address {
 var (
 	celoPrecompiledContractsAddressOffset = byte(0xff)
 
-	TransferAddress              = celoPrecompileAddress(2)
+	transferAddress              = celoPrecompileAddress(2)
 	fractionMulExpAddress        = celoPrecompileAddress(3)
 	proofOfPossessionAddress     = celoPrecompileAddress(4)
 	getValidatorAddress          = celoPrecompileAddress(5)
@@ -114,7 +114,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}): &bn256PairingByzantium{},
 
 	// Celo Precompiled Contracts
-	TransferAddress:              &transfer{},
+	transferAddress:              &transfer{},
 	fractionMulExpAddress:        &fractionMulExp{},
 	proofOfPossessionAddress:     &proofOfPossession{},
 	getValidatorAddress:          &getValidator{},
@@ -140,7 +140,7 @@ var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{9}): &blake2F{},
 
 	// Celo Precompiled Contracts
-	TransferAddress:              &transfer{},
+	transferAddress:              &transfer{},
 	fractionMulExpAddress:        &fractionMulExp{},
 	proofOfPossessionAddress:     &proofOfPossession{},
 	getValidatorAddress:          &getValidator{},
@@ -166,7 +166,7 @@ var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{9}): &blake2F{},
 
 	// Celo Precompiled Contracts
-	TransferAddress:              &transfer{},
+	transferAddress:              &transfer{},
 	fractionMulExpAddress:        &fractionMulExp{},
 	proofOfPossessionAddress:     &proofOfPossession{},
 	getValidatorAddress:          &getValidator{},
@@ -213,7 +213,7 @@ var PrecompiledContractsE = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{9}): &blake2F{},
 
 	// Celo Precompiled Contracts
-	TransferAddress:              &transfer{},
+	transferAddress:              &transfer{},
 	fractionMulExpAddress:        &fractionMulExp{},
 	proofOfPossessionAddress:     &proofOfPossession{},
 	getValidatorAddress:          &getValidator{},

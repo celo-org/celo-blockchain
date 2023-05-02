@@ -186,7 +186,7 @@ var allPrecompiles = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{18}):         &bls12381MapG2{},
 
 	// Celo Precompiled Contracts
-	TransferAddress:              &transfer{},
+	transferAddress:              &transfer{},
 	fractionMulExpAddress:        &fractionMulExp{},
 	proofOfPossessionAddress:     &proofOfPossession{},
 	getValidatorAddress:          &getValidator{},
