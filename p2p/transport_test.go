@@ -49,7 +49,7 @@ func TestProtocolHandshake(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		defer fd0.Close()
-		frame := newRLPX(fd0, &prv1.PublicKey)
+		frame := newRLPX(fd0, &prv1.PublicKey, frameReadTimeout)
 		rpubkey, err := frame.doEncHandshake(prv0)
 		if err != nil {
 			t.Errorf("dial side enc handshake failed: %v", err)
@@ -75,7 +75,7 @@ func TestProtocolHandshake(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		defer fd1.Close()
-		rlpx := newRLPX(fd1, nil)
+		rlpx := newRLPX(fd1, nil, frameReadTimeout)
 		rpubkey, err := rlpx.doEncHandshake(prv1)
 		if err != nil {
 			t.Errorf("listen side enc handshake failed: %v", err)

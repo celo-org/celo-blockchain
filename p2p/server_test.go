@@ -42,7 +42,7 @@ type testTransport struct {
 }
 
 func newTestTransport(rpub *ecdsa.PublicKey, fd net.Conn, dialDest *ecdsa.PublicKey) transport {
-	wrapped := newRLPX(fd, dialDest).(*rlpxTransport)
+	wrapped := newRLPX(fd, dialDest, frameReadTimeout).(*rlpxTransport)
 	wrapped.conn.InitWithSecrets(rlpx.Secrets{
 		AES:        make([]byte, 16),
 		MAC:        make([]byte, 16),
@@ -78,7 +78,7 @@ func startTestServer(t *testing.T, remoteKey *ecdsa.PublicKey, pf func(*Peer)) *
 	server := &Server{
 		Config:      config,
 		newPeerHook: pf,
-		newTransport: func(fd net.Conn, dialDest *ecdsa.PublicKey) transport {
+		newTransport: func(fd net.Conn, dialDest *ecdsa.PublicKey, _ time.Duration) transport {
 			return newTestTransport(remoteKey, fd, dialDest)
 		},
 	}
@@ -376,7 +376,7 @@ func TestServerPeerLimits(t *testing.T) {
 			Protocols:   []Protocol{discard},
 			Logger:      testlog.Logger(t, log.LvlTrace),
 		},
-		newTransport: func(fd net.Conn, dialDest *ecdsa.PublicKey) transport { return tp },
+		newTransport: func(fd net.Conn, dialDest *ecdsa.PublicKey, _ time.Duration) transport { return tp },
 	}
 	if err := srv.Start(); err != nil {
 		t.Fatalf("couldn't start server: %v", err)
@@ -492,7 +492,7 @@ func TestServerSetupConn(t *testing.T) {
 			}
 			srv := &Server{
 				Config:       cfg,
-				newTransport: func(fd net.Conn, dialDest *ecdsa.PublicKey) transport { return test.tt },
+				newTransport: func(fd net.Conn, dialDest *ecdsa.PublicKey, _ time.Duration) transport { return test.tt },
 				log:          cfg.Logger,
 			}
 			if !test.dontstart {
@@ -577,9 +577,9 @@ func TestServerInboundThrottle(t *testing.T) {
 			Protocols:   []Protocol{discard},
 			Logger:      testlog.Logger(t, log.LvlTrace),
 		},
-		newTransport: func(fd net.Conn, dialDest *ecdsa.PublicKey) transport {
+		newTransport: func(fd net.Conn, dialDest *ecdsa.PublicKey, frto time.Duration) transport {
 			newTransportCalled <- struct{}{}
-			return newRLPX(fd, dialDest)
+			return newRLPX(fd, dialDest, frto)
 		},
 		listenFunc: func(network, laddr string) (net.Listener, error) {
 			fakeAddr := &net.TCPAddr{IP: net.IP{95, 33, 21, 2}, Port: 4444}

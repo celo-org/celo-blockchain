@@ -179,6 +179,14 @@ type Config struct {
 	// probably be set smaller than DialHistoryExpiration to avoid lots of
 	// failed dial attempts.
 	InboundThrottleTime time.Duration
+
+	// DialTimeout is the maximum amount of time that the tcp dialer will wait
+	// for a successful connection.
+	DialTimeout time.Duration
+
+	// FrameReadTimeout is the maximum time allowed for reading a complete message.
+	// This is effectively the amount of time a connection can be idle.
+	FrameReadTimeout time.Duration
 }
 
 // Server manages all peer connections.
@@ -188,7 +196,7 @@ type Server struct {
 
 	// Hooks for testing. These are useful because we can inhibit
 	// the whole protocol stack.
-	newTransport func(net.Conn, *ecdsa.PublicKey) transport
+	newTransport func(net.Conn, *ecdsa.PublicKey, time.Duration) transport
 	newPeerHook  func(*Peer)
 	listenFunc   func(network, addr string) (net.Listener, error)
 
@@ -537,6 +545,12 @@ func (srv *Server) Start() (err error) {
 	if srv.InboundThrottleTime == 0 {
 		srv.InboundThrottleTime = inboundThrottleTime
 	}
+	if srv.DialTimeout == 0 {
+		srv.DialTimeout = defaultDialTimeout
+	}
+	if srv.FrameReadTimeout == 0 {
+		srv.FrameReadTimeout = frameReadTimeout
+	}
 	srv.running = true
 	srv.log = srv.Config.Logger
 	if srv.log == nil {
@@ -733,7 +747,7 @@ func (srv *Server) setupDialScheduler() {
 		config.resolver = srv.ntab
 	}
 	if config.dialer == nil {
-		config.dialer = tcpDialer{&net.Dialer{Timeout: defaultDialTimeout}}
+		config.dialer = tcpDialer{&net.Dialer{Timeout: srv.DialTimeout}}
 	}
 	srv.dialsched = newDialScheduler(config, srv.discmix, srv.SetupConn)
 	for _, n := range srv.StaticNodes {
@@ -1130,9 +1144,9 @@ func (srv *Server) checkInboundConn(remoteIP net.IP) error {
 func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *enode.Node) error {
 	c := &conn{fd: fd, flags: flags, cont: make(chan error)}
 	if dialDest == nil {
-		c.transport = srv.newTransport(fd, nil)
+		c.transport = srv.newTransport(fd, nil, srv.FrameReadTimeout)
 	} else {
-		c.transport = srv.newTransport(fd, dialDest.Pubkey())
+		c.transport = srv.newTransport(fd, dialDest.Pubkey(), srv.FrameReadTimeout)
 	}
 
 	err := srv.setupConn(c, flags, dialDest)

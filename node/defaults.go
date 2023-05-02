@@ -21,6 +21,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/nat"
@@ -59,6 +60,11 @@ var DefaultConfig = Config{
 		NetworkId:               1,
 		NoDiscovery:             true,
 		UseInMemoryNodeDatabase: true,
+
+		DialHistoryExpiration: 1 * time.Second,
+		InboundThrottleTime:   1 * time.Second,
+		DialTimeout:           1 * time.Second,
+		FrameReadTimeout:      15 * time.Second,
 	},
 }
 

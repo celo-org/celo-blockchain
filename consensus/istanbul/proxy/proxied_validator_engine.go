@@ -377,10 +377,10 @@ func (pv *proxiedValidatorEngine) threadRun() {
 	var (
 		// The minimum allowable time that a proxy can be disconnected from the proxied validator
 		// After this expires, the proxy handler will remove any validator assignments from the proxy.
-		minProxyDisconnectTime time.Duration = 30 * time.Second
+		minProxyDisconnectTime time.Duration = 15 * time.Second
 
 		// The duration of time between thread update, which are occasional check-ins to ensure proxy/validator assignments are as intended
-		schedulerPeriod time.Duration = 30 * time.Second
+		schedulerPeriod time.Duration = 15 * time.Second
 
 		// Used to keep track of proxies & validators the proxies are associated with
 		ps *proxySet = newProxySet(newConsistentHashingPolicy())

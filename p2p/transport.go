@@ -46,13 +46,14 @@ const (
 // rlpxTransport is the transport used by actual (non-test) connections.
 // It wraps an RLPx connection with locks and read/write deadlines.
 type rlpxTransport struct {
-	rmu, wmu sync.Mutex
-	wbuf     bytes.Buffer
-	conn     *rlpx.Conn
+	rmu, wmu    sync.Mutex
+	wbuf        bytes.Buffer
+	conn        *rlpx.Conn
+	frameReadTO time.Duration
 }
 
-func newRLPX(conn net.Conn, dialDest *ecdsa.PublicKey) transport {
-	return &rlpxTransport{conn: rlpx.NewConn(conn, dialDest)}
+func newRLPX(conn net.Conn, dialDest *ecdsa.PublicKey, frameReadTO time.Duration) transport {
+	return &rlpxTransport{conn: rlpx.NewConn(conn, dialDest), frameReadTO: frameReadTO}
 }
 
 func (t *rlpxTransport) ReadMsg() (Msg, error) {
@@ -60,7 +61,7 @@ func (t *rlpxTransport) ReadMsg() (Msg, error) {
 	defer t.rmu.Unlock()
 
 	var msg Msg
-	t.conn.SetReadDeadline(time.Now().Add(frameReadTimeout))
+	t.conn.SetReadDeadline(time.Now().Add(t.frameReadTO))
 	code, data, wireSize, err := t.conn.Read()
 	if err == nil {
 		// Protocol messages are dispatched to subprotocol handlers asynchronously,
