@@ -698,7 +698,7 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM) ([]byte, e
 	//   to:    32 bytes representing the address of the recipient
 	//   value: 32 bytes, a 256 bit integer representing the amount of Celo Gold to transfer
 	// 3 arguments x 32 bytes each = 96 bytes total input
-	if (evm.chainRules.IsGFork && len(input) != 96) || len(input) <= 96 {
+	if (evm.chainRules.IsGFork && len(input) != 96) || len(input) < 96 {
 		return nil, ErrInputLength
 	}
 
