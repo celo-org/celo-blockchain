@@ -499,7 +499,14 @@ func BenchmarkPrecompiledEd25519Verify(b *testing.B) { benchJSON("ed25519Verify"
 
 // Tests sample inputs for fractionMulExp
 // NOTE: This currently only verifies that inputs of invalid length are rejected
-func TestPrecompiledFractionMulExp(t *testing.T) { testJSON("fractionMulExp", "fc", t) }
+func TestPrecompiledFractionMulExp(t *testing.T) {
+	// Post GFork behaviour
+	mockEVM.chainRules.IsGFork = true
+	testJSON("fractionMulExp", "fc", t)
+	// Pre GFork behaviour
+	mockEVM.chainRules.IsGFork = false
+	testJSON("fractionMulExpOld", "fc", t)
+}
 
 // Tests sample inputs for proofOfPossession
 // NOTE: This currently only verifies that inputs of invalid length are rejected
