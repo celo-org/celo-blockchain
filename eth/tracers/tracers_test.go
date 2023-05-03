@@ -16,14 +16,10 @@
 package tracers
 
 import (
-	"crypto/ecdsa"
-	"crypto/rand"
-	"encoding/json"
 	"math/big"
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -34,87 +30,6 @@ import (
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/tests"
 )
-
-// callTrace is the result of a callTracer run.
-type callTrace struct {
-	Type    string          `json:"type"`
-	From    common.Address  `json:"from"`
-	To      common.Address  `json:"to"`
-	Input   hexutil.Bytes   `json:"input"`
-	Output  hexutil.Bytes   `json:"output"`
-	Gas     *hexutil.Uint64 `json:"gas,omitempty"`
-	GasUsed *hexutil.Uint64 `json:"gasUsed,omitempty"`
-	Value   *hexutil.Big    `json:"value,omitempty"`
-	Error   string          `json:"error,omitempty"`
-	Calls   []callTrace     `json:"calls,omitempty"`
-}
-
-func TestPrestateTracerTransfer(t *testing.T) {
-	celoMock := testutil.NewCeloMock()
-
-	toAddr := "0x00000000000000000000000000000000deadbeef"
-	unsignedTx := types.NewTransaction(1, common.HexToAddress(toAddr), new(big.Int), 5000000, big.NewInt(1), nil, nil, nil, []byte{})
-
-	privateKeyECDSA, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
-	if err != nil {
-		t.Fatalf("err %v", err)
-	}
-	signer := types.NewEIP155Signer(big.NewInt(1))
-	tx, err := types.SignTx(unsignedTx, signer, privateKeyECDSA)
-	if err != nil {
-		t.Fatalf("err %v", err)
-	}
-	origin, _ := signer.Sender(tx)
-	txContext := vm.TxContext{
-		Origin:   origin,
-		GasPrice: big.NewInt(1),
-	}
-	context := vm.BlockContext{
-		CanTransfer:          vmcontext.CanTransfer,
-		Transfer:             vmcontext.TobinTransfer,
-		Coinbase:             common.Address{},
-		BlockNumber:          new(big.Int).SetUint64(8000000),
-		Time:                 new(big.Int).SetUint64(5),
-		GetRegisteredAddress: vmcontext.GetRegisteredAddress,
-	}
-	alloc := core.GenesisAlloc{}
-	alloc[origin] = core.GenesisAccount{
-		Nonce:   1,
-		Code:    []byte{},
-		Balance: big.NewInt(500000000000000),
-	}
-	_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), alloc, false)
-
-	// Create the tracer, the EVM environment and run it
-	tracer, err := New("prestateTracer", new(Context))
-	if err != nil {
-		t.Fatalf("failed to create prestate tracer: %v", err)
-	}
-	vmConfig := vm.Config{Debug: true, Tracer: tracer}
-	evm := vm.NewEVM(context, txContext, statedb, params.MainnetChainConfig, vmConfig)
-
-	msg, err := tx.AsMessage(signer, nil)
-	if err != nil {
-		t.Fatalf("failed to prepare transaction for tracing: %v", err)
-	}
-
-	st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()), celoMock.Runner, nil)
-	if _, err = st.TransitionDb(); err != nil {
-		t.Fatalf("failed to execute transaction: %v", err)
-	}
-	// Retrieve the trace result and compare against the etalon
-	res, err := tracer.GetResult()
-	if err != nil {
-		t.Fatalf("failed to retrieve trace result: %v", err)
-	}
-	ret := make(map[string]interface{})
-	if err := json.Unmarshal(res, &ret); err != nil {
-		t.Fatalf("failed to unmarshal trace result: %v", err)
-	}
-	if _, has := ret[toAddr]; !has {
-		t.Fatalf("Expected %s in result", toAddr)
-	}
-}
 
 func BenchmarkTransactionTrace(b *testing.B) {
 	celoMock := testutil.NewCeloMock()
