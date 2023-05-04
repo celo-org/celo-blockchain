@@ -1880,13 +1880,12 @@ var bindTests = []struct {
 			"github.com/celo-org/celo-blockchain/accounts/abi/bind/backends"
 			"github.com/celo-org/celo-blockchain/core"
 			"github.com/celo-org/celo-blockchain/crypto"
-			"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	   `,
 		`
 			var (
 				key, _  = crypto.GenerateKey()
 				user, _ = bind.NewKeyedTransactorWithChainID(key, big.NewInt(1337))
-				sim     = backends.NewSimulatedBackend(core.GenesisAlloc{user.From: {Balance: big.NewInt(1000000000000000000)}}, ethconfig.Defaults.Miner.GasCeil)
+				sim     = backends.NewSimulatedBackend(core.GenesisAlloc{user.From: {Balance: big.NewInt(1000000000000000000)}})
 			)
 			defer sim.Close()
 	
