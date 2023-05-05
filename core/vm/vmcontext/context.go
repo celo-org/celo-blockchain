@@ -148,16 +148,16 @@ func VerifySealFn(ref *types.Header, chain chainContext) func(*types.Header) boo
 // If the calculation or transfer of the tax amount fails for any reason, the regular transfer goes ahead.
 // NB: Gas is not charged or accounted for this calculation.
 func TobinTransfer(evm *vm.EVM, sender, recipient common.Address, amount *big.Int) {
+	// Run only primary evm.Call() with tracer
+	if evm.GetDebug() {
+		evm.SetDebug(false)
+		defer func() { evm.SetDebug(true) }()
+	}
+
 	// Only deduct tobin tax before the g hardfork
 	if evm.ChainConfig().IsGFork(evm.Context.BlockNumber) {
 		Transfer(evm.StateDB, sender, recipient, amount)
 	} else {
-		// Run only primary evm.Call() with tracer
-		if evm.GetDebug() {
-			evm.SetDebug(false)
-			defer func() { evm.SetDebug(true) }()
-		}
-
 		if amount.Cmp(big.NewInt(0)) != 0 {
 			caller := &SharedEVMRunner{evm}
 			tax, taxRecipient, err := reserve.ComputeTobinTax(caller, sender, amount)
