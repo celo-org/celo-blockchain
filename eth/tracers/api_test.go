@@ -209,7 +209,7 @@ func TestTraceCall(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil, nil, nil, nil), signer, accounts[0].key)
 		b.AddTx(tx)
 	}))
 
@@ -339,7 +339,7 @@ func TestOverriddenTraceCall(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil, nil, nil, nil), signer, accounts[0].key)
 		b.AddTx(tx)
 	}))
 	randomAccounts, tracer := newAccounts(3), "callTracer"
@@ -386,7 +386,8 @@ func TestOverriddenTraceCall(t *testing.T) {
 			config: &TraceCallConfig{
 				Tracer: &tracer,
 			},
-			expectErr: core.ErrInsufficientFundsForTransfer,
+			// After espresso, an error is first thrown while checking if fees can be paid.
+			expectErr: core.ErrInsufficientFunds,
 			expect:    nil,
 		},
 		// Successful simple contract call
@@ -429,7 +430,7 @@ func TestOverriddenTraceCall(t *testing.T) {
 				Input:   hexutil.Bytes(common.Hex2Bytes("8381f58a")),
 				Output:  hexutil.Bytes(common.BigToHash(big.NewInt(123)).Bytes()),
 				Gas:     newRPCUint64(24978936),
-				GasUsed: newRPCUint64(383), // TODO ethereum cost 2283, check if this is right
+				GasUsed: newRPCUint64(983), // TODO ethereum cost 2283, check if this is right
 				Value:   (*hexutil.Big)(big.NewInt(0)),
 			},
 		},
@@ -479,7 +480,7 @@ func TestTraceTransaction(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil, nil, nil, nil), signer, accounts[0].key)
 		b.AddTx(tx)
 		target = tx.Hash()
 	}))
@@ -528,7 +529,7 @@ func TestTraceTransactionWithRegistryDeployed(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil, nil, nil, nil), signer, accounts[0].key)
 		b.AddTx(tx)
 		target = tx.Hash()
 	}))
@@ -581,7 +582,7 @@ func TestCallTraceTransactionNativeTransfer(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, transferVal, params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, transferVal, params.TxGas, b.MinimumGasPrice(nil), nil, nil, nil, nil), signer, accounts[0].key)
 		b.AddTx(tx)
 		target = tx.Hash()
 	}))
@@ -674,7 +675,7 @@ func TestCallTraceTransactionPrecompileTransfer(t *testing.T) {
 	gas := params.TxGas * 2
 	api := NewAPI(newTestBackend(t, 1, genesis, func(i int, b *core.BlockGen) {
 		// Transfer via transfer precompile by sending tx from GoldToken addr
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), transferPrecompile, big.NewInt(0), gas, big.NewInt(3), nil, nil, nil, data), signer, goldToken.key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), transferPrecompile, big.NewInt(0), gas, b.MinimumGasPrice(nil), nil, nil, nil, data), signer, goldToken.key)
 		b.AddTx(tx)
 		target = tx.Hash()
 	}))
@@ -750,7 +751,7 @@ func TestTraceBlock(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil, nil, nil, nil), signer, accounts[0].key)
 		b.AddTx(tx)
 	}))
 
@@ -852,7 +853,7 @@ func TestTraceBlockWithEIP1559Tx(t *testing.T) {
 	// Initialize test accounts
 	accounts := newAccounts(2)
 	genesis := &core.Genesis{
-		Config: params.IstanbulEHFTestChainConfig,
+		Config: params.IstanbulTestChainConfig,
 		Alloc: core.GenesisAlloc{
 			accounts[0].addr: {Balance: big.NewInt(231001)},
 			accounts[1].addr: {Balance: common.Big0},
