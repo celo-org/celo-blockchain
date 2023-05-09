@@ -7,6 +7,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/internal/config"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
 )
@@ -31,7 +32,7 @@ func TobinTax(vmRunner vm.EVMRunner, sender common.Address) (tax Ratio, reserveA
 		return Ratio{}, common.ZeroAddress, err
 	}
 
-	ret, err := vmRunner.ExecuteFrom(sender, reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
+	ret, err := vmRunner.ExecuteFrom(sender, reserveAddress, params.TobinTaxFunctionSelector, config.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
 	if err != nil {
 		return Ratio{}, common.ZeroAddress, err
 	}

@@ -22,18 +22,19 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
+	"github.com/celo-org/celo-blockchain/contracts/internal/config"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
 var (
-	electValidatorSignersMethod                   = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "electValidatorSigners", params.MaxGasForElectValidators)
-	getElectableValidatorsMethod                  = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "getElectableValidators", params.MaxGasForGetElectableValidators)
-	electNValidatorSignersMethod                  = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "electNValidatorSigners", params.MaxGasForElectNValidatorSigners)
-	getTotalVotesForEligibleValidatorGroupsMethod = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "getTotalVotesForEligibleValidatorGroups", params.MaxGasForGetEligibleValidatorGroupsVoteTotals)
-	getGroupEpochRewardsMethod                    = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "getGroupEpochRewards", params.MaxGasForGetGroupEpochRewards)
-	distributeEpochRewardsMethod                  = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "distributeEpochRewards", params.MaxGasForDistributeEpochRewards)
+	electValidatorSignersMethod                   = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "electValidatorSigners", config.MaxGasForElectValidators)
+	getElectableValidatorsMethod                  = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "getElectableValidators", config.MaxGasForGetElectableValidators)
+	electNValidatorSignersMethod                  = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "electNValidatorSigners", config.MaxGasForElectNValidatorSigners)
+	getTotalVotesForEligibleValidatorGroupsMethod = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "getTotalVotesForEligibleValidatorGroups", config.MaxGasForGetEligibleValidatorGroupsVoteTotals)
+	getGroupEpochRewardsMethod                    = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "getGroupEpochRewards", config.MaxGasForGetGroupEpochRewards)
+	distributeEpochRewardsMethod                  = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "distributeEpochRewards", config.MaxGasForDistributeEpochRewards)
 )
 
 func GetElectedValidators(vmRunner vm.EVMRunner) ([]common.Address, error) {

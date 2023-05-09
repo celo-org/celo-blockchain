@@ -20,12 +20,13 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
+	"github.com/celo-org/celo-blockchain/contracts/internal/config"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
 var (
-	isFrozenMethod = contracts.NewRegisteredContractMethod(params.FreezerRegistryId, abis.Freezer, "isFrozen", params.MaxGasForIsFrozen)
+	isFrozenMethod = contracts.NewRegisteredContractMethod(params.FreezerRegistryId, abis.Freezer, "isFrozen", config.MaxGasForIsFrozen)
 )
 
 func IsFrozen(vmRunner vm.EVMRunner, registryId common.Hash) (bool, error) {

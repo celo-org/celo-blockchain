@@ -30,10 +30,10 @@ import (
 )
 
 var (
-	getMinimumClientVersionMethod               = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "getMinimumClientVersion", params.MaxGasForReadBlockchainParameter)
-	intrinsicGasForAlternativeFeeCurrencyMethod = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "intrinsicGasForAlternativeFeeCurrency", params.MaxGasForReadBlockchainParameter)
-	blockGasLimitMethod                         = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "blockGasLimit", params.MaxGasForReadBlockchainParameter)
-	getUptimeLookbackWindowMethod               = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "getUptimeLookbackWindow", params.MaxGasForReadBlockchainParameter)
+	getMinimumClientVersionMethod               = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "getMinimumClientVersion", config.MaxGasForReadBlockchainParameter)
+	intrinsicGasForAlternativeFeeCurrencyMethod = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "intrinsicGasForAlternativeFeeCurrency", config.MaxGasForReadBlockchainParameter)
+	blockGasLimitMethod                         = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "blockGasLimit", config.MaxGasForReadBlockchainParameter)
+	getUptimeLookbackWindowMethod               = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "getUptimeLookbackWindow", config.MaxGasForReadBlockchainParameter)
 )
 
 // getMinimumVersion retrieves the client required minimum version
