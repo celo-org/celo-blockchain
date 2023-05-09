@@ -6,7 +6,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/contracts"
 
-	"github.com/celo-org/celo-blockchain/contracts/internal/config"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/params"
 	. "github.com/onsi/gomega"
@@ -20,7 +20,7 @@ func TestGetMinimumVersion(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
-			params.BlockchainParametersRegistryId,
+			config.BlockchainParametersRegistryId,
 			"getMinimumClientVersion",
 			func() (*big.Int, *big.Int, *big.Int) {
 				return big.NewInt(5), big.NewInt(4), big.NewInt(3)
@@ -41,7 +41,7 @@ func TestGetIntrinsicGasForAlternativeFeeCurrency(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
-			params.BlockchainParametersRegistryId,
+			config.BlockchainParametersRegistryId,
 			"intrinsicGasForAlternativeFeeCurrency",
 			func() *big.Int {
 				return big.NewInt(50000)
@@ -55,12 +55,12 @@ func TestGetIntrinsicGasForAlternativeFeeCurrency(t *testing.T) {
 }
 
 func TestGetIntrinsicGasForAlternativeFeeCurrencyOrDefault(t *testing.T) {
-	testutil.TestReturnsDefaultOnFailingRunner(t, params.IntrinsicGasForAlternativeFeeCurrency, GetIntrinsicGasForAlternativeFeeCurrencyOrDefault)
+	testutil.TestReturnsDefaultOnFailingRunner(t, DefaultIntrinsicGasForAlternativeFeeCurrency, GetIntrinsicGasForAlternativeFeeCurrencyOrDefault)
 	t.Run("should return gas for alternative currency", func(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
-			params.BlockchainParametersRegistryId,
+			config.BlockchainParametersRegistryId,
 			"intrinsicGasForAlternativeFeeCurrency",
 			func() *big.Int {
 				return big.NewInt(50000)
@@ -79,7 +79,7 @@ func TestGetBlockGasLimit(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
-			params.BlockchainParametersRegistryId,
+			config.BlockchainParametersRegistryId,
 			"blockGasLimit",
 			func() *big.Int {
 				return big.NewInt(50000)
@@ -97,7 +97,7 @@ func TestGetBlockGasLimitOrDefault(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
-			params.BlockchainParametersRegistryId,
+			config.BlockchainParametersRegistryId,
 			"blockGasLimit",
 			func() *big.Int {
 				return big.NewInt(50000)
@@ -116,7 +116,7 @@ func TestGetLookbackWindow(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
-			params.BlockchainParametersRegistryId,
+			config.BlockchainParametersRegistryId,
 			"getUptimeLookbackWindow",
 			func() *big.Int {
 				return big.NewInt(15)

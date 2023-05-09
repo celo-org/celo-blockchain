@@ -21,16 +21,15 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
-	"github.com/celo-org/celo-blockchain/contracts/internal/config"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/params"
 )
 
 var (
-	calculateTargetEpochRewardsMethod = contracts.NewRegisteredContractMethod(params.EpochRewardsRegistryId, abis.EpochRewards, "calculateTargetEpochRewards", config.MaxGasForCalculateTargetEpochPaymentAndRewards)
-	isReserveLowMethod                = contracts.NewRegisteredContractMethod(params.EpochRewardsRegistryId, abis.EpochRewards, "isReserveLow", config.MaxGasForIsReserveLow)
-	carbonOffsettingPartnerMethod     = contracts.NewRegisteredContractMethod(params.EpochRewardsRegistryId, abis.EpochRewards, "carbonOffsettingPartner", config.MaxGasForGetCarbonOffsettingPartner)
-	updateTargetVotingYieldMethod     = contracts.NewRegisteredContractMethod(params.EpochRewardsRegistryId, abis.EpochRewards, "updateTargetVotingYield", config.MaxGasForUpdateTargetVotingYield)
+	calculateTargetEpochRewardsMethod = contracts.NewRegisteredContractMethod(config.EpochRewardsRegistryId, abis.EpochRewards, "calculateTargetEpochRewards", config.MaxGasForCalculateTargetEpochPaymentAndRewards)
+	isReserveLowMethod                = contracts.NewRegisteredContractMethod(config.EpochRewardsRegistryId, abis.EpochRewards, "isReserveLow", config.MaxGasForIsReserveLow)
+	carbonOffsettingPartnerMethod     = contracts.NewRegisteredContractMethod(config.EpochRewardsRegistryId, abis.EpochRewards, "carbonOffsettingPartner", config.MaxGasForGetCarbonOffsettingPartner)
+	updateTargetVotingYieldMethod     = contracts.NewRegisteredContractMethod(config.EpochRewardsRegistryId, abis.EpochRewards, "updateTargetVotingYield", config.MaxGasForUpdateTargetVotingYield)
 )
 
 func UpdateTargetVotingYield(vmRunner vm.EVMRunner) error {

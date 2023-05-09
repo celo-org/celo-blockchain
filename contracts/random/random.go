@@ -7,25 +7,24 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
-	"github.com/celo-org/celo-blockchain/contracts/internal/config"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/params"
 )
 
 var (
-	revealAndCommitMethod    = contracts.NewRegisteredContractMethod(params.RandomRegistryId, abis.Random, "revealAndCommit", config.MaxGasForRevealAndCommit)
-	commitmentsMethod        = contracts.NewRegisteredContractMethod(params.RandomRegistryId, abis.Random, "commitments", config.MaxGasForCommitments)
-	computeCommitmentMethod  = contracts.NewRegisteredContractMethod(params.RandomRegistryId, abis.Random, "computeCommitment", config.MaxGasForComputeCommitment)
-	randomMethod             = contracts.NewRegisteredContractMethod(params.RandomRegistryId, abis.Random, "random", config.MaxGasForBlockRandomness)
-	getBlockRandomnessMethod = contracts.NewRegisteredContractMethod(params.RandomRegistryId, abis.Random, "getBlockRandomness", config.MaxGasForBlockRandomness)
+	revealAndCommitMethod    = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "revealAndCommit", config.MaxGasForRevealAndCommit)
+	commitmentsMethod        = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "commitments", config.MaxGasForCommitments)
+	computeCommitmentMethod  = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "computeCommitment", config.MaxGasForComputeCommitment)
+	randomMethod             = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "random", config.MaxGasForBlockRandomness)
+	getBlockRandomnessMethod = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "getBlockRandomness", config.MaxGasForBlockRandomness)
 )
 
 func IsRunning(vmRunner vm.EVMRunner) bool {
-	randomAddress, err := contracts.GetRegisteredAddress(vmRunner, params.RandomRegistryId)
+	randomAddress, err := contracts.GetRegisteredAddress(vmRunner, config.RandomRegistryId)
 
 	if err == contracts.ErrSmartContractNotDeployed || err == contracts.ErrRegistryContractNotDeployed {
-		log.Debug("Registry address lookup failed", "err", err, "contract", hexutil.Encode(params.RandomRegistryId[:]))
+		log.Debug("Registry address lookup failed", "err", err, "contract", hexutil.Encode(config.RandomRegistryId[:]))
 	} else if err != nil {
 		log.Error(err.Error())
 	}

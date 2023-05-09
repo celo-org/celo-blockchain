@@ -4,7 +4,7 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/contracts/abis"
-	"github.com/celo-org/celo-blockchain/contracts/internal/config"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 )
 
 type BlockchainParametersMock struct {

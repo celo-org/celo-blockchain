@@ -23,6 +23,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/ethdb"
@@ -213,7 +214,7 @@ func TestRegistryInGenesis(t *testing.T) {
 		test.genesis().MustCommit(db)
 		chain, _ := NewBlockChain(db, nil, params.IstanbulTestChainConfig, mockEngine.NewFaker(), vm.Config{}, nil, nil)
 		state, _ := chain.State()
-		codeSize := state.GetCodeSize(params.RegistrySmartContractAddress)
+		codeSize := state.GetCodeSize(config.RegistrySmartContractAddress)
 		if test.name == "emptyAlloc" {
 			if codeSize != 0 {
 				t.Errorf("%s: Registry code size is %d, want 0", test.name, codeSize)

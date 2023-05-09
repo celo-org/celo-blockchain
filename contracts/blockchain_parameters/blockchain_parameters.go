@@ -23,18 +23,20 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
-	"github.com/celo-org/celo-blockchain/contracts/internal/config"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
 var (
-	getMinimumClientVersionMethod               = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "getMinimumClientVersion", config.MaxGasForReadBlockchainParameter)
-	intrinsicGasForAlternativeFeeCurrencyMethod = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "intrinsicGasForAlternativeFeeCurrency", config.MaxGasForReadBlockchainParameter)
-	blockGasLimitMethod                         = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "blockGasLimit", config.MaxGasForReadBlockchainParameter)
-	getUptimeLookbackWindowMethod               = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "getUptimeLookbackWindow", config.MaxGasForReadBlockchainParameter)
+	getMinimumClientVersionMethod               = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "getMinimumClientVersion", config.MaxGasForReadBlockchainParameter)
+	intrinsicGasForAlternativeFeeCurrencyMethod = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "intrinsicGasForAlternativeFeeCurrency", config.MaxGasForReadBlockchainParameter)
+	blockGasLimitMethod                         = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "blockGasLimit", config.MaxGasForReadBlockchainParameter)
+	getUptimeLookbackWindowMethod               = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "getUptimeLookbackWindow", config.MaxGasForReadBlockchainParameter)
 )
+
+const DefaultIntrinsicGasForAlternativeFeeCurrency = config.IntrinsicGasForAlternativeFeeCurrency
 
 // getMinimumVersion retrieves the client required minimum version
 // If a node is running a version smaller than this, it should exit/stop
@@ -57,8 +59,8 @@ func getMinimumVersion(vmRunner vm.EVMRunner) (*config.VersionInfo, error) {
 func GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner vm.EVMRunner) uint64 {
 	gas, err := getIntrinsicGasForAlternativeFeeCurrency(vmRunner)
 	if err != nil {
-		log.Trace("Default gas", "gas", params.IntrinsicGasForAlternativeFeeCurrency, "method", "intrinsicGasForAlternativeFeeCurrency")
-		return params.IntrinsicGasForAlternativeFeeCurrency
+		log.Trace("Default gas", "gas", config.IntrinsicGasForAlternativeFeeCurrency, "method", "intrinsicGasForAlternativeFeeCurrency")
+		return config.IntrinsicGasForAlternativeFeeCurrency
 	}
 	log.Trace("Reading gas", "gas", gas)
 	return gas
@@ -131,9 +133,9 @@ func checkMinimumVersion(vmRunner vm.EVMRunner) {
 
 func logError(method string, err error) {
 	if err == contracts.ErrRegistryContractNotDeployed {
-		log.Debug("Error calling "+method, "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
+		log.Debug("Error calling "+method, "err", err, "contract", hexutil.Encode(config.BlockchainParametersRegistryId[:]))
 	} else {
-		log.Warn("Error calling "+method, "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
+		log.Warn("Error calling "+method, "err", err, "contract", hexutil.Encode(config.BlockchainParametersRegistryId[:]))
 	}
 }
 

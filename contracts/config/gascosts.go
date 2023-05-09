@@ -4,6 +4,10 @@ const (
 	thousand = 1000
 	million  = 1000 * 1000
 
+	// Default intrinsic gas cost of transactions paying for gas in alternative currencies.
+	// Calculated to estimate 1 balance read, 1 debit, and 4 credit transactions.
+	IntrinsicGasForAlternativeFeeCurrency uint64 = 50 * thousand
+
 	// Contract communication gas limits
 	MaxGasForCalculateTargetEpochPaymentAndRewards uint64 = 2 * million
 	MaxGasForCommitments                           uint64 = 2 * million

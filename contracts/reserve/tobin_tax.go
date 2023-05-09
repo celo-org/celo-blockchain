@@ -6,16 +6,23 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contracts"
-	"github.com/celo-org/celo-blockchain/contracts/internal/config"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/params"
 )
 
 var (
 	ErrTobinTaxZeroDenominator  = errors.New("tobin tax denominator equal to zero")
 	ErrTobinTaxInvalidNumerator = errors.New("tobin tax numerator greater than denominator")
 )
+
+// Function is "getOrComputeTobinTax()"
+// selector is first 4 bytes of keccak256 of "getOrComputeTobinTax()"
+// Source:
+// pip3 install pyethereum
+// python3 -c 'from ethereum.utils import sha3; print(sha3("getOrComputeTobinTax()")[0:4].hex())'
+var tobinTaxFunctionSelector = hexutil.MustDecode("0x17f9a6f7")
 
 type Ratio struct {
 	numerator, denominator *big.Int
@@ -27,12 +34,12 @@ func (r *Ratio) Apply(value *big.Int) *big.Int {
 
 func TobinTax(vmRunner vm.EVMRunner, sender common.Address) (tax Ratio, reserveAddress common.Address, err error) {
 
-	reserveAddress, err = contracts.GetRegisteredAddress(vmRunner, params.ReserveRegistryId)
+	reserveAddress, err = contracts.GetRegisteredAddress(vmRunner, config.ReserveRegistryId)
 	if err != nil {
 		return Ratio{}, common.ZeroAddress, err
 	}
 
-	ret, err := vmRunner.ExecuteFrom(sender, reserveAddress, params.TobinTaxFunctionSelector, config.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
+	ret, err := vmRunner.ExecuteFrom(sender, reserveAddress, tobinTaxFunctionSelector, config.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
 	if err != nil {
 		return Ratio{}, common.ZeroAddress, err
 	}

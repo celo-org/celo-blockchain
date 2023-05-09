@@ -16,13 +16,6 @@
 
 package params
 
-import (
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/common/math"
-	"github.com/celo-org/celo-blockchain/crypto"
-)
-
 const (
 	DefaultGasLimit uint64 = 20000000 // Gas limit of the blocks before BlockchainParams contract is loaded.
 
@@ -198,53 +191,3 @@ var Bls12377MultiExpDiscountTable = [128]uint64{1200, 888, 764, 641, 594, 547, 5
 
 // Gas discount table for BLS12-381 G1 and G2 multi exponentiation operations
 var Bls12381MultiExpDiscountTable = [128]uint64{1200, 888, 764, 641, 594, 547, 500, 453, 438, 423, 408, 394, 379, 364, 349, 334, 330, 326, 322, 318, 314, 310, 306, 302, 298, 294, 289, 285, 281, 277, 273, 269, 268, 266, 265, 263, 262, 260, 259, 257, 256, 254, 253, 251, 250, 248, 247, 245, 244, 242, 241, 239, 238, 236, 235, 233, 232, 231, 229, 228, 226, 225, 223, 222, 221, 220, 219, 219, 218, 217, 216, 216, 215, 214, 213, 213, 212, 211, 211, 210, 209, 208, 208, 207, 206, 205, 205, 204, 203, 202, 202, 201, 200, 199, 199, 198, 197, 196, 196, 195, 194, 193, 193, 192, 191, 191, 190, 189, 188, 188, 187, 186, 185, 185, 184, 183, 182, 182, 181, 180, 179, 179, 178, 177, 176, 176, 175, 174}
-
-var (
-	RegistrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
-
-	// Celo registered contract IDs.
-	// The names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
-	AttestationsRegistryId         = makeRegistryId("Attestations")
-	BlockchainParametersRegistryId = makeRegistryId("BlockchainParameters")
-	ElectionRegistryId             = makeRegistryId("Election")
-	EpochRewardsRegistryId         = makeRegistryId("EpochRewards")
-	FeeCurrencyWhitelistRegistryId = makeRegistryId("FeeCurrencyWhitelist")
-	FreezerRegistryId              = makeRegistryId("Freezer")
-	GasPriceMinimumRegistryId      = makeRegistryId("GasPriceMinimum")
-	GoldTokenRegistryId            = makeRegistryId("GoldToken")
-	GovernanceRegistryId           = makeRegistryId("Governance")
-	LockedGoldRegistryId           = makeRegistryId("LockedGold")
-	RandomRegistryId               = makeRegistryId("Random")
-	ReserveRegistryId              = makeRegistryId("Reserve")
-	SortedOraclesRegistryId        = makeRegistryId("SortedOracles")
-	StableTokenRegistryId          = makeRegistryId("StableToken")
-	TransferWhitelistRegistryId    = makeRegistryId("TransferWhitelist")
-	ValidatorsRegistryId           = makeRegistryId("Validators")
-
-	// Function is "getOrComputeTobinTax()"
-	// selector is first 4 bytes of keccak256 of "getOrComputeTobinTax()"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("getOrComputeTobinTax()")[0:4].hex())'
-	TobinTaxFunctionSelector = hexutil.MustDecode("0x17f9a6f7")
-
-	// Scale factor for the solidity fixidity library
-	Fixidity1 = math.BigPow(10, 24)
-)
-
-func makeRegistryId(contractName string) [32]byte {
-	hash := crypto.Keccak256([]byte(contractName))
-	var id [32]byte
-	copy(id[:], hash)
-
-	return id
-}
-
-const (
-	thousand = 1000
-	million  = 1000 * 1000
-
-	// Default intrinsic gas cost of transactions paying for gas in alternative currencies.
-	// Calculated to estimate 1 balance read, 1 debit, and 4 credit transactions.
-	IntrinsicGasForAlternativeFeeCurrency uint64 = 50 * thousand
-)

@@ -22,15 +22,14 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
-	"github.com/celo-org/celo-blockchain/contracts/internal/config"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/params"
 )
 
 var (
-	medianRateMethod   = contracts.NewRegisteredContractMethod(params.SortedOraclesRegistryId, abis.SortedOracles, "medianRate", config.MaxGasForMedianRate)
-	getWhitelistMethod = contracts.NewRegisteredContractMethod(params.FeeCurrencyWhitelistRegistryId, abis.FeeCurrency, "getWhitelist", config.MaxGasForGetWhiteList)
+	medianRateMethod   = contracts.NewRegisteredContractMethod(config.SortedOraclesRegistryId, abis.SortedOracles, "medianRate", config.MaxGasForMedianRate)
+	getWhitelistMethod = contracts.NewRegisteredContractMethod(config.FeeCurrencyWhitelistRegistryId, abis.FeeCurrency, "getWhitelist", config.MaxGasForGetWhiteList)
 	getBalanceMethod   = contracts.NewMethod(abis.ERC20, "balanceOf", config.MaxGasToReadErc20Balance)
 )
 

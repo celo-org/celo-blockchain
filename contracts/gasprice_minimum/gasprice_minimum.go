@@ -24,8 +24,8 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
-	"github.com/celo-org/celo-blockchain/contracts/internal/config"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
 )
@@ -38,9 +38,9 @@ var (
 )
 
 var (
-	getGasPriceMinimumMethod      = contracts.NewRegisteredContractMethod(params.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "getGasPriceMinimum", config.MaxGasForGetGasPriceMinimum)
-	getGasPriceMinimumFloorMethod = contracts.NewRegisteredContractMethod(params.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "gasPriceMinimumFloor", config.MaxGasForGetGasPriceMinimum)
-	updateGasPriceMinimumMethod   = contracts.NewRegisteredContractMethod(params.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "updateGasPriceMinimum", config.MaxGasForUpdateGasPriceMinimum)
+	getGasPriceMinimumMethod      = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "getGasPriceMinimum", config.MaxGasForGetGasPriceMinimum)
+	getGasPriceMinimumFloorMethod = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "gasPriceMinimumFloor", config.MaxGasForGetGasPriceMinimum)
+	updateGasPriceMinimumMethod   = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "updateGasPriceMinimum", config.MaxGasForUpdateGasPriceMinimum)
 )
 
 // GetGasTipCapSuggestion suggests a max tip of 2GWei in the appropriate currency.
@@ -66,7 +66,7 @@ func GetGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*big.I
 	var err error
 
 	if currency == nil {
-		currencyAddress, err = contracts.GetRegisteredAddress(vmRunner, params.GoldTokenRegistryId)
+		currencyAddress, err = contracts.GetRegisteredAddress(vmRunner, config.GoldTokenRegistryId)
 
 		if err == contracts.ErrSmartContractNotDeployed || err == contracts.ErrRegistryContractNotDeployed {
 			return FallbackGasPriceMinimum, nil
@@ -99,7 +99,7 @@ func GetRealGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*b
 	var err error
 
 	if currency == nil {
-		currencyAddress, err = contracts.GetRegisteredAddress(vmRunner, params.GoldTokenRegistryId)
+		currencyAddress, err = contracts.GetRegisteredAddress(vmRunner, config.GoldTokenRegistryId)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve gold token address: %w", err)
