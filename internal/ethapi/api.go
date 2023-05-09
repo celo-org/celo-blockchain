@@ -763,6 +763,8 @@ func addEthCompatibilityFields(ctx context.Context, block map[string]interface{}
 	} else {
 		block["baseFeePerGas"] = (*hexutil.Big)(baseFee)
 	}
+
+	block["difficulty"] = 0
 }
 
 // GetUncleByBlockNumberAndIndex returns the uncle block for the given block hash and index. When fullTx is true
