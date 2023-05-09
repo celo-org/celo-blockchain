@@ -10,16 +10,16 @@ import 'mocha';
 describe('ethers.js compatibility tests with state', () => {
 
 	it('provider.getBlock works (block has gasLimit set)', async () => {
-		let provider = new ethers.providers.JsonRpcProvider(process.env.npm_config_networkaddr);
+		let provider = new ethers.JsonRpcProvider(process.env.npm_config_networkaddr);
 		let block = await provider.getBlock(process.env.npm_config_blocknum as string);
 
 		// These assertions trigger on undefined or null
 		assert.notEqual(block, null);
-		assert.notEqual(block.gasLimit, null);
+		assert.notEqual(block!.gasLimit, null);
 	});
 
 	it('EIP-1559 transactions supported (can get feeData)', async () => {
-		let provider = new ethers.providers.JsonRpcProvider(process.env.npm_config_networkaddr);
+		let provider = new ethers.JsonRpcProvider(process.env.npm_config_networkaddr);
 
 		// The fee data is the construct used to determine if EIP-1559 transactions are supported, if it contains max
 		let feeData = await provider.getFeeData();
@@ -31,23 +31,23 @@ describe('ethers.js compatibility tests with state', () => {
 		assert.notEqual(feeData.maxPriorityFeePerGas, null);
 		// We check the other 2 fields for completeness, they should also be set.
 		assert.notEqual(feeData.gasPrice, null);
-		assert.notEqual(feeData.lastBaseFeePerGas, null);
+		// assert.notEqual(feeData.lastBaseFeePerGas, null);
 	});
 
 	it('block has gasLimit', async () => {
-		let provider = new ethers.providers.JsonRpcProvider(process.env.npm_config_networkaddr);
+		let provider = new ethers.JsonRpcProvider(process.env.npm_config_networkaddr);
 		const fullBlock = await provider.send(
 			'eth_getBlockByNumber',
-			[ethers.utils.hexValue(process.env.npm_config_blocknum as string), true]
+			[ethers.toQuantity(process.env.npm_config_blocknum as string), true]
 		)
 		assert.isTrue(fullBlock.hasOwnProperty('gasLimit'))
 	});
 
 	it('block has baseFeePerGas', async () => {
-		let provider = new ethers.providers.JsonRpcProvider(process.env.npm_config_networkaddr);
+		let provider = new ethers.JsonRpcProvider(process.env.npm_config_networkaddr);
 		const fullBlock = await provider.send(
 			'eth_getBlockByNumber',
-			[ethers.utils.hexValue(process.env.npm_config_blocknum as string), true]
+			[ethers.toQuantity(process.env.npm_config_blocknum as string), true]
 		)
 		assert.isTrue(fullBlock.hasOwnProperty('baseFeePerGas'))
 	});
@@ -57,7 +57,7 @@ describe('ethers.js compatibility tests with state', () => {
 describe('ethers.js compatibility tests with no state', () => {
 
 	it('provider.getBlock throws exception (no gasLimit)', async () => {
-		let provider = new ethers.providers.JsonRpcProvider(process.env.npm_config_networkaddr);
+		let provider = new ethers.JsonRpcProvider(process.env.npm_config_networkaddr);
 		try {
 			await provider.getBlock(process.env.npm_config_blocknum as string);
 		} catch (e) {
@@ -67,19 +67,19 @@ describe('ethers.js compatibility tests with no state', () => {
 	});
 
 	it('block has no gasLimit', async () => {
-		let provider = new ethers.providers.JsonRpcProvider(process.env.npm_config_networkaddr);
+		let provider = new ethers.JsonRpcProvider(process.env.npm_config_networkaddr);
 		const fullBlock = await provider.send(
 			'eth_getBlockByNumber',
-			[ethers.utils.hexValue(process.env.npm_config_blocknum as string), true]
+			[ethers.toQuantity(process.env.npm_config_blocknum as string), true]
 		)
 		assert.isFalse(fullBlock.hasOwnProperty('gasLimit'))
 	});
 
 	it('block has no baseFeePerGas', async () => {
-		let provider = new ethers.providers.JsonRpcProvider(process.env.npm_config_networkaddr);
+		let provider = new ethers.JsonRpcProvider(process.env.npm_config_networkaddr);
 		const fullBlock = await provider.send(
 			'eth_getBlockByNumber',
-			[ethers.utils.hexValue(process.env.npm_config_blocknum as string), true]
+			[ethers.toQuantity(process.env.npm_config_blocknum as string), true]
 		)
 		assert.isFalse(fullBlock.hasOwnProperty('baseFeePerGas'))
 	});
