@@ -280,7 +280,7 @@ func (b *LesApiBackend) GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Con
 	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
 	if err != nil {
 		log.Warn("Cannot read intrinsic gas for alternative fee currency", "err", err)
-		return params.IntrinsicGasForAlternativeFeeCurrency
+		return blockchain_parameters.DefaultIntrinsicGasForAlternativeFeeCurrency
 	}
 	return blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
 }
