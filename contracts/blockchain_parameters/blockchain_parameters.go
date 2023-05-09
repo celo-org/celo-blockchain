@@ -23,6 +23,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
+	"github.com/celo-org/celo-blockchain/contracts/internal/config"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
@@ -37,13 +38,13 @@ var (
 
 // getMinimumVersion retrieves the client required minimum version
 // If a node is running a version smaller than this, it should exit/stop
-func getMinimumVersion(vmRunner vm.EVMRunner) (*params.VersionInfo, error) {
+func getMinimumVersion(vmRunner vm.EVMRunner) (*config.VersionInfo, error) {
 	version := [3]*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(0)}
 	err := getMinimumClientVersionMethod.Query(vmRunner, &version)
 	if err != nil {
 		return nil, err
 	}
-	return &params.VersionInfo{
+	return &config.VersionInfo{
 		Major: version[0].Uint64(),
 		Minor: version[1].Uint64(),
 		Patch: version[2].Uint64(),
@@ -120,7 +121,7 @@ func checkMinimumVersion(vmRunner vm.EVMRunner) {
 		return
 	}
 
-	if params.CurrentVersionInfo.Cmp(version) == -1 {
+	if config.CurrentVersionInfo.Cmp(version) == -1 {
 		time.Sleep(10 * time.Second)
 		// TODO this should exist gracefully, not like this
 		log.Crit("Client version older than required", "current", params.Version, "required", version)

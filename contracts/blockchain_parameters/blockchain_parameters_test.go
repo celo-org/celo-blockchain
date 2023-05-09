@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/contracts"
+
+	"github.com/celo-org/celo-blockchain/contracts/internal/config"
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/params"
 	. "github.com/onsi/gomega"
@@ -27,7 +29,7 @@ func TestGetMinimumVersion(t *testing.T) {
 
 		version, err := getMinimumVersion(runner)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(version).To(Equal(&params.VersionInfo{Major: 5, Minor: 4, Patch: 3}))
+		g.Expect(version).To(Equal(&config.VersionInfo{Major: 5, Minor: 4, Patch: 3}))
 	})
 }
 
