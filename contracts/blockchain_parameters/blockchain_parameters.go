@@ -36,7 +36,6 @@ const (
 var (
 	intrinsicGasForAlternativeFeeCurrencyMethod = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "intrinsicGasForAlternativeFeeCurrency", maxGasForReadBlockchainParameter)
 	blockGasLimitMethod                         = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "blockGasLimit", maxGasForReadBlockchainParameter)
-	getUptimeLookbackWindowMethod               = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "getUptimeLookbackWindow", maxGasForReadBlockchainParameter)
 )
 
 const DefaultIntrinsicGasForAlternativeFeeCurrency = config.IntrinsicGasForAlternativeFeeCurrency
@@ -86,19 +85,6 @@ func GetBlockGasLimit(vmRunner vm.EVMRunner) (uint64, error) {
 		return 0, err
 	}
 	return gasLimit.Uint64(), nil
-}
-
-// GetLookbackWindow retrieves the lookback window parameter to be used
-// for uptime score computations
-func GetLookbackWindow(vmRunner vm.EVMRunner) (uint64, error) {
-	var lookbackWindow *big.Int
-	err := getUptimeLookbackWindowMethod.Query(vmRunner, &lookbackWindow)
-
-	if err != nil {
-		logError("getUptimeLookbackWindow", err)
-		return 0, err
-	}
-	return lookbackWindow.Uint64(), nil
 }
 
 func logError(method string, err error) {

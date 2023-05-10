@@ -16,14 +16,12 @@ import (
 
 const (
 	maxGasForTotalSupply    uint64 = 50 * n.Thousand
-	maxGasForMintGas        uint64 = 5 * n.Million
 	maxGasForIncreaseSupply uint64 = 50 * n.Thousand
 )
 
 var (
 	totalSupplyMethod    = contracts.NewRegisteredContractMethod(config.GoldTokenRegistryId, abis.GoldToken, "totalSupply", maxGasForTotalSupply)
 	increaseSupplyMethod = contracts.NewRegisteredContractMethod(config.GoldTokenRegistryId, abis.GoldToken, "increaseSupply", maxGasForIncreaseSupply)
-	mintMethod           = contracts.NewRegisteredContractMethod(config.GoldTokenRegistryId, abis.GoldToken, "mint", maxGasForMintGas)
 )
 
 func GetTotalSupply(vmRunner vm.EVMRunner) (*big.Int, error) {
@@ -34,15 +32,6 @@ func GetTotalSupply(vmRunner vm.EVMRunner) (*big.Int, error) {
 
 func IncreaseSupply(vmRunner vm.EVMRunner, value *big.Int) error {
 	err := increaseSupplyMethod.Execute(vmRunner, nil, common.Big0, value)
-	return err
-}
-
-func Mint(vmRunner vm.EVMRunner, beneficiary common.Address, value *big.Int) error {
-	if value.Cmp(new(big.Int)) <= 0 {
-		return nil
-	}
-
-	err := mintMethod.Execute(vmRunner, nil, common.Big0, beneficiary, value)
 	return err
 }
 

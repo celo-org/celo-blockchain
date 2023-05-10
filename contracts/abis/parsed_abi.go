@@ -16,8 +16,6 @@ var (
 	ERC20                *abi.ABI = mustParseAbi("ERC20", ERC20Str)
 	FeeCurrency          *abi.ABI = mustParseAbi("FeeCurrency", FeeCurrencyStr)
 	Elections            *abi.ABI = mustParseAbi("Elections", ElectionsStr)
-	EpochRewards         *abi.ABI = mustParseAbi("EpochRewards", EpochRewardsStr)
-	Freezer              *abi.ABI = mustParseAbi("Freezer", FreezerStr)
 	GasPriceMinimum      *abi.ABI = mustParseAbi("GasPriceMinimum", GasPriceMinimumStr)
 	GoldToken            *abi.ABI = mustParseAbi("GoldToken", GoldTokenStr)
 	Random               *abi.ABI = mustParseAbi("Random", RandomStr)
@@ -37,8 +35,6 @@ var byRegistryId = map[common.Hash]*abi.ABI{
 	config.SortedOraclesRegistryId:        SortedOracles,
 	config.FeeCurrencyWhitelistRegistryId: FeeCurrency,
 	config.ElectionRegistryId:             Elections,
-	config.EpochRewardsRegistryId:         EpochRewards,
-	config.FreezerRegistryId:              Freezer,
 	config.GasPriceMinimumRegistryId:      GasPriceMinimum,
 	config.GoldTokenRegistryId:            GoldToken,
 	config.RandomRegistryId:               Random,

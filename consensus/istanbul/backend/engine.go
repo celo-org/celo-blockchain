@@ -27,9 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/uptime"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
-	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/contracts/gold_token"
 	"github.com/celo-org/celo-blockchain/core"
@@ -464,23 +462,6 @@ func (sb *Backend) EpochSize() uint64 {
 	return sb.config.Epoch
 }
 
-// LookbackWindow returns the size of the lookback window for calculating uptime (in blocks)
-// Value is constant during an epoch
-func (sb *Backend) LookbackWindow(header *types.Header, state *state.StateDB) uint64 {
-	// Check if donut was already active at the beginning of the epoch
-	// as we want to activate the change at epoch change
-	firstBlockOfEpoch := istanbul.MustGetEpochFirstBlockGivenBlockNumber(header.Number.Uint64(), sb.config.Epoch)
-	cip21Activated := sb.chain.Config().IsDonut(new(big.Int).SetUint64(firstBlockOfEpoch))
-
-	vmRunner := sb.chain.NewEVMRunner(header, state)
-	return uptime.ComputeLookbackWindow(
-		sb.config.Epoch,
-		sb.config.DefaultLookbackWindow,
-		cip21Activated,
-		func() (uint64, error) { return blockchain_parameters.GetLookbackWindow(vmRunner) },
-	)
-}
-
 // Finalize runs any post-transaction state modifications (e.g. block rewards)
 // but does not assemble the block.
 //
@@ -515,14 +496,6 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 	}
 
 	lastBlockOfEpoch := istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch)
-	if lastBlockOfEpoch {
-		snapshot = state.Snapshot()
-		err = sb.distributeEpochRewards(header, state)
-		if err != nil {
-			sb.logger.Error("Failed to distribute epoch rewards", "blockNumber", header.Number, "err", err)
-			state.RevertToSnapshot(snapshot)
-		}
-	}
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	logger.Debug("Finalized", "duration", now().Sub(start), "lastInEpoch", lastBlockOfEpoch)

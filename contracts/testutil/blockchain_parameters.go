@@ -12,7 +12,6 @@ type BlockchainParametersMock struct {
 
 	MinimumVersion                             config.VersionInfo
 	BlockGasLimitValue                         *big.Int
-	LookbackWindow                             *big.Int
 	IntrinsicGasForAlternativeFeeCurrencyValue *big.Int
 }
 
@@ -20,7 +19,6 @@ func NewBlockchainParametersMock() *BlockchainParametersMock {
 	mock := &BlockchainParametersMock{
 		MinimumVersion:     config.VersionInfo{Major: 1, Minor: 0, Patch: 0},
 		BlockGasLimitValue: big.NewInt(20000000),
-		LookbackWindow:     big.NewInt(3),
 		IntrinsicGasForAlternativeFeeCurrencyValue: big.NewInt(10000),
 	}
 
@@ -31,9 +29,6 @@ func NewBlockchainParametersMock() *BlockchainParametersMock {
 
 func (bp *BlockchainParametersMock) BlockGasLimit() *big.Int {
 	return bp.BlockGasLimitValue
-}
-func (bp *BlockchainParametersMock) GetUptimeLookbackWindow() *big.Int {
-	return bp.LookbackWindow
 }
 func (bp *BlockchainParametersMock) IntrinsicGasForAlternativeFeeCurrency() *big.Int {
 	return bp.IntrinsicGasForAlternativeFeeCurrencyValue

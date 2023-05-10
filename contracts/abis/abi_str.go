@@ -41,21 +41,6 @@ const BlockchainParametersStr = `[
 	{
 		"constant": true,
 		"inputs": [],
-		"name": "getUptimeLookbackWindow",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "lookbackWindow",
-				"type": "uint256"
-			}
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"constant": true,
-		"inputs": [],
 		"name": "intrinsicGasForAlternativeFeeCurrency",
 		"outputs": [
 			{
@@ -153,50 +138,6 @@ const ElectionsStr string = `[
 	},
 	{
 		"constant": true,
-		"inputs": [],
-		"name": "getTotalVotesForEligibleValidatorGroups",
-		"outputs": [
-			{
-				"name": "groups",
-				"type": "address[]"
-			},
-			{
-				"name": "values",
-				"type": "uint256[]"
-			}
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"constant": false,
-		"inputs": [
-			{
-				"name": "group",
-				"type": "address"
-			},
-			{
-				"name": "value",
-				"type": "uint256"
-			},
-			{
-				"name": "lesser",
-				"type": "address"
-			},
-			{
-				"name": "greater",
-				"type": "address"
-			}
-		],
-		"name": "distributeEpochRewards",
-		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"constant": true,
 		"inputs": [
 			{
 				"name": "group",
@@ -264,88 +205,6 @@ const ElectionsStr string = `[
 		"type": "function"
 	}
 ]`
-
-// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/EpochRewards.json
-const EpochRewardsStr string = `[
-	{
-		"constant": true,
-		"inputs": [],
-		"name": "calculateTargetEpochRewards",
-		"outputs": [
-			{
-				"name": "",
-				"type": "uint256"
-			},
-			{
-				"name": "",
-				"type": "uint256"
-			},
-			{
-				"name": "",
-				"type": "uint256"
-			},
-			{
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{ 
-		"constant": true,
-		"inputs": [],
-		"name": "carbonOffsettingPartner",
-		"outputs": [
-			{ 
-				"name": "",
-				"type": "address"
-			}
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"constant": false,
-		"inputs": [],
-		"name": "updateTargetVotingYield",
-		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"constant": true,
-		"inputs": [],
-		"name": "isReserveLow",
-		"outputs": [
-			{
-				"name": "",
-				"type": "bool"
-			}
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"constant": true,
-		"inputs": [],
-		"name": "frozen",
-		"outputs": [
-			{
-				"name": "",
-				"type": "bool"
-			}
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	}
-]
-`
 
 // This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Freezer.json
 const FreezerStr = `[
@@ -442,29 +301,6 @@ const GoldTokenStr = `[
 		],
 		"name": "increaseSupply",
 		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"constant": false,
-		"inputs": [
-			{
-				"name": "to",
-				"type": "address"
-			},
-			{
-				"name": "value",
-				"type": "uint256"
-			}
-		],
-		"name": "mint",
-		"outputs": [
-			{
-				"name": "",
-				"type": "bool"
-			}
-		],
 		"payable": false,
 		"stateMutability": "nonpayable",
 		"type": "function"

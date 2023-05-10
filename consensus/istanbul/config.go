@@ -47,13 +47,13 @@ type Config struct {
 	BlockPeriod                 uint64         `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
 	ProposerPolicy              ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
 	Epoch                       uint64         `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
-	DefaultLookbackWindow       uint64         `toml:",omitempty"` // The default value for how many blocks in a row a validator must miss to be considered "down"
-	ReplicaStateDBPath          string         `toml:",omitempty"` // The location for the validator replica state DB
-	ValidatorEnodeDBPath        string         `toml:",omitempty"` // The location for the validator enodes DB
-	VersionCertificateDBPath    string         `toml:",omitempty"` // The location for the signed announce version DB
-	RoundStateDBPath            string         `toml:",omitempty"` // The location for the round states DB
-	Validator                   bool           `toml:",omitempty"` // Specified if this node is configured to validate  (specifically if --mine command line is set)
-	Replica                     bool           `toml:",omitempty"` // Specified if this node is configured to be a replica
+
+	ReplicaStateDBPath       string `toml:",omitempty"` // The location for the validator replica state DB
+	ValidatorEnodeDBPath     string `toml:",omitempty"` // The location for the validator enodes DB
+	VersionCertificateDBPath string `toml:",omitempty"` // The location for the signed announce version DB
+	RoundStateDBPath         string `toml:",omitempty"` // The location for the round states DB
+	Validator                bool   `toml:",omitempty"` // Specified if this node is configured to validate  (specifically if --mine command line is set)
+	Replica                  bool   `toml:",omitempty"` // Specified if this node is configured to be a replica
 
 	// Proxy Configs
 	Proxy                   bool           `toml:",omitempty"` // Specifies if this node is a proxy
@@ -87,7 +87,6 @@ var DefaultConfig = &Config{
 	BlockPeriod:                    5,
 	ProposerPolicy:                 ShuffledRoundRobin,
 	Epoch:                          30000,
-	DefaultLookbackWindow:          12,
 	ReplicaStateDBPath:             "replicastate",
 	ValidatorEnodeDBPath:           "validatorenodes",
 	VersionCertificateDBPath:       "versioncertificates",
@@ -116,12 +115,6 @@ func ApplyParamsChainConfigToConfig(chainConfig *params.ChainConfig, config *Con
 	}
 	if chainConfig.Istanbul.BlockPeriod != 0 {
 		config.BlockPeriod = chainConfig.Istanbul.BlockPeriod
-	}
-	if chainConfig.Istanbul.LookbackWindow != 0 {
-		config.DefaultLookbackWindow = chainConfig.Istanbul.LookbackWindow
-	}
-	if chainConfig.Istanbul.LookbackWindow >= chainConfig.Istanbul.Epoch-2 {
-		return fmt.Errorf("istanbul.lookbackwindow must be less than istanbul.epoch-2")
 	}
 	config.ProposerPolicy = ProposerPolicy(chainConfig.Istanbul.ProposerPolicy)
 
