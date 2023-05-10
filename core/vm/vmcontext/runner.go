@@ -52,15 +52,6 @@ func (ev *evmRunner) Execute(recipient common.Address, input []byte, gas uint64,
 	return ret, err
 }
 
-func (ev *evmRunner) ExecuteFrom(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
-	evm := ev.newEVM(sender)
-	if ev.dontMeterGas {
-		evm.StopGasMetering()
-	}
-	ret, _, err = evm.Call(vm.AccountRef(sender), recipient, input, gas, value)
-	return ret, err
-}
-
 func (ev *evmRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, err error) {
 	evm := ev.newEVM(VMAddress)
 	if ev.dontMeterGas {
@@ -90,11 +81,6 @@ type SharedEVMRunner struct{ *vm.EVM }
 
 func (sev *SharedEVMRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
 	ret, _, err = sev.Call(vm.AccountRef(VMAddress), recipient, input, gas, value)
-	return ret, err
-}
-
-func (sev *SharedEVMRunner) ExecuteFrom(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
-	ret, _, err = sev.Call(vm.AccountRef(sender), recipient, input, gas, value)
 	return ret, err
 }
 

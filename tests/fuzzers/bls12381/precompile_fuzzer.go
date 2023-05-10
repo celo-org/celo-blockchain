@@ -101,7 +101,7 @@ var vmBlockCtx = vm.BlockContext{
 	CanTransfer: func(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 		return db.GetBalance(addr).Cmp(amount) >= 0
 	},
-	Transfer: func(e *vm.EVM, a1, a2 common.Address, i *big.Int) { panic("transfer: not implemented") },
+	Transfer: func(s vm.StateDB, a1, a2 common.Address, i *big.Int) { panic("transfer: not implemented") },
 	GetHash:  func(u uint64) common.Hash { panic("getHash: not implemented") },
 	VerifySeal: func(header *types.Header) bool {
 		// If the block is later than the unsealed reference block, return false.

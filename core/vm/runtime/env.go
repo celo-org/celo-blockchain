@@ -28,7 +28,7 @@ func NewEnv(cfg *Config) *vm.EVM {
 	}
 	blockContext := vm.BlockContext{
 		CanTransfer:        vmcontext.CanTransfer,
-		Transfer:           vmcontext.TobinTransfer,
+		Transfer:           vmcontext.Transfer,
 		GetHash:            cfg.GetHashFn,
 		Coinbase:           cfg.Coinbase,
 		BlockNumber:        cfg.BlockNumber,
