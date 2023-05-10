@@ -128,7 +128,7 @@ var (
 	}
 
 	TestChainConfig = &ChainConfig{
-		ChainID:        big.NewInt(1),
+		ChainID:        big.NewInt(1337),
 		HomesteadBlock: big.NewInt(0),
 
 		DAOForkBlock:   nil,
