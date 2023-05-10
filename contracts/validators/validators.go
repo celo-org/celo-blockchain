@@ -24,6 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/contracts/config"
+	"github.com/celo-org/celo-blockchain/contracts/internal/n"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 )
@@ -36,14 +37,22 @@ type ValidatorContractData struct {
 	Signer         common.Address
 }
 
+const (
+	maxGasForDistributeEpochPayment   uint64 = 1 * n.Million
+	maxGasForGetMembershipInLastEpoch uint64 = 1 * n.Million
+	maxGasForGetRegisteredValidators  uint64 = 2 * n.Million
+	maxGasForGetValidator             uint64 = 100 * n.Thousand
+	maxGasForUpdateValidatorScore     uint64 = 1 * n.Million
+)
+
 var (
-	getRegisteredValidatorSignersMethod      = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "getRegisteredValidatorSigners", config.MaxGasForGetRegisteredValidators)
-	getRegisteredValidatorsMethod            = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "getRegisteredValidators", config.MaxGasForGetRegisteredValidators)
-	getValidatorBlsPublicKeyFromSignerMethod = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "getValidatorBlsPublicKeyFromSigner", config.MaxGasForGetValidator)
-	getMembershipInLastEpochFromSignerMethod = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "getMembershipInLastEpochFromSigner", config.MaxGasForGetMembershipInLastEpoch)
-	getValidatorMethod                       = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "getValidator", config.MaxGasForGetValidator)
-	updateValidatorScoreFromSignerMethod     = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "updateValidatorScoreFromSigner", config.MaxGasForUpdateValidatorScore)
-	distributeEpochPaymentsFromSignerMethod  = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "distributeEpochPaymentsFromSigner", config.MaxGasForDistributeEpochPayment)
+	getRegisteredValidatorSignersMethod      = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "getRegisteredValidatorSigners", maxGasForGetRegisteredValidators)
+	getRegisteredValidatorsMethod            = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "getRegisteredValidators", maxGasForGetRegisteredValidators)
+	getValidatorBlsPublicKeyFromSignerMethod = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "getValidatorBlsPublicKeyFromSigner", maxGasForGetValidator)
+	getMembershipInLastEpochFromSignerMethod = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "getMembershipInLastEpochFromSigner", maxGasForGetMembershipInLastEpoch)
+	getValidatorMethod                       = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "getValidator", maxGasForGetValidator)
+	updateValidatorScoreFromSignerMethod     = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "updateValidatorScoreFromSigner", maxGasForUpdateValidatorScore)
+	distributeEpochPaymentsFromSignerMethod  = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "distributeEpochPaymentsFromSigner", maxGasForDistributeEpochPayment)
 )
 
 func RetrieveRegisteredValidatorSigners(vmRunner vm.EVMRunner) ([]common.Address, error) {

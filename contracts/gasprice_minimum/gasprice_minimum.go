@@ -26,6 +26,7 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
+	"github.com/celo-org/celo-blockchain/contracts/internal/n"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
 )
@@ -37,10 +38,15 @@ var (
 	suggestionMultiplier    *big.Int = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
 )
 
+const (
+	maxGasForGetGasPriceMinimum    uint64 = 2 * n.Million
+	maxGasForUpdateGasPriceMinimum uint64 = 2 * n.Million
+)
+
 var (
-	getGasPriceMinimumMethod      = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "getGasPriceMinimum", config.MaxGasForGetGasPriceMinimum)
-	getGasPriceMinimumFloorMethod = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "gasPriceMinimumFloor", config.MaxGasForGetGasPriceMinimum)
-	updateGasPriceMinimumMethod   = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "updateGasPriceMinimum", config.MaxGasForUpdateGasPriceMinimum)
+	getGasPriceMinimumMethod      = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "getGasPriceMinimum", maxGasForGetGasPriceMinimum)
+	getGasPriceMinimumFloorMethod = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "gasPriceMinimumFloor", maxGasForGetGasPriceMinimum)
+	updateGasPriceMinimumMethod   = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "updateGasPriceMinimum", maxGasForUpdateGasPriceMinimum)
 )
 
 // GetGasTipCapSuggestion suggests a max tip of 2GWei in the appropriate currency.

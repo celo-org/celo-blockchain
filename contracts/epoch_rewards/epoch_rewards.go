@@ -22,14 +22,22 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/contracts/config"
+	"github.com/celo-org/celo-blockchain/contracts/internal/n"
 	"github.com/celo-org/celo-blockchain/core/vm"
 )
 
+const (
+	maxGasForCalculateTargetEpochPaymentAndRewards uint64 = 2 * n.Million
+	maxGasForIsReserveLow                          uint64 = 1 * n.Million
+	maxGasForGetCarbonOffsettingPartner            uint64 = 20 * n.Thousand
+	maxGasForUpdateTargetVotingYield               uint64 = 2 * n.Million
+)
+
 var (
-	calculateTargetEpochRewardsMethod = contracts.NewRegisteredContractMethod(config.EpochRewardsRegistryId, abis.EpochRewards, "calculateTargetEpochRewards", config.MaxGasForCalculateTargetEpochPaymentAndRewards)
-	isReserveLowMethod                = contracts.NewRegisteredContractMethod(config.EpochRewardsRegistryId, abis.EpochRewards, "isReserveLow", config.MaxGasForIsReserveLow)
-	carbonOffsettingPartnerMethod     = contracts.NewRegisteredContractMethod(config.EpochRewardsRegistryId, abis.EpochRewards, "carbonOffsettingPartner", config.MaxGasForGetCarbonOffsettingPartner)
-	updateTargetVotingYieldMethod     = contracts.NewRegisteredContractMethod(config.EpochRewardsRegistryId, abis.EpochRewards, "updateTargetVotingYield", config.MaxGasForUpdateTargetVotingYield)
+	calculateTargetEpochRewardsMethod = contracts.NewRegisteredContractMethod(config.EpochRewardsRegistryId, abis.EpochRewards, "calculateTargetEpochRewards", maxGasForCalculateTargetEpochPaymentAndRewards)
+	isReserveLowMethod                = contracts.NewRegisteredContractMethod(config.EpochRewardsRegistryId, abis.EpochRewards, "isReserveLow", maxGasForIsReserveLow)
+	carbonOffsettingPartnerMethod     = contracts.NewRegisteredContractMethod(config.EpochRewardsRegistryId, abis.EpochRewards, "carbonOffsettingPartner", maxGasForGetCarbonOffsettingPartner)
+	updateTargetVotingYieldMethod     = contracts.NewRegisteredContractMethod(config.EpochRewardsRegistryId, abis.EpochRewards, "updateTargetVotingYield", maxGasForUpdateTargetVotingYield)
 )
 
 func UpdateTargetVotingYield(vmRunner vm.EVMRunner) error {

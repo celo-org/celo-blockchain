@@ -9,12 +9,17 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/config"
+	"github.com/celo-org/celo-blockchain/contracts/internal/n"
 	"github.com/celo-org/celo-blockchain/core/vm"
 )
 
 var (
 	ErrTobinTaxZeroDenominator  = errors.New("tobin tax denominator equal to zero")
 	ErrTobinTaxInvalidNumerator = errors.New("tobin tax numerator greater than denominator")
+)
+
+const (
+	maxGasForGetOrComputeTobinTax uint64 = 1 * n.Million
 )
 
 // Function is "getOrComputeTobinTax()"
@@ -39,7 +44,7 @@ func TobinTax(vmRunner vm.EVMRunner, sender common.Address) (tax Ratio, reserveA
 		return Ratio{}, common.ZeroAddress, err
 	}
 
-	ret, err := vmRunner.ExecuteFrom(sender, reserveAddress, tobinTaxFunctionSelector, config.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
+	ret, err := vmRunner.ExecuteFrom(sender, reserveAddress, tobinTaxFunctionSelector, maxGasForGetOrComputeTobinTax, big.NewInt(0))
 	if err != nil {
 		return Ratio{}, common.ZeroAddress, err
 	}

@@ -34,7 +34,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
-	"github.com/celo-org/celo-blockchain/contracts/config"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -711,7 +711,7 @@ func TestCallTraceTransactionPrecompileTransfer(t *testing.T) {
 				To:      registryProxyAddr,
 				Input:   packedGetAddressForGoldToken,
 				Output:  common.LeftPadBytes(goldToken.addr.Bytes(), 32),
-				Gas:     newRPCUint64(config.MaxGasForGetAddressFor),
+				Gas:     newRPCUint64(contracts.MaxGasForGetAddressFor),
 				GasUsed: newRPCUint64(0),
 				Calls: []callTrace{
 					{

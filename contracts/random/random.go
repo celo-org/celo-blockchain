@@ -8,16 +8,24 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/contracts/config"
+	"github.com/celo-org/celo-blockchain/contracts/internal/n"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 )
 
+const (
+	maxGasForCommitments       uint64 = 2 * n.Million
+	maxGasForComputeCommitment uint64 = 2 * n.Million
+	maxGasForBlockRandomness   uint64 = 2 * n.Million
+	maxGasForRevealAndCommit   uint64 = 2 * n.Million
+)
+
 var (
-	revealAndCommitMethod    = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "revealAndCommit", config.MaxGasForRevealAndCommit)
-	commitmentsMethod        = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "commitments", config.MaxGasForCommitments)
-	computeCommitmentMethod  = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "computeCommitment", config.MaxGasForComputeCommitment)
-	randomMethod             = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "random", config.MaxGasForBlockRandomness)
-	getBlockRandomnessMethod = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "getBlockRandomness", config.MaxGasForBlockRandomness)
+	revealAndCommitMethod    = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "revealAndCommit", maxGasForRevealAndCommit)
+	commitmentsMethod        = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "commitments", maxGasForCommitments)
+	computeCommitmentMethod  = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "computeCommitment", maxGasForComputeCommitment)
+	randomMethod             = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "random", maxGasForBlockRandomness)
+	getBlockRandomnessMethod = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "getBlockRandomness", maxGasForBlockRandomness)
 )
 
 func IsRunning(vmRunner vm.EVMRunner) bool {

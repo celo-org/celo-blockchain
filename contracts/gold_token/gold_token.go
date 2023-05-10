@@ -7,16 +7,23 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/contracts/config"
+	"github.com/celo-org/celo-blockchain/contracts/internal/n"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/log"
 )
 
+const (
+	maxGasForTotalSupply    uint64 = 50 * n.Thousand
+	maxGasForMintGas        uint64 = 5 * n.Million
+	maxGasForIncreaseSupply uint64 = 50 * n.Thousand
+)
+
 var (
-	totalSupplyMethod    = contracts.NewRegisteredContractMethod(config.GoldTokenRegistryId, abis.GoldToken, "totalSupply", config.MaxGasForTotalSupply)
-	increaseSupplyMethod = contracts.NewRegisteredContractMethod(config.GoldTokenRegistryId, abis.GoldToken, "increaseSupply", config.MaxGasForIncreaseSupply)
-	mintMethod           = contracts.NewRegisteredContractMethod(config.GoldTokenRegistryId, abis.GoldToken, "mint", config.MaxGasForMintGas)
+	totalSupplyMethod    = contracts.NewRegisteredContractMethod(config.GoldTokenRegistryId, abis.GoldToken, "totalSupply", maxGasForTotalSupply)
+	increaseSupplyMethod = contracts.NewRegisteredContractMethod(config.GoldTokenRegistryId, abis.GoldToken, "increaseSupply", maxGasForIncreaseSupply)
+	mintMethod           = contracts.NewRegisteredContractMethod(config.GoldTokenRegistryId, abis.GoldToken, "mint", maxGasForMintGas)
 )
 
 func GetTotalSupply(vmRunner vm.EVMRunner) (*big.Int, error) {

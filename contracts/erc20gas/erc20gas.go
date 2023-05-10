@@ -5,9 +5,14 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/contracts/config"
+	"github.com/celo-org/celo-blockchain/contracts/internal/n"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
+)
+
+const (
+	maxGasForDebitGasFeesTransactions  uint64 = 1 * n.Million
+	maxGasForCreditGasFeesTransactions uint64 = 1 * n.Million
 )
 
 func DebitFees(evm *vm.EVM, address common.Address, amount *big.Int, feeCurrency *common.Address) error {
@@ -30,8 +35,8 @@ func DebitFees(evm *vm.EVM, address common.Address, amount *big.Int, feeCurrency
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, config.MaxGasForDebitGasFeesTransactions, big.NewInt(0))
-	gasUsed := config.MaxGasForDebitGasFeesTransactions - leftoverGas
+	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, maxGasForDebitGasFeesTransactions, big.NewInt(0))
+	gasUsed := maxGasForDebitGasFeesTransactions - leftoverGas
 	log.Trace("debitGasFees called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 	return err
 }
@@ -59,8 +64,8 @@ func CreditFees(
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, config.MaxGasForCreditGasFeesTransactions, big.NewInt(0))
-	gasUsed := config.MaxGasForCreditGasFeesTransactions - leftoverGas
+	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, maxGasForCreditGasFeesTransactions, big.NewInt(0))
+	gasUsed := maxGasForCreditGasFeesTransactions - leftoverGas
 	log.Trace("creditGas called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 	return err
 }

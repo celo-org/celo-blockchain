@@ -24,16 +24,21 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/contracts/config"
+	"github.com/celo-org/celo-blockchain/contracts/internal/n"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
+const (
+	maxGasForReadBlockchainParameter uint64 = 40 * n.Thousand // ad-hoc measurement is ~26k
+)
+
 var (
-	getMinimumClientVersionMethod               = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "getMinimumClientVersion", config.MaxGasForReadBlockchainParameter)
-	intrinsicGasForAlternativeFeeCurrencyMethod = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "intrinsicGasForAlternativeFeeCurrency", config.MaxGasForReadBlockchainParameter)
-	blockGasLimitMethod                         = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "blockGasLimit", config.MaxGasForReadBlockchainParameter)
-	getUptimeLookbackWindowMethod               = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "getUptimeLookbackWindow", config.MaxGasForReadBlockchainParameter)
+	getMinimumClientVersionMethod               = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "getMinimumClientVersion", maxGasForReadBlockchainParameter)
+	intrinsicGasForAlternativeFeeCurrencyMethod = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "intrinsicGasForAlternativeFeeCurrency", maxGasForReadBlockchainParameter)
+	blockGasLimitMethod                         = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "blockGasLimit", maxGasForReadBlockchainParameter)
+	getUptimeLookbackWindowMethod               = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "getUptimeLookbackWindow", maxGasForReadBlockchainParameter)
 )
 
 const DefaultIntrinsicGasForAlternativeFeeCurrency = config.IntrinsicGasForAlternativeFeeCurrency
