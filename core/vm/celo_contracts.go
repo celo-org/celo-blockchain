@@ -105,7 +105,7 @@ func (c *transfer) Run(input []byte, ctx *celoPrecompileContext) ([]byte, error)
 			return nil, ErrInsufficientBalance
 		}
 
-		ctx.Transfer(ctx.evm, from, to, value)
+		ctx.Transfer(ctx.evm.StateDB, from, to, value)
 	}
 
 	return input, nil
