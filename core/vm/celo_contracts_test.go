@@ -128,12 +128,6 @@ var getVerifiedSealBitmapTests = []precompiledTest{
 	},
 }
 
-// Tests the sample inputs from the ed25519 verify check CIP 25
-func TestPrecompiledEd25519Verify(t *testing.T) { testJson("ed25519Verify", "f3", t) }
-
-// Benchmarks the sample inputs from the ed25519 verify check CIP 25
-func BenchmarkPrecompiledEd25519Verify(b *testing.B) { benchJson("ed25519Verify", "f3", b) }
-
 // Tests sample inputs for fractionMulExp
 // NOTE: This currently only verifies that inputs of invalid length are rejected
 func TestPrecompiledFractionMulExp(t *testing.T) {

@@ -79,7 +79,6 @@ var allPrecompiles = map[common.Address]CeloPrecompiledContract{
 	celoPrecompileAddress(11): &getVerifiedSealBitmap{},
 
 	// New in Donut hard fork
-	celoPrecompileAddress(12): &ed25519Verify{},
 	celoPrecompileAddress(13): &wrap{&bls12381G1Add{}},
 	celoPrecompileAddress(14): &wrap{&bls12381G1Mul{}},
 	celoPrecompileAddress(15): &wrap{&bls12381G1MultiExp{}},

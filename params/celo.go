@@ -20,8 +20,5 @@ const (
 	HashHeaderGas               uint64 = 10     // Cost of hashing a block header.
 	GetParentSealBitmapGas      uint64 = 100    // Cost of reading the parent seal bitmap from the chain.
 	// May take a bit more time with 100 validators, need to bench that
-	GetVerifiedSealBitmapGas uint64 = 350000           // Cost of verifying the seal on a given RLP encoded header.
-	Ed25519VerifyGas         uint64 = 1500             // Gas needed for and Ed25519 signature verification
-	Sha2_512BaseGas          uint64 = Sha256BaseGas    // Base price for a Sha2-512 operation
-	Sha2_512PerWordGas       uint64 = Sha256PerWordGas // Per-word price for a Sha2-512 operation
+	GetVerifiedSealBitmapGas uint64 = 350000 // Cost of verifying the seal on a given RLP encoded header.
 )
