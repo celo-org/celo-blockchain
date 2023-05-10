@@ -81,6 +81,9 @@ func TestSimulatedBackend(t *testing.T) {
 		t.Fatal("transaction should have pending status")
 	}
 
+	// TODO EN: fails on committing the tx
+	// TODO EN: fails because of donut being set (replay protection; then for espresso it adds the panic
+	// on merkle root mismatch)
 	sim.Commit()
 	_, isPending, err = sim.TransactionByHash(context.Background(), txHash)
 	if err != nil {
