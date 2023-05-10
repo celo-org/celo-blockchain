@@ -158,7 +158,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	if (stored == common.Hash{}) {
 		if genesis == nil {
 			log.Info("Writing default main-net genesis block")
-			genesis = MainnetGenesisBlock()
+			genesis = DefaultGenesisBlock()
 		} else {
 			log.Info("Writing custom genesis block")
 		}
@@ -174,7 +174,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	s, err := state.New(header.Root, state.NewDatabaseWithConfig(db, nil), nil)
 	if err != nil {
 		if genesis == nil {
-			genesis = MainnetGenesisBlock()
+			genesis = DefaultGenesisBlock()
 		}
 		// Ensure the stored genesis matches with the given one.
 		hash := genesis.ToBlock(nil).Hash()
@@ -344,8 +344,8 @@ func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big
 	return g.MustCommit(db)
 }
 
-// MainnetGenesisBlock returns the Celo main net genesis block.
-func MainnetGenesisBlock() *Genesis {
+// DefaultGenesisBlock returns the Celo main net genesis block.
+func DefaultGenesisBlock() *Genesis {
 	mainnetAlloc := &GenesisAlloc{}
 	mainnetAlloc.UnmarshalJSON([]byte(mainnetAllocJSON))
 	return &Genesis{

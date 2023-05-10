@@ -1789,7 +1789,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = params.MainnetNetworkId
 		}
-		cfg.Genesis = core.MainnetGenesisBlock()
+		cfg.Genesis = core.DefaultGenesisBlock()
 		SetDNSDiscoveryDefaults(cfg, params.MainnetGenesisHash)
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
@@ -2030,7 +2030,7 @@ func MakeGenesis(ctx *cli.Context) *core.Genesis {
 	var genesis *core.Genesis
 	switch {
 	case ctx.GlobalBool(MainnetFlag.Name):
-		genesis = core.MainnetGenesisBlock()
+		genesis = core.DefaultGenesisBlock()
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		genesis = core.DefaultBaklavaGenesisBlock()
 	case ctx.GlobalBool(AlfajoresFlag.Name):
