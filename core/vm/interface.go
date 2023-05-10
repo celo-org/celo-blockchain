@@ -99,11 +99,6 @@ type EVMRunner interface {
 	// It can be seen as a message (input,value) from sender to recipient that returns `ret`
 	Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error)
 
-	// ExecuteFrom is like Execute, but lets you specify the sender to use for the EVM call.
-	// It exists only for use in the Tobin tax calculation done as part of TobinTransfer, because that
-	// originally used the transaction's sender instead of the zero address.
-	ExecuteFrom(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error)
-
 	// Query performs a read operation over the runner's state
 	// It can be seen as a message (input,value) from sender to recipient that returns `ret`
 	Query(recipient common.Address, input []byte, gas uint64) (ret []byte, err error)
