@@ -59,7 +59,7 @@ func TestReturnsDefaultOnFailingRunner(t *testing.T, defaultValue interface{}, f
 		fnValue := reflect.ValueOf(fn)
 
 		argsValues := vmRunnerArguments(FailingVmRunner{}, args...)
-		fmt.Printf("inputs: %v", argsValues)
+		fmt.Printf("inputs: %v\n", argsValues)
 		outs := fnValue.Call(argsValues)
 
 		retValue := outs[0].Interface()
