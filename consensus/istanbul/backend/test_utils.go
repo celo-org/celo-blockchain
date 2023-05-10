@@ -135,8 +135,7 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 	}
 	// force enable Istanbul engine
 	genesis.Config.Istanbul = &params.IstanbulConfig{
-		Epoch:          10,
-		LookbackWindow: 3,
+		Epoch: 10,
 	}
 
 	AppendValidatorsToGenesisBlock(genesis, validators)

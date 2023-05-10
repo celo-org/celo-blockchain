@@ -302,21 +302,6 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 		}
 	}
 
-	parentState, err := sb.stateAt(childHeader.ParentHash)
-	if err != nil {
-		sb.logger.Error("Error obtaining block state", "block_number", parentHeader.Number, "err", err.Error())
-		return
-	}
-	// The parents lookback window at the time will be used.
-	// However, the value used for updating the validator scores is the one set at the last epoch block.
-	lookbackWindow := sb.LookbackWindow(parentHeader, parentState)
-
-	// Report downtime events
-	if sb.blocksElectedButNotSignedGauge.Value() >= int64(lookbackWindow) {
-		sb.blocksDowntimeEventMeter.Mark(1)
-		sb.logger.Error("Elected but getting marked as down", "missed block count", sb.blocksElectedButNotSignedGauge.Value(), "number", number-1, "address", sb.Address())
-	}
-
 	// Clear downtime counter on end of epoch.
 	if istanbul.IsLastBlockOfEpoch(number-1, sb.config.Epoch) {
 		sb.blocksElectedButNotSignedGauge.Update(0)

@@ -71,7 +71,6 @@ var (
 			ProposerPolicy: 2,
 			BlockPeriod:    5,
 			RequestTimeout: 3000,
-			LookbackWindow: 12,
 		},
 	}
 
@@ -97,7 +96,6 @@ var (
 			ProposerPolicy: 2,
 			BlockPeriod:    5,
 			RequestTimeout: 3000,
-			LookbackWindow: 12,
 		},
 	}
 
@@ -123,7 +121,6 @@ var (
 			ProposerPolicy: 2,
 			BlockPeriod:    5,
 			RequestTimeout: 10000,
-			LookbackWindow: 12,
 		},
 	}
 
@@ -270,7 +267,6 @@ type ChainConfig struct {
 type IstanbulConfig struct {
 	Epoch          uint64 `json:"epoch"`                 // Epoch length to reset votes and checkpoint
 	ProposerPolicy uint64 `json:"policy"`                // The policy for proposer selection
-	LookbackWindow uint64 `json:"lookbackwindow"`        // The number of blocks to look back when calculating uptime
 	BlockPeriod    uint64 `json:"blockperiod,omitempty"` // Default minimum difference between two consecutive block's timestamps in second
 
 	// The base timeout for each Istanbul round in milliseconds. The first
@@ -638,7 +634,6 @@ func (c *ChainConfig) deepCopy() *ChainConfig {
 		Istanbul: &IstanbulConfig{
 			Epoch:          c.Istanbul.Epoch,
 			ProposerPolicy: c.Istanbul.ProposerPolicy,
-			LookbackWindow: c.Istanbul.LookbackWindow,
 			BlockPeriod:    c.Istanbul.BlockPeriod,
 			RequestTimeout: c.Istanbul.RequestTimeout,
 			// V2Block:        copyBigIntOrNil(c.Istanbul.V2Block),

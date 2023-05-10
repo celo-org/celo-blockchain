@@ -1515,10 +1515,6 @@ func (bc *BlockChain) insertPreprocessedBlock(block *types.Block, receipts []*ty
 		if hash := bc.GetCanonicalHash(block.NumberU64()); (hash != common.Hash{} && hash != block.Hash()) {
 			log.Error("Found two blocks with same height", "old", hash, "new", block.Hash())
 		}
-		err := istEngine.OnBlockInsertion(block.Header(), state)
-		if err != nil {
-			return NonStatTy, err
-		}
 
 		blockAuthor, err := istEngine.Author(block.Header())
 		if err != nil {
