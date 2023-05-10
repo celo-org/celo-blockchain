@@ -142,7 +142,6 @@ var PrecompiledContractsDonut = map[common.Address]CeloPrecompiledContract{
 	celoPrecompileAddress(26): &wrap{&bls12377G2Mul{}},
 	celoPrecompileAddress(27): &wrap{&bls12377G2MultiExp{}},
 	celoPrecompileAddress(28): &wrap{&bls12377Pairing{}},
-	celoPrecompileAddress(29): &wrap{&cip20HashFunctions{Cip20HashesDonut}},
 	celoPrecompileAddress(30): &getValidatorBLS{},
 }
 
@@ -188,7 +187,6 @@ var PrecompiledContractsE = map[common.Address]CeloPrecompiledContract{
 	celoPrecompileAddress(26): &wrap{&bls12377G2Mul{}},
 	celoPrecompileAddress(27): &wrap{&bls12377G2MultiExp{}},
 	celoPrecompileAddress(28): &wrap{&bls12377Pairing{}},
-	celoPrecompileAddress(29): &wrap{&cip20HashFunctions{Cip20HashesDonut}},
 	celoPrecompileAddress(30): &getValidatorBLS{},
 }
 
@@ -358,9 +356,10 @@ var (
 // modexpMultComplexity implements bigModexp multComplexity formula, as defined in EIP-198
 //
 // def mult_complexity(x):
-//    if x <= 64: return x ** 2
-//    elif x <= 1024: return x ** 2 // 4 + 96 * x - 3072
-//    else: return x ** 2 // 16 + 480 * x - 199680
+//
+//	if x <= 64: return x ** 2
+//	elif x <= 1024: return x ** 2 // 4 + 96 * x - 3072
+//	else: return x ** 2 // 16 + 480 * x - 199680
 //
 // where is x is max(length_of_MODULUS, length_of_BASE)
 func modexpMultComplexity(x *big.Int) *big.Int {

@@ -505,41 +505,6 @@ func (c *getVerifiedSealBitmap) Run(input []byte, ctx *celoPrecompileContext) ([
 	return common.LeftPadBytes(extra.AggregatedSeal.Bitmap.Bytes()[:], 32), nil
 }
 
-// cip20HashFunctions is a precompile to compute any of several
-// cryprographic hash functions
-type cip20HashFunctions struct {
-	hashes map[uint8]Cip20Hash
-}
-
-func (c *cip20HashFunctions) RequiredGas(input []byte) uint64 {
-	if len(input) == 0 {
-		return params.InvalidCip20Gas
-	}
-
-	if h, ok := c.hashes[input[0]]; ok {
-		return h.RequiredGas(input[1:])
-	}
-
-	return params.InvalidCip20Gas
-}
-
-func (c *cip20HashFunctions) Run(input []byte) ([]byte, error) {
-	if len(input) == 0 {
-		return nil, fmt.Errorf("Input Error: 0-byte input")
-	}
-
-	if h, ok := c.hashes[input[0]]; ok {
-		output, err := h.Run(input[1:]) // trim selector
-
-		if err != nil {
-			return nil, err
-		}
-		return output, nil
-	}
-
-	return nil, fmt.Errorf("Input Error: invalid CIP20 selector: %d", input[0])
-}
-
 // bls12377G1Add implements EIP-2539 G1Add precompile.
 type bls12377G1Add struct{}
 

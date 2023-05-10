@@ -96,7 +96,6 @@ var allPrecompiles = map[common.Address]CeloPrecompiledContract{
 	celoPrecompileAddress(26): &wrap{&bls12377G2Mul{}},
 	celoPrecompileAddress(27): &wrap{&bls12377G2MultiExp{}},
 	celoPrecompileAddress(28): &wrap{&bls12377Pairing{}},
-	celoPrecompileAddress(29): &wrap{&cip20HashFunctions{Cip20HashesDonut}},
 	celoPrecompileAddress(30): &getValidatorBLS{},
 }
 
