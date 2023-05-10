@@ -147,7 +147,6 @@ var (
 		utils.LegacyIstanbulRequestTimeoutFlag,
 		utils.LegacyIstanbulBlockPeriodFlag,
 		utils.LegacyIstanbulProposerPolicyFlag,
-		utils.LegacyIstanbulLookbackWindowFlag,
 		utils.IstanbulReplicaFlag,
 		utils.AnnounceQueryEnodeGossipPeriodFlag,
 		utils.AnnounceAggressiveQueryEnodeGossipOnEnablementFlag,

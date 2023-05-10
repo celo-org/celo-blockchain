@@ -90,7 +90,6 @@ func (cfg *Config) ChainConfig() *params.ChainConfig {
 		Istanbul: &params.IstanbulConfig{
 			Epoch:          cfg.Istanbul.Epoch,
 			ProposerPolicy: cfg.Istanbul.ProposerPolicy,
-			LookbackWindow: cfg.Istanbul.LookbackWindow,
 			BlockPeriod:    cfg.Istanbul.BlockPeriod,
 			RequestTimeout: cfg.Istanbul.RequestTimeout,
 		},

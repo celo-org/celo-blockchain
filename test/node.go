@@ -82,7 +82,6 @@ var (
 			MaxResendRoundChangeTimeout: 10000,
 			Epoch:                       20,
 			ProposerPolicy:              istanbul.ShuffledRoundRobin,
-			DefaultLookbackWindow:       3,
 			BlockPeriod:                 0,
 		},
 	}
@@ -386,7 +385,6 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 	gc.Istanbul = params.IstanbulConfig{
 		Epoch:          ec.Istanbul.Epoch,
 		ProposerPolicy: uint64(ec.Istanbul.ProposerPolicy),
-		LookbackWindow: ec.Istanbul.DefaultLookbackWindow,
 		BlockPeriod:    ec.Istanbul.BlockPeriod,
 		RequestTimeout: ec.Istanbul.RequestTimeout,
 	}

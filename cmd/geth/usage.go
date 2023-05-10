@@ -222,7 +222,6 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.LegacyIstanbulRequestTimeoutFlag,
 			utils.LegacyIstanbulBlockPeriodFlag,
 			utils.LegacyIstanbulProposerPolicyFlag,
-			utils.LegacyIstanbulLookbackWindowFlag,
 			utils.LegacyEthStatsURLFlag,
 			utils.NoUSBFlag,
 			utils.LegacyWSListenAddrFlag,

@@ -38,21 +38,16 @@ type ValidatorContractData struct {
 }
 
 const (
-	maxGasForDistributeEpochPayment   uint64 = 1 * n.Million
-	maxGasForGetMembershipInLastEpoch uint64 = 1 * n.Million
-	maxGasForGetRegisteredValidators  uint64 = 2 * n.Million
-	maxGasForGetValidator             uint64 = 100 * n.Thousand
-	maxGasForUpdateValidatorScore     uint64 = 1 * n.Million
+	maxGasForGetRegisteredValidators uint64 = 2 * n.Million
+	maxGasForGetValidator            uint64 = 100 * n.Thousand
 )
 
 var (
 	getRegisteredValidatorSignersMethod      = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "getRegisteredValidatorSigners", maxGasForGetRegisteredValidators)
 	getRegisteredValidatorsMethod            = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "getRegisteredValidators", maxGasForGetRegisteredValidators)
 	getValidatorBlsPublicKeyFromSignerMethod = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "getValidatorBlsPublicKeyFromSigner", maxGasForGetValidator)
-	getMembershipInLastEpochFromSignerMethod = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "getMembershipInLastEpochFromSigner", maxGasForGetMembershipInLastEpoch)
-	getValidatorMethod                       = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "getValidator", maxGasForGetValidator)
-	updateValidatorScoreFromSignerMethod     = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "updateValidatorScoreFromSigner", maxGasForUpdateValidatorScore)
-	distributeEpochPaymentsFromSignerMethod  = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "distributeEpochPaymentsFromSigner", maxGasForDistributeEpochPayment)
+
+	getValidatorMethod = contracts.NewRegisteredContractMethod(config.ValidatorsRegistryId, abis.Validators, "getValidator", maxGasForGetValidator)
 )
 
 func RetrieveRegisteredValidatorSigners(vmRunner vm.EVMRunner) ([]common.Address, error) {
@@ -108,24 +103,4 @@ func GetValidatorData(vmRunner vm.EVMRunner, validatorAddresses []common.Address
 		validatorData = append(validatorData, validator)
 	}
 	return validatorData, nil
-}
-
-func UpdateValidatorScore(vmRunner vm.EVMRunner, address common.Address, uptime *big.Int) error {
-	err := updateValidatorScoreFromSignerMethod.Execute(vmRunner, nil, common.Big0, address, uptime)
-	return err
-}
-
-func DistributeEpochReward(vmRunner vm.EVMRunner, address common.Address, maxReward *big.Int) (*big.Int, error) {
-	var epochReward *big.Int
-	err := distributeEpochPaymentsFromSignerMethod.Execute(vmRunner, &epochReward, common.Big0, address, maxReward)
-	return epochReward, err
-}
-
-func GetMembershipInLastEpoch(vmRunner vm.EVMRunner, validator common.Address) (common.Address, error) {
-	var group common.Address
-	err := getMembershipInLastEpochFromSignerMethod.Query(vmRunner, &group, validator)
-	if err != nil {
-		return common.ZeroAddress, err
-	}
-	return group, nil
 }
