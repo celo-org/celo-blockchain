@@ -38,7 +38,6 @@ import (
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-bls-go/bls"
-	ed25519 "github.com/hdevalence/ed25519consensus"
 
 	//lint:ignore SA1019 Needed for precompile
 	"golang.org/x/crypto/ripemd160"
@@ -80,7 +79,6 @@ var (
 	getVerifiedSealBitmapAddress = celoPrecompileAddress(11)
 
 	// New in Donut
-	ed25519Address           = celoPrecompileAddress(12)
 	b12_381G1AddAddress      = celoPrecompileAddress(13)
 	b12_381G1MulAddress      = celoPrecompileAddress(14)
 	b12_381G1MultiExpAddress = celoPrecompileAddress(15)
@@ -106,7 +104,6 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}): &bn256PairingByzantium{},
 
 	// Celo Precompiled Contracts
-	transferAddress:              &transfer{},
 	fractionMulExpAddress:        &fractionMulExp{},
 	proofOfPossessionAddress:     &proofOfPossession{},
 	getValidatorAddress:          &getValidator{},
@@ -170,7 +167,6 @@ var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
 
 	// New in Donut hard fork
-	ed25519Address:           &ed25519Verify{},
 	b12_381G1AddAddress:      &bls12381G1Add{},
 	b12_381G1MulAddress:      &bls12381G1Mul{},
 	b12_381G1MultiExpAddress: &bls12381G1MultiExp{},
@@ -209,7 +205,6 @@ var PrecompiledContractsE = map[common.Address]PrecompiledContract{
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
 
 	// New in Donut hard fork
-	ed25519Address:           &ed25519Verify{},
 	b12_381G1AddAddress:      &bls12381G1Add{},
 	b12_381G1MulAddress:      &bls12381G1Mul{},
 	b12_381G1MultiExpAddress: &bls12381G1MultiExp{},
@@ -940,40 +935,6 @@ func (c *blake2F) Run(input []byte, caller common.Address, evm *EVM) ([]byte, er
 		binary.LittleEndian.PutUint64(output[offset:offset+8], h[i])
 	}
 	return output, nil
-}
-
-// ed25519Verify implements a native Ed25519 signature verification.
-type ed25519Verify struct{}
-
-// RequiredGas returns the gas required to execute the pre-compiled contract.
-func (c *ed25519Verify) RequiredGas(input []byte) uint64 {
-	const sha2_512WordLength = 64
-
-	// round up to next whole word
-	lengthCeil := len(input) + sha2_512WordLength - 1
-	words := uint64(lengthCeil / sha2_512WordLength)
-	return params.Ed25519VerifyGas + params.Sha2_512BaseGas + (words * params.Sha2_512PerWordGas)
-}
-
-func (c *ed25519Verify) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
-	// Setup success/failure return values
-	var fail32byte, success32Byte = true32Byte, false32Byte
-
-	// Check if all required arguments are present
-	if len(input) < 96 {
-		return fail32byte, nil
-	}
-
-	publicKey := input[0:32]  // 32 bytes
-	signature := input[32:96] // 64 bytes
-	message := input[96:]     // arbitrary length
-
-	// Verify the Ed25519 signature against the public key and message
-	// https://godoc.org/golang.org/x/crypto/ed25519#Verify
-	if ed25519.Verify(publicKey, message, signature) {
-		return success32Byte, nil
-	}
-	return fail32byte, nil
 }
 
 type getValidator struct{}

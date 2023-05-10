@@ -198,7 +198,6 @@ var allPrecompiles = map[common.Address]PrecompiledContract{
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
 
 	// New in Donut hard fork
-	ed25519Address:           &ed25519Verify{},
 	b12_381G1AddAddress:      &bls12381G1Add{},
 	b12_381G1MulAddress:      &bls12381G1Mul{},
 	b12_381G1MultiExpAddress: &bls12381G1MultiExp{},
@@ -482,12 +481,6 @@ func TestPrecompileBlake2FMalformedInput(t *testing.T) {
 		testPrecompiledFailure("09", test, t)
 	}
 }
-
-// Tests the sample inputs from the ed25519 verify check CIP 25
-func TestPrecompiledEd25519Verify(t *testing.T) { testJSON("ed25519Verify", "f3", t) }
-
-// Benchmarks the sample inputs from the ed25519 verify check CIP 25
-func BenchmarkPrecompiledEd25519Verify(b *testing.B) { benchJSON("ed25519Verify", "f3", b) }
 
 // Tests sample inputs for fractionMulExp
 // NOTE: This currently only verifies that inputs of invalid length are rejected
