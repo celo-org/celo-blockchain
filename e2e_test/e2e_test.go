@@ -128,7 +128,6 @@ func TestEpochBlockMarshaling(t *testing.T) {
 	// Configure the shortest possible epoch, uptimeLookbackWindow minimum is 3
 	// and it needs to be < (epoch -2).
 	ec.Istanbul.Epoch = 6
-	ec.Istanbul.DefaultLookbackWindow = 3
 	network, shutdown, err := test.NewNetwork(accounts, gc, ec)
 	require.NoError(t, err)
 	defer shutdown()

@@ -45,7 +45,6 @@ var DeprecatedFlags = []cli.Flag{
 	LegacyIstanbulRequestTimeoutFlag,
 	LegacyIstanbulBlockPeriodFlag,
 	LegacyIstanbulProposerPolicyFlag,
-	LegacyIstanbulLookbackWindowFlag,
 	LegacyEthStatsURLFlag,
 	NoUSBFlag,
 }
@@ -131,11 +130,6 @@ var (
 	LegacyIstanbulProposerPolicyFlag = cli.Uint64Flag{
 		Name:  "istanbul.proposerpolicy",
 		Usage: "Default minimum difference between two consecutive block's timestamps in seconds (deprecated, value obtained from genesis config)",
-		Value: 0,
-	}
-	LegacyIstanbulLookbackWindowFlag = cli.Uint64Flag{
-		Name:  "istanbul.lookbackwindow",
-		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score  (deprecated, value obtained from genesis config)",
 		Value: 0,
 	}
 
