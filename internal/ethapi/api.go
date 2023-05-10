@@ -977,6 +977,11 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 		hi  uint64
 		cap uint64
 	)
+	// Use zero address if sender unspecified.
+	if args.From == nil {
+		args.From = new(common.Address)
+	}
+	// Determine the highest gas limit can be used during the estimation.
 	if args.Gas != nil && uint64(*args.Gas) >= params.TxGas {
 		hi = uint64(*args.Gas)
 	} else {
@@ -988,11 +993,6 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 		hi = gasCap
 	}
 	cap = hi
-
-	// Use zero address if sender unspecified.
-	if args.From == nil {
-		args.From = new(common.Address)
-	}
 	// Set gas price to nil (which will lead to it being zero), because the binary search
 	// assumes that if the transaction fails with gas limit A, and B < A, then it would
 	// also fail with gas limit B, which may not be the case if the gas price is non-zero,
