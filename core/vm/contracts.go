@@ -724,7 +724,7 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM) ([]byte, e
 			return nil, ErrInsufficientBalance
 		}
 
-		evm.Context.Transfer(evm, from, to, value)
+		evm.Context.Transfer(evm.StateDB, from, to, value)
 	}
 
 	return input, err
