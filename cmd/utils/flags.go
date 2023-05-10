@@ -1454,9 +1454,6 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(LegacyIstanbulBlockPeriodFlag.Name) {
 		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", LegacyIstanbulBlockPeriodFlag.Name)
 	}
-	if ctx.GlobalIsSet(LegacyIstanbulLookbackWindowFlag.Name) {
-		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", LegacyIstanbulLookbackWindowFlag.Name)
-	}
 	if ctx.GlobalIsSet(LegacyIstanbulProposerPolicyFlag.Name) {
 		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", LegacyIstanbulProposerPolicyFlag.Name)
 	}

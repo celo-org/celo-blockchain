@@ -87,23 +87,3 @@ func TestGetBlockGasLimitOrDefault(t *testing.T) {
 		g.Expect(gas).To(Equal(uint64(50000)))
 	})
 }
-
-func TestGetLookbackWindow(t *testing.T) {
-	testutil.TestFailOnFailingRunner(t, GetLookbackWindow)
-	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, GetLookbackWindow)
-	t.Run("should return lookback window", func(t *testing.T) {
-		g := NewGomegaWithT(t)
-
-		runner := testutil.NewSingleMethodRunner(
-			config.BlockchainParametersRegistryId,
-			"getUptimeLookbackWindow",
-			func() *big.Int {
-				return big.NewInt(15)
-			},
-		)
-
-		lookbackWindow, err := GetLookbackWindow(runner)
-		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(lookbackWindow).To(Equal(uint64(15)))
-	})
-}

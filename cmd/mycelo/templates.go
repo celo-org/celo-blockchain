@@ -53,7 +53,6 @@ func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, er
 	genesisConfig := genesis.CreateCommonGenesisConfig(env.Config.ChainID, env.Accounts().AdminAccount().Address, params.IstanbulConfig{
 		Epoch:          10,
 		ProposerPolicy: 2,
-		LookbackWindow: 3,
 		BlockPeriod:    1,
 		RequestTimeout: 3000,
 	})
@@ -89,7 +88,6 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	genesisConfig := genesis.CreateCommonGenesisConfig(env.Config.ChainID, env.Accounts().AdminAccount().Address, params.IstanbulConfig{
 		Epoch:          1000,
 		ProposerPolicy: 2,
-		LookbackWindow: 3,
 		BlockPeriod:    5,
 		RequestTimeout: 3000,
 	})
@@ -134,7 +132,6 @@ func (e monorepoEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	genesisConfig := genesis.CreateCommonGenesisConfig(env.Config.ChainID, env.Accounts().AdminAccount().Address, params.IstanbulConfig{
 		Epoch:          10,
 		ProposerPolicy: 2,
-		LookbackWindow: 3,
 		BlockPeriod:    1,
 		RequestTimeout: 3000,
 	})

@@ -291,21 +291,6 @@ func (api *API) GetCurrentReplicaState() (*replica.ReplicaStateSummary, error) {
 	return &replica.ReplicaStateSummary{State: "Not a validator"}, nil
 }
 
-// GetLookbackWindow retrieves the current replica state
-func (api *API) GetLookbackWindow(number *rpc.BlockNumber) (uint64, error) {
-	header, err := api.getHeaderByNumber(number)
-	if err != nil {
-		return 0, err
-	}
-
-	state, err := api.istanbul.stateAt(header.Hash())
-	if err != nil {
-		return 0, err
-	}
-
-	return api.istanbul.LookbackWindow(header, state), nil
-}
-
 // ResendPreprepare sends again the preprepare message
 func (api *API) ResendPreprepare() error {
 	return api.istanbul.core.ResendPreprepare()

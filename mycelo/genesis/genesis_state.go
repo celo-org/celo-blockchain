@@ -360,7 +360,7 @@ func (ctx *deployContext) deployBlockchainParameters() error {
 			big.NewInt(ctx.genesisConfig.Blockchain.Version.Patch),
 			newBigInt(ctx.genesisConfig.Blockchain.GasForNonGoldCurrencies),
 			newBigInt(ctx.genesisConfig.Blockchain.BlockGasLimit),
-			newBigInt(ctx.genesisConfig.Istanbul.LookbackWindow),
+			newBigInt(3),
 		)
 	})
 }

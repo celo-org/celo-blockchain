@@ -33,7 +33,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/replica"
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/uptime"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/election"
@@ -76,7 +75,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		gossipCache:                        istanbul.NewLRUGossipCache(inmemoryPeers, inmemoryMessages),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
-		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
 		blocksElectedMeter:                 metrics.NewRegisteredMeter("consensus/istanbul/blocks/elected", nil),
 		blocksElectedAndSignedMeter:        metrics.NewRegisteredMeter("consensus/istanbul/blocks/signedbyus", nil),
 		blocksElectedButNotSignedMeter:     metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedbyus", nil),
@@ -86,7 +84,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksTotalMissedRoundsMeter:       metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedrounds", nil),
 		blocksMissedRoundsAsProposerMeter:  metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedroundsasproposer", nil),
 		blocksElectedButNotSignedGauge:     metrics.NewRegisteredGauge("consensus/istanbul/blocks/missedbyusinarow", nil),
-		blocksDowntimeEventMeter:           metrics.NewRegisteredMeter("consensus/istanbul/blocks/downtimeevent", nil),
 		blocksFinalizedTransactionsGauge:   metrics.NewRegisteredGauge("consensus/istanbul/blocks/transactions", nil),
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 		sleepGauge:                         metrics.NewRegisteredGauge("consensus/istanbul/backend/sleep", nil),
@@ -275,8 +272,6 @@ type Backend struct {
 
 	// Metric timer used to record block finalization times.
 	finalizationTimer metrics.Timer
-	// Metric timer used to record epoch reward distribution times.
-	rewardDistributionTimer metrics.Timer
 
 	// Meters for number of blocks seen for which the current validator signer has been elected,
 	// for which it was elected and has signed, elected but not signed, and both elected and proposed.
@@ -287,8 +282,6 @@ type Backend struct {
 
 	// Gauge for how many blocks that we missed while elected in a row.
 	blocksElectedButNotSignedGauge metrics.Gauge
-	// Meter for downtime events when we did not sign 12+ blocks in a row.
-	blocksDowntimeEventMeter metrics.Meter
 
 	// Gauge for total signatures in parentSeal of last received block (how much better than quorum are we doing)
 	blocksTotalSigsGauge metrics.Gauge
@@ -341,8 +334,6 @@ type Backend struct {
 	// RandomSeed (and it's mutex) used to generate the random beacon randomness
 	randomSeed   []byte
 	randomSeedMu sync.Mutex
-
-	uptimeMonitor uptime.Builder
 
 	// Test hooks
 	abortCommitHook func(result *istanbulCore.StateProcessResult) bool // Method to call upon committing a proposal
@@ -1005,23 +996,6 @@ func (sb *Backend) RemoveProxy(node *enode.Node) error {
 	} else {
 		return proxy.ErrNodeNotProxiedValidator
 	}
-}
-
-func (sb *Backend) OnBlockInsertion(header *types.Header, state *state.StateDB) error {
-	return sb.retrieveUptimeScoreBuilder(header, state).ProcessHeader(header)
-}
-
-func (sb *Backend) retrieveUptimeScoreBuilder(header *types.Header, state *state.StateDB) uptime.Builder {
-	epoch := istanbul.GetEpochNumber(header.Number.Uint64(), sb.EpochSize())
-
-	if sb.uptimeMonitor == nil || sb.uptimeMonitor.GetEpoch() != epoch {
-		valSet := sb.GetValidators(header.Number, header.Hash())
-		lookbackWindow := sb.LookbackWindow(header, state)
-		builder := uptime.NewMonitor(sb.EpochSize(), epoch, lookbackWindow, len(valSet))
-		headersProvider := istanbul.NewHeadersProvider(sb.chain)
-		sb.uptimeMonitor = uptime.NewAutoFixBuilder(builder, headersProvider)
-	}
-	return sb.uptimeMonitor
 }
 
 // VerifyPendingBlockValidatorSignature will verify that the message sender is a validator that is responsible
