@@ -135,13 +135,6 @@ var PrecompiledContractsDonut = map[common.Address]CeloPrecompiledContract{
 	celoPrecompileAddress(19): &wrap{&bls12381Pairing{}},
 	celoPrecompileAddress(20): &wrap{&bls12381MapG1{}},
 	celoPrecompileAddress(21): &wrap{&bls12381MapG2{}},
-	celoPrecompileAddress(22): &wrap{&bls12377G1Add{}},
-	celoPrecompileAddress(23): &wrap{&bls12377G1Mul{}},
-	celoPrecompileAddress(24): &wrap{&bls12377G1MultiExp{}},
-	celoPrecompileAddress(25): &wrap{&bls12377G2Add{}},
-	celoPrecompileAddress(26): &wrap{&bls12377G2Mul{}},
-	celoPrecompileAddress(27): &wrap{&bls12377G2MultiExp{}},
-	celoPrecompileAddress(28): &wrap{&bls12377Pairing{}},
 	celoPrecompileAddress(30): &getValidatorBLS{},
 }
 
@@ -180,13 +173,6 @@ var PrecompiledContractsE = map[common.Address]CeloPrecompiledContract{
 	celoPrecompileAddress(19): &wrap{&bls12381Pairing{}},
 	celoPrecompileAddress(20): &wrap{&bls12381MapG1{}},
 	celoPrecompileAddress(21): &wrap{&bls12381MapG2{}},
-	celoPrecompileAddress(22): &wrap{&bls12377G1Add{}},
-	celoPrecompileAddress(23): &wrap{&bls12377G1Mul{}},
-	celoPrecompileAddress(24): &wrap{&bls12377G1MultiExp{}},
-	celoPrecompileAddress(25): &wrap{&bls12377G2Add{}},
-	celoPrecompileAddress(26): &wrap{&bls12377G2Mul{}},
-	celoPrecompileAddress(27): &wrap{&bls12377G2MultiExp{}},
-	celoPrecompileAddress(28): &wrap{&bls12377Pairing{}},
 	celoPrecompileAddress(30): &getValidatorBLS{},
 }
 
