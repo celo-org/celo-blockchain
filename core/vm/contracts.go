@@ -98,7 +98,6 @@ var (
 	b12_377G2MulAddress      = celoPrecompileAddress(26)
 	b12_377G2MultiExpAddress = celoPrecompileAddress(27)
 	b12_377PairingAddress    = celoPrecompileAddress(28)
-	cip20Address             = celoPrecompileAddress(29)
 	cip26Address             = celoPrecompileAddress(30)
 )
 
@@ -196,7 +195,6 @@ var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
 	b12_377G2MulAddress:      &bls12377G2Mul{},
 	b12_377G2MultiExpAddress: &bls12377G2MultiExp{},
 	b12_377PairingAddress:    &bls12377Pairing{},
-	cip20Address:             &cip20HashFunctions{Cip20HashesDonut},
 	cip26Address:             &getValidatorBLS{},
 }
 
@@ -243,7 +241,6 @@ var PrecompiledContractsE = map[common.Address]PrecompiledContract{
 	b12_377G2MulAddress:      &bls12377G2Mul{},
 	b12_377G2MultiExpAddress: &bls12377G2MultiExp{},
 	b12_377PairingAddress:    &bls12377Pairing{},
-	cip20Address:             &cip20HashFunctions{Cip20HashesDonut},
 	cip26Address:             &getValidatorBLS{},
 }
 
@@ -1261,41 +1258,6 @@ func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EV
 	}
 
 	return common.LeftPadBytes(extra.AggregatedSeal.Bitmap.Bytes()[:], 32), nil
-}
-
-// cip20HashFunctions is a precompile to compute any of several
-// cryprographic hash functions
-type cip20HashFunctions struct {
-	hashes map[uint8]Cip20Hash
-}
-
-func (c *cip20HashFunctions) RequiredGas(input []byte) uint64 {
-	if len(input) == 0 {
-		return params.InvalidCip20Gas
-	}
-
-	if h, ok := c.hashes[input[0]]; ok {
-		return h.RequiredGas(input[1:])
-	}
-
-	return params.InvalidCip20Gas
-}
-
-func (c *cip20HashFunctions) Run(input []byte, _ common.Address, _ *EVM) ([]byte, error) {
-	if len(input) == 0 {
-		return nil, fmt.Errorf("Input Error: 0-byte input")
-	}
-
-	if h, ok := c.hashes[input[0]]; ok {
-		output, err := h.Run(input[1:]) // trim selector
-
-		if err != nil {
-			return nil, err
-		}
-		return output, nil
-	}
-
-	return nil, fmt.Errorf("Input Error: invalid CIP20 selector: %d", input[0])
 }
 
 var (
