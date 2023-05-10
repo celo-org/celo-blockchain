@@ -112,7 +112,7 @@ func (b *BlockGen) AddTxWithChain(bc ChainContext, tx *types.Transaction) {
 func MockSysContractCallCtx() *SysContractCallCtx {
 	return &SysContractCallCtx{
 		// Set common.ZeroAddress to non-zero value to test on proper base fee distribution
-		gasPriceMinimums: map[common.Address]*big.Int{common.ZeroAddress: common.Big3},
+		gasPriceMinimums: map[common.Address]*big.Int{common.ZeroAddress: common.Big0},
 	}
 }
 
