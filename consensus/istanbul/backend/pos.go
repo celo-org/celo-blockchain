@@ -31,11 +31,9 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts/freezer"
 	"github.com/celo-org/celo-blockchain/contracts/gold_token"
 	"github.com/celo-org/celo-blockchain/contracts/validators"
-	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/log"
 )
 
 func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB) error {
@@ -230,27 +228,4 @@ func (sb *Backend) distributeVoterRewards(vmRunner vm.EVMRunner, valSet []istanb
 	}
 
 	return gold_token.Mint(vmRunner, lockedGoldAddress, electionRewards)
-}
-
-func (sb *Backend) setInitialGoldTokenTotalSupplyIfUnset(vmRunner vm.EVMRunner) error {
-	totalSupply, err := gold_token.GetTotalSupply(vmRunner)
-	if err != nil {
-		return err
-	}
-	// totalSupply not yet initialized.
-	if totalSupply.Cmp(common.Big0) == 0 {
-		data, err := sb.db.Get(core.DBGenesisSupplyKey)
-		if err != nil {
-			log.Error("Unable to fetch genesisSupply from db", "err", err)
-			return err
-		}
-		genesisSupply := new(big.Int)
-		genesisSupply.SetBytes(data)
-
-		err = gold_token.IncreaseSupply(vmRunner, genesisSupply)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }

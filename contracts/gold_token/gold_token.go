@@ -7,7 +7,10 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/contracts/config"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/log"
 )
 
 var (
@@ -34,4 +37,25 @@ func Mint(vmRunner vm.EVMRunner, beneficiary common.Address, value *big.Int) err
 
 	err := mintMethod.Execute(vmRunner, nil, common.Big0, beneficiary, value)
 	return err
+}
+
+func SetInitialTotalSupplyIfUnset(db ethdb.KeyValueReader, vmRunner vm.EVMRunner) error {
+	totalSupply, err := GetTotalSupply(vmRunner)
+	if err != nil {
+		return err
+	}
+	// totalSupply not yet initialized.
+	if totalSupply.Cmp(common.Big0) == 0 {
+		genesisSupply := rawdb.ReadGenesisCeloSupply(db)
+		if genesisSupply == nil {
+			log.Error("Unable to fetch genesisSupply", "err", err)
+			return err
+		}
+
+		err = IncreaseSupply(vmRunner, genesisSupply)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

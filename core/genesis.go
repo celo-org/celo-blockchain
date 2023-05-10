@@ -41,7 +41,6 @@ import (
 //go:generate gencodec -type GenesisAccount -field-override genesisAccountMarshaling -out gen_genesis_account.go
 
 var (
-	DBGenesisSupplyKey = []byte("genesis-supply-genesis")
 	errGenesisNoConfig = errors.New("genesis has no chain configuration")
 )
 
@@ -296,7 +295,7 @@ func (g *Genesis) StoreGenesisSupply(db ethdb.Database) error {
 	for _, account := range g.Alloc {
 		genesisSupply.Add(genesisSupply, account.Balance)
 	}
-	return db.Put(DBGenesisSupplyKey, genesisSupply.Bytes())
+	return rawdb.WriteGenesisCeloSupply(db, genesisSupply)
 }
 
 // Commit writes the block and state of a genesis specification to the database.
