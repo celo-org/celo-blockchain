@@ -332,7 +332,7 @@ func (api *PrivateDebugAPI) GetBadBlocks(ctx context.Context) ([]*BadBlockArgs, 
 		} else {
 			blockRlp = fmt.Sprintf("0x%x", rlpBytes)
 		}
-		baseFeeFn := func(feeCurrency *common.Address) (*big.Int, error) {
+		baseFeeFn := func() (*big.Int, error) {
 			// We don't have information, so we return nil
 			return nil, nil
 		}
