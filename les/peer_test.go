@@ -19,7 +19,6 @@ package les
 import (
 	"crypto/rand"
 	"errors"
-	"fmt"
 	"math/big"
 	"reflect"
 	"sort"
@@ -164,119 +163,5 @@ func TestHandshake(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatalf("timeout")
 		}
-	}
-}
-
-func TestWillAcceptTransaction(t *testing.T) {
-	tx := func(gatewayFeeRecipient *common.Address, gatewayFee *big.Int) *types.Transaction {
-		return types.NewCeloTransaction(0, common.Address{}, nil, 0, nil, nil, gatewayFeeRecipient, gatewayFee, nil)
-	}
-	peerEtherbase := common.HexToAddress("deadbeef")
-	wrongEtherbase := common.HexToAddress("badfo00")
-	cases := []struct {
-		tx     *types.Transaction
-		p      *serverPeer
-		accept bool
-	}{
-		{
-			tx:     tx(nil, nil),
-			p:      &serverPeer{},
-			accept: true,
-		},
-		{
-			tx: tx(nil, nil),
-			p: &serverPeer{
-				etherbase:  &common.Address{},
-				gatewayFee: big.NewInt(0),
-			},
-			accept: true,
-		},
-		{
-			tx: tx(nil, nil),
-			p: &serverPeer{
-				gatewayFee: big.NewInt(100),
-			},
-			accept: true,
-		},
-		{
-			tx: tx(nil, nil),
-			p: &serverPeer{
-				etherbase: &peerEtherbase,
-			},
-			accept: true,
-		},
-		{
-			tx: tx(nil, nil),
-			p: &serverPeer{
-				etherbase:  &peerEtherbase,
-				gatewayFee: big.NewInt(100),
-			},
-			accept: false,
-		},
-		{
-			tx: tx(&peerEtherbase, big.NewInt(100)),
-			p: &serverPeer{
-				etherbase:  &common.Address{},
-				gatewayFee: big.NewInt(0),
-			},
-			accept: true,
-		},
-		{
-			tx: tx(&peerEtherbase, big.NewInt(100)),
-			p: &serverPeer{
-				etherbase:  &peerEtherbase,
-				gatewayFee: big.NewInt(100),
-			},
-			accept: true,
-		},
-		{
-			tx: tx(&peerEtherbase, big.NewInt(200)),
-			p: &serverPeer{
-				etherbase:  &peerEtherbase,
-				gatewayFee: big.NewInt(100),
-			},
-			accept: true,
-		},
-		{
-			tx: tx(&peerEtherbase, big.NewInt(50)),
-			p: &serverPeer{
-				etherbase:  &peerEtherbase,
-				gatewayFee: big.NewInt(100),
-			},
-			accept: false,
-		},
-		{
-			tx: tx(&wrongEtherbase, big.NewInt(100)),
-			p: &serverPeer{
-				etherbase:  &peerEtherbase,
-				gatewayFee: big.NewInt(100),
-			},
-			accept: false,
-		},
-		{
-			tx: tx(nil, nil),
-			p: &serverPeer{
-				onlyAnnounce: true,
-				etherbase:    &common.Address{},
-				gatewayFee:   big.NewInt(0),
-			},
-			accept: false,
-		},
-		{
-			tx: tx(&peerEtherbase, big.NewInt(100)),
-			p: &serverPeer{
-				onlyAnnounce: true,
-				etherbase:    &peerEtherbase,
-				gatewayFee:   big.NewInt(100),
-			},
-			accept: false,
-		},
-	}
-	for i, c := range cases {
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
-			if got := c.p.WillAcceptTransaction(c.tx); got != c.accept {
-				t.Errorf("got p.WillAcceptTransaction(...) = %v; want %v", got, c.accept)
-			}
-		})
 	}
 }

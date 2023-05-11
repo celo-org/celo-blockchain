@@ -19,7 +19,6 @@ package les
 import (
 	"encoding/binary"
 	"encoding/json"
-	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core"
@@ -39,9 +38,6 @@ type serverBackend interface {
 	BlockChain() *core.BlockChain
 	TxPool() *core.TxPool
 	GetHelperTrie(typ uint, index uint64) *trie.Trie
-	VerifyGatewayFee(gatewayFeeRecipient *common.Address, gatewayFee *big.Int) error
-	GetEtherbase() common.Address
-	GetGatewayFee() *big.Int
 }
 
 // Decoder is implemented by the messages passed to the handler functions
@@ -148,26 +144,6 @@ var Les3 = map[uint64]RequestType{
 		OutTrafficMeter:  miscOutTxStatusTrafficMeter,
 		ServingTimeMeter: miscServingTimeTxStatusTimer,
 		Handle:           handleGetTxStatus,
-	},
-	GetEtherbaseMsg: {
-		Name:             "etherbase request",
-		MaxCount:         MaxEtherbase,
-		InPacketsMeter:   miscInEtherbasePacketsMeter,
-		InTrafficMeter:   miscInEtherbaseTrafficMeter,
-		OutPacketsMeter:  miscOutEtherbasePacketsMeter,
-		OutTrafficMeter:  miscOutEtherbaseTrafficMeter,
-		ServingTimeMeter: miscServingTimeEtherbaseTimer,
-		Handle:           handleGetEtherbase,
-	},
-	GetGatewayFeeMsg: {
-		Name:             "gatewayFee request",
-		MaxCount:         MaxGatewayFee,
-		InPacketsMeter:   miscInGatewayFeePacketsMeter,
-		InTrafficMeter:   miscInGatewayFeeTrafficMeter,
-		OutPacketsMeter:  miscOutGatewayFeePacketsMeter,
-		OutTrafficMeter:  miscOutGatewayFeeTrafficMeter,
-		ServingTimeMeter: miscServingTimeGatewayFeeTimer,
-		Handle:           handleGetGatewayFee,
 	},
 }
 
@@ -541,12 +517,6 @@ func handleSendTx(msg Decoder) (serveRequestFn, uint64, uint64, error) {
 			hash := tx.Hash()
 			stats[i] = txStatus(backend, hash)
 			if stats[i].Status == core.TxStatusUnknown {
-				// Only include transactions that have a valid gateway fee recipient & fee
-				if err := backend.VerifyGatewayFee(tx.GatewayFeeRecipient(), tx.GatewayFee()); err != nil {
-					p.Log().Trace("Rejected transaction from light peer for invalid gateway fee", "hash", hash.String(), "err", err)
-					stats[i].Error = err.Error()
-					continue
-				}
 				addFn := backend.TxPool().AddRemotes
 				// Add txs synchronously for testing purpose
 				if backend.AddTxsSync() {
@@ -557,7 +527,6 @@ func handleSendTx(msg Decoder) (serveRequestFn, uint64, uint64, error) {
 					continue
 				}
 				stats[i] = txStatus(backend, hash)
-				p.Log().Trace("Added transaction from light peer to pool", "hash", hash.String(), "tx", tx)
 			}
 		}
 		return p.replyTxStatus(r.ReqID, stats)
@@ -597,26 +566,4 @@ func txStatus(b serverBackend, hash common.Hash) light.TxStatus {
 		}
 	}
 	return stat
-}
-
-// handleGetEtherbase handles a transaction status query
-func handleGetEtherbase(msg Decoder) (serveRequestFn, uint64, uint64, error) {
-	var r GetEtherbasePacket
-	if err := msg.Decode(&r); err != nil {
-		return nil, 0, 0, err
-	}
-	return func(backend serverBackend, p *clientPeer, waitOrStop func() bool) *reply {
-		return p.SendEtherbaseRLP(r.ReqID, backend.GetEtherbase())
-	}, r.ReqID, 1, nil
-}
-
-// handleGetGatewayFee handles a transaction status query
-func handleGetGatewayFee(msg Decoder) (serveRequestFn, uint64, uint64, error) {
-	var r GetGatewayFeePacket
-	if err := msg.Decode(&r); err != nil {
-		return nil, 0, 0, err
-	}
-	return func(backend serverBackend, p *clientPeer, waitOrStop func() bool) *reply {
-		return p.ReplyGatewayFee(r.ReqID, GatewayFeeInformation{GatewayFee: backend.GetGatewayFee(), Etherbase: backend.GetEtherbase()})
-	}, r.ReqID, 1, nil
 }

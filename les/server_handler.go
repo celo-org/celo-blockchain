@@ -18,8 +18,6 @@ package les
 
 import (
 	"errors"
-	"fmt"
-	"math/big"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -53,7 +51,6 @@ const (
 	MaxTxSend                = 64  // Amount of transactions to be send per request
 	MaxTxStatus              = 256 // Amount of transactions to queried per request
 	MaxEtherbase             = 1
-	MaxGatewayFee            = 1
 )
 
 var (
@@ -73,15 +70,11 @@ type serverHandler struct {
 	wg      sync.WaitGroup // WaitGroup used to track all background routines of handler.
 	synced  func() bool    // Callback function used to determine whether local node is synced.
 
-	// Celo Specific
-	etherbase  common.Address
-	gatewayFee *big.Int
-
 	// Testing fields
 	addTxsSync bool
 }
 
-func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb ethdb.Database, txpool *core.TxPool, synced func() bool, etherbase common.Address, gatewayFee *big.Int) *serverHandler {
+func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb ethdb.Database, txpool *core.TxPool, synced func() bool) *serverHandler {
 	handler := &serverHandler{
 		forkFilter: forkid.NewFilter(blockchain),
 		server:     server,
@@ -90,8 +83,6 @@ func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb et
 		txpool:     txpool,
 		closeCh:    make(chan struct{}),
 		synced:     synced,
-		etherbase:  etherbase,
-		gatewayFee: gatewayFee,
 	}
 	return handler
 }
@@ -367,16 +358,6 @@ func (h *serverHandler) AddTxsSync() bool {
 	return h.addTxsSync
 }
 
-// GetEtherbase implements serverBackend
-func (h *serverHandler) GetEtherbase() common.Address {
-	return h.etherbase
-}
-
-// GetGatewayFee implements serverBackend
-func (h *serverHandler) GetGatewayFee() *big.Int {
-	return h.gatewayFee
-}
-
 // getAccount retrieves an account from the state based on root.
 func getAccount(triedb *trie.Database, root, hash common.Hash) (types.StateAccount, error) {
 	trie, err := trie.New(root, triedb)
@@ -450,31 +431,4 @@ func (h *serverHandler) broadcastLoop() {
 			return
 		}
 	}
-}
-
-func (h *serverHandler) VerifyGatewayFee(gatewayFeeRecipient *common.Address, gatewayFee *big.Int) error {
-
-	// If this node does not specify an etherbase, accept any GatewayFeeRecipient.
-	if h.etherbase == common.ZeroAddress {
-		return nil
-	}
-
-	// If this node does not specify a non-zero gateway fee accept any value.
-	if h.gatewayFee == nil || h.gatewayFee.Cmp(common.Big0) <= 0 {
-		return nil
-	}
-
-	// Otherwise, reject transactions that don't pay gas fees to this node.
-	if gatewayFeeRecipient == nil {
-		return fmt.Errorf("gateway fee recipient must be %s, got <nil>", h.etherbase.String())
-	}
-	if *gatewayFeeRecipient != h.etherbase {
-		return fmt.Errorf("gateway fee recipient must be %s, got %s", h.etherbase.String(), (*gatewayFeeRecipient).String())
-	}
-
-	// Check that the value of the supplied gateway fee is at least the minimum.
-	if gatewayFee == nil || gatewayFee.Cmp(h.gatewayFee) < 0 {
-		return fmt.Errorf("gateway fee value must be at least %s, got %s", h.gatewayFee, gatewayFee)
-	}
-	return nil
 }

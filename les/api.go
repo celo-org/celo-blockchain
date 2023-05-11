@@ -19,11 +19,8 @@ package les
 import (
 	"errors"
 	"fmt"
-	"math/big"
-	"math/rand"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/mclock"
 	vfs "github.com/celo-org/celo-blockchain/les/vflux/server"
@@ -34,7 +31,6 @@ var (
 	errNoCheckpoint         = errors.New("no local checkpoint provided")
 	errNotActivated         = errors.New("checkpoint registrar is not activated")
 	errUnknownBenchmarkType = errors.New("unknown benchmark type")
-	errInvalidGatewayFee    = errors.New("invalid gateway fee")
 )
 
 // PrivateLightServerAPI provides an API to access the LES light server.
@@ -62,40 +58,6 @@ func parseNode(node string) (enode.ID, error) {
 	} else {
 		return enode.ID{}, err
 	}
-}
-
-//GatewayFee returns the current gateway fee of this light server
-func (api *PrivateLightServerAPI) GatewayFee() (gf *big.Int, err error) {
-	return api.server.handler.gatewayFee, nil
-}
-
-//SetGatewayFee allows this light server node to set a gateway fee
-func (api *PrivateLightServerAPI) SetGatewayFee(gf *big.Int) error {
-	if gf.Cmp(common.Big0) < 0 {
-		return errInvalidGatewayFee
-	}
-	if api.server.handler.gatewayFee != gf {
-		api.server.handler.gatewayFee = gf
-		if err := api.server.BroadcastGatewayFeeInfo(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// SetGatewayFeeRecipient sets the etherbase of the gateway fee recipient
-func (api *PrivateLightServerAPI) SetGatewayFeeRecipient(etherbase common.Address) error {
-	if api.server.handler.etherbase != etherbase {
-		api.server.handler.etherbase = etherbase
-		if err := api.server.BroadcastGatewayFeeInfo(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (api *PrivateLightServerAPI) GatewayFeeRecipient() (eb common.Address, err error) {
-	return api.server.handler.etherbase, nil
 }
 
 // ServerInfo returns global server parameters
@@ -404,10 +366,11 @@ func NewPrivateLightAPI(backend *lesCommons) *PrivateLightAPI {
 // LatestCheckpoint returns the latest local checkpoint package.
 //
 // The checkpoint package consists of 4 strings:
-//   result[0], hex encoded latest section index
-//   result[1], 32 bytes hex encoded latest section head hash
-//   result[2], 32 bytes hex encoded latest section canonical hash trie root hash
-//   result[3], 32 bytes hex encoded latest section bloom trie root hash
+//
+//	result[0], hex encoded latest section index
+//	result[1], 32 bytes hex encoded latest section head hash
+//	result[2], 32 bytes hex encoded latest section canonical hash trie root hash
+//	result[3], 32 bytes hex encoded latest section bloom trie root hash
 func (api *PrivateLightAPI) LatestCheckpoint() ([4]string, error) {
 	var res [4]string
 	cp := api.backend.latestLocalCheckpoint()
@@ -422,9 +385,10 @@ func (api *PrivateLightAPI) LatestCheckpoint() ([4]string, error) {
 // GetLocalCheckpoint returns the specific local checkpoint package.
 //
 // The checkpoint package consists of 3 strings:
-//   result[0], 32 bytes hex encoded latest section head hash
-//   result[1], 32 bytes hex encoded latest section canonical hash trie root hash
-//   result[2], 32 bytes hex encoded latest section bloom trie root hash
+//
+//	result[0], 32 bytes hex encoded latest section head hash
+//	result[1], 32 bytes hex encoded latest section canonical hash trie root hash
+//	result[2], 32 bytes hex encoded latest section bloom trie root hash
 func (api *PrivateLightAPI) GetCheckpoint(index uint64) ([3]string, error) {
 	var res [3]string
 	cp := api.backend.localCheckpoint(index)
@@ -441,39 +405,4 @@ func (api *PrivateLightAPI) GetCheckpointContractAddress() (string, error) {
 		return "", errNotActivated
 	}
 	return api.backend.oracle.Contract().ContractAddr().Hex(), nil
-}
-
-// API should be for light clients of les protocol
-type PrivateLightClientAPI struct {
-	le *LightEthereum
-}
-
-func NewPrivateLightClientAPI(le *LightEthereum) *PrivateLightClientAPI {
-	return &PrivateLightClientAPI{le}
-}
-
-func (api *PrivateLightClientAPI) GatewayFeeCache() map[string]*GatewayFeeInformation {
-	return api.le.handler.gatewayFeeCache.getMap()
-}
-
-// RequestPeerGatewayFees updates cache by pulling gateway fee peer nodes
-func (api *PrivateLightClientAPI) RequestPeerGatewayFees() error {
-	peerNodes := api.le.peers.allPeers()
-	for _, peerNode := range peerNodes {
-		cost := peerNode.getRequestCost(GetGatewayFeeMsg, int(1))
-		err := peerNode.RequestGatewayFee(rand.Uint64(), cost)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// SuggestGatewayFee suggests the best light server to choose based on different factors. Currently only minPeerGatewayFee.
-func (api *PrivateLightClientAPI) SuggestGatewayFee() (*GatewayFeeInformation, error) {
-	bestGatewayFeeInfo, err := api.le.handler.gatewayFeeCache.MinPeerGatewayFee()
-	if err != nil {
-		return nil, err
-	}
-	return bestGatewayFeeInfo, nil
 }

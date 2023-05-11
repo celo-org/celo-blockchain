@@ -240,7 +240,7 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 		blockchain: chain,
 		eventMux:   evmux,
 	}
-	client.handler = newClientHandler(syncMode, ulcServers, ulcFraction, nil, client, nil)
+	client.handler = newClientHandler(syncMode, ulcServers, ulcFraction, nil, client)
 
 	if client.oracle != nil {
 		client.oracle.Start(backend)
@@ -310,7 +310,7 @@ func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Da
 	server.clientPool = vfs.NewClientPool(db, testBufRecharge, defaultConnectedBias, clock, alwaysTrueFn)
 	server.clientPool.Start()
 	server.clientPool.SetLimits(10000, 10000) // Assign enough capacity for clientpool
-	server.handler = newServerHandler(server, simulation.Blockchain(), db, txpool, func() bool { return true }, common.ZeroAddress, ethconfig.Defaults.GatewayFee)
+	server.handler = newServerHandler(server, simulation.Blockchain(), db, txpool, func() bool { return true })
 	if server.oracle != nil {
 		server.oracle.Start(simulation)
 	}

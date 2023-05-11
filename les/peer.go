@@ -345,10 +345,6 @@ type serverPeer struct {
 	stateSince, stateRecent uint64 // The range of state server peer can serve.
 	txHistory               uint64 // The length of available tx history, 0 means all, 1 means disabled
 
-	// Gateway fields
-	etherbase  *common.Address
-	gatewayFee *big.Int
-
 	// Advertised checkpoint fields
 	checkpointNumber uint64                   // The block height which the checkpoint is registered.
 	checkpoint       params.TrustedCheckpoint // The advertised checkpoint sent by server.
@@ -495,80 +491,11 @@ func (p *serverPeer) sendTxs(reqID uint64, amount int, txs rlp.RawValue) error {
 	return p.sendRequest(SendTxV2Msg, reqID, txs, amount)
 }
 
-// RequestEtherbase fetches the etherbase of a remote node.
-func (p *serverPeer) RequestEtherbase(reqID, cost uint64) error {
-	p.Log().Debug("Requesting etherbase for peer", "enode", p.id)
-	type req struct {
-		ReqID uint64
-	}
-	return p2p.Send(p.rw, GetEtherbaseMsg, req{reqID})
-}
-
-// RequestGatewayFee gets gateway fee of remote node
-func (p *serverPeer) RequestGatewayFee(reqID, cost uint64) error {
-	p.Log().Debug("Requesting gatewayFee for peer", "enode", p.id)
-	type req struct {
-		ReqID uint64
-	}
-	return p2p.Send(p.rw, GetGatewayFeeMsg, req{reqID})
-}
-
-func (p *serverPeer) Etherbase() (etherbase common.Address, ok bool) {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
-	if p.etherbase != nil {
-		return *p.etherbase, true
-	}
-	return common.Address{}, false
-}
-
-func (p *serverPeer) SetEtherbase(etherbase common.Address) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	p.etherbase = &etherbase
-}
-
-func (p *serverPeer) GatewayFee() (fee *big.Int, ok bool) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	return p.gatewayFee, p.gatewayFee != nil
-}
-
-func (p *serverPeer) SetGatewayFee(gatewayFee *big.Int) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	p.gatewayFee = gatewayFee
-}
-
 // Returns true if the peer has indicated it is willing to transmit the given
 // transaction to the network. It may be the case that this client expects a
 // node to relay a transaction, but the server decides not to.
 func (p *serverPeer) WillAcceptTransaction(tx *types.Transaction) bool {
-	if p.onlyAnnounce {
-		return false
-	}
-
-	// Retrieve the gateway fee information known for this peer.
-	// Treat unknown gateway fee or etherbase as potentially free relay.
-	gatewayFee, ok := p.GatewayFee()
-	if !ok {
-		return true
-	}
-	etherbase, ok := p.Etherbase()
-	if !ok {
-		return true
-	}
-
-	// Check that the transaction meets the peer's gateway fee requirements.
-	if etherbase != (common.Address{}) && gatewayFee.Cmp(common.Big0) > 0 {
-		if txGateway := tx.GatewayFeeRecipient(); txGateway == nil || *txGateway != etherbase {
-			return false
-		}
-		if txFee := tx.GatewayFee(); txFee == nil || txFee.Cmp(gatewayFee) < 0 {
-			return false
-		}
-	}
-	return true
+	return !p.onlyAnnounce
 }
 
 // waitBefore implements distPeer interface
@@ -1009,17 +936,6 @@ func (p *clientPeer) replyTxStatus(reqID uint64, stats []light.TxStatus) *reply 
 	return &reply{p.rw, TxStatusMsg, reqID, data}
 }
 
-func (p *clientPeer) SendEtherbaseRLP(reqID uint64, etherbase common.Address) *reply {
-	data, _ := rlp.EncodeToBytes(etherbase)
-	return &reply{p.rw, EtherbaseMsg, reqID, data}
-}
-
-//ReplyGatewayFee creates reply with gateway fee that was requested
-func (p *clientPeer) ReplyGatewayFee(reqID uint64, resp GatewayFeeInformation) *reply {
-	data, _ := rlp.EncodeToBytes(resp)
-	return &reply{p.rw, GatewayFeeMsg, reqID, data}
-}
-
 // sendAnnounce announces the availability of a number of blocks through
 // a hash notification.
 func (p *clientPeer) sendAnnounce(request announceData) error {
@@ -1224,13 +1140,6 @@ type serverPeerSubscriber interface {
 	unregisterPeer(*serverPeer)
 }
 
-// clientPeerSubscriber is an interface to notify services about added or
-// removed client peers
-type clientPeerSubscriber interface { //nolint:unused,gosimple,deadcode
-	registerPeer(*clientPeer)
-	unregisterPeer(*clientPeer)
-}
-
 // serverPeerSet represents the set of active server peers currently
 // participating in the Light Ethereum sub-protocol.
 type serverPeerSet struct {
@@ -1289,22 +1198,7 @@ func (ps *serverPeerSet) register(peer *serverPeer) error {
 	for _, sub := range ps.subscribers {
 		sub.registerPeer(peer)
 	}
-
 	return nil
-}
-
-// TODO(nategraf) Remove this function when better method for choosing a peer is available.
-func (ps *serverPeerSet) randomPeerEtherbase() common.Address {
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-
-	// Rely on golang's random map iteration order.
-	for _, p := range ps.peers {
-		if etherbase, ok := p.Etherbase(); ok {
-			return etherbase
-		}
-	}
-	return common.Address{}
 }
 
 // unregister removes a remote peer from the active set, disabling any further

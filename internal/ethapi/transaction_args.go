@@ -149,12 +149,6 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 	if args.To == nil && len(args.data()) == 0 {
 		return errors.New(`contract creation without any data provided`)
 	}
-	if args.GatewayFeeRecipient == nil && !args.EthCompatible {
-		recipient := b.GatewayFeeRecipient()
-		if (recipient != common.Address{}) {
-			args.GatewayFeeRecipient = &recipient
-		}
-	}
 	// Estimate the gas usage if necessary.
 	if args.Gas == nil {
 		// These fields are immutable during the estimation, safe to
@@ -180,9 +174,6 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 		}
 		args.Gas = &estimated
 		log.Trace("Estimate gas usage automatically", "gas", args.Gas)
-	}
-	if args.GatewayFeeRecipient != nil && args.GatewayFee == nil {
-		args.GatewayFee = (*hexutil.Big)(b.GatewayFee())
 	}
 	if args.ChainID == nil {
 		id := (*hexutil.Big)(b.ChainConfig().ChainID)

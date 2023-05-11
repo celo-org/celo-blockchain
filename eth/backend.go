@@ -20,7 +20,6 @@ package eth
 import (
 	"errors"
 	"fmt"
-	"math/big"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -88,7 +87,6 @@ type Ethereum struct {
 	APIBackend *EthAPIBackend
 
 	miner          *miner.Miner
-	gatewayFee     *big.Int
 	validator      common.Address
 	txFeeRecipient common.Address
 	blsbase        common.Address
@@ -122,10 +120,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	}
 	log.Info("Allocated trie memory caches", "clean", common.StorageSize(config.TrieCleanCache)*1024*1024, "dirty", common.StorageSize(config.TrieDirtyCache)*1024*1024)
 
-	if config.GatewayFee == nil || config.GatewayFee.Cmp(common.Big0) < 0 {
-		log.Warn("Sanitizing invalid gateway fee", "provided", config.GatewayFee, "updated", ethconfig.Defaults.GatewayFee)
-		config.GatewayFee = new(big.Int).Set(ethconfig.Defaults.GatewayFee)
-	}
 	// Assemble the Ethereum object
 	chainDb, err := stack.OpenDatabaseWithFreezer("chaindata", config.DatabaseCache, config.DatabaseHandles, config.DatabaseFreezer, "eth/db/chaindata/", false)
 	if err != nil {
@@ -155,7 +149,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		networkID:         config.NetworkId,
 		validator:         config.Miner.Validator,
 		txFeeRecipient:    config.TxFeeRecipient,
-		gatewayFee:        config.GatewayFee,
 		blsbase:           config.BLSbase,
 		bloomRequests:     make(chan chan *bloombits.Retrieval),
 		bloomIndexer:      core.NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms, chainConfig.FullHeaderChainAvailable),
@@ -545,22 +538,20 @@ func (s *Ethereum) stopAnnounce() error {
 func (s *Ethereum) IsMining() bool      { return s.miner.Mining() }
 func (s *Ethereum) Miner() *miner.Miner { return s.miner }
 
-func (s *Ethereum) AccountManager() *accounts.Manager   { return s.accountManager }
-func (s *Ethereum) BlockChain() *core.BlockChain        { return s.blockchain }
-func (s *Ethereum) Config() *Config                     { return s.config }
-func (s *Ethereum) TxPool() *core.TxPool                { return s.txPool }
-func (s *Ethereum) EventMux() *event.TypeMux            { return s.eventMux }
-func (s *Ethereum) Engine() consensus.Engine            { return s.engine }
-func (s *Ethereum) ChainDb() ethdb.Database             { return s.chainDb }
-func (s *Ethereum) IsListening() bool                   { return true } // Always listening
-func (s *Ethereum) EthVersion() int                     { return int(istanbul.ProtocolVersions[0]) }
-func (s *Ethereum) NetVersion() uint64                  { return s.networkID }
-func (s *Ethereum) Downloader() *downloader.Downloader  { return s.handler.downloader }
-func (s *Ethereum) GatewayFeeRecipient() common.Address { return common.Address{} } // Full-nodes do not make use of gateway fee.
-func (s *Ethereum) GatewayFee() *big.Int                { return common.Big0 }
-func (s *Ethereum) Synced() bool                        { return atomic.LoadUint32(&s.handler.acceptTxs) == 1 }
-func (s *Ethereum) ArchiveMode() bool                   { return s.config.NoPruning }
-func (s *Ethereum) BloomIndexer() *core.ChainIndexer    { return s.bloomIndexer }
+func (s *Ethereum) AccountManager() *accounts.Manager  { return s.accountManager }
+func (s *Ethereum) BlockChain() *core.BlockChain       { return s.blockchain }
+func (s *Ethereum) Config() *Config                    { return s.config }
+func (s *Ethereum) TxPool() *core.TxPool               { return s.txPool }
+func (s *Ethereum) EventMux() *event.TypeMux           { return s.eventMux }
+func (s *Ethereum) Engine() consensus.Engine           { return s.engine }
+func (s *Ethereum) ChainDb() ethdb.Database            { return s.chainDb }
+func (s *Ethereum) IsListening() bool                  { return true } // Always listening
+func (s *Ethereum) EthVersion() int                    { return int(istanbul.ProtocolVersions[0]) }
+func (s *Ethereum) NetVersion() uint64                 { return s.networkID }
+func (s *Ethereum) Downloader() *downloader.Downloader { return s.handler.downloader }
+func (s *Ethereum) Synced() bool                       { return atomic.LoadUint32(&s.handler.acceptTxs) == 1 }
+func (s *Ethereum) ArchiveMode() bool                  { return s.config.NoPruning }
+func (s *Ethereum) BloomIndexer() *core.ChainIndexer   { return s.bloomIndexer }
 
 // Protocols returns all the currently configured
 // network protocols to start.

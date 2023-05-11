@@ -51,7 +51,6 @@ var Defaults = Config{
 	TrieDirtyCache:          256,
 	TrieTimeout:             60 * time.Minute,
 	SnapshotCache:           102,
-	GatewayFee:              big.NewInt(0),
 
 	TxPool:              core.DefaultTxPoolConfig,
 	RPCGasInflationRate: 1.3,
@@ -94,11 +93,9 @@ type Config struct {
 	LightNoPrune       bool `toml:",omitempty"` // Whether to disable light chain pruning
 	LightNoSyncServe   bool `toml:",omitempty"` // Whether to serve light clients before syncing
 	SyncFromCheckpoint bool `toml:",omitempty"` // Whether to sync the header chain from the configured checkpoint
-	// Minimum gateway fee value to serve a transaction from a light client
-	GatewayFee *big.Int `toml:",omitempty"`
 	// Validator is the address used to sign consensus messages. Also the address for block transaction rewards.
 	Validator common.Address `toml:",omitempty"`
-	// TxFeeRecipient is the GatewayFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
+	// TxFeeRecipient is an alias for Coinbase.
 	TxFeeRecipient common.Address `toml:",omitempty"`
 	BLSbase        common.Address `toml:",omitempty"`
 

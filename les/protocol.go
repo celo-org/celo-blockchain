@@ -80,15 +80,9 @@ const (
 	SendTxV2Msg            = 0x13
 	GetTxStatusMsg         = 0x14
 	TxStatusMsg            = 0x15
-	// Introduced in Celo v1.0
-	GetEtherbaseMsg = 0x16
-	EtherbaseMsg    = 0x17
 	// Protocol messages introduced in LPV3
-	StopMsg   = 0x18
-	ResumeMsg = 0x19
-	// Protocol messages to be introduced in LPV4
-	GetGatewayFeeMsg = 0x1A
-	GatewayFeeMsg    = 0x1B
+	StopMsg   = 0x16
+	ResumeMsg = 0x17
 )
 
 // GetBlockHeadersData represents a block header query (the request ID is not included)
@@ -147,16 +141,6 @@ type GetTxStatusPacket struct {
 	Hashes []common.Hash
 }
 
-// GetEtherbasePacket represents a etherbase request
-type GetEtherbasePacket struct {
-	ReqID uint64
-}
-
-// GetGatewayFeePacket represents a gateway fee request
-type GetGatewayFeePacket struct {
-	ReqID uint64
-}
-
 type requestInfo struct {
 	name                          string
 	maxCount                      uint64
@@ -183,7 +167,6 @@ var (
 		GetHelperTrieProofsMsg: {"GetHelperTrieProofs", MaxHelperTrieProofsFetch, 10, 100},
 		SendTxV2Msg:            {"SendTxV2", MaxTxSend, 1, 0},
 		GetTxStatusMsg:         {"GetTxStatus", MaxTxStatus, 10, 0},
-		GetEtherbaseMsg:        {"GetEtherbase", MaxEtherbase, 1, 0}, // TODO: revisit this as we as its costs in costtracker.go
 	}
 	requestList    []vfc.RequestInfo
 	requestMapping map[uint32]reqMapping
