@@ -7,6 +7,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
@@ -50,7 +51,7 @@ func NewBlockContext(header *types.Header, chain chainContext, txFeeRecipient *c
 		BlockNumber: new(big.Int).Set(header.Number),
 		Time:        new(big.Int).SetUint64(header.Time),
 
-		GetRegisteredAddress: GetRegisteredAddress,
+		IsGoldTokenAddress: IsGoldTokenAddress,
 	}
 
 	if chain != nil {
@@ -64,9 +65,13 @@ func NewBlockContext(header *types.Header, chain chainContext, txFeeRecipient *c
 	return ctx
 }
 
-func GetRegisteredAddress(evm *vm.EVM, registryId common.Hash) (common.Address, error) {
+func IsGoldTokenAddress(evm *vm.EVM, addr common.Address) (bool, error) {
 	caller := &SharedEVMRunner{evm}
-	return contracts.GetRegisteredAddress(caller, registryId)
+	goldTokenAddr, err := contracts.GetRegisteredAddress(caller, config.GoldTokenRegistryId)
+	if err != nil {
+		return false, err
+	}
+	return goldTokenAddr == addr, nil
 }
 
 // GetHashFn returns a GetHashFunc which retrieves header hashes by number
