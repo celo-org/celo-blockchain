@@ -81,7 +81,7 @@ var (
 			MinResendRoundChangeTimeout: 200,
 			MaxResendRoundChangeTimeout: 10000,
 			Epoch:                       20,
-			ProposerPolicy:              istanbul.ShuffledRoundRobin,
+			ProposerPolicy:              istanbul.RoundRobin,
 			BlockPeriod:                 0,
 		},
 	}

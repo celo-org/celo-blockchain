@@ -35,7 +35,6 @@ type ProposerPolicy uint64
 const (
 	RoundRobin ProposerPolicy = iota
 	Sticky
-	ShuffledRoundRobin
 )
 
 // Config represents the istanbul consensus engine
@@ -85,7 +84,7 @@ var DefaultConfig = &Config{
 	MinResendRoundChangeTimeout:    15 * 1000,
 	MaxResendRoundChangeTimeout:    2 * 60 * 1000,
 	BlockPeriod:                    5,
-	ProposerPolicy:                 ShuffledRoundRobin,
+	ProposerPolicy:                 RoundRobin,
 	Epoch:                          30000,
 	ReplicaStateDBPath:             "replicastate",
 	ValidatorEnodeDBPath:           "validatorenodes",

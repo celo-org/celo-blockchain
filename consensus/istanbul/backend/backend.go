@@ -39,7 +39,6 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/trie"
 
-	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/contracts/validators"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -737,38 +736,8 @@ func (sb *Backend) getValidators(number uint64, hash common.Hash) istanbul.Valid
 	return snap.ValSet
 }
 
-// validatorRandomnessAtBlockNumber calls into the EVM to get the randomness to use in proposer ordering at a given block.
-func (sb *Backend) validatorRandomnessAtBlockNumber(number uint64, hash common.Hash) (common.Hash, error) {
-	lastBlockInPreviousEpoch := number
-	if number > 0 {
-		lastBlockInPreviousEpoch = number - istanbul.GetNumberWithinEpoch(number, sb.config.Epoch)
-	}
-	vmRunner, err := sb.chain.NewEVMRunnerForCurrentBlock()
-	if err != nil {
-		return common.Hash{}, err
-	}
-	return random.BlockRandomness(vmRunner, lastBlockInPreviousEpoch)
-}
-
 func (sb *Backend) getOrderedValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
-	valSet := sb.getValidators(number, hash)
-	if valSet.Size() == 0 {
-		return valSet
-	}
-
-	if sb.config.ProposerPolicy == istanbul.ShuffledRoundRobin {
-		seed, err := sb.validatorRandomnessAtBlockNumber(number, hash)
-		if err != nil {
-			if err == contracts.ErrRegistryContractNotDeployed {
-				sb.logger.Debug("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
-			} else {
-				sb.logger.Warn("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
-			}
-		}
-		valSet.SetRandomness(seed)
-	}
-
-	return valSet
+	return sb.getValidators(number, hash)
 }
 
 // GetCurrentHeadBlock retrieves the last block

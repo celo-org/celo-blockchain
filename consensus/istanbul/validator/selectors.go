@@ -21,7 +21,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator/random"
 )
 
 func proposerIndex(valSet istanbul.ValidatorSet, proposer common.Address) uint64 {
@@ -29,25 +28,6 @@ func proposerIndex(valSet istanbul.ValidatorSet, proposer common.Address) uint64
 		return uint64(idx)
 	}
 	return 0
-}
-
-// ShuffledRoundRobinProposer selects the next proposer with a round robin strategy according to a shuffled order.
-func ShuffledRoundRobinProposer(valSet istanbul.ValidatorSet, proposer common.Address, round uint64) istanbul.Validator {
-	if valSet.Size() == 0 {
-		return nil
-	}
-	seed := valSet.GetRandomness()
-
-	shuffle := random.Permutation(seed, valSet.Size())
-	reverse := make([]int, len(shuffle))
-	for i, n := range shuffle {
-		reverse[n] = i
-	}
-	idx := round
-	if proposer != (common.Address{}) {
-		idx += uint64(reverse[proposerIndex(valSet, proposer)]) + 1
-	}
-	return valSet.List()[shuffle[idx%uint64(valSet.Size())]]
 }
 
 // RoundRobinProposer selects the next proposer with a round robin strategy according to storage order.
@@ -81,8 +61,6 @@ func GetProposerSelector(pp istanbul.ProposerPolicy) istanbul.ProposerSelector {
 		return StickyProposer
 	case istanbul.RoundRobin:
 		return RoundRobinProposer
-	case istanbul.ShuffledRoundRobin:
-		return ShuffledRoundRobinProposer
 	default:
 		// Programming error.
 		panic(fmt.Sprintf("unknown proposer selection policy: %v", pp))

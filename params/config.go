@@ -68,7 +68,7 @@ var (
 		GForkBlock:          nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
-			ProposerPolicy: 2,
+			ProposerPolicy: 1,
 			BlockPeriod:    5,
 			RequestTimeout: 3000,
 		},
@@ -93,7 +93,7 @@ var (
 		GForkBlock:          nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
-			ProposerPolicy: 2,
+			ProposerPolicy: 1,
 			BlockPeriod:    5,
 			RequestTimeout: 3000,
 		},
@@ -118,7 +118,7 @@ var (
 		GForkBlock:          nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
-			ProposerPolicy: 2,
+			ProposerPolicy: 1,
 			BlockPeriod:    5,
 			RequestTimeout: 10000,
 		},
