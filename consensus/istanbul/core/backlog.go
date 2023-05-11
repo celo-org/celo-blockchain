@@ -93,9 +93,9 @@ func (c *core) checkMessage(msgCode uint64, msgView *istanbul.View) error {
 
 // MsgBacklog represent a backlog of future messages
 // It works by:
-//     - allowing storing messages with "store()"
-//     - call eventListener when a backlog message becomes "present"
-//     - updates its notion of time/state with updateState()
+//   - allowing storing messages with "store()"
+//   - call eventListener when a backlog message becomes "present"
+//   - updates its notion of time/state with updateState()
 type MsgBacklog interface {
 	// store atttemps to store the message in the backlog
 	// it might not do so, if the message is too far in the future

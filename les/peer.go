@@ -1014,7 +1014,7 @@ func (p *clientPeer) SendEtherbaseRLP(reqID uint64, etherbase common.Address) *r
 	return &reply{p.rw, EtherbaseMsg, reqID, data}
 }
 
-//ReplyGatewayFee creates reply with gateway fee that was requested
+// ReplyGatewayFee creates reply with gateway fee that was requested
 func (p *clientPeer) ReplyGatewayFee(reqID uint64, resp GatewayFeeInformation) *reply {
 	data, _ := rlp.EncodeToBytes(resp)
 	return &reply{p.rw, GatewayFeeMsg, reqID, data}
