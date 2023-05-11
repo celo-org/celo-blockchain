@@ -147,7 +147,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 				vmenv := vm.NewEVM(context, txContext, statedb, config, vm.Config{NoBaseFee: true})
 
 				gp := new(core.GasPool).AddGas(math.MaxUint64)
-				result, _ := core.ApplyMessage(vmenv, msg, gp, celoMock.Runner, nil)
+				result, _ := core.ApplyMessage(vmenv, msg, gp, celoMock.Runner, core.MockSysContractCallCtx())
 				res = append(res, result.Return()...)
 			}
 		} else {
