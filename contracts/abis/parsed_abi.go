@@ -6,7 +6,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 )
 
 var (
@@ -33,16 +33,16 @@ func mustParseAbi(name, abiStr string) *abi.ABI {
 }
 
 var byRegistryId = map[common.Hash]*abi.ABI{
-	params.BlockchainParametersRegistryId: BlockchainParameters,
-	params.SortedOraclesRegistryId:        SortedOracles,
-	params.FeeCurrencyWhitelistRegistryId: FeeCurrency,
-	params.ElectionRegistryId:             Elections,
-	params.EpochRewardsRegistryId:         EpochRewards,
-	params.FreezerRegistryId:              Freezer,
-	params.GasPriceMinimumRegistryId:      GasPriceMinimum,
-	params.GoldTokenRegistryId:            GoldToken,
-	params.RandomRegistryId:               Random,
-	params.ValidatorsRegistryId:           Validators,
+	config.BlockchainParametersRegistryId: BlockchainParameters,
+	config.SortedOraclesRegistryId:        SortedOracles,
+	config.FeeCurrencyWhitelistRegistryId: FeeCurrency,
+	config.ElectionRegistryId:             Elections,
+	config.EpochRewardsRegistryId:         EpochRewards,
+	config.FreezerRegistryId:              Freezer,
+	config.GasPriceMinimumRegistryId:      GasPriceMinimum,
+	config.GoldTokenRegistryId:            GoldToken,
+	config.RandomRegistryId:               Random,
+	config.ValidatorsRegistryId:           Validators,
 }
 
 func AbiFor(registryId common.Hash) *abi.ABI {

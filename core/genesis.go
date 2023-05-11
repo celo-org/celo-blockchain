@@ -27,6 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -40,7 +41,6 @@ import (
 //go:generate gencodec -type GenesisAccount -field-override genesisAccountMarshaling -out gen_genesis_account.go
 
 var (
-	DBGenesisSupplyKey = []byte("genesis-supply-genesis")
 	errGenesisNoConfig = errors.New("genesis has no chain configuration")
 )
 
@@ -196,7 +196,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	}
 
 	// Check if Registry sits in genesis
-	if s.GetCodeSize(params.RegistrySmartContractAddress) == 0 {
+	if s.GetCodeSize(config.RegistrySmartContractAddress) == 0 {
 		return params.MainnetChainConfig, common.Hash{}, errors.New("no Registry Smart Contract deployed in genesis")
 	}
 
@@ -295,7 +295,7 @@ func (g *Genesis) StoreGenesisSupply(db ethdb.Database) error {
 	for _, account := range g.Alloc {
 		genesisSupply.Add(genesisSupply, account.Balance)
 	}
-	return db.Put(DBGenesisSupplyKey, genesisSupply.Bytes())
+	return rawdb.WriteGenesisCeloSupply(db, genesisSupply)
 }
 
 // Commit writes the block and state of a genesis specification to the database.
