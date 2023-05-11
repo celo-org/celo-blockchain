@@ -29,7 +29,7 @@ import (
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
-	"github.com/celo-org/celo-blockchain/contracts/gold_token"
+
 	"github.com/celo-org/celo-blockchain/core"
 	ethCore "github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -481,16 +481,11 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 	// the hash of the last transaction in the block (if there were any).
 	state.Prepare(common.Hash{}, len(txs))
 
-	snapshot := state.Snapshot()
 	vmRunner := sb.chain.NewEVMRunner(header, state)
-	err := gold_token.SetInitialTotalSupplyIfUnset(sb.db, vmRunner)
-	if err != nil {
-		state.RevertToSnapshot(snapshot)
-	}
 
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
-	snapshot = state.Snapshot()
-	_, err = gpm.UpdateGasPriceMinimum(vmRunner, header.GasUsed)
+	snapshot := state.Snapshot()
+	_, err := gpm.UpdateGasPriceMinimum(vmRunner, header.GasUsed)
 	if err != nil {
 		state.RevertToSnapshot(snapshot)
 	}

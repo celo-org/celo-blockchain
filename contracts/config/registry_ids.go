@@ -15,7 +15,6 @@ var (
 	ElectionRegistryId             = makeRegistryId("Election")
 	FeeCurrencyWhitelistRegistryId = makeRegistryId("FeeCurrencyWhitelist")
 	GasPriceMinimumRegistryId      = makeRegistryId("GasPriceMinimum")
-	GoldTokenRegistryId            = makeRegistryId("GoldToken")
 	GovernanceRegistryId           = makeRegistryId("Governance")
 	RandomRegistryId               = makeRegistryId("Random")
 	SortedOraclesRegistryId        = makeRegistryId("SortedOracles")
