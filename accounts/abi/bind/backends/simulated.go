@@ -617,6 +617,9 @@ func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallM
 	var sysCtx *core.SysContractCallCtx
 	if b.config.IsEspresso(block.Number()) {
 		parent := b.blockchain.GetBlockByNumber(block.NumberU64() - 1)
+		if block.NumberU64() == 0 {
+			parent = b.blockchain.GetBlockByNumber(0)
+		}
 		sysStateDB, err := b.blockchain.StateAt(parent.Root())
 		if err != nil {
 			return nil, err
