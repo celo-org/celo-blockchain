@@ -17,7 +17,6 @@ var (
 	FeeCurrency          *abi.ABI = mustParseAbi("FeeCurrency", FeeCurrencyStr)
 	Elections            *abi.ABI = mustParseAbi("Elections", ElectionsStr)
 	GasPriceMinimum      *abi.ABI = mustParseAbi("GasPriceMinimum", GasPriceMinimumStr)
-	Random               *abi.ABI = mustParseAbi("Random", RandomStr)
 	Validators           *abi.ABI = mustParseAbi("Validators", ValidatorsStr)
 )
 
@@ -35,7 +34,6 @@ var byRegistryId = map[common.Hash]*abi.ABI{
 	config.FeeCurrencyWhitelistRegistryId: FeeCurrency,
 	config.ElectionRegistryId:             Elections,
 	config.GasPriceMinimumRegistryId:      GasPriceMinimum,
-	config.RandomRegistryId:               Random,
 	config.ValidatorsRegistryId:           Validators,
 }
 
