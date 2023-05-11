@@ -247,9 +247,9 @@ func RunPrecompiledContract(p CeloPrecompiledContract, input []byte, suppliedGas
 	if suppliedGas < gasCost {
 		return nil, 0, ErrOutOfGas
 	}
-	gasLeft := suppliedGas - gasCost
+	suppliedGas -= gasCost
 	output, err := p.Run(input, ctx)
-	return output, gasLeft, err
+	return output, suppliedGas, err
 }
 
 // ECRECOVER implemented as a native contract.
