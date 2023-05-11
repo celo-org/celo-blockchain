@@ -74,22 +74,23 @@ var vmBlockCtx = BlockContext{
 	CanTransfer: func(db StateDB, addr common.Address, amount *big.Int) bool {
 		return db.GetBalance(addr).Cmp(amount) >= 0
 	},
-	Transfer: func(db StateDB, a1, a2 common.Address, i *big.Int) {
-		panic("transfer: not implemented")
-	},
-	GetHash: func(u uint64) common.Hash {
-		panic("getHash: not implemented")
-	},
-	GetHeaderByNumber: getHeaderByNumber,
+	Transfer: func(s StateDB, a1, a2 common.Address, i *big.Int) { panic("transfer: not implemented") },
+	GetHash:  func(u uint64) common.Hash { panic("getHash: not implemented") },
 	VerifySeal: func(header *types.Header) bool {
+		// If the block is later than the unsealed reference block, return false.
 		return !(header.Number.Cmp(testHeader.Number) > 0)
 	},
 	Coinbase:    common.Address{},
 	BlockNumber: new(big.Int).Set(testHeader.Number),
 	Time:        new(big.Int).SetUint64(testHeader.Time),
+
 	IsGoldTokenAddress: func(evm *EVM, addr common.Address) (bool, error) {
 		return false, nil
 	},
+
+	EpochSize:         100,
+	GetValidators:     getValidators,
+	GetHeaderByNumber: getHeaderByNumber,
 }
 
 var vmTxCtx = TxContext{
