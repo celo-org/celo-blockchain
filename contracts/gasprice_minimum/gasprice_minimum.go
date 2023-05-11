@@ -71,16 +71,7 @@ func GetGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*big.I
 	var currencyAddress common.Address
 	var err error
 
-	if currency == nil {
-		currencyAddress, err = contracts.GetRegisteredAddress(vmRunner, config.GoldTokenRegistryId)
-
-		if err == contracts.ErrSmartContractNotDeployed || err == contracts.ErrRegistryContractNotDeployed {
-			return FallbackGasPriceMinimum, nil
-		}
-		if err != nil {
-			return FallbackGasPriceMinimum, err
-		}
-	} else {
+	if currency != nil {
 		currencyAddress = *currency
 	}
 
@@ -104,13 +95,7 @@ func GetRealGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*b
 	var currencyAddress common.Address
 	var err error
 
-	if currency == nil {
-		currencyAddress, err = contracts.GetRegisteredAddress(vmRunner, config.GoldTokenRegistryId)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve gold token address: %w", err)
-		}
-	} else {
+	if currency != nil {
 		currencyAddress = *currency
 	}
 

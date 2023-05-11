@@ -84,10 +84,6 @@ var vmBlockCtx = BlockContext{
 	BlockNumber: new(big.Int).Set(testHeader.Number),
 	Time:        new(big.Int).SetUint64(testHeader.Time),
 
-	IsGoldTokenAddress: func(evm *EVM, addr common.Address) (bool, error) {
-		return false, nil
-	},
-
 	EpochSize:         100,
 	GetValidators:     getValidators,
 	GetHeaderByNumber: getHeaderByNumber,

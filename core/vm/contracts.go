@@ -64,7 +64,6 @@ var PrecompiledContractsByzantium = map[common.Address]CeloPrecompiledContract{
 	common.BytesToAddress([]byte{8}): &wrap{&bn256PairingByzantium{}},
 
 	// Celo Precompiled Contracts
-	celoPrecompileAddress(2):  &transfer{},
 	celoPrecompileAddress(3):  &fractionMulExp{},
 	celoPrecompileAddress(4):  &proofOfPossession{},
 	celoPrecompileAddress(5):  &getValidator{},
@@ -90,7 +89,6 @@ var PrecompiledContractsIstanbul = map[common.Address]CeloPrecompiledContract{
 	common.BytesToAddress([]byte{9}): &wrap{&blake2F{}},
 
 	// Celo Precompiled Contracts
-	celoPrecompileAddress(2):  &transfer{},
 	celoPrecompileAddress(3):  &fractionMulExp{},
 	celoPrecompileAddress(4):  &proofOfPossession{},
 	celoPrecompileAddress(5):  &getValidator{},
@@ -116,7 +114,7 @@ var PrecompiledContractsDonut = map[common.Address]CeloPrecompiledContract{
 	common.BytesToAddress([]byte{9}): &wrap{&blake2F{}},
 
 	// Celo Precompiled Contracts
-	celoPrecompileAddress(2):  &transfer{},
+
 	celoPrecompileAddress(3):  &fractionMulExp{},
 	celoPrecompileAddress(4):  &proofOfPossession{},
 	celoPrecompileAddress(5):  &getValidator{},
@@ -162,7 +160,6 @@ var PrecompiledContractsE = map[common.Address]CeloPrecompiledContract{
 	common.BytesToAddress([]byte{9}): &wrap{&blake2F{}},
 
 	// Celo Precompiled Contracts
-	celoPrecompileAddress(2):  &transfer{},
 	celoPrecompileAddress(3):  &fractionMulExp{},
 	celoPrecompileAddress(4):  &proofOfPossession{},
 	celoPrecompileAddress(5):  &getValidator{},
