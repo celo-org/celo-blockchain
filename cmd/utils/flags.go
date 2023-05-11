@@ -227,7 +227,7 @@ var (
 	}
 	TxFeeRecipientFlag = cli.StringFlag{
 		Name:  "tx-fee-recipient",
-		Usage: "Public address for block transaction fees and gateway fees",
+		Usage: "Public address for block transaction fees",
 		Value: "0",
 	}
 	BLSbaseFlag = cli.StringFlag{
@@ -268,11 +268,6 @@ var (
 		Name:  "light.maxpeers",
 		Usage: "Maximum number of light clients to serve, or light servers to attach to",
 		Value: ethconfig.Defaults.LightPeers,
-	}
-	LightGatewayFeeFlag = BigFlag{
-		Name:  "light.gatewayfee",
-		Usage: "Minimum value of gateway fee to serve a light client transaction",
-		Value: ethconfig.Defaults.GatewayFee,
 	}
 	UltraLightServersFlag = cli.StringFlag{
 		Name:  "ulc.servers",
@@ -1053,9 +1048,6 @@ func setLes(ctx *cli.Context, cfg *ethconfig.Config) {
 	}
 	if ctx.GlobalIsSet(LightMaxPeersFlag.Name) {
 		cfg.LightPeers = ctx.GlobalInt(LightMaxPeersFlag.Name)
-	}
-	if ctx.GlobalIsSet(LightGatewayFeeFlag.Name) {
-		cfg.GatewayFee = GlobalBig(ctx, LightGatewayFeeFlag.Name)
 	}
 	if ctx.GlobalIsSet(UltraLightServersFlag.Name) {
 		cfg.UltraLightServers = strings.Split(ctx.GlobalString(UltraLightServersFlag.Name), ",")

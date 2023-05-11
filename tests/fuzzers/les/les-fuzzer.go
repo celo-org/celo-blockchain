@@ -251,18 +251,6 @@ func (f *fuzzer) GetHelperTrie(typ uint, index uint64) *trie.Trie {
 	return nil
 }
 
-func (f *fuzzer) GetEtherbase() common.Address {
-	return common.Address{}
-}
-
-func (h *fuzzer) GetGatewayFee() *big.Int {
-	return big.NewInt(1)
-}
-
-func (h *fuzzer) VerifyGatewayFee(gatewayFeeRecipient *common.Address, gatewayFee *big.Int) error {
-	return nil
-}
-
 type dummyMsg struct {
 	data []byte
 }

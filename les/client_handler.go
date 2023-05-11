@@ -18,8 +18,6 @@ package les
 
 import (
 	"context"
-	"errors"
-	"math"
 	"math/big"
 	"math/rand"
 	"sync"
@@ -49,88 +47,21 @@ type clientHandler struct {
 	backend    *LightEthereum
 	syncMode   downloader.SyncMode
 
-	// TODO(nategraf) Remove this field once gateway fees can be retreived.
-	gatewayFee *big.Int
-
 	closeCh chan struct{}
 	wg      sync.WaitGroup // WaitGroup used to track all connected peers.
+
 	// Hooks used in the testing
 	syncStart func(header *types.Header) // Hook called when the syncing is started
 	syncEnd   func(header *types.Header) // Hook called when the syncing is done
-
-	gatewayFeeCache *gatewayFeeCache
 }
 
-type GatewayFeeInformation struct {
-	GatewayFee *big.Int
-	Etherbase  common.Address
-}
-
-type gatewayFeeCache struct {
-	mutex         *sync.RWMutex
-	gatewayFeeMap map[string]*GatewayFeeInformation
-}
-
-func newGatewayFeeCache() *gatewayFeeCache {
-	cache := &gatewayFeeCache{
-		mutex:         new(sync.RWMutex),
-		gatewayFeeMap: make(map[string]*GatewayFeeInformation),
-	}
-	return cache
-}
-
-func (c *gatewayFeeCache) getMap() map[string]*GatewayFeeInformation {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	mapCopy := make(map[string]*GatewayFeeInformation)
-	for k, v := range c.gatewayFeeMap {
-		mapCopy[k] = v
-	}
-
-	return mapCopy
-}
-
-func (c *gatewayFeeCache) update(nodeID string, val *GatewayFeeInformation) error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	if val.Etherbase == common.ZeroAddress || val.GatewayFee.Cmp(big.NewInt(0)) < 0 {
-		return errors.New("invalid gatewayFeeInformation object")
-	}
-	c.gatewayFeeMap[nodeID] = val
-
-	return nil
-}
-
-func (c *gatewayFeeCache) MinPeerGatewayFee() (*GatewayFeeInformation, error) {
-	gatewayFeeMap := c.getMap()
-
-	if len(gatewayFeeMap) == 0 {
-		return nil, nil
-	}
-
-	minGwFee := big.NewInt(math.MaxInt64)
-	minEtherbase := common.ZeroAddress
-	for _, gwFeeInformation := range gatewayFeeMap {
-		if gwFeeInformation.GatewayFee.Cmp(minGwFee) < 0 {
-			minGwFee = gwFeeInformation.GatewayFee
-			minEtherbase = gwFeeInformation.Etherbase
-		}
-	}
-
-	minGatewayFeeInformation := &GatewayFeeInformation{minGwFee, minEtherbase}
-	return minGatewayFeeInformation, nil
-}
-
-func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFraction int, checkpoint *params.TrustedCheckpoint, backend *LightEthereum, gatewayFee *big.Int) *clientHandler {
+func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFraction int, checkpoint *params.TrustedCheckpoint, backend *LightEthereum) *clientHandler {
 	handler := &clientHandler{
 		forkFilter: forkid.NewFilter(backend.blockchain),
 		checkpoint: checkpoint,
 		backend:    backend,
 		closeCh:    make(chan struct{}),
 		syncMode:   syncMode,
-		gatewayFee: gatewayFee,
 	}
 	if ulcServers != nil {
 		ulc, err := newULC(ulcServers, ulcFraction)
@@ -148,8 +79,6 @@ func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFrac
 	// TODO mcortesi lightest boolean
 	handler.downloader = downloader.New(height, backend.chainDb, nil, backend.eventMux, nil, backend.blockchain, handler.removePeer)
 	handler.backend.peers.subscribe((*downloaderPeerNotify)(handler))
-
-	handler.gatewayFeeCache = newGatewayFeeCache()
 	return handler
 }
 
@@ -196,10 +125,6 @@ func (h *clientHandler) handle(p *serverPeer, noInitAnnounce bool) error {
 		p.Log().Debug("Light Ethereum handshake failed", "err", err)
 		return err
 	}
-
-	// TODO(nategraf) The local gateway fee is temporarily being used as the peer gateway fee.
-	p.SetGatewayFee(h.gatewayFee)
-
 	// Register peer with the server pool
 	if h.backend.serverPool != nil {
 		if nvt, err := h.backend.serverPool.RegisterNode(p.Node()); err == nil {
@@ -232,26 +157,6 @@ func (h *clientHandler) handle(p *serverPeer, noInitAnnounce bool) error {
 	if !noInitAnnounce {
 		h.fetcher.announce(p, &announceData{Hash: p.headInfo.Hash, Number: p.headInfo.Number, Td: p.headInfo.Td})
 	}
-	// Loop until we receive a RequestEtherbase response or timeout.
-	go func() {
-		maxRequests := 10
-		for requests := 1; requests <= maxRequests; requests++ {
-			p.Log().Trace("Requesting etherbase from new peer")
-			reqID := rand.Uint64()
-			cost := p.getRequestCost(GetEtherbaseMsg, int(1))
-			err := p.RequestEtherbase(reqID, cost)
-
-			if err != nil {
-				p.Log().Warn("Unable to request etherbase from peer", "err", err)
-			}
-
-			time.Sleep(time.Duration(math.Pow(2, float64(requests))/2) * time.Second)
-			if _, ok := p.Etherbase(); ok {
-				return
-			}
-		}
-	}()
-
 	// Mark the peer starts to be served.
 	atomic.StoreUint32(&p.serving, 1)
 	defer atomic.StoreUint32(&p.serving, 0)
@@ -465,33 +370,6 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 		p.fcServer.ResumeFreeze(bv)
 		p.unfreeze()
 		p.Log().Debug("Service resumed")
-	case msg.Code == EtherbaseMsg:
-		p.Log().Trace("Received etherbase response")
-		// TODO(asa): do we need to do anything with flow control here?
-		var resp struct {
-			ReqID, BV uint64
-			Etherbase common.Address
-		}
-		if err := msg.Decode(&resp); err != nil {
-			return errResp(ErrDecode, "msg %v: %v", msg, err)
-		}
-		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
-		p.Log().Trace("Setting peer etherbase", "etherbase", resp.Etherbase, "Peer ID", p.ID)
-		p.SetEtherbase(resp.Etherbase)
-
-	case msg.Code == GatewayFeeMsg:
-		var resp struct {
-			ReqID, BV uint64
-			Data      GatewayFeeInformation
-		}
-
-		if err := msg.Decode(&resp); err != nil {
-			return errResp(ErrDecode, "msg %v: %v", msg, err)
-		}
-
-		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
-		h.gatewayFeeCache.update(p.id, &resp.Data)
-
 	default:
 		p.Log().Trace("Received invalid message", "code", msg.Code)
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)

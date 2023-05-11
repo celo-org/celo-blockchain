@@ -418,14 +418,6 @@ func (b *EthAPIBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 	}
 }
 
-func (b *EthAPIBackend) GatewayFeeRecipient() common.Address {
-	return b.eth.GatewayFeeRecipient()
-}
-
-func (b *EthAPIBackend) GatewayFee() *big.Int {
-	return b.eth.GatewayFee()
-}
-
 func (b *EthAPIBackend) Engine() consensus.Engine {
 	return b.eth.engine
 }
