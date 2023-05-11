@@ -649,16 +649,6 @@ func (pool *TxPool) ctx() *txPoolContext {
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
-	if pool.donut && !pool.espresso && !tx.Protected() {
-		return ErrUnprotectedTransaction
-	}
-	if tx.EthCompatible() && !pool.donut {
-		return ErrEthCompatibleTransactionsNotSupported
-	}
-	if err := tx.CheckEthCompatibility(); err != nil {
-		return err
-	}
-
 	// Accept only legacy transactions until EIP-2718/2930 activates.
 	if !pool.espresso && tx.Type() != types.LegacyTxType {
 		return ErrTxTypeNotSupported

@@ -80,7 +80,6 @@ type SendTxArgs struct {
 	GatewayFee           hexutil.Big              `json:"gatewayFee"`
 	Value                hexutil.Big              `json:"value"`
 	Nonce                hexutil.Uint64           `json:"nonce"`
-	EthCompatible        bool                     `json:"ethCompatible"`
 	// We accept "data" and "input" for backwards-compatibility reasons.
 	// "input" is the newer name and should be preferred by clients.
 	// Issue detail: https://github.com/ethereum/go-ethereum/issues/15628
@@ -98,10 +97,6 @@ func (args SendTxArgs) String() string {
 		return string(s)
 	}
 	return err.Error()
-}
-
-func (args SendTxArgs) CheckEthCompatibility() error {
-	return args.ToTransaction().CheckEthCompatibility()
 }
 
 func (args *SendTxArgs) ToTransaction() *types.Transaction {

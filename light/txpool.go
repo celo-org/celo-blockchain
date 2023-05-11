@@ -364,16 +364,6 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		err  error
 	)
 
-	if pool.donut && !pool.espresso && !tx.Protected() {
-		return core.ErrUnprotectedTransaction
-	}
-	if tx.EthCompatible() && !pool.donut {
-		return core.ErrEthCompatibleTransactionsNotSupported
-	}
-	if err := tx.CheckEthCompatibility(); err != nil {
-		return err
-	}
-
 	// Validate the transaction sender and it's sig. Throw
 	// if the from fields is invalid.
 	if from, err = types.Sender(pool.signer, tx); err != nil {

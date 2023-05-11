@@ -293,30 +293,18 @@ func (s eip2930Signer) SignatureValues(tx *Transaction, sig []byte) (R, S, V *bi
 func (s eip2930Signer) Hash(tx *Transaction) common.Hash {
 	switch tx.Type() {
 	case LegacyTxType:
-		if tx.EthCompatible() {
-			return rlpHash([]interface{}{
-				tx.Nonce(),
-				tx.GasPrice(),
-				tx.Gas(),
-				tx.To(),
-				tx.Value(),
-				tx.Data(),
-				s.chainId, uint(0), uint(0),
-			})
-		} else {
-			return rlpHash([]interface{}{
-				tx.Nonce(),
-				tx.GasPrice(),
-				tx.Gas(),
-				tx.FeeCurrency(),
-				tx.GatewayFeeRecipient(),
-				tx.GatewayFee(),
-				tx.To(),
-				tx.Value(),
-				tx.Data(),
-				s.chainId, uint(0), uint(0),
-			})
-		}
+		return rlpHash([]interface{}{
+			tx.Nonce(),
+			tx.GasPrice(),
+			tx.Gas(),
+			tx.FeeCurrency(),
+			tx.GatewayFeeRecipient(),
+			tx.GatewayFee(),
+			tx.To(),
+			tx.Value(),
+			tx.Data(),
+			s.chainId, uint(0), uint(0),
+		})
 	case AccessListTxType:
 		return prefixedRlpHash(
 			tx.Type(),
@@ -399,30 +387,18 @@ func (s EIP155Signer) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
 func (s EIP155Signer) Hash(tx *Transaction) common.Hash {
-	if tx.EthCompatible() {
-		return rlpHash([]interface{}{
-			tx.Nonce(),
-			tx.GasPrice(),
-			tx.Gas(),
-			tx.To(),
-			tx.Value(),
-			tx.Data(),
-			s.chainId, uint(0), uint(0),
-		})
-	} else {
-		return rlpHash([]interface{}{
-			tx.Nonce(),
-			tx.GasPrice(),
-			tx.Gas(),
-			tx.FeeCurrency(),
-			tx.GatewayFeeRecipient(),
-			tx.GatewayFee(),
-			tx.To(),
-			tx.Value(),
-			tx.Data(),
-			s.chainId, uint(0), uint(0),
-		})
-	}
+	return rlpHash([]interface{}{
+		tx.Nonce(),
+		tx.GasPrice(),
+		tx.Gas(),
+		tx.FeeCurrency(),
+		tx.GatewayFeeRecipient(),
+		tx.GatewayFee(),
+		tx.To(),
+		tx.Value(),
+		tx.Data(),
+		s.chainId, uint(0), uint(0),
+	})
 }
 
 // HomesteadTransaction implements TransactionInterface using the
@@ -493,28 +469,17 @@ func (fs FrontierSigner) SignatureValues(tx *Transaction, sig []byte) (r, s, v *
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
 func (fs FrontierSigner) Hash(tx *Transaction) common.Hash {
-	if tx.EthCompatible() {
-		return rlpHash([]interface{}{
-			tx.Nonce(),
-			tx.GasPrice(),
-			tx.Gas(),
-			tx.To(),
-			tx.Value(),
-			tx.Data(),
-		})
-	} else {
-		return rlpHash([]interface{}{
-			tx.Nonce(),
-			tx.GasPrice(),
-			tx.Gas(),
-			tx.FeeCurrency(),
-			tx.GatewayFeeRecipient(),
-			tx.GatewayFee(),
-			tx.To(),
-			tx.Value(),
-			tx.Data(),
-		})
-	}
+	return rlpHash([]interface{}{
+		tx.Nonce(),
+		tx.GasPrice(),
+		tx.Gas(),
+		tx.FeeCurrency(),
+		tx.GatewayFeeRecipient(),
+		tx.GatewayFee(),
+		tx.To(),
+		tx.Value(),
+		tx.Data(),
+	})
 }
 
 func decodeSignature(sig []byte) (r, s, v *big.Int) {

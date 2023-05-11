@@ -347,55 +347,6 @@ func TestTxGatewayFee(t *testing.T) {
 	}
 }
 
-func TestTxEthCompatible(t *testing.T) {
-	key, addr := defaultTestKey()
-	tx := NewTransaction(
-		3,
-		common.Address{19},
-		big.NewInt(9),
-		7,
-		big.NewInt(13),
-		common.FromHex("ff05ff"),
-	)
-
-	var encoded []byte
-	var parsed *Transaction
-
-	encoded, _ = rlp.EncodeToBytes(tx)
-	parsed = &Transaction{}
-	rlp.DecodeBytes(encoded, &parsed)
-	if tx.Hash() != parsed.Hash() {
-		t.Errorf("RLP parsed pre-signing tx differs from original, want %v, got %v", tx, parsed)
-	}
-	encoded, _ = tx.MarshalJSON()
-	parsed = &Transaction{}
-	parsed.UnmarshalJSON(encoded)
-	if tx.Hash() != parsed.Hash() {
-		t.Errorf("JSON parsed pre-signing tx differs from original, want %v, got %v", tx, parsed)
-	}
-
-	// Repeat the tests but now with a signed transaction
-	signer := NewEIP155Signer(common.Big1)
-	signed, _ := SignTx(tx, signer, key)
-	sender, _ := Sender(signer, signed)
-	if sender != addr {
-		t.Errorf("recovered sender differs from original, want %v, got %v", addr, sender)
-	}
-
-	encoded, _ = rlp.EncodeToBytes(signed)
-	parsed = &Transaction{}
-	rlp.DecodeBytes(encoded, &parsed)
-	if signed.Hash() != parsed.Hash() {
-		t.Errorf("RLP parsed post-signing tx differs from original, want %v, got %v", signed, parsed)
-	}
-	encoded, _ = signed.MarshalJSON()
-	parsed = &Transaction{}
-	parsed.UnmarshalJSON(encoded)
-	if signed.Hash() != parsed.Hash() {
-		t.Errorf("JSON parsed post-signing tx differs from original, want %v, got %v", signed, parsed)
-	}
-}
-
 // toCELO converter assuming that feeCurrency is always nil
 func toCELOMockFn(amount *big.Int, feeCurrency *common.Address) *big.Int {
 	return amount

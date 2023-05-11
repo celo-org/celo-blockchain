@@ -53,9 +53,6 @@ type txJSON struct {
 
 	// Only used for encoding:
 	Hash common.Hash `json:"hash"`
-
-	// Whether this is an ethereum-compatible transaction (i.e. with FeeCurrency, GatewayFeeRecipient and GatewayFee omitted)
-	EthCompatible bool `json:"ethCompatible"`
 }
 
 // MarshalJSON marshals as JSON with a hash.
@@ -80,7 +77,6 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		enc.GatewayFee = (*hexutil.Big)(tx.GatewayFee)
 		enc.R = (*hexutil.Big)(tx.R)
 		enc.S = (*hexutil.Big)(tx.S)
-		enc.EthCompatible = tx.EthCompatible
 	case *AccessListTx:
 		enc.ChainID = (*hexutil.Big)(tx.ChainID)
 		enc.AccessList = &tx.AccessList
@@ -147,7 +143,6 @@ func (t *Transaction) UnmarshalJSON(input []byte) error {
 		if dec.GatewayFee != nil {
 			itx.GatewayFee.Set((*big.Int)(dec.GatewayFee))
 		}
-		itx.EthCompatible = dec.EthCompatible
 		itx.Value = (*big.Int)(dec.Value)
 		if dec.Data == nil {
 			return errors.New("missing required field 'input' in transaction")

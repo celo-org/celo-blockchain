@@ -32,10 +32,6 @@ import (
 	"github.com/celo-org/celo-blockchain/rlp"
 )
 
-const (
-	ethCompatibleTxNumFields = 9
-)
-
 var (
 	ErrInvalidSig           = errors.New("invalid transaction v, r, s values")
 	ErrUnexpectedProtection = errors.New("transaction type does not supported EIP-155 protected signatures")
@@ -43,9 +39,6 @@ var (
 	ErrTxTypeNotSupported   = errors.New("transaction type not supported")
 	ErrGasFeeCapTooLow      = errors.New("fee cap less than base fee")
 	errEmptyTypedTx         = errors.New("empty typed transaction bytes")
-	// ErrEthCompatibleTransactionIsntCompatible is returned if the transaction has EthCompatible: true
-	// but has non-nil-or-0 values for some of the Celo-only fields
-	ErrEthCompatibleTransactionIsntCompatible = errors.New("ethCompatible is true, but non-eth-compatible fields are present")
 )
 
 // Transaction types.
@@ -98,8 +91,6 @@ type TxData interface {
 	feeCurrency() *common.Address
 	gatewayFeeRecipient() *common.Address
 	gatewayFee() *big.Int
-	// Whether this is an ethereum-compatible transaction (i.e. with FeeCurrency, GatewayFeeRecipient and GatewayFee omitted)
-	ethCompatible() bool
 }
 
 // EncodeRLP implements rlp.Encoder
@@ -463,9 +454,6 @@ func (tx *Transaction) GatewayFee() *big.Int {
 	}
 }
 
-// EthCompatible returns true iff the RLP form of the LegacyTx does not have the celo specific fields.
-func (tx *Transaction) EthCompatible() bool { return tx.inner.ethCompatible() }
-
 // Fee calculates the fess paid by the transaction include the gateway fee.
 func (tx *Transaction) Fee() *big.Int {
 	return Fee(tx.inner.gasPrice(), tx.inner.gas(), tx.GatewayFee())
@@ -475,14 +463,6 @@ func (tx *Transaction) Fee() *big.Int {
 func Fee(gasPrice *big.Int, gasLimit uint64, gatewayFee *big.Int) *big.Int {
 	gasFee := new(big.Int).Mul(gasPrice, big.NewInt(int64(gasLimit)))
 	return gasFee.Add(gasFee, gatewayFee)
-}
-
-// CheckEthCompatibility checks that the Celo-only fields are nil-or-0 if EthCompatible is true
-func (tx *Transaction) CheckEthCompatibility() error {
-	if tx.EthCompatible() && !(tx.FeeCurrency() == nil && tx.GatewayFeeRecipient() == nil && tx.GatewayFee().Sign() == 0) {
-		return ErrEthCompatibleTransactionIsntCompatible
-	}
-	return nil
 }
 
 // Transactions implements DerivableList for transactions.
@@ -666,14 +646,13 @@ type Message struct {
 	gatewayFee          *big.Int
 	data                []byte
 	accessList          AccessList
-	ethCompatible       bool
 	isFake              bool
 }
 
 func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int,
 	gasLimit uint64, gasPrice, gasFeeCap, gasTipCap *big.Int,
 	feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int,
-	data []byte, accessList AccessList, ethCompatible, isFake bool) Message {
+	data []byte, accessList AccessList, isFake bool) Message {
 	m := Message{
 		from:       from,
 		to:         to,
@@ -691,7 +670,6 @@ func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *b
 		feeCurrency:         feeCurrency,
 		gatewayFeeRecipient: gatewayFeeRecipient,
 		gatewayFee:          gatewayFee,
-		ethCompatible:       ethCompatible,
 	}
 	if m.gatewayFee == nil {
 		m.gatewayFee = new(big.Int)
@@ -717,7 +695,6 @@ func (tx *Transaction) AsMessage(s Signer, baseFee *big.Int) (Message, error) {
 		feeCurrency:         tx.FeeCurrency(),
 		gatewayFeeRecipient: tx.GatewayFeeRecipient(),
 		gatewayFee:          new(big.Int),
-		ethCompatible:       tx.EthCompatible(),
 	}
 	// If baseFee provided, set gasPrice to effectiveGasPrice.
 	if baseFee != nil {
@@ -748,7 +725,6 @@ func (m Message) Fee() *big.Int {
 	return gasFee.Add(gasFee, m.gatewayFee)
 }
 
-func (m Message) EthCompatible() bool                  { return m.ethCompatible }
 func (m Message) FeeCurrency() *common.Address         { return m.feeCurrency }
 func (m Message) GatewayFeeRecipient() *common.Address { return m.gatewayFeeRecipient }
 func (m Message) GatewayFee() *big.Int                 { return m.gatewayFee }

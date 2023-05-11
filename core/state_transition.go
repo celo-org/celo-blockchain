@@ -99,8 +99,6 @@ type Message interface {
 	FeeCurrency() *common.Address
 	GatewayFeeRecipient() *common.Address
 	GatewayFee() *big.Int
-	// Whether this transaction omitted the 3 Celo-only fields (FeeCurrency & co.)
-	EthCompatible() bool
 }
 
 // ExecutionResult includes all output after executing given evm
@@ -362,8 +360,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// First check this message satisfies all consensus rules before
 	// applying the message. The rules include these clauses
 	//
-	// 0. If the message is from an eth-compatible transaction, that we support those
-	//    and that none of the non-eth-compatible fields are present
 	// 1. the nonce of the message caller is correct
 	// 1.1. the gas price meets the minimum gas price
 	// 2. caller has enough balance to cover transaction fee(gaslimit * gasprice)
@@ -372,14 +368,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// 5. there is no overflow when calculating intrinsic gas
 	// 6. caller has enough balance to cover asset transfer for **topmost** call
 
-	// Clause 0
-	if st.msg.EthCompatible() && !st.evm.ChainConfig().IsDonut(st.evm.Context.BlockNumber) {
-		return nil, ErrEthCompatibleTransactionsNotSupported
-	}
-	if err := CheckEthCompatibility(st.msg); err != nil {
-		return nil, err
-	}
-
+	// Check clauses 1-2
 	if err := st.preCheck(); err != nil {
 		return nil, err
 	}
@@ -592,13 +581,6 @@ func (st *StateTransition) buyGasAlternativeCurrency(espresso bool) error {
 	st.initialGas = st.msg.Gas()
 	// st.state.SubBalance(st.msg.From(), mgval) // We don't do this since it's on a different currency
 	return erc20gas.DebitFees(st.evm, st.msg.From(), mgval, st.msg.FeeCurrency())
-}
-
-func CheckEthCompatibility(msg Message) error {
-	if msg.EthCompatible() && !(msg.FeeCurrency() == nil && msg.GatewayFeeRecipient() == nil && msg.GatewayFee().Sign() == 0) {
-		return types.ErrEthCompatibleTransactionIsntCompatible
-	}
-	return nil
 }
 
 func (st *StateTransition) gasForAlternativeCurrency(feeCurrency *common.Address, espresso bool) uint64 {

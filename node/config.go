@@ -191,8 +191,8 @@ type Config struct {
 	trustedNodesWarning    bool
 	oldGethResourceWarning bool
 
-	// // AllowUnprotectedTxs allows non EIP-155 protected transactions to be send over RPC.
-	// AllowUnprotectedTxs bool `toml:",omitempty"`
+	// AllowUnprotectedTxs allows non EIP-155 protected transactions to be send over RPC.
+	AllowUnprotectedTxs bool `toml:",omitempty"`
 }
 
 // IPCEndpoint resolves an IPC endpoint based on a configured value, taking into

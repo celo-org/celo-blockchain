@@ -500,7 +500,7 @@ func BuildSignedTransaction(
 		return nil, fmt.Errorf("failed to estimate gas needed: %v", err)
 	}
 	// Create the transaction and sign it
-	rawTx := types.NewTransaction(nonce, recipient, value, gasLimit, gasPrice, data)
+	rawTx := types.NewCeloTransaction(nonce, recipient, value, gasLimit, gasPrice, nil, nil, nil, data)
 	signed, err := types.SignTx(rawTx, signer, senderKey)
 	if err != nil {
 		return nil, err

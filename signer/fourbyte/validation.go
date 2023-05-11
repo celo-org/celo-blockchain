@@ -32,10 +32,6 @@ import (
 func (db *Database) ValidateTransaction(selector *string, tx *apitypes.SendTxArgs) (*apitypes.ValidationMessages, error) {
 	messages := new(apitypes.ValidationMessages)
 
-	// Reject if EthCompatible is true but the transaction has non-nil-or-0 values for the non-eth-compatible fields
-	if err := tx.CheckEthCompatibility(); err != nil {
-		return nil, err
-	}
 	// Prevent accidental erroneous usage of both 'input' and 'data' (show stopper)
 	if tx.Data != nil && tx.Input != nil && !bytes.Equal(*tx.Data, *tx.Input) {
 		return nil, errors.New(`ambiguous request: both "data" and "input" are set and are not identical`)

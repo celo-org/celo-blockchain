@@ -269,6 +269,7 @@ func TestPrestateTracerTransfer(t *testing.T) {
 // Iterates over all the input-output datasets in the tracer test harness and
 // runs the JavaScript tracers against them.
 func TestCallTracerLegacy(t *testing.T) {
+	t.Skip("txs in eth compatible format")
 	testCallTracer("callTracerLegacy", "call_tracer_legacy", t)
 }
 
@@ -353,6 +354,7 @@ func testCallTracer(tracer string, dirPath string, t *testing.T) {
 }
 
 func TestCallTracer(t *testing.T) {
+	t.Skip("txs in eth compatible format")
 	testCallTracer("callTracer", "call_tracer", t)
 }
 

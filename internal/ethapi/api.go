@@ -1232,7 +1232,6 @@ type RPCTransaction struct {
 	V                   *hexutil.Big      `json:"v"`
 	R                   *hexutil.Big      `json:"r"`
 	S                   *hexutil.Big      `json:"s"`
-	EthCompatible       bool              `json:"ethCompatible"`
 }
 
 // newRPCTransaction returns a transaction that will serialize to the RPC
@@ -1270,7 +1269,6 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		V:                   (*hexutil.Big)(v),
 		R:                   (*hexutil.Big)(r),
 		S:                   (*hexutil.Big)(s),
-		EthCompatible:       tx.EthCompatible(),
 	}
 	if blockHash != (common.Hash{}) {
 		result.BlockHash = &blockHash
@@ -1679,21 +1677,15 @@ func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 	if err := checkFeeFromCeloTx(ctx, b, tx); err != nil {
 		return common.Hash{}, err
 	}
-	currentBlockNumber := b.CurrentBlock().Number()
-	if !tx.Protected() {
-		if !b.UnprotectedAllowed() {
-			// Ensure only eip155 signed transactions are submitted if EIP155Required is set.
-			return common.Hash{}, errors.New("only replay-protected (EIP-155) transactions allowed over RPC for this node")
-		}
-		if b.ChainConfig().IsDonut(currentBlockNumber) && !b.ChainConfig().IsEspresso(currentBlockNumber) {
-			return common.Hash{}, errors.New("only replay-protected (EIP-155) transactions allowed over RPC")
-		}
+	if !b.UnprotectedAllowed() && !tx.Protected() {
+		// Ensure only eip155 signed transactions are submitted if EIP155Required is set.
+		return common.Hash{}, errors.New("only replay-protected (EIP-155) transactions allowed over RPC")
 	}
 	if err := b.SendTx(ctx, tx); err != nil {
 		return common.Hash{}, err
 	}
 	// Print a log with full tx details for manual investigations and interventions
-	signer := types.MakeSigner(b.ChainConfig(), currentBlockNumber)
+	signer := types.MakeSigner(b.ChainConfig(), b.CurrentBlock().Number())
 	from, err := types.Sender(signer, tx)
 	if err != nil {
 		return common.Hash{}, err

@@ -803,7 +803,6 @@ func (m callMsg) GatewayFee() *big.Int                 { return m.CallMsg.Gatewa
 func (m callMsg) Gas() uint64                          { return m.CallMsg.Gas }
 func (m callMsg) Value() *big.Int                      { return m.CallMsg.Value }
 func (m callMsg) Data() []byte                         { return m.CallMsg.Data }
-func (m callMsg) EthCompatible() bool                  { return m.CallMsg.EthCompatible }
 func (m callMsg) AccessList() types.AccessList         { return m.CallMsg.AccessList }
 
 // filterBackend implements filters.Backend to support filtering for logs without

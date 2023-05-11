@@ -106,4 +106,3 @@ func (tx *DynamicFeeTx) setSignatureValues(chainID, v, r, s *big.Int) {
 func (tx *DynamicFeeTx) feeCurrency() *common.Address         { return nil }
 func (tx *DynamicFeeTx) gatewayFeeRecipient() *common.Address { return nil }
 func (tx *DynamicFeeTx) gatewayFee() *big.Int                 { return nil }
-func (tx *DynamicFeeTx) ethCompatible() bool                  { return false }
