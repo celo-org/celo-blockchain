@@ -108,12 +108,6 @@ func (a ValidatorsDataByAddress) Less(i, j int) bool {
 type ValidatorSet interface {
 	fmt.Stringer
 
-	// Sets the randomness for use in the proposer policy.
-	// This is injected into the ValidatorSet when we call `getOrderedValidators`
-	SetRandomness(seed common.Hash)
-	// Sets the randomness for use in the proposer policy
-	GetRandomness() common.Hash
-
 	// Return the validator size
 	Size() int
 	// Get the maximum number of faulty nodes
@@ -152,17 +146,15 @@ type ValidatorSet interface {
 
 type ValidatorSetData struct {
 	Validators []ValidatorData
-	Randomness common.Hash
 }
 
 type ValidatorSetDataWithBLSKeyCache struct {
 	Validators []ValidatorDataWithBLSKeyCache
-	Randomness common.Hash
 }
 
 // ----------------------------------------------------------------------------
 
-// ProposerSelector returns the block proposer for a round given the last proposer, round number, and randomness.
+// ProposerSelector returns the block proposer for a round given the last proposer, and round number.
 type ProposerSelector func(validatorSet ValidatorSet, lastBlockProposer common.Address, currentRound uint64) Validator
 
 // ----------------------------------------------------------------------------

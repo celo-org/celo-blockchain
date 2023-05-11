@@ -216,7 +216,4 @@ type Istanbul interface {
 
 	// ValidatorAddress will return the istanbul engine's validator address
 	ValidatorAddress() common.Address
-
-	// GenerateRandomness will generate the random beacon randomness
-	GenerateRandomness(parentHash common.Hash) (common.Hash, common.Hash, error)
 }

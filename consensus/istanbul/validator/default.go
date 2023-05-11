@@ -130,9 +130,6 @@ func (val *defaultValidator) DecodeRLP(stream *rlp.Stream) error {
 type defaultSet struct {
 	validators  []istanbul.Validator
 	validatorMu sync.RWMutex
-	// This is set when we call `getOrderedValidators`
-	// TODO Rename to `EpochState` that has validators & randomness
-	randomness common.Hash
 }
 
 func newDefaultSet(validators []istanbul.ValidatorData) *defaultSet {
@@ -171,9 +168,6 @@ func newDefaultSetFromDataWithBLSKeyCache(validators []istanbul.ValidatorDataWit
 func (valSet *defaultSet) F() int             { return int(math.Ceil(float64(valSet.Size())/3)) - 1 }
 func (valSet *defaultSet) MinQuorumSize() int { return int(math.Ceil(float64(2*valSet.Size()) / 3)) }
 
-func (valSet *defaultSet) SetRandomness(seed common.Hash) { valSet.randomness = seed }
-func (valSet *defaultSet) GetRandomness() common.Hash     { return valSet.randomness }
-
 func (valSet *defaultSet) String() string {
 	var buf strings.Builder
 	if _, err := buf.WriteString("["); err != nil {
@@ -192,7 +186,7 @@ func (valSet *defaultSet) String() string {
 		return fmt.Sprintf("String()  error: %s", err)
 	}
 
-	return fmt.Sprintf("{randomness: %s, validators: %s}", valSet.randomness.String(), buf.String())
+	return fmt.Sprintf("{validators: %s}", buf.String())
 }
 
 func (valSet *defaultSet) CacheUncompressedBLSKey() {
@@ -300,7 +294,6 @@ func (valSet *defaultSet) Copy() istanbul.ValidatorSet {
 	for i, v := range valSet.validators {
 		newValSet.validators[i] = v.Copy()
 	}
-	newValSet.SetRandomness(valSet.randomness)
 	return newValSet
 }
 
@@ -318,7 +311,6 @@ func (valSet *defaultSet) AsData() *istanbul.ValidatorSetData {
 	defer valSet.validatorMu.RUnlock()
 	return &istanbul.ValidatorSetData{
 		Validators: MapValidatorsToData(valSet.validators),
-		Randomness: valSet.randomness,
 	}
 }
 
@@ -332,7 +324,6 @@ func (val *defaultSet) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*val = *newDefaultSet(data.Validators)
-	val.SetRandomness(data.Randomness)
 	return nil
 }
 
@@ -346,7 +337,6 @@ func (val *defaultSet) DecodeRLP(stream *rlp.Stream) error {
 		return err
 	}
 	*val = *newDefaultSet(data.Validators)
-	val.SetRandomness(data.Randomness)
 	return nil
 }
 

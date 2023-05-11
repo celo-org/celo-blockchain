@@ -330,10 +330,6 @@ type Backend struct {
 	proxiedValidatorEngineRunning bool
 	proxiedValidatorEngineMu      sync.RWMutex
 
-	// RandomSeed (and it's mutex) used to generate the random beacon randomness
-	randomSeed   []byte
-	randomSeedMu sync.Mutex
-
 	// Test hooks
 	abortCommitHook func(result *istanbulCore.StateProcessResult) bool // Method to call upon committing a proposal
 }

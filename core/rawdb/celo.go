@@ -5,36 +5,9 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
-
-// WriteRandomCommitmentCache will write a random beacon commitment's associated block parent hash
-// (which is used to calculate the commitmented random number).
-func WriteRandomCommitmentCache(db ethdb.KeyValueWriter, commitment common.Hash, parentHash common.Hash) {
-	if err := db.Put(randomnessCommitmentKey(commitment), parentHash.Bytes()); err != nil {
-		log.Crit("Failed to store randomness commitment cache entry", "err", err)
-	}
-}
-
-// ReadRandomCommitmentCache will retun the random beacon commit's associated block parent hash.
-func ReadRandomCommitmentCache(db ethdb.Reader, commitment common.Hash) common.Hash {
-	parentHash, err := db.Get(randomnessCommitmentKey(commitment))
-	if err != nil {
-		log.Warn("Error in trying to retrieve randomness commitment cache entry", "error", err)
-		return common.Hash{}
-	}
-
-	return common.BytesToHash(parentHash)
-}
-
-// randomnessCommitmentKey will return the key for where the
-// given commitment's cached key-value entry
-func randomnessCommitmentKey(commitment common.Hash) []byte {
-	dbRandomnessPrefix := []byte("db-randomness-prefix")
-	return append(dbRandomnessPrefix, commitment.Bytes()...)
-}
 
 // Extra hash comparison is necessary since ancient database only maintains
 // the canonical data.
