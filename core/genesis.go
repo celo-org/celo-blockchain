@@ -285,19 +285,6 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 	return types.NewBlock(head, nil, nil, nil, trie.NewStackTrie(nil))
 }
 
-// StoreGenesisSupply computes the total supply of the genesis block and stores
-// it in the db.
-func (g *Genesis) StoreGenesisSupply(db ethdb.Database) error {
-	if db == nil {
-		db = rawdb.NewMemoryDatabase()
-	}
-	genesisSupply := big.NewInt(0)
-	for _, account := range g.Alloc {
-		genesisSupply.Add(genesisSupply, account.Balance)
-	}
-	return rawdb.WriteGenesisCeloSupply(db, genesisSupply)
-}
-
 // Commit writes the block and state of a genesis specification to the database.
 // The block is committed as the canonical head block.
 func (g *Genesis) Commit(db ethdb.Database) (*types.Block, error) {
@@ -319,10 +306,6 @@ func (g *Genesis) Commit(db ethdb.Database) (*types.Block, error) {
 	rawdb.WriteHeadBlockHash(db, block.Hash())
 	rawdb.WriteHeadFastBlockHash(db, block.Hash())
 	rawdb.WriteHeadHeaderHash(db, block.Hash())
-	if err := g.StoreGenesisSupply(db); err != nil {
-		log.Error("Unable to store genesisSupply in db", "err", err)
-		return nil, err
-	}
 
 	rawdb.WriteChainConfig(db, block.Hash(), config)
 	return block, nil

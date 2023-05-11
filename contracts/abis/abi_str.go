@@ -311,38 +311,6 @@ const GasPriceMinimumStr = `[
 		}
 ]`
 
-// nolint: gosec
-const GoldTokenStr = `[
-	{
-		"constant": false,
-		"inputs": [
-		  {
-			"name": "amount",
-			"type": "uint256"
-		  }
-		],
-		"name": "increaseSupply",
-		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"constant": true,
-		"inputs": [],
-		"name": "totalSupply",
-		"outputs": [
-		  {
-			"name": "",
-			"type": "uint256"
-		  }
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	}
-]`
-
 const RandomStr = `[
 	{
 		"constant": false,
