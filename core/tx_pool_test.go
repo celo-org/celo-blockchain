@@ -81,7 +81,7 @@ func newTestBlockchain() *testBlockChain {
 }
 
 func (bc *testBlockChain) CurrentBlock() *types.Block {
-	return types.NewBlock(&types.Header{}, nil, nil, nil, trie.NewStackTrie(nil))
+	return types.NewBlock(&types.Header{}, nil, nil, trie.NewStackTrie(nil))
 }
 
 func (bc *testBlockChain) GetBlock(hash common.Hash, number uint64) *types.Block {

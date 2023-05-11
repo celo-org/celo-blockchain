@@ -313,16 +313,14 @@ func TestDelivery(t *testing.T) {
 			f, _, _ := q.ReserveBodies(peer, rand.Intn(30))
 			if f != nil {
 				var txs [][]*types.Transaction
-				var randomnessList []*types.Randomness
 				var epochSnarkDataList []*types.EpochSnarkData
 				numToSkip := rand.Intn(len(f.Headers))
 				for _, hdr := range f.Headers[0 : len(f.Headers)-numToSkip] {
 					txs = append(txs, world.getTransactions(hdr.Number.Uint64()))
-					randomnessList = append(randomnessList, &types.Randomness{})
 					epochSnarkDataList = append(epochSnarkDataList, &types.EpochSnarkData{})
 				}
 				time.Sleep(100 * time.Millisecond)
-				_, err := q.DeliverBodies(peer.id, txs, randomnessList, epochSnarkDataList)
+				_, err := q.DeliverBodies(peer.id, txs, epochSnarkDataList)
 				if err != nil {
 					fmt.Printf("delivered %d bodies %v\n", len(txs), err)
 				}

@@ -1149,10 +1149,6 @@ func RPCMarshalBlock(block *types.Block, inclTx bool, fullTx bool, baseFeeFn fun
 	fields := RPCMarshalHeader(block.Header())
 	fields["size"] = hexutil.Uint64(block.Size())
 
-	fields["randomness"] = map[string]interface{}{
-		"revealed":  hexutil.Bytes(block.Randomness().Revealed.Bytes()),
-		"committed": hexutil.Bytes(block.Randomness().Committed.Bytes()),
-	}
 	epochSnarkData := block.EpochSnarkData()
 	if epochSnarkData != nil && !epochSnarkData.IsEmpty() {
 		fields["epochSnarkData"] = map[string]interface{}{

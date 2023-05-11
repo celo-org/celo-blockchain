@@ -501,14 +501,14 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 //
 // Note: The block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
-func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt) (*types.Block, error) {
 
 	sb.Finalize(chain, header, state, txs)
 	// Add the block receipt with logs from the non-transaction core contract calls (if there were any)
 	receipts = core.AddBlockReceipt(receipts, state, header.Hash())
 
 	// Assemble and return the final block for sealing
-	block := types.NewBlock(header, txs, receipts, randomness, new(trie.Trie))
+	block := types.NewBlock(header, txs, receipts, new(trie.Trie))
 	return block, nil
 }
 

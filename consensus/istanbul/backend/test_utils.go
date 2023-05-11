@@ -226,7 +226,7 @@ func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types
 	}
 	engine.Finalize(chain, header, state, nil)
 
-	block, err := engine.FinalizeAndAssemble(chain, header, state, nil, nil, nil)
+	block, err := engine.FinalizeAndAssemble(chain, header, state, nil, nil)
 	if err != nil {
 		fmt.Printf("Error!! %v\n", err)
 	}

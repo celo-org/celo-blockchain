@@ -477,7 +477,6 @@ func (w *worker) updatePendingBlock(b *blockState) {
 		b.header,
 		b.txs,
 		b.receipts,
-		b.randomness,
 		trie.NewStackTrie(nil),
 	)
 	w.snapshotState = b.state.Copy()

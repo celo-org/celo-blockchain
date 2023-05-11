@@ -196,12 +196,12 @@ func (e *MockEngine) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	header.Root = statedb.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 }
 
-func (e *MockEngine) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, statedb *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+func (e *MockEngine) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, statedb *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt) (*types.Block, error) {
 	e.accumulateRewards(chain.Config(), statedb, header)
 	header.Root = statedb.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 
 	// Header seems complete, assemble into a block and return
-	return types.NewBlock(header, txs, receipts, randomness, new(trie.Trie)), nil
+	return types.NewBlock(header, txs, receipts, new(trie.Trie)), nil
 }
 
 func (e *MockEngine) Author(header *types.Header) (common.Address, error) {

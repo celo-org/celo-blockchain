@@ -157,7 +157,6 @@ func EmptyPreparedCertificate() PreparedCertificate {
 		Time:    0,
 	}
 	block := &types.Block{}
-	block = block.WithRandomness(&types.EmptyRandomness)
 	block = block.WithEpochSnarkData(&types.EmptyEpochSnarkData)
 
 	return PreparedCertificate{

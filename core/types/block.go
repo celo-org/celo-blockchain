@@ -35,7 +35,6 @@ import (
 
 var (
 	EmptyRootHash       = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
-	EmptyRandomness     = Randomness{}
 	EmptyEpochSnarkData = EpochSnarkData{}
 )
 
@@ -118,31 +117,6 @@ func (h *Header) EmptyReceipts() bool {
 	return h.ReceiptHash == EmptyRootHash
 }
 
-type Randomness struct {
-	Revealed  common.Hash
-	Committed common.Hash
-}
-
-func (r *Randomness) Size() common.StorageSize {
-	return common.StorageSize(64)
-}
-
-func (r *Randomness) DecodeRLP(s *rlp.Stream) error {
-	var random struct {
-		Revealed  common.Hash
-		Committed common.Hash
-	}
-	if err := s.Decode(&random); err != nil {
-		return err
-	}
-	r.Revealed, r.Committed = random.Revealed, random.Committed
-	return nil
-}
-
-func (r *Randomness) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{r.Revealed, r.Committed})
-}
-
 type EpochSnarkData struct {
 	Bitmap    *big.Int
 	Signature []byte
@@ -206,7 +180,6 @@ func (r *EpochSnarkData) UnmarshalJSON(input []byte) error {
 // a block's data contents (transactions and uncles) together.
 type Body struct {
 	Transactions   []*Transaction
-	Randomness     *Randomness
 	EpochSnarkData *EpochSnarkData
 }
 
@@ -214,7 +187,6 @@ type Body struct {
 type Block struct {
 	header         *Header
 	transactions   Transactions
-	randomness     *Randomness
 	epochSnarkData *EpochSnarkData
 
 	// caches
@@ -235,7 +207,6 @@ type Block struct {
 type extblock struct {
 	Header         *Header
 	Txs            []*Transaction
-	Randomness     *Randomness
 	EpochSnarkData *EpochSnarkData
 }
 
@@ -245,8 +216,8 @@ type extblock struct {
 //
 // The values of TxHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs and receipts.
-func NewBlock(header *Header, txs []*Transaction, receipts []*Receipt, randomness *Randomness, hasher TrieHasher) *Block {
-	b := &Block{header: CopyHeader(header), td: new(big.Int), randomness: randomness, epochSnarkData: &EmptyEpochSnarkData}
+func NewBlock(header *Header, txs []*Transaction, receipts []*Receipt, hasher TrieHasher) *Block {
+	b := &Block{header: CopyHeader(header), td: new(big.Int), epochSnarkData: &EmptyEpochSnarkData}
 
 	// TODO: panic if len(txs) != len(receipts)
 	if len(txs) == 0 {
@@ -264,10 +235,6 @@ func NewBlock(header *Header, txs []*Transaction, receipts []*Receipt, randomnes
 		b.header.Bloom = CreateBloom(receipts)
 	}
 
-	if randomness == nil {
-		b.randomness = &EmptyRandomness
-	}
-
 	return b
 }
 
@@ -275,7 +242,7 @@ func NewBlock(header *Header, txs []*Transaction, receipts []*Receipt, randomnes
 // header data is copied, changes to header and to the field values
 // will not affect the block.
 func NewBlockWithHeader(header *Header) *Block {
-	return &Block{header: CopyHeader(header), randomness: &EmptyRandomness, epochSnarkData: &EmptyEpochSnarkData}
+	return &Block{header: CopyHeader(header), epochSnarkData: &EmptyEpochSnarkData}
 }
 
 // CopyHeader creates a deep copy of a block header to prevent side effects from
@@ -310,7 +277,7 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&eb); err != nil {
 		return err
 	}
-	b.header, b.transactions, b.randomness, b.epochSnarkData = eb.Header, eb.Txs, eb.Randomness, eb.EpochSnarkData
+	b.header, b.transactions, b.epochSnarkData = eb.Header, eb.Txs, eb.EpochSnarkData
 	b.size.Store(common.StorageSize(rlp.ListSize(size)))
 	return nil
 }
@@ -320,7 +287,6 @@ func (b *Block) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, extblock{
 		Header:         b.header,
 		Txs:            b.transactions,
-		Randomness:     b.randomness,
 		EpochSnarkData: b.epochSnarkData,
 	})
 }
@@ -328,7 +294,6 @@ func (b *Block) EncodeRLP(w io.Writer) error {
 // TODO: copies
 
 func (b *Block) Transactions() Transactions      { return b.transactions }
-func (b *Block) Randomness() *Randomness         { return b.randomness }
 func (b *Block) EpochSnarkData() *EpochSnarkData { return b.epochSnarkData }
 
 func (b *Block) Transaction(hash common.Hash) *Transaction {
@@ -357,7 +322,7 @@ func (b *Block) Header() *Header        { return CopyHeader(b.header) }
 func (b *Block) MutableHeader() *Header { return b.header }
 
 // Body returns the non-header content of the block.
-func (b *Block) Body() *Body { return &Body{b.transactions, b.randomness, b.epochSnarkData} }
+func (b *Block) Body() *Body { return &Body{b.transactions, b.epochSnarkData} }
 
 // Size returns the true RLP encoded storage size of the block, either by encoding
 // and returning it, or returning a previsouly cached value.
@@ -392,20 +357,8 @@ func (b *Block) WithHeader(header *Header) *Block {
 	return &Block{
 		header:         cpy,
 		transactions:   b.transactions,
-		randomness:     b.randomness,
 		epochSnarkData: b.epochSnarkData,
 	}
-}
-
-// WithRandomness returns a new block with the given randomness.
-func (b *Block) WithRandomness(randomness *Randomness) *Block {
-	block := &Block{
-		header:         b.header,
-		transactions:   b.transactions,
-		randomness:     randomness,
-		epochSnarkData: b.epochSnarkData,
-	}
-	return block
 }
 
 // WithEpochSnarkData returns a new block with the given epoch SNARK data.
@@ -413,24 +366,19 @@ func (b *Block) WithEpochSnarkData(epochSnarkData *EpochSnarkData) *Block {
 	block := &Block{
 		header:         b.header,
 		transactions:   b.transactions,
-		randomness:     b.randomness,
 		epochSnarkData: epochSnarkData,
 	}
 	return block
 }
 
 // WithBody returns a new block with the given transaction contents.
-func (b *Block) WithBody(transactions []*Transaction, randomness *Randomness, epochSnarkData *EpochSnarkData) *Block {
+func (b *Block) WithBody(transactions []*Transaction, epochSnarkData *EpochSnarkData) *Block {
 	block := &Block{
 		header:         CopyHeader(b.header),
 		transactions:   make([]*Transaction, len(transactions)),
-		randomness:     randomness,
 		epochSnarkData: epochSnarkData,
 	}
 	copy(block.transactions, transactions)
-	if randomness == nil {
-		block.randomness = &EmptyRandomness
-	}
 	if epochSnarkData == nil {
 		block.epochSnarkData = &EmptyEpochSnarkData
 	}

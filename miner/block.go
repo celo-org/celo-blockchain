@@ -27,9 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
-	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/log"
@@ -49,7 +47,6 @@ type blockState struct {
 	header         *types.Header
 	txs            []*types.Transaction
 	receipts       []*types.Receipt
-	randomness     *types.Randomness // The types.Randomness of the last block by mined by this worker.
 	txFeeRecipient common.Address
 }
 
@@ -111,58 +108,6 @@ func prepareBlock(w *worker) (*blockState, error) {
 		sysCtx:         core.NewSysContractCallCtx(header, state.Copy(), w.chain),
 	}
 	b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
-
-	// Play our part in generating the random beacon.
-	if w.isRunning() && random.IsRunning(vmRunner) {
-		istanbul, ok := w.engine.(consensus.Istanbul)
-		if !ok {
-			log.Crit("Istanbul consensus engine must be in use for the randomness beacon")
-		}
-
-		lastCommitment, err := random.GetLastCommitment(vmRunner, w.validator)
-		if err != nil {
-			return b, fmt.Errorf("Failed to get last commitment: %w", err)
-		}
-
-		lastRandomness := common.Hash{}
-		if (lastCommitment != common.Hash{}) {
-			lastRandomnessParentHash := rawdb.ReadRandomCommitmentCache(w.db, lastCommitment)
-			if (lastRandomnessParentHash == common.Hash{}) {
-				log.Warn("Randomness cache miss while building a block. Attempting to recover.", "number", header.Number.Uint64())
-
-				// We missed on the cache which should have been populated, attempt to repopulate the cache.
-				err := w.chain.RecoverRandomnessCache(lastCommitment, b.header.ParentHash)
-				if err != nil {
-					log.Error("Error in recovering randomness cache", "error", err, "number", header.Number.Uint64())
-					return b, errors.New("failed to to recover the randomness cache after miss")
-				}
-				lastRandomnessParentHash = rawdb.ReadRandomCommitmentCache(w.db, lastCommitment)
-				if (lastRandomnessParentHash == common.Hash{}) {
-					// Recover failed to fix the issue. Bail.
-					return b, errors.New("failed to get last randomness cache entry and failed to recover")
-				}
-			}
-
-			var err error
-			lastRandomness, _, err = istanbul.GenerateRandomness(lastRandomnessParentHash)
-			if err != nil {
-				return b, fmt.Errorf("Failed to generate last randomness: %w", err)
-			}
-		}
-
-		_, newCommitment, err := istanbul.GenerateRandomness(b.header.ParentHash)
-		if err != nil {
-			return b, fmt.Errorf("Failed to generate new randomness: %w", err)
-		}
-
-		// always true (EIP158)
-		b.state.IntermediateRoot(true)
-
-		b.randomness = &types.Randomness{Revealed: lastRandomness, Committed: newCommitment}
-	} else {
-		b.randomness = &types.EmptyRandomness
-	}
-
 	return b, nil
 }
 
@@ -329,7 +274,7 @@ func (b *blockState) commitTransaction(w *worker, tx *types.Transaction, txFeeRe
 
 // finalizeAndAssemble runs post-transaction state modification and assembles the final block.
 func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
-	block, err := w.engine.FinalizeAndAssemble(w.chain, b.header, b.state, b.txs, b.receipts, b.randomness)
+	block, err := w.engine.FinalizeAndAssemble(w.chain, b.header, b.state, b.txs, b.receipts)
 	if err != nil {
 		return nil, fmt.Errorf("Error in FinalizeAndAssemble: %w", err)
 	}

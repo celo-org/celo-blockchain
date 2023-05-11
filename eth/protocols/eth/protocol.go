@@ -232,21 +232,19 @@ type BlockBody struct {
 
 // Unpack retrieves the transactions and uncles from the range packet and returns
 // them in a split flat format that's more consistent with the internal data structures.
-func (p *BlockBodiesPacket) Unpack() ([]common.Hash, [][]*types.Transaction, []*types.Randomness, []*types.EpochSnarkData) {
+func (p *BlockBodiesPacket) Unpack() ([]common.Hash, [][]*types.Transaction, []*types.EpochSnarkData) {
 	var (
 		blockHashes    = make([]common.Hash, len(*p))
 		transactions   = make([][]*types.Transaction, len(*p))
-		randomness     = make([]*types.Randomness, len(*p))
 		epochSnarkData = make([]*types.EpochSnarkData, len(*p))
 	)
 
 	for i, blockBodyWithBlockHash := range *p {
 		blockHashes[i] = blockBodyWithBlockHash.BlockHash
 		transactions[i] = blockBodyWithBlockHash.BlockBody.Transactions
-		randomness[i] = blockBodyWithBlockHash.BlockBody.Randomness
 		epochSnarkData[i] = blockBodyWithBlockHash.BlockBody.EpochSnarkData
 	}
-	return blockHashes, transactions, randomness, epochSnarkData
+	return blockHashes, transactions, epochSnarkData
 }
 
 // GetNodeDataPacket represents a trie node data query.

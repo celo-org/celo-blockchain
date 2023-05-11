@@ -39,7 +39,7 @@ func makeBlock(number int64) *types.Block {
 		GasUsed: 0,
 		Time:    uint64(0),
 	}
-	return types.NewBlock(header, nil, nil, nil, new(trie.Trie))
+	return types.NewBlock(header, nil, nil, new(trie.Trie))
 }
 
 func newTestProposalWithNum(num int64) istanbul.Proposal {

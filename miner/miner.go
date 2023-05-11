@@ -23,9 +23,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
@@ -77,43 +75,6 @@ func New(eth Backend, config *Config, chainConfig *params.ChainConfig, mux *even
 	return miner
 }
 
-func (miner *Miner) recoverRandomness() {
-	// If this is using the istanbul consensus engine, then we need to check
-	// for the randomness cache for the randomness beacon protocol
-	_, isIstanbul := miner.engine.(consensus.Istanbul)
-	if isIstanbul {
-		// getCurrentBlockAndState
-		currentBlock := miner.eth.BlockChain().CurrentBlock()
-		currentHeader := currentBlock.Header()
-		currentState, err := miner.eth.BlockChain().StateAt(currentBlock.Root())
-		if err != nil {
-			log.Error("Error in retrieving state", "block hash", currentHeader.Hash(), "error", err)
-			return
-		}
-
-		if currentHeader.Number.Uint64() > 0 {
-			vmRunner := miner.eth.BlockChain().NewEVMRunner(currentHeader, currentState)
-			// Check to see if we already have the commitment cache
-			lastCommitment, err := random.GetLastCommitment(vmRunner, miner.validator)
-			if err != nil {
-				log.Error("Error in retrieving last commitment", "error", err)
-				return
-			}
-
-			// If there is a non empty last commitment and if we don't have that commitment's
-			// cache entry, then we need to recover it.
-			if (lastCommitment != common.Hash{}) && (rawdb.ReadRandomCommitmentCache(miner.db, lastCommitment) == common.Hash{}) {
-				err := miner.eth.BlockChain().RecoverRandomnessCache(lastCommitment, currentBlock.Hash())
-				if err != nil {
-					log.Error("Error in recovering randomness cache", "error", err)
-					return
-				}
-			}
-		}
-	}
-
-}
-
 // update keeps track of the downloader events. Please be aware that this is a one shot type of update loop.
 // It's entered once and as soon as `Done` or `Failed` has been broadcasted the events are unregistered and
 // the loop is exited. This to prevent a major security vuln where external parties can DOS you with blocks
@@ -153,7 +114,6 @@ func (miner *Miner) update() {
 					miner.worker.start()
 				}
 			case downloader.DoneEvent:
-				miner.recoverRandomness()
 				canStart = true
 				if shouldStart {
 					miner.worker.start()

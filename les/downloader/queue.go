@@ -67,7 +67,6 @@ type fetchResult struct {
 	Header         *types.Header
 	Transactions   types.Transactions
 	Receipts       types.Receipts
-	Randomness     *types.Randomness
 	EpochSnarkData *types.EpochSnarkData
 }
 
@@ -373,7 +372,6 @@ func (q *queue) Results(block bool) []*fetchResult {
 		for _, tx := range result.Transactions {
 			size += tx.Size()
 		}
-		size += result.Randomness.Size()
 		q.resultSize = common.StorageSize(blockCacheSizeWeight)*size +
 			(1-common.StorageSize(blockCacheSizeWeight))*q.resultSize
 	}
@@ -784,7 +782,7 @@ func (q *queue) DeliverHeaders(id string, headers []*types.Header, headerProcCh 
 // DeliverBodies injects a block body retrieval response into the results queue.
 // The method returns the number of blocks bodies accepted from the delivery and
 // also wakes any threads waiting for data delivery.
-func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, randomnessList []*types.Randomness, epochSnarkDataList []*types.EpochSnarkData) (int, error) {
+func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, epochSnarkDataList []*types.EpochSnarkData) (int, error) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 	trieHasher := trie.NewStackTrie(nil)
@@ -797,7 +795,6 @@ func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, randomn
 
 	reconstruct := func(index int, result *fetchResult) {
 		result.Transactions = txLists[index]
-		result.Randomness = randomnessList[index]
 		result.EpochSnarkData = epochSnarkDataList[index]
 		result.SetBodyDone()
 	}

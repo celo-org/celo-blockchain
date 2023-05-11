@@ -269,10 +269,6 @@ func bigTxs(gasLimit int, gasPerByte int) []*types.Transaction {
 }
 
 func bigBlock(gasLimit int, validators int, gasPerByte int) *types.Block {
-	randomness := &types.Randomness{
-		Revealed:  common.BigToHash(common.Big3),
-		Committed: common.BigToHash(common.Big2),
-	}
 	// Full header
 	header := bigHeader(validators)
 	txs := bigTxs(gasLimit, gasPerByte)
@@ -289,7 +285,7 @@ func bigBlock(gasLimit int, validators int, gasPerByte int) *types.Block {
 		}},
 	}}
 	fillF(receipts[0].Bloom[:], types.BloomByteLength)
-	block := types.NewBlock(header, txs, receipts, randomness, newHasher())
+	block := types.NewBlock(header, txs, receipts, newHasher())
 	return block
 }
 

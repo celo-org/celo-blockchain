@@ -39,7 +39,7 @@ var (
 	testKey, _   = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 	testAddress  = crypto.PubkeyToAddress(testKey.PublicKey)
 	genesis      = core.GenesisBlockForTesting(testdb, testAddress, big.NewInt(1000000000000000))
-	unknownBlock = types.NewBlock(&types.Header{}, nil, nil, nil, trie.NewStackTrie(nil))
+	unknownBlock = types.NewBlock(&types.Header{}, nil, nil, trie.NewStackTrie(nil))
 )
 
 // makeChain creates a chain of n blocks starting at and including parent.
@@ -214,19 +214,17 @@ func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]*typ
 		// Gather the block bodies to return
 		blockHashes := make([]common.Hash, 0, len(hashes))
 		transactions := make([][]*types.Transaction, 0, len(hashes))
-		randomness := make([]*types.Randomness, 0, len(hashes))
 		epochSnarkData := make([]*types.EpochSnarkData, 0, len(hashes))
 
 		for _, hash := range hashes {
 			if block, ok := closure[hash]; ok {
 				blockHashes = append(blockHashes, hash)
 				transactions = append(transactions, block.Transactions())
-				randomness = append(randomness, block.Randomness())
 				epochSnarkData = append(epochSnarkData, block.EpochSnarkData())
 			}
 		}
 		// Return on a new thread
-		go f.fetcher.FilterBodies(peer, blockHashes, transactions, randomness, epochSnarkData, time.Now().Add(drift))
+		go f.fetcher.FilterBodies(peer, blockHashes, transactions, epochSnarkData, time.Now().Add(drift))
 
 		return nil
 	}

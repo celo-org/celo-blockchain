@@ -82,7 +82,6 @@ var (
 	blockPrefetchInterruptMeter = metrics.NewRegisteredMeter("chain/prefetch/interrupts", nil)
 
 	errInsertionInterrupted = errors.New("insertion is interrupted")
-	errCommitmentNotFound   = errors.New("randomness commitment not found")
 	errChainStopped         = errors.New("blockchain is stopped")
 )
 
@@ -1509,26 +1508,10 @@ func (bc *BlockChain) insertPreprocessedBlock(block *types.Block, receipts []*ty
 		return NonStatTy, errInsertionInterrupted
 	}
 
-	randomCommitment := common.Hash{}
-	if istEngine, isIstanbul := bc.engine.(consensus.Istanbul); isIstanbul {
+	if _, isIstanbul := bc.engine.(consensus.Istanbul); isIstanbul {
 
 		if hash := bc.GetCanonicalHash(block.NumberU64()); (hash != common.Hash{} && hash != block.Hash()) {
 			log.Error("Found two blocks with same height", "old", hash, "new", block.Hash())
-		}
-
-		blockAuthor, err := istEngine.Author(block.Header())
-		if err != nil {
-			log.Warn("Unable to retrieve the author for block", "blockNum", block.NumberU64(), "err", err)
-		}
-
-		if blockAuthor == istEngine.ValidatorAddress() && !istEngine.IsProxy() {
-			// Calculate the randomness commitment
-			_, randomCommitment, err = istEngine.GenerateRandomness(block.ParentHash())
-
-			if err != nil {
-				log.Error("Couldn't generate the randomness for the block", "blockNum", block.NumberU64(), "err", err)
-				return NonStatTy, err
-			}
 		}
 	}
 
@@ -1551,11 +1534,6 @@ func (bc *BlockChain) insertPreprocessedBlock(block *types.Block, receipts []*ty
 	rawdb.WriteBlock(blockBatch, block)
 	rawdb.WriteReceipts(blockBatch, block.Hash(), block.NumberU64(), receipts)
 	rawdb.WritePreimages(blockBatch, state.Preimages())
-	if (randomCommitment != common.Hash{}) {
-		// Note that the random commitment cache entry is never transferred over to the freezer,
-		// unlike all of the other saved data within this batch write
-		rawdb.WriteRandomCommitmentCache(blockBatch, randomCommitment, block.ParentHash())
-	}
 	if err := blockBatch.Write(); err != nil {
 		log.Crit("Failed to write block into disk", "err", err)
 	}
@@ -2613,55 +2591,4 @@ func (bc *BlockChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscript
 // block processing has started while false means it has stopped.
 func (bc *BlockChain) SubscribeBlockProcessingEvent(ch chan<- bool) event.Subscription {
 	return bc.scope.Track(bc.blockProcFeed.Subscribe(ch))
-}
-
-// RecoverRandomnessCache will do a search for the block that was used to generate the given commitment.
-// Specifically, it will find the block that this node authored and that block's parent hash is used to
-// created the commitment.  The search is a reverse iteration of the node's local chain starting at
-// the block where it's hash is the given commitmentBlockHash.
-func (bc *BlockChain) RecoverRandomnessCache(commitment common.Hash, commitmentBlockHash common.Hash) error {
-	istEngine, isIstanbul := bc.engine.(consensus.Istanbul)
-	if !isIstanbul {
-		return nil
-	}
-
-	log.Info("Recovering randomness cache entry", "commitment", commitment.Hex(), "initial block search", commitmentBlockHash.Hex())
-
-	blockHashIter := commitmentBlockHash
-	var parentHash common.Hash
-	for {
-		blockHeader := bc.GetHeaderByHash(blockHashIter)
-
-		// We got to the genesis block, so search didn't find the latest
-		// block authored by this validator.
-		if blockHeader.Number.Uint64() == 0 {
-			return errCommitmentNotFound
-		}
-
-		blockAuthor, err := istEngine.Author(blockHeader)
-		if err != nil {
-			log.Error("Error is retrieving block author", "block number", blockHeader.Number.Uint64(), "block hash", blockHeader.Hash(), "error", err)
-			return err
-		}
-
-		if blockAuthor == istEngine.ValidatorAddress() {
-			parentHash = blockHeader.ParentHash
-			break
-		}
-
-		blockHashIter = blockHeader.ParentHash
-	}
-
-	// Calculate the randomness commitment
-	// The calculation is stateless (e.g. it's just a hash operation of a string), so any passed in block header and state
-	// will do. Will use the previously fetched current header and state.
-	_, randomCommitment, err := istEngine.GenerateRandomness(parentHash)
-	if err != nil {
-		log.Error("Couldn't generate the randomness from the parent hash", "parent hash", parentHash, "err", err)
-		return err
-	}
-
-	rawdb.WriteRandomCommitmentCache(bc.db, randomCommitment, parentHash)
-
-	return nil
 }
