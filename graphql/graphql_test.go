@@ -344,7 +344,7 @@ func createGQLServiceWithTransactions(t *testing.T, stack *node.Node) {
 	}
 	signer := types.LatestSigner(ethConf.Genesis.Config)
 
-	gp := core.MockSysContractCallCtx().GetGasPriceMinimum(nil)
+	gp := core.MockSysContractCallCtx(common.Big0).GetGasPriceMinimum(nil)
 	legacyTx, _ := types.SignNewTx(key, signer, &types.LegacyTx{
 		Nonce:    uint64(0),
 		To:       &dad,

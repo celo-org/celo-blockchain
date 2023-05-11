@@ -80,7 +80,7 @@ func txPoolTestChainGen(i int, block *core.BlockGen) {
 }
 
 func TestTxPool(t *testing.T) {
-	gp := core.MockSysContractCallCtx().GetGasPriceMinimum(nil)
+	gp := core.MockSysContractCallCtx(common.Big0).GetGasPriceMinimum(nil)
 	for i := range testTx {
 		testTx[i], _ = types.SignTx(types.NewTransaction(uint64(i), acc1Addr, big.NewInt(10000), params.TxGas, gp, nil, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
 	}

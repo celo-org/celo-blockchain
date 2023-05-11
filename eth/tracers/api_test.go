@@ -879,7 +879,7 @@ func TestTraceBlockWithEIP1559Tx(t *testing.T) {
 		// The account balance is chosen in a way that the second transaction won't be able to execute if the
 		// calculation is wrong.
 
-		bf := core.MockSysContractCallCtx().GetGasPriceMinimum(nil)
+		bf := core.MockSysContractCallCtx(common.Big0).GetGasPriceMinimum(nil)
 		tip := big.NewInt(2)
 		cap := new(big.Int).Set(common.Big1)
 		cap = cap.Add(cap, tip).Add(cap, bf)

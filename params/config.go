@@ -157,6 +157,7 @@ var (
 
 		FullHeaderChainAvailable: true,
 		Faker:                    true,
+		FakeBaseFee:              common.Big0,
 	}
 	IstanbulTestChainConfig = TestChainConfig.
 				deepCopy().
@@ -261,7 +262,8 @@ type ChainConfig struct {
 	FullHeaderChainAvailable bool // False for lightest Sync mode, true otherwise
 
 	// Requests mock engine if true
-	Faker bool `json:"faker,omitempty"`
+	Faker       bool     `json:"faker,omitempty"`
+	FakeBaseFee *big.Int `json:"baseFee,omitempty"`
 }
 
 // IstanbulConfig is the consensus engine configs for Istanbul based sealing.
@@ -643,6 +645,7 @@ func (c *ChainConfig) deepCopy() *ChainConfig {
 
 		FullHeaderChainAvailable: c.FullHeaderChainAvailable,
 		Faker:                    c.Faker,
+		FakeBaseFee:              c.FakeBaseFee,
 	}
 	return cpy
 }

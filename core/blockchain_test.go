@@ -3075,7 +3075,7 @@ func TestEIP1559Transition(t *testing.T) {
 	}
 
 	// 4: Ensure the tx sender paid for the gasUsed * (tip + block baseFee).
-	baseFee := MockSysContractCallCtx().GetGasPriceMinimum(nil).Uint64()
+	baseFee := MockSysContractCallCtx(common.Big0).GetGasPriceMinimum(nil).Uint64()
 	actual = new(big.Int).Sub(funds, state.GetBalance(addr1))
 	expected = new(big.Int).SetUint64(block.GasUsed() * (block.Transactions()[0].GasTipCap().Uint64() + baseFee))
 	if actual.Cmp(expected) != 0 {

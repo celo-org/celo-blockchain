@@ -100,7 +100,7 @@ func (b *BlockGen) AddTxWithChain(bc ChainContext, tx *types.Transaction) {
 
 	celoMock := testutil.NewCeloMock()
 
-	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{}, celoMock.Runner, MockSysContractCallCtx())
+	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{}, celoMock.Runner, MockSysContractCallCtx(b.config.FakeBaseFee))
 	if err != nil {
 		panic(err)
 	}
@@ -109,10 +109,10 @@ func (b *BlockGen) AddTxWithChain(bc ChainContext, tx *types.Transaction) {
 }
 
 // MockSysContractCallCtx returns a SysContractCallCtx mock.
-func MockSysContractCallCtx() *SysContractCallCtx {
+func MockSysContractCallCtx(fakeBaseFee *big.Int) *SysContractCallCtx {
 	return &SysContractCallCtx{
 		// Set common.ZeroAddress to non-zero value to test on proper base fee distribution
-		gasPriceMinimums: map[common.Address]*big.Int{common.ZeroAddress: common.Big0},
+		gasPriceMinimums: map[common.Address]*big.Int{common.ZeroAddress: fakeBaseFee},
 	}
 }
 
@@ -137,7 +137,7 @@ func (b *BlockGen) Number() *big.Int {
 
 // MinimumGasPrice returns the EIP-1559 base fee of the block being generated.
 func (b *BlockGen) MinimumGasPrice(currency *common.Address) *big.Int {
-	return MockSysContractCallCtx().GetGasPriceMinimum(currency)
+	return MockSysContractCallCtx(b.config.FakeBaseFee).GetGasPriceMinimum(currency)
 }
 
 // AddUncheckedReceipt forcefully adds a receipts to the block without a
