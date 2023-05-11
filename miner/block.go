@@ -155,10 +155,6 @@ func prepareBlock(w *worker) (*blockState, error) {
 			return b, fmt.Errorf("Failed to generate new randomness: %w", err)
 		}
 
-		err = random.RevealAndCommit(vmRunner, lastRandomness, newCommitment, w.validator)
-		if err != nil {
-			return b, fmt.Errorf("Failed to reveal and commit randomness: %w", err)
-		}
 		// always true (EIP158)
 		b.state.IntermediateRoot(true)
 

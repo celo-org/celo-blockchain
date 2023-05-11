@@ -17,11 +17,9 @@ const (
 	maxGasForCommitments       uint64 = 2 * n.Million
 	maxGasForComputeCommitment uint64 = 2 * n.Million
 	maxGasForBlockRandomness   uint64 = 2 * n.Million
-	maxGasForRevealAndCommit   uint64 = 2 * n.Million
 )
 
 var (
-	revealAndCommitMethod    = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "revealAndCommit", maxGasForRevealAndCommit)
 	commitmentsMethod        = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "commitments", maxGasForCommitments)
 	computeCommitmentMethod  = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "computeCommitment", maxGasForComputeCommitment)
 	randomMethod             = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "random", maxGasForBlockRandomness)
@@ -67,17 +65,6 @@ func ComputeCommitment(vmRunner vm.EVMRunner, randomness common.Hash) (common.Ha
 	}
 
 	return commitment, err
-}
-
-// RevealAndCommit performs an internal call to the EVM that reveals a
-// proposer's previously committed to randomness, and commits new randomness for
-// a future block.
-func RevealAndCommit(vmRunner vm.EVMRunner, randomness, newCommitment common.Hash, proposer common.Address) error {
-
-	log.Trace("Revealing and committing randomness", "randomness", randomness.Hex(), "commitment", newCommitment.Hex())
-	err := revealAndCommitMethod.Execute(vmRunner, nil, common.Big0, randomness, newCommitment, proposer)
-
-	return err
 }
 
 // Random performs an internal call to the EVM to retrieve the current randomness from the official Random contract.

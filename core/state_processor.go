@@ -68,15 +68,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		gp          = new(GasPool).AddGas(blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner))
 	)
 	if random.IsRunning(vmRunner) {
-		author, err := p.bc.Engine().Author(header)
-		if err != nil {
-			return nil, nil, 0, err
-		}
-
-		err = random.RevealAndCommit(vmRunner, block.Randomness().Revealed, block.Randomness().Committed, author)
-		if err != nil {
-			return nil, nil, 0, err
-		}
 		// always true (EIP158)
 		statedb.IntermediateRoot(true)
 	}

@@ -80,27 +80,7 @@ func TestComputeCommitment(t *testing.T) {
 		g.Expect(ret).To(Equal(someCommitment))
 	})
 }
-func TestRevealAndCommit(t *testing.T) {
-	t.Run("should reveal and commit", func(t *testing.T) {
-		g := NewGomegaWithT(t)
 
-		var (
-			someRandomness = common.HexToHash("0x077777")
-			someCommitment = common.HexToHash("0x666")
-			someProposer   = common.HexToAddress("0x99")
-		)
-
-		vmrunner := testutil.NewSingleMethodRunner(config.RandomRegistryId, "revealAndCommit", func(randomness common.Hash, commitment common.Hash, proposer common.Address) error {
-			g.Expect(randomness).To(Equal(someRandomness))
-			g.Expect(commitment).To(Equal(someCommitment))
-			g.Expect(proposer).To(Equal(someProposer))
-			return nil
-		})
-
-		err := RevealAndCommit(vmrunner, someRandomness, someCommitment, someProposer)
-		g.Expect(err).NotTo(HaveOccurred())
-	})
-}
 func TestRandom(t *testing.T) {
 	someRandomness := common.HexToHash("0x077777")
 
