@@ -19,131 +19,13 @@ package vm
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
-	"math/big"
 	"testing"
 	"time"
 
-	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
-
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"golang.org/x/crypto/sha3"
 )
-
-func getValidators(number *big.Int, _ common.Hash) []istanbul.Validator {
-	preimage := append([]byte("fakevalidators"), common.LeftPadBytes(number.Bytes()[:], 32)...)
-	hash := sha3.Sum256(preimage)
-	var validators []istanbul.Validator
-	for i := 0; i < 16; i, hash = i+1, sha3.Sum256(hash[:]) {
-		key, _ := crypto.ToECDSA(hash[:])
-		blsPrivateKey, _ := blscrypto.ECDSAToBLS(key)
-		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
-		addr := crypto.PubkeyToAddress(key.PublicKey)
-		validators = append(validators, validator.New(addr, blsPublicKey))
-	}
-	return validators
-}
-
-func makeTestSeal(number *big.Int) types.IstanbulAggregatedSeal {
-	preimage := append([]byte("fakeseal"), common.LeftPadBytes(number.Bytes()[:], 32)...)
-	hash := sha3.Sum256(preimage)
-	return types.IstanbulAggregatedSeal{Bitmap: new(big.Int).SetBytes(hash[:2])}
-}
-
-func makeTestHeaderHash(number *big.Int) common.Hash {
-	preimage := append([]byte("fakeheader"), common.LeftPadBytes(number.Bytes()[:], 32)...)
-	return common.Hash(sha3.Sum256(preimage))
-}
-
-func makeTestHeaderExtra(number *big.Int) *types.IstanbulExtra {
-	return &types.IstanbulExtra{
-		AggregatedSeal:       makeTestSeal(number),
-		ParentAggregatedSeal: makeTestSeal(new(big.Int).Sub(number, common.Big1)),
-	}
-}
-
-func makeTestHeader(number *big.Int) *types.Header {
-	extra, err := rlp.EncodeToBytes(makeTestHeaderExtra(number))
-	if err != nil {
-		panic(err)
-	}
-	return &types.Header{
-		ParentHash: makeTestHeaderHash(new(big.Int).Sub(number, common.Big1)),
-		Number:     number,
-		GasUsed:    params.DefaultGasLimit / 2,
-		Extra:      append(make([]byte, types.IstanbulExtraVanity), extra...),
-		Time:       number.Uint64() * 5,
-	}
-}
-
-func getHeaderByNumber(number uint64) *types.Header {
-	return makeTestHeader(new(big.Int).SetUint64(number))
-}
-
-var testHeader = makeTestHeader(big.NewInt(10000))
-
-var vmBlockCtx = BlockContext{
-	CanTransfer: func(db StateDB, addr common.Address, amount *big.Int) bool {
-		return db.GetBalance(addr).Cmp(amount) >= 0
-	},
-	Transfer: func(s StateDB, a1, a2 common.Address, i *big.Int) { panic("transfer: not implemented") },
-	GetHash:  func(u uint64) common.Hash { panic("getHash: not implemented") },
-	VerifySeal: func(header *types.Header) bool {
-		// If the block is later than the unsealed reference block, return false.
-		return !(header.Number.Cmp(testHeader.Number) > 0)
-	},
-	Coinbase:    common.Address{},
-	BlockNumber: new(big.Int).Set(testHeader.Number),
-	Time:        new(big.Int).SetUint64(testHeader.Time),
-
-	GetRegisteredAddress: func(evm *EVM, registryId common.Hash) (common.Address, error) {
-		return common.ZeroAddress, errors.New("not implemented: GetAddressFromRegistry")
-	},
-
-	EpochSize:         100,
-	GetValidators:     getValidators,
-	GetHeaderByNumber: getHeaderByNumber,
-}
-
-var vmTxCtx = TxContext{
-	GasPrice: common.Big1,
-	Origin:   common.HexToAddress("a11ce"),
-}
-
-// Create a global mock EVM for use in the following tests.
-var mockEVM = &EVM{
-	Context:   vmBlockCtx,
-	TxContext: vmTxCtx,
-}
-
-func loadJSON(name string) ([]precompiledTest, error) {
-	data, err := ioutil.ReadFile(fmt.Sprintf("testdata/precompiles/%v.json", name))
-	if err != nil {
-		return nil, err
-	}
-	var testcases []precompiledTest
-	err = json.Unmarshal(data, &testcases)
-	return testcases, err
-}
-
-func loadJSONFail(name string) ([]precompiledFailureTest, error) {
-	data, err := ioutil.ReadFile(fmt.Sprintf("testdata/precompiles/%v.json", name))
-	if err != nil {
-		return nil, err
-	}
-	var testcases []precompiledFailureTest
-	err = json.Unmarshal(data, &testcases)
-	return testcases, err
-}
 
 // precompiledTest defines the input/output pairs for precompiled contract tests.
 type precompiledTest struct {
@@ -164,89 +46,59 @@ type precompiledFailureTest struct {
 
 // allPrecompiles does not map to the actual set of precompiles, as it also contains
 // repriced versions of precompiles at certain slots
-var allPrecompiles = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}):          &ecrecover{},
-	common.BytesToAddress([]byte{2}):          &sha256hash{},
-	common.BytesToAddress([]byte{3}):          &ripemd160hash{},
-	common.BytesToAddress([]byte{4}):          &dataCopy{},
-	common.BytesToAddress([]byte{5}):          &bigModExp{eip2565: false},
-	common.BytesToAddress([]byte{0xf1, 0xf5}): &bigModExp{eip2565: true}, // "f1f5" otherwise "f5" collides with our precompile (getParentSealBitmapAddress)
-	common.BytesToAddress([]byte{6}):          &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}):          &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}):          &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}):          &blake2F{},
-	common.BytesToAddress([]byte{10}):         &bls12381G1Add{},
-	common.BytesToAddress([]byte{11}):         &bls12381G1Mul{},
-	common.BytesToAddress([]byte{12}):         &bls12381G1MultiExp{},
-	common.BytesToAddress([]byte{13}):         &bls12381G2Add{},
-	common.BytesToAddress([]byte{14}):         &bls12381G2Mul{},
-	common.BytesToAddress([]byte{15}):         &bls12381G2MultiExp{},
-	common.BytesToAddress([]byte{16}):         &bls12381Pairing{},
-	common.BytesToAddress([]byte{17}):         &bls12381MapG1{},
-	common.BytesToAddress([]byte{18}):         &bls12381MapG2{},
+var allPrecompiles = map[common.Address]CeloPrecompiledContract{
+	common.BytesToAddress([]byte{1}):          &wrap{&ecrecover{}},
+	common.BytesToAddress([]byte{2}):          &wrap{&sha256hash{}},
+	common.BytesToAddress([]byte{3}):          &wrap{&ripemd160hash{}},
+	common.BytesToAddress([]byte{4}):          &wrap{&dataCopy{}},
+	common.BytesToAddress([]byte{5}):          &wrap{&bigModExp{eip2565: false}},
+	common.BytesToAddress([]byte{0xf1, 0xf5}): &wrap{&bigModExp{eip2565: true}}, // "f1f5" otherwise "f5" collides with our precompile (getParentSealBitmapAddress)
+	common.BytesToAddress([]byte{6}):          &wrap{&bn256AddIstanbul{}},
+	common.BytesToAddress([]byte{7}):          &wrap{&bn256ScalarMulIstanbul{}},
+	common.BytesToAddress([]byte{8}):          &wrap{&bn256PairingIstanbul{}},
+	common.BytesToAddress([]byte{9}):          &wrap{&blake2F{}},
+	common.BytesToAddress([]byte{10}):         &wrap{&bls12381G1Add{}},
+	common.BytesToAddress([]byte{11}):         &wrap{&bls12381G1Mul{}},
+	common.BytesToAddress([]byte{12}):         &wrap{&bls12381G1MultiExp{}},
+	common.BytesToAddress([]byte{13}):         &wrap{&bls12381G2Add{}},
+	common.BytesToAddress([]byte{14}):         &wrap{&bls12381G2Mul{}},
+	common.BytesToAddress([]byte{15}):         &wrap{&bls12381G2MultiExp{}},
+	common.BytesToAddress([]byte{16}):         &wrap{&bls12381Pairing{}},
+	common.BytesToAddress([]byte{17}):         &wrap{&bls12381MapG1{}},
+	common.BytesToAddress([]byte{18}):         &wrap{&bls12381MapG2{}},
 
 	// Celo Precompiled Contracts
-	transferAddress:              &transfer{},
-	fractionMulExpAddress:        &fractionMulExp{},
-	proofOfPossessionAddress:     &proofOfPossession{},
-	getValidatorAddress:          &getValidator{},
-	numberValidatorsAddress:      &numberValidators{},
-	epochSizeAddress:             &epochSize{},
-	blockNumberFromHeaderAddress: &blockNumberFromHeader{},
-	hashHeaderAddress:            &hashHeader{},
-	getParentSealBitmapAddress:   &getParentSealBitmap{},
-	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
+	celoPrecompileAddress(2):  &transfer{},
+	celoPrecompileAddress(3):  &fractionMulExp{},
+	celoPrecompileAddress(4):  &proofOfPossession{},
+	celoPrecompileAddress(5):  &getValidator{},
+	celoPrecompileAddress(6):  &numberValidators{},
+	celoPrecompileAddress(7):  &epochSize{},
+	celoPrecompileAddress(8):  &wrap{&blockNumberFromHeader{}},
+	celoPrecompileAddress(9):  &wrap{&hashHeader{}},
+	celoPrecompileAddress(10): &getParentSealBitmap{},
+	celoPrecompileAddress(11): &getVerifiedSealBitmap{},
 
 	// New in Donut hard fork
-	ed25519Address:           &ed25519Verify{},
-	b12_381G1AddAddress:      &bls12381G1Add{},
-	b12_381G1MulAddress:      &bls12381G1Mul{},
-	b12_381G1MultiExpAddress: &bls12381G1MultiExp{},
-	b12_381G2AddAddress:      &bls12381G2Add{},
-	b12_381G2MulAddress:      &bls12381G2Mul{},
-	b12_381G2MultiExpAddress: &bls12381G2MultiExp{},
-	b12_381PairingAddress:    &bls12381Pairing{},
-	b12_381MapFpToG1Address:  &bls12381MapG1{},
-	b12_381MapFp2ToG2Address: &bls12381MapG2{},
-	b12_377G1AddAddress:      &bls12377G1Add{},
-	b12_377G1MulAddress:      &bls12377G1Mul{},
-	b12_377G1MultiExpAddress: &bls12377G1MultiExp{},
-	b12_377G2AddAddress:      &bls12377G2Add{},
-	b12_377G2MulAddress:      &bls12377G2Mul{},
-	b12_377G2MultiExpAddress: &bls12377G2MultiExp{},
-	b12_377PairingAddress:    &bls12377Pairing{},
-	cip20Address:             &cip20HashFunctions{Cip20HashesDonut},
-	cip26Address:             &getValidatorBLS{},
-}
-
-func testJSON(name, addr string, t *testing.T) {
-	tests, err := loadJSON(name)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, test := range tests {
-		testPrecompiled(addr, test, t)
-	}
-}
-
-func testJSONFail(name, addr string, t *testing.T) {
-	tests, err := loadJSONFail(name)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, test := range tests {
-		testPrecompiledFailure(addr, test, t)
-	}
-}
-
-func benchJSON(name, addr string, b *testing.B) {
-	tests, err := loadJSON(name)
-	if err != nil {
-		b.Fatal(err)
-	}
-	for _, test := range tests {
-		benchmarkPrecompiled(addr, test, b)
-	}
+	celoPrecompileAddress(12): &ed25519Verify{},
+	celoPrecompileAddress(13): &wrap{&bls12381G1Add{}},
+	celoPrecompileAddress(14): &wrap{&bls12381G1Mul{}},
+	celoPrecompileAddress(15): &wrap{&bls12381G1MultiExp{}},
+	celoPrecompileAddress(16): &wrap{&bls12381G2Add{}},
+	celoPrecompileAddress(17): &wrap{&bls12381G2Mul{}},
+	celoPrecompileAddress(18): &wrap{&bls12381G2MultiExp{}},
+	celoPrecompileAddress(19): &wrap{&bls12381Pairing{}},
+	celoPrecompileAddress(20): &wrap{&bls12381MapG1{}},
+	celoPrecompileAddress(21): &wrap{&bls12381MapG2{}},
+	celoPrecompileAddress(22): &wrap{&bls12377G1Add{}},
+	celoPrecompileAddress(23): &wrap{&bls12377G1Mul{}},
+	celoPrecompileAddress(24): &wrap{&bls12377G1MultiExp{}},
+	celoPrecompileAddress(25): &wrap{&bls12377G2Add{}},
+	celoPrecompileAddress(26): &wrap{&bls12377G2Mul{}},
+	celoPrecompileAddress(27): &wrap{&bls12377G2MultiExp{}},
+	celoPrecompileAddress(28): &wrap{&bls12377Pairing{}},
+	celoPrecompileAddress(29): &wrap{&cip20HashFunctions{Cip20HashesDonut}},
+	celoPrecompileAddress(30): &getValidatorBLS{},
 }
 
 // EIP-152 test vectors
@@ -273,42 +125,12 @@ var blake2FMalformedInputTests = []precompiledFailureTest{
 	},
 }
 
-var getVerifiedSealBitmapTests = []precompiledTest{
-	// Input is a block header. Output is bitmap.
-	{
-		Input:         "",
-		Expected:      "unable to decode input",
-		Name:          "input_invalid_empty",
-		ErrorExpected: true,
-	},
-	{
-		Input: func() string {
-			header := makeTestHeader(common.Big1)
-			encoded, _ := rlp.EncodeToBytes(header)
-			return hexutil.Encode(encoded)[2:]
-		}(),
-		Expected: "0000000000000000000000000000000000000000000000000000000000007b1d",
-		Name:     "correct_verified_header",
-	},
-	{
-		Input: func() string {
-			header := makeTestHeader(common.Big1)
-			header.Extra = nil
-			encoded, _ := rlp.EncodeToBytes(header)
-			return hexutil.Encode(encoded)[2:]
-		}(),
-		Expected:      "blockchain engine incompatible with request",
-		Name:          "input_incompatible_engine",
-		ErrorExpected: true,
-	},
-}
-
 func testPrecompiled(addr string, test precompiledTest, t *testing.T) {
 	p := allPrecompiles[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.Input)
 	gas := p.RequiredGas(in)
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.Name, gas), func(t *testing.T) {
-		res, _, err := RunPrecompiledContract(p, in, gas, common.HexToAddress("1337"), mockEVM)
+		res, _, err := RunPrecompiledContract(p, in, gas, NewContext(common.HexToAddress("1337"), mockEVM))
 		if test.ErrorExpected {
 			if err == nil {
 				t.Errorf("Expected error: %v, but no error occurred", test.Expected)
@@ -338,8 +160,9 @@ func testPrecompiledOOG(addr string, test precompiledTest, t *testing.T) {
 	p := allPrecompiles[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.Input)
 	gas := p.RequiredGas(in) - 1
+
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.Name, gas), func(t *testing.T) {
-		_, _, err := RunPrecompiledContract(p, in, gas, common.HexToAddress("1337"), mockEVM)
+		_, _, err := RunPrecompiledContract(p, in, gas, NewContext(common.HexToAddress("1337"), mockEVM))
 		if err.Error() != "out of gas" {
 			t.Errorf("Expected error [out of gas], got [%v]", err)
 		}
@@ -356,7 +179,7 @@ func testPrecompiledFailure(addr string, test precompiledFailureTest, t *testing
 	in := common.Hex2Bytes(test.Input)
 	gas := p.RequiredGas(in)
 	t.Run(test.Name, func(t *testing.T) {
-		_, _, err := RunPrecompiledContract(p, in, gas, common.HexToAddress("1337"), mockEVM)
+		_, _, err := RunPrecompiledContract(p, in, gas, NewContext(common.HexToAddress("1337"), mockEVM))
 		if err.Error() != test.ExpectedError {
 			t.Errorf("Expected error [%v], got [%v]", test.ExpectedError, err)
 		}
@@ -388,7 +211,7 @@ func benchmarkPrecompiled(addr string, test precompiledTest, bench *testing.B) {
 		bench.ResetTimer()
 		for i := 0; i < bench.N; i++ {
 			copy(data, in)
-			res, _, err = RunPrecompiledContract(p, data, reqGas, common.HexToAddress("1337"), mockEVM)
+			res, _, err = RunPrecompiledContract(p, data, reqGas, NewContext(common.HexToAddress("1337"), mockEVM))
 		}
 		bench.StopTimer()
 		elapsed := uint64(time.Since(start))
@@ -406,7 +229,7 @@ func benchmarkPrecompiled(addr string, test precompiledTest, bench *testing.B) {
 			return
 		}
 		if common.Bytes2Hex(res) != test.Expected {
-			bench.Errorf("Expected %v, got %v", test.Expected, common.Bytes2Hex(res))
+			bench.Error(fmt.Sprintf("Expected %v, got %v", test.Expected, common.Bytes2Hex(res)))
 			return
 		}
 	})
@@ -453,19 +276,19 @@ func BenchmarkPrecompiledIdentity(bench *testing.B) {
 }
 
 // Tests the sample inputs from the ModExp EIP 198.
-func TestPrecompiledModExp(t *testing.T)      { testJSON("modexp", "05", t) }
-func BenchmarkPrecompiledModExp(b *testing.B) { benchJSON("modexp", "05", b) }
+func TestPrecompiledModExp(t *testing.T)      { testJson("modexp", "05", t) }
+func BenchmarkPrecompiledModExp(b *testing.B) { benchJson("modexp", "05", b) }
 
-func TestPrecompiledModExpEip2565(t *testing.T)      { testJSON("modexp_eip2565", "f1f5", t) }
-func BenchmarkPrecompiledModExpEip2565(b *testing.B) { benchJSON("modexp_eip2565", "f1f5", b) }
+func TestPrecompiledModExpEip2565(t *testing.T)      { testJson("modexp_eip2565", "f1f5", t) }
+func BenchmarkPrecompiledModExpEip2565(b *testing.B) { benchJson("modexp_eip2565", "f1f5", b) }
 
 // Tests the sample inputs from the elliptic curve addition EIP 213.
-func TestPrecompiledBn256Add(t *testing.T)      { testJSON("bn256Add", "06", t) }
-func BenchmarkPrecompiledBn256Add(b *testing.B) { benchJSON("bn256Add", "06", b) }
+func TestPrecompiledBn256Add(t *testing.T)      { testJson("bn256Add", "06", t) }
+func BenchmarkPrecompiledBn256Add(b *testing.B) { benchJson("bn256Add", "06", b) }
 
 // Tests OOG
 func TestPrecompiledModExpOOG(t *testing.T) {
-	modexpTests, err := loadJSON("modexp")
+	modexpTests, err := loadJson("modexp")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -475,15 +298,15 @@ func TestPrecompiledModExpOOG(t *testing.T) {
 }
 
 // Tests the sample inputs from the elliptic curve scalar multiplication EIP 213.
-func TestPrecompiledBn256ScalarMul(t *testing.T)      { testJSON("bn256ScalarMul", "07", t) }
-func BenchmarkPrecompiledBn256ScalarMul(b *testing.B) { benchJSON("bn256ScalarMul", "07", b) }
+func TestPrecompiledBn256ScalarMul(t *testing.T)      { testJson("bn256ScalarMul", "07", t) }
+func BenchmarkPrecompiledBn256ScalarMul(b *testing.B) { benchJson("bn256ScalarMul", "07", b) }
 
 // Tests the sample inputs from the elliptic curve pairing check EIP 197.
-func TestPrecompiledBn256Pairing(t *testing.T)      { testJSON("bn256Pairing", "08", t) }
-func BenchmarkPrecompiledBn256Pairing(b *testing.B) { benchJSON("bn256Pairing", "08", b) }
+func TestPrecompiledBn256Pairing(t *testing.T)      { testJson("bn256Pairing", "08", t) }
+func BenchmarkPrecompiledBn256Pairing(b *testing.B) { benchJson("bn256Pairing", "08", b) }
 
-func TestPrecompiledBlake2F(t *testing.T)      { testJSON("blake2F", "09", t) }
-func BenchmarkPrecompiledBlake2F(b *testing.B) { benchJSON("blake2F", "09", b) }
+func TestPrecompiledBlake2F(t *testing.T)      { testJson("blake2F", "09", t) }
+func BenchmarkPrecompiledBlake2F(b *testing.B) { benchJson("blake2F", "09", b) }
 
 func TestPrecompileBlake2FMalformedInput(t *testing.T) {
 	for _, test := range blake2FMalformedInputTests {
@@ -491,228 +314,88 @@ func TestPrecompileBlake2FMalformedInput(t *testing.T) {
 	}
 }
 
-// Tests the sample inputs from the ed25519 verify check CIP 25
-func TestPrecompiledEd25519Verify(t *testing.T) { testJSON("ed25519Verify", "f3", t) }
+func TestPrecompiledEcrecover(t *testing.T) { testJson("ecRecover", "01", t) }
 
-// Benchmarks the sample inputs from the ed25519 verify check CIP 25
-func BenchmarkPrecompiledEd25519Verify(b *testing.B) { benchJSON("ed25519Verify", "f3", b) }
-
-// Tests sample inputs for fractionMulExp
-// NOTE: This currently only verifies that inputs of invalid length are rejected
-func TestPrecompiledFractionMulExp(t *testing.T) {
-	// Post GFork behaviour
-	mockEVM.chainRules.IsGFork = true
-	testJSON("fractionMulExp", "fc", t)
-	// Pre GFork behaviour
-	mockEVM.chainRules.IsGFork = false
-	testJSON("fractionMulExpOld", "fc", t)
-}
-
-// Tests sample inputs for proofOfPossession
-// NOTE: This currently only verifies that inputs of invalid length are rejected
-func TestPrecompiledProofOfPossession(t *testing.T) { testJSON("proofOfPossession", "fb", t) }
-
-// Tests sample inputs for getValidator
-func TestGetValidator(t *testing.T) { testJSON("getValidator", "fa", t) }
-
-func TestGetValidatorBLSPublicKey(t *testing.T) { testJSON("getValidatorBLSPublicKey", "e1", t) }
-
-// Tests sample inputs for numberValidators
-func TestNumberValidators(t *testing.T) { testJSON("numberValidators", "f9", t) }
-
-// Tests sample inputs for getBlockNumberFromHeader
-func TestGetBlockNumberFromHeader(t *testing.T) { testJSON("blockNumberFromHeader", "f7", t) }
-
-// Tests sample inputs for hashHeader
-func TestPrecompiledHashHeader(t *testing.T) { testJSON("hashHeader", "f6", t) }
-
-// Tests sample inputs for getParentSealBitmapTests
-func TestGetParentSealBitmap(t *testing.T) { testJSON("getParentSealBitmap", "f5", t) }
-
-// Tests sample inputs for getParentSealBitmapTests
-func TestGetVerifiedSealBitmap(t *testing.T) {
-	for _, test := range getVerifiedSealBitmapTests {
-		testPrecompiled("f4", test, t)
-	}
-}
-
-const defaultBlake2sConfig = "2000010100000000000000000000000000000000000000000000000000000000"
-
-type cip20Test struct {
-	Preimage  string `json:"preimage"`
-	Sha2_512  string `json:"sha2_512"`
-	Keccak512 string `json:"keccak512"`
-	Sha3_256  string `json:"sha3_256"`
-	Sha3_512  string `json:"sha3_512"`
-	Blake2s   string `json:"blake2s"`
-}
-
-func loadCip20JSON() ([]cip20Test, error) {
-	data, err := ioutil.ReadFile("testdata/precompiles/cip20.json")
-	if err != nil {
-		return nil, err
-	}
-	var tests []cip20Test
-	err = json.Unmarshal(data, &tests)
-	if err != nil {
-		return nil, err
-	}
-	return tests, nil
-}
-
-func (c *cip20Test) toPrecompiledTests() []precompiledTest {
-	return []precompiledTest{
-		{
-			Input:    "00" + c.Preimage,
-			Expected: c.Sha3_256,
-			Name:     "sha3_256 of 0x" + c.Preimage,
-		},
-		{
-			Input:    "01" + c.Preimage,
-			Expected: c.Sha3_512,
-			Name:     "sha3_25sha3_5126 of 0x" + c.Preimage,
-		},
-		{
-			Input:    "02" + c.Preimage,
-			Expected: c.Keccak512,
-			Name:     "keccak512 of 0x" + c.Preimage,
-		},
-		{
-			Input:    "03" + c.Preimage,
-			Expected: c.Sha2_512,
-			Name:     "sha2_512 of 0x" + c.Preimage,
-		},
-		{
-			Input:    "10" + defaultBlake2sConfig + c.Preimage,
-			Expected: c.Blake2s,
-			Name:     "blake2s of 0x" + c.Preimage,
-		},
-	}
-}
-
-var cip20Tests = []precompiledTest{
-	{
-		Input:    "10" + defaultBlake2sConfig,
-		Expected: "69217a3079908094e11121d042354a7c1f55b6482ca1a51e1b250dfd1ed0eef9",
-		Name:     "default blake2s of empty string",
-	},
-	{
-		Input:    "10" + "20000101" + "00000000" + "00000000" + "60000000" + "0000000000000000" + "0000000000000000",
-		Expected: "7a746244ad211d351f57a218255888174e719b54e683651e9314f55402eed414",
-		Name:     "celo-bls-snark-rs test_crh_empty",
-	},
-}
-
-func TestCip20(t *testing.T) {
-	cip20ShaVariantTests, err := loadCip20JSON()
+func testJson(name, addr string, t *testing.T) {
+	tests, err := loadJson(name)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	for _, vector := range cip20ShaVariantTests {
-		for _, test := range vector.toPrecompiledTests() {
-			testPrecompiled("e2", test, t)
-		}
-	}
-
-	for _, test := range cip20Tests {
-		testPrecompiled("e2", test, t)
+	for _, test := range tests {
+		testPrecompiled(addr, test, t)
 	}
 }
 
-func TestPrecompiledBLS12377G1Add(t *testing.T) {
-	testJSON("bls12377G1Add_matter", "e9", t)
-	testJSON("bls12377G1Add_zexe", "e9", t)
+func testJsonFail(name, addr string, t *testing.T) {
+	tests, err := loadJsonFail(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range tests {
+		testPrecompiledFailure(addr, test, t)
+	}
 }
 
-func TestPrecompiledBLS12377G1Mul(t *testing.T) {
-	testJSON("bls12377G1Mul_matter", "e8", t)
-	testJSON("bls12377G1Mul_zexe", "e8", t)
+func benchJson(name, addr string, b *testing.B) {
+	tests, err := loadJson(name)
+	if err != nil {
+		b.Fatal(err)
+	}
+	for _, test := range tests {
+		benchmarkPrecompiled(addr, test, b)
+	}
 }
 
-func TestPrecompiledBLS12377G1ZMultiExp(t *testing.T) {
-	testJSON("bls12377G1MultiExp_matter", "e7", t)
-	testJSON("bls12377G1MultiExp_zexe", "e7", t)
-}
+func TestPrecompiledBLS12381G1Add(t *testing.T)      { testJson("blsG1Add", "f2", t) }
+func TestPrecompiledBLS12381G1Mul(t *testing.T)      { testJson("blsG1Mul", "f1", t) }
+func TestPrecompiledBLS12381G1MultiExp(t *testing.T) { testJson("blsG1MultiExp", "f0", t) }
+func TestPrecompiledBLS12381G2Add(t *testing.T)      { testJson("blsG2Add", "ef", t) }
+func TestPrecompiledBLS12381G2Mul(t *testing.T)      { testJson("blsG2Mul", "ee", t) }
+func TestPrecompiledBLS12381G2MultiExp(t *testing.T) { testJson("blsG2MultiExp", "ed", t) }
+func TestPrecompiledBLS12381Pairing(t *testing.T)    { testJson("blsPairing", "ec", t) }
+func TestPrecompiledBLS12381MapG1(t *testing.T)      { testJson("blsMapG1", "eb", t) }
+func TestPrecompiledBLS12381MapG2(t *testing.T)      { testJson("blsMapG2", "ea", t) }
 
-func TestPrecompiledBLS12377G2Add(t *testing.T) {
-	testJSON("bls12377G2Add_matter", "e6", t)
-	testJSON("bls12377G2Add_zexe", "e6", t)
-}
-
-func TestPrecompiledBLS12377G2Mul(t *testing.T) {
-	testJSON("bls12377G2Mul_matter", "e5", t)
-	testJSON("bls12377G2Mul_zexe", "e5", t)
-}
-
-func TestPrecompiledBLS12377G2MultiExp(t *testing.T) {
-	testJSON("bls12377G2MultiExp_matter", "e4", t)
-	testJSON("bls12377G2MultiExp_zexe", "e4", t)
-}
-
-func TestPrecompiledBLS12377Pairing(t *testing.T) {
-	testJSON("bls12377Pairing_matter", "e3", t)
-	testJSON("bls12377Pairing_zexe", "e3", t)
-}
-
-func TestPrecompiledBLS12377G1AddFail(t *testing.T) {
-	testJSONFail("fail-bls12377G1Add", "e9", t)
-}
-
-func TestPrecompiledBLS12377G1MulFail(t *testing.T) {
-	testJSONFail("fail-bls12377G1Mul", "e8", t)
-}
-
-func TestPrecompiledBLS12377G1MultiexpFail(t *testing.T) {
-	testJSONFail("fail-bls12377G1Multiexp", "e7", t)
-}
-
-func TestPrecompiledBLS12377G2AddFail(t *testing.T) {
-	testJSONFail("fail-bls12377G2Add", "e6", t)
-}
-
-func TestPrecompiledBLS12377G2MulFail(t *testing.T) {
-	testJSONFail("fail-bls12377G2Mul", "e5", t)
-}
-
-func TestPrecompiledBLS12377G2MultiexpFail(t *testing.T) {
-	testJSONFail("fail-bls12377G2Multiexp", "e4", t)
-}
-
-func TestPrecompiledBLS12377PairingFail(t *testing.T) {
-	testJSONFail("fail-bls12377Pairing", "e3", t)
-}
-
-func TestPrecompiledBLS12381G1Add(t *testing.T)      { testJSON("blsG1Add", "f2", t) }
-func TestPrecompiledBLS12381G1Mul(t *testing.T)      { testJSON("blsG1Mul", "f1", t) }
-func TestPrecompiledBLS12381G1MultiExp(t *testing.T) { testJSON("blsG1MultiExp", "f0", t) }
-func TestPrecompiledBLS12381G2Add(t *testing.T)      { testJSON("blsG2Add", "ef", t) }
-func TestPrecompiledBLS12381G2Mul(t *testing.T)      { testJSON("blsG2Mul", "ee", t) }
-func TestPrecompiledBLS12381G2MultiExp(t *testing.T) { testJSON("blsG2MultiExp", "ed", t) }
-func TestPrecompiledBLS12381Pairing(t *testing.T)    { testJSON("blsPairing", "ec", t) }
-func TestPrecompiledBLS12381MapG1(t *testing.T)      { testJSON("blsMapG1", "eb", t) }
-func TestPrecompiledBLS12381MapG2(t *testing.T)      { testJSON("blsMapG2", "ea", t) }
-
-func BenchmarkPrecompiledBLS12381G1Add(b *testing.B)      { benchJSON("blsG1Add", "0a", b) }
-func BenchmarkPrecompiledBLS12381G1Mul(b *testing.B)      { benchJSON("blsG1Mul", "0b", b) }
-func BenchmarkPrecompiledBLS12381G1MultiExp(b *testing.B) { benchJSON("blsG1MultiExp", "0c", b) }
-func BenchmarkPrecompiledBLS12381G2Add(b *testing.B)      { benchJSON("blsG2Add", "0d", b) }
-func BenchmarkPrecompiledBLS12381G2Mul(b *testing.B)      { benchJSON("blsG2Mul", "0e", b) }
-func BenchmarkPrecompiledBLS12381G2MultiExp(b *testing.B) { benchJSON("blsG2MultiExp", "0f", b) }
-func BenchmarkPrecompiledBLS12381Pairing(b *testing.B)    { benchJSON("blsPairing", "10", b) }
-func BenchmarkPrecompiledBLS12381MapG1(b *testing.B)      { benchJSON("blsMapG1", "11", b) }
-func BenchmarkPrecompiledBLS12381MapG2(b *testing.B)      { benchJSON("blsMapG2", "12", b) }
+func BenchmarkPrecompiledBLS12381G1Add(b *testing.B)      { benchJson("blsG1Add", "0a", b) }
+func BenchmarkPrecompiledBLS12381G1Mul(b *testing.B)      { benchJson("blsG1Mul", "0b", b) }
+func BenchmarkPrecompiledBLS12381G1MultiExp(b *testing.B) { benchJson("blsG1MultiExp", "0c", b) }
+func BenchmarkPrecompiledBLS12381G2Add(b *testing.B)      { benchJson("blsG2Add", "0d", b) }
+func BenchmarkPrecompiledBLS12381G2Mul(b *testing.B)      { benchJson("blsG2Mul", "0e", b) }
+func BenchmarkPrecompiledBLS12381G2MultiExp(b *testing.B) { benchJson("blsG2MultiExp", "0f", b) }
+func BenchmarkPrecompiledBLS12381Pairing(b *testing.B)    { benchJson("blsPairing", "10", b) }
+func BenchmarkPrecompiledBLS12381MapG1(b *testing.B)      { benchJson("blsMapG1", "11", b) }
+func BenchmarkPrecompiledBLS12381MapG2(b *testing.B)      { benchJson("blsMapG2", "12", b) }
 
 // Failure tests
-func TestPrecompiledBLS12381G1AddFail(t *testing.T)      { testJSONFail("fail-blsG1Add", "f2", t) }
-func TestPrecompiledBLS12381G1MulFail(t *testing.T)      { testJSONFail("fail-blsG1Mul", "f1", t) }
-func TestPrecompiledBLS12381G1MultiExpFail(t *testing.T) { testJSONFail("fail-blsG1MultiExp", "f0", t) }
-func TestPrecompiledBLS12381G2AddFail(t *testing.T)      { testJSONFail("fail-blsG2Add", "ef", t) }
-func TestPrecompiledBLS12381G2MulFail(t *testing.T)      { testJSONFail("fail-blsG2Mul", "ee", t) }
-func TestPrecompiledBLS12381G2MultiExpFail(t *testing.T) { testJSONFail("fail-blsG2MultiExp", "ed", t) }
-func TestPrecompiledBLS12381PairingFail(t *testing.T)    { testJSONFail("fail-blsPairing", "ec", t) }
-func TestPrecompiledBLS12381MapG1Fail(t *testing.T)      { testJSONFail("fail-blsMapG1", "eb", t) }
-func TestPrecompiledBLS12381MapG2Fail(t *testing.T)      { testJSONFail("fail-blsMapG2", "ea", t) }
+func TestPrecompiledBLS12381G1AddFail(t *testing.T)      { testJsonFail("blsG1Add", "f2", t) }
+func TestPrecompiledBLS12381G1MulFail(t *testing.T)      { testJsonFail("blsG1Mul", "f1", t) }
+func TestPrecompiledBLS12381G1MultiExpFail(t *testing.T) { testJsonFail("blsG1MultiExp", "f0", t) }
+func TestPrecompiledBLS12381G2AddFail(t *testing.T)      { testJsonFail("blsG2Add", "ef", t) }
+func TestPrecompiledBLS12381G2MulFail(t *testing.T)      { testJsonFail("blsG2Mul", "ee", t) }
+func TestPrecompiledBLS12381G2MultiExpFail(t *testing.T) { testJsonFail("blsG2MultiExp", "ed", t) }
+func TestPrecompiledBLS12381PairingFail(t *testing.T)    { testJsonFail("blsPairing", "ec", t) }
+func TestPrecompiledBLS12381MapG1Fail(t *testing.T)      { testJsonFail("blsMapG1", "eb", t) }
+func TestPrecompiledBLS12381MapG2Fail(t *testing.T)      { testJsonFail("blsMapG2", "ea", t) }
+
+func loadJson(name string) ([]precompiledTest, error) {
+	data, err := ioutil.ReadFile(fmt.Sprintf("testdata/precompiles/%v.json", name))
+	if err != nil {
+		return nil, err
+	}
+	var testcases []precompiledTest
+	err = json.Unmarshal(data, &testcases)
+	return testcases, err
+}
+
+func loadJsonFail(name string) ([]precompiledFailureTest, error) {
+	data, err := ioutil.ReadFile(fmt.Sprintf("testdata/precompiles/fail-%v.json", name))
+	if err != nil {
+		return nil, err
+	}
+	var testcases []precompiledFailureTest
+	err = json.Unmarshal(data, &testcases)
+	return testcases, err
+}
 
 // BenchmarkPrecompiledBLS12381G1MultiExpWorstCase benchmarks the worst case we could find that still fits a gaslimit of 10MGas.
 func BenchmarkPrecompiledBLS12381G1MultiExpWorstCase(b *testing.B) {
