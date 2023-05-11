@@ -124,7 +124,7 @@ func makeBenchBlock() *Block {
 		amount := math.BigPow(2, int64(i))
 		price := big.NewInt(300000)
 		data := make([]byte, 100)
-		tx := NewTransaction(uint64(i), common.Address{}, amount, 123457, price, nil, nil, nil, data)
+		tx := NewTransaction(uint64(i), common.Address{}, amount, 123457, price, data)
 		signedTx, err := SignTx(tx, signer, key)
 		if err != nil {
 			panic(err)
