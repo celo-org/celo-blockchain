@@ -101,28 +101,6 @@ func TestTransferCELO(t *testing.T) {
 				MaxPriorityFeePerGas: (*hexutil.Big)(datum),
 			},
 		},
-		{
-			name: "CeloDynamicFeeTxType - gas = MaxFeePerGas - BaseFee",
-			txArgs: &ethapi.TransactionArgs{
-				To:                   &recipient.Address,
-				Value:                (*hexutil.Big)(new(big.Int).SetInt64(oneCelo)),
-				MaxFeePerGas:         (*hexutil.Big)(datum.Mul(datum, new(big.Int).SetInt64(4))),
-				MaxPriorityFeePerGas: (*hexutil.Big)(datum.Mul(datum, new(big.Int).SetInt64(4))),
-				GatewayFee:           (*hexutil.Big)(new(big.Int).SetInt64(oneCelo / 10)),
-				GatewayFeeRecipient:  &gateWayFeeRecipient.Address,
-			},
-		},
-		{
-			name: "CeloDynamicFeeTxType - MaxPriorityFeePerGas",
-			txArgs: &ethapi.TransactionArgs{
-				To:                   &recipient.Address,
-				Value:                (*hexutil.Big)(new(big.Int).SetInt64(oneCelo)),
-				MaxFeePerGas:         (*hexutil.Big)(datum.Mul(datum, new(big.Int).SetInt64(4))),
-				MaxPriorityFeePerGas: (*hexutil.Big)(datum),
-				GatewayFee:           (*hexutil.Big)(new(big.Int).SetInt64(oneCelo / 10)),
-				GatewayFeeRecipient:  &gateWayFeeRecipient.Address,
-			},
-		},
 	}
 
 	for _, tc := range testCases {
@@ -156,7 +134,7 @@ func TestTransferCELO(t *testing.T) {
 			case types.LegacyTxType, types.AccessListTxType:
 				fee := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(receipt.GasUsed))
 				expected = new(big.Int).Sub(fee, baseFee)
-			case types.DynamicFeeTxType, types.CeloDynamicFeeTxType:
+			case types.DynamicFeeTxType:
 				expected = tx.EffectiveGasTipValue(gpm)
 				expected.Mul(expected, new(big.Int).SetUint64(receipt.GasUsed))
 			}
@@ -168,7 +146,7 @@ func TestTransferCELO(t *testing.T) {
 			switch tx.Type() {
 			case types.LegacyTxType, types.AccessListTxType:
 				fee = new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(receipt.GasUsed))
-			case types.DynamicFeeTxType, types.CeloDynamicFeeTxType:
+			case types.DynamicFeeTxType:
 				tip := tx.EffectiveGasTipValue(gpm)
 				tip.Mul(tip, new(big.Int).SetUint64(receipt.GasUsed))
 				fee = new(big.Int).Add(tip, baseFee)
