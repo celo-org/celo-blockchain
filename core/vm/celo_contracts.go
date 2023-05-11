@@ -55,11 +55,7 @@ func newContext(caller common.Address, evm *EVM) *celoPrecompileContext {
 }
 
 func (ctx *celoPrecompileContext) IsCallerGoldToken() (bool, error) {
-	return true, nil
-	// celoGoldAddress, err := ctx.GetRegisteredAddress(evm, config.GoldTokenRegistryId)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	return ctx.IsGoldTokenAddress(ctx.evm, ctx.caller)
 }
 
 func celoPrecompileAddress(index byte) common.Address {
