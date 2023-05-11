@@ -45,7 +45,7 @@ type celoPrecompileContext struct {
 	evm    *EVM
 }
 
-func newContext(caller common.Address, evm *EVM) *celoPrecompileContext {
+func NewContext(caller common.Address, evm *EVM) *celoPrecompileContext {
 	return &celoPrecompileContext{
 		BlockContext: &evm.Context,
 		Rules:        &evm.chainRules,

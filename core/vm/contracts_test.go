@@ -130,7 +130,7 @@ func testPrecompiled(addr string, test precompiledTest, t *testing.T) {
 	in := common.Hex2Bytes(test.Input)
 	gas := p.RequiredGas(in)
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.Name, gas), func(t *testing.T) {
-		res, _, err := RunPrecompiledContract(p, in, gas, newContext(common.HexToAddress("1337"), mockEVM))
+		res, _, err := RunPrecompiledContract(p, in, gas, NewContext(common.HexToAddress("1337"), mockEVM))
 		if test.ErrorExpected {
 			if err == nil {
 				t.Errorf("Expected error: %v, but no error occurred", test.Expected)
@@ -162,7 +162,7 @@ func testPrecompiledOOG(addr string, test precompiledTest, t *testing.T) {
 	gas := p.RequiredGas(in) - 1
 
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.Name, gas), func(t *testing.T) {
-		_, _, err := RunPrecompiledContract(p, in, gas, newContext(common.HexToAddress("1337"), mockEVM))
+		_, _, err := RunPrecompiledContract(p, in, gas, NewContext(common.HexToAddress("1337"), mockEVM))
 		if err.Error() != "out of gas" {
 			t.Errorf("Expected error [out of gas], got [%v]", err)
 		}
@@ -179,7 +179,7 @@ func testPrecompiledFailure(addr string, test precompiledFailureTest, t *testing
 	in := common.Hex2Bytes(test.Input)
 	gas := p.RequiredGas(in)
 	t.Run(test.Name, func(t *testing.T) {
-		_, _, err := RunPrecompiledContract(p, in, gas, newContext(common.HexToAddress("1337"), mockEVM))
+		_, _, err := RunPrecompiledContract(p, in, gas, NewContext(common.HexToAddress("1337"), mockEVM))
 		if err.Error() != test.ExpectedError {
 			t.Errorf("Expected error [%v], got [%v]", test.ExpectedError, err)
 		}
@@ -211,7 +211,7 @@ func benchmarkPrecompiled(addr string, test precompiledTest, bench *testing.B) {
 		bench.ResetTimer()
 		for i := 0; i < bench.N; i++ {
 			copy(data, in)
-			res, _, err = RunPrecompiledContract(p, data, reqGas, newContext(common.HexToAddress("1337"), mockEVM))
+			res, _, err = RunPrecompiledContract(p, data, reqGas, NewContext(common.HexToAddress("1337"), mockEVM))
 		}
 		bench.StopTimer()
 		elapsed := uint64(time.Since(start))
