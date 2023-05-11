@@ -50,10 +50,9 @@ var (
 
 // Transaction types.
 const (
-	LegacyTxType         = iota
-	AccessListTxType     = 0x01
-	DynamicFeeTxType     = 0x02
-	CeloDynamicFeeTxType = 0x7c // Counting down
+	LegacyTxType = iota
+	AccessListTxType
+	DynamicFeeTxType
 )
 
 // Transaction is an Ethereum transaction.
@@ -105,7 +104,6 @@ type TxData interface {
 
 // EncodeRLP implements rlp.Encoder
 func (tx *Transaction) EncodeRLP(w io.Writer) error {
-
 	if tx.Type() == LegacyTxType {
 		return rlp.Encode(w, tx.inner)
 	}
@@ -201,10 +199,6 @@ func (tx *Transaction) decodeTyped(b []byte) (TxData, error) {
 		return &inner, err
 	case DynamicFeeTxType:
 		var inner DynamicFeeTx
-		err := rlp.DecodeBytes(b[1:], &inner)
-		return &inner, err
-	case CeloDynamicFeeTxType:
-		var inner CeloDynamicFeeTx
 		err := rlp.DecodeBytes(b[1:], &inner)
 		return &inner, err
 	default:
