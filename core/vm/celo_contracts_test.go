@@ -128,17 +128,6 @@ var getVerifiedSealBitmapTests = []precompiledTest{
 	},
 }
 
-// Tests sample inputs for fractionMulExp
-// NOTE: This currently only verifies that inputs of invalid length are rejected
-func TestPrecompiledFractionMulExp(t *testing.T) {
-	// Post GFork behaviour
-	mockEVM.chainRules.IsGFork = true
-	testJson("fractionMulExp", "fc", t)
-	// Pre GFork behaviour
-	mockEVM.chainRules.IsGFork = false
-	testJson("fractionMulExpOld", "fc", t)
-}
-
 // Tests sample inputs for proofOfPossession
 // NOTE: This currently only verifies that inputs of invalid length are rejected
 func TestPrecompiledProofOfPossession(t *testing.T) { testJson("proofOfPossession", "fb", t) }

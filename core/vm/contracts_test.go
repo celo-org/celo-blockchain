@@ -68,7 +68,6 @@ var allPrecompiles = map[common.Address]CeloPrecompiledContract{
 	common.BytesToAddress([]byte{18}):         &wrap{&bls12381MapG2{}},
 
 	// Celo Precompiled Contracts
-	celoPrecompileAddress(3):  &fractionMulExp{},
 	celoPrecompileAddress(4):  &proofOfPossession{},
 	celoPrecompileAddress(5):  &getValidator{},
 	celoPrecompileAddress(6):  &numberValidators{},
