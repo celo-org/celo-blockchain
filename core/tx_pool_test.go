@@ -117,12 +117,12 @@ func transaction(nonce uint64, gaslimit uint64, key *ecdsa.PrivateKey) *types.Tr
 }
 
 func pricedTransaction(nonce uint64, gaslimit uint64, gasprice *big.Int, key *ecdsa.PrivateKey) *types.Transaction {
-	tx, _ := types.SignTx(types.NewTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, gasprice, nil, nil, nil, nil), types.HomesteadSigner{}, key)
+	tx, _ := types.SignTx(types.NewCeloTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, gasprice, nil, nil, nil, nil), types.HomesteadSigner{}, key)
 	return tx
 }
 
 func lesTransaction(nonce uint64, gaslimit uint64, gatewayFee *big.Int, key *ecdsa.PrivateKey) *types.Transaction {
-	tx, _ := types.SignTx(types.NewTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, big.NewInt(1), nil, &common.Address{}, gatewayFee, nil), types.HomesteadSigner{}, key)
+	tx, _ := types.SignTx(types.NewCeloTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, big.NewInt(1), nil, &common.Address{}, gatewayFee, nil), types.HomesteadSigner{}, key)
 	return tx
 }
 
@@ -130,12 +130,12 @@ func pricedDataTransaction(nonce uint64, gaslimit uint64, gasprice *big.Int, key
 	data := make([]byte, bytes)
 	rand.Read(data)
 
-	tx, _ := types.SignTx(types.NewTransaction(nonce, common.Address{}, big.NewInt(0), gaslimit, gasprice, nil, nil, nil, data), types.HomesteadSigner{}, key)
+	tx, _ := types.SignTx(types.NewTransaction(nonce, common.Address{}, big.NewInt(0), gaslimit, gasprice, data), types.HomesteadSigner{}, key)
 	return tx
 }
 
 func protectedTransaction(nonce uint64, gaslimit uint64, key *ecdsa.PrivateKey) *types.Transaction {
-	tx, _ := types.SignTx(types.NewTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, big.NewInt(1), nil, nil, nil, nil), eip155Signer, key)
+	tx, _ := types.SignTx(types.NewCeloTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, big.NewInt(1), nil, nil, nil, nil), eip155Signer, key)
 	return tx
 }
 
@@ -435,7 +435,7 @@ func TestTransactionNegativeValue(t *testing.T) {
 	pool, key := setupTxPool()
 	defer pool.Stop()
 
-	tx, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(-1), 100, big.NewInt(1), nil, nil, nil, nil), types.HomesteadSigner{}, key)
+	tx, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(-1), 100, big.NewInt(1), nil), types.HomesteadSigner{}, key)
 	from, _ := deriveSender(tx)
 	testAddBalance(pool, from, big.NewInt(1))
 	if err := pool.AddRemote(tx); err != ErrNegativeValue {
@@ -485,7 +485,7 @@ func TestTransactionGasPriceLessThanFloor(t *testing.T) {
 	ctx := pool.currentCtx.Load().(txPoolContext)
 	ctx.celoGasPriceMinimumFloor = common.Big2
 	pool.currentCtx.Store(ctx)
-	tx, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(1), 200000, big.NewInt(1), nil, nil, nil, nil), types.HomesteadSigner{}, key)
+	tx, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(1), 200000, big.NewInt(1), nil), types.HomesteadSigner{}, key)
 	from, _ := deriveSender(tx)
 	pool.currentState.AddBalance(from, big.NewInt(100000000000000))
 	if err := pool.AddRemote(tx); err != ErrGasPriceDoesNotExceedMinimumFloor {
@@ -538,9 +538,9 @@ func TestTransactionDoubleNonce(t *testing.T) {
 	resetState()
 
 	signer := types.HomesteadSigner{}
-	tx1, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(100), 100000, big.NewInt(1), nil, nil, nil, nil), signer, key)
-	tx2, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(100), 1000000, big.NewInt(2), nil, nil, nil, nil), signer, key)
-	tx3, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(100), 1000000, big.NewInt(1), nil, nil, nil, nil), signer, key)
+	tx1, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(100), 100000, big.NewInt(1), nil), signer, key)
+	tx2, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(100), 1000000, big.NewInt(2), nil), signer, key)
+	tx3, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(100), 1000000, big.NewInt(1), nil), signer, key)
 
 	// Add the first two transaction, ensure higher priced stays only
 	if replace, err := pool.add(tx1, false); err != nil || replace {

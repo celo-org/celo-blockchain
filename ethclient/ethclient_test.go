@@ -575,7 +575,7 @@ func sendTransaction(ec *Client) error {
 		return err
 	}
 	// Create transaction
-	tx := types.NewTransaction(0, common.Address{1}, big.NewInt(1), 22000, nil, nil, nil, nil, nil)
+	tx := types.NewTransaction(0, common.Address{1}, big.NewInt(1), 22000, nil, nil)
 	signer := types.LatestSignerForChainID(chainID)
 	signature, err := crypto.Sign(signer.Hash(tx).Bytes(), testKey)
 	if err != nil {

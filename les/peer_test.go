@@ -169,7 +169,7 @@ func TestHandshake(t *testing.T) {
 
 func TestWillAcceptTransaction(t *testing.T) {
 	tx := func(gatewayFeeRecipient *common.Address, gatewayFee *big.Int) *types.Transaction {
-		return types.NewTransaction(0, common.Address{}, nil, 0, nil, nil, gatewayFeeRecipient, gatewayFee, nil)
+		return types.NewCeloTransaction(0, common.Address{}, nil, 0, nil, nil, gatewayFeeRecipient, gatewayFee, nil)
 	}
 	peerEtherbase := common.HexToAddress("deadbeef")
 	wrongEtherbase := common.HexToAddress("badfo00")
