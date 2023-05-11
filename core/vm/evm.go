@@ -49,9 +49,6 @@ type (
 
 	// GetValidatorsFunc is the signature for the GetValidators function
 	GetValidatorsFunc func(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator
-
-	// IsGoldTokenAddressFunc indicates if an address correspond to the GoldToken contract address
-	IsGoldTokenAddressFunc func(evm *EVM, address common.Address) (bool, error)
 )
 
 func (evm *EVM) precompile(addr common.Address) (CeloPrecompiledContract, bool) {
@@ -92,10 +89,9 @@ type BlockContext struct {
 	BlockNumber *big.Int       // Provides information for NUMBER
 	Time        *big.Int       // Provides information for TIME
 
-	EpochSize          uint64
-	GetValidators      GetValidatorsFunc
-	IsGoldTokenAddress IsGoldTokenAddressFunc
-	BaseFee            *big.Int // Provides information for BASEFEE
+	EpochSize     uint64
+	GetValidators GetValidatorsFunc
+	BaseFee       *big.Int // Provides information for BASEFEE
 }
 
 // TxContext provides the EVM with information about a transaction.
