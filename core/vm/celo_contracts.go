@@ -8,7 +8,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
-	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/crypto/bls12377"
@@ -25,6 +24,44 @@ var (
 	errBLS12377G2PointSubgroup    = errors.New("g2 point is not on correct subgroup")
 )
 
+type CeloPrecompiledContract interface {
+	RequiredGas(input []byte) uint64                              // RequiredGas calculates the contract gas use
+	Run(input []byte, ctx *celoPrecompileContext) ([]byte, error) // Run runs the precompiled contract
+}
+
+type wrap struct {
+	PrecompiledContract
+}
+
+func (pw *wrap) Run(input []byte, ctx *celoPrecompileContext) ([]byte, error) {
+	return pw.PrecompiledContract.Run(input)
+}
+
+type celoPrecompileContext struct {
+	*BlockContext
+	*params.Rules
+
+	caller common.Address
+	evm    *EVM
+}
+
+func newContext(caller common.Address, evm *EVM) *celoPrecompileContext {
+	return &celoPrecompileContext{
+		BlockContext: &evm.Context,
+		Rules:        &evm.chainRules,
+		caller:       caller,
+		evm:          evm,
+	}
+}
+
+func (ctx *celoPrecompileContext) IsCallerGoldToken() (bool, error) {
+	return true, nil
+	// celoGoldAddress, err := ctx.GetRegisteredAddress(evm, config.GoldTokenRegistryId)
+	// if err != nil {
+	// 	return nil, err
+	// }
+}
+
 func celoPrecompileAddress(index byte) common.Address {
 	celoPrecompiledContractsAddressOffset := byte(0xff)
 	return common.BytesToAddress(append([]byte{0}, (celoPrecompiledContractsAddressOffset - index)))
@@ -37,10 +74,12 @@ func (c *transfer) RequiredGas(input []byte) uint64 {
 	return params.CallValueTransferGas
 }
 
-func (c *transfer) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
-	celoGoldAddress, err := evm.Context.GetRegisteredAddress(evm, config.GoldTokenRegistryId)
-	if err != nil {
+func (c *transfer) Run(input []byte, ctx *celoPrecompileContext) ([]byte, error) {
+
+	if isGoldToken, err := ctx.IsCallerGoldToken(); err != nil {
 		return nil, err
+	} else if !isGoldToken {
+		return nil, fmt.Errorf("Unable to call transfer from unpermissioned address")
 	}
 
 	// input is comprised of 3 arguments:
@@ -48,13 +87,10 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM) ([]byte, e
 	//   to:    32 bytes representing the address of the recipient
 	//   value: 32 bytes, a 256 bit integer representing the amount of Celo Gold to transfer
 	// 3 arguments x 32 bytes each = 96 bytes total input
-	if (evm.chainRules.IsGFork && len(input) != 96) || len(input) < 96 {
+	if (ctx.IsGFork && len(input) != 96) || len(input) < 96 {
 		return nil, ErrInputLength
 	}
 
-	if caller != celoGoldAddress {
-		return nil, fmt.Errorf("Unable to call transfer from unpermissioned address")
-	}
 	from := common.BytesToAddress(input[0:32])
 	to := common.BytesToAddress(input[32:64])
 
@@ -66,17 +102,17 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM) ([]byte, e
 
 	if from == common.ZeroAddress {
 		// Mint case: Create cGLD out of thin air
-		evm.StateDB.AddBalance(to, value)
+		ctx.evm.StateDB.AddBalance(to, value)
 	} else {
 		// Fail if we're trying to transfer more than the available balance
-		if !evm.Context.CanTransfer(evm.StateDB, from, value) {
+		if !ctx.CanTransfer(ctx.evm.StateDB, from, value) {
 			return nil, ErrInsufficientBalance
 		}
 
-		evm.Context.Transfer(evm.StateDB, from, to, value)
+		ctx.Transfer(ctx.evm.StateDB, from, to, value)
 	}
 
-	return input, err
+	return input, nil
 }
 
 // computes a * (b ^ exponent) to `decimals` places of precision, where a and b are fractions
@@ -121,7 +157,7 @@ func (c *fractionMulExp) RequiredGas(input []byte) uint64 {
 	return gas
 }
 
-func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *fractionMulExp) Run(input []byte, ctx *celoPrecompileContext) ([]byte, error) {
 	// input is comprised of 6 arguments:
 	//   aNumerator:   32 bytes, 256 bit integer, numerator for the first fraction (a)
 	//   aDenominator: 32 bytes, 256 bit integer, denominator for the first fraction (a)
@@ -131,7 +167,7 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM) ([]b
 	//   decimals:     32 bytes, 256 bit integer, places of precision
 	//
 	// 6 args x 32 bytes each = 192 bytes total input length
-	if (evm.chainRules.IsGFork && len(input) != 192) || len(input) < 192 {
+	if (ctx.IsGFork && len(input) != 192) || len(input) < 192 {
 		return nil, ErrInputLength
 	}
 
@@ -196,7 +232,7 @@ func (c *proofOfPossession) RequiredGas(input []byte) uint64 {
 	return params.ProofOfPossessionGas
 }
 
-func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *proofOfPossession) Run(input []byte, ctx *celoPrecompileContext) ([]byte, error) {
 	// input is comprised of 3 arguments:
 	//   address:   20 bytes, an address used to generate the proof-of-possession
 	//   publicKey: 96 bytes, representing the public key (defined as a const in bls package)
@@ -242,7 +278,7 @@ func (c *ed25519Verify) RequiredGas(input []byte) uint64 {
 	return params.Ed25519VerifyGas + params.Sha2_512BaseGas + (words * params.Sha2_512PerWordGas)
 }
 
-func (c *ed25519Verify) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *ed25519Verify) Run(input []byte, ctx *celoPrecompileContext) ([]byte, error) {
 	// Setup success/failure return values
 	var fail32byte, success32Byte = true32Byte, false32Byte
 
@@ -274,11 +310,11 @@ func (c *getValidator) RequiredGas(input []byte) uint64 {
 // for subsequent blocks.
 // WARNING: Validator set is always constructed from the canonical chain, therefore this precompile is undefined
 // if the engine is aware of a chain with higher total difficulty.
-func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *getValidator) Run(input []byte, ctx *celoPrecompileContext) ([]byte, error) {
 	// input is comprised of two arguments:
 	//   index: 32 byte integer representing the index of the validator to get
 	//   blockNumber: 32 byte integer representing the block number to access
-	if (evm.chainRules.IsGFork && len(input) != 64) || len(input) < 64 {
+	if (ctx.IsGFork && len(input) != 64) || len(input) < 64 {
 		return nil, ErrInputLength
 	}
 
@@ -289,12 +325,12 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM) ([]byt
 		// Validator set for the genesis block is empty, so any index is out of bounds.
 		return nil, ErrValidatorsOutOfBounds
 	}
-	if blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
+	if blockNumber.Cmp(ctx.BlockNumber) > 0 {
 		return nil, ErrBlockNumberOutOfBounds
 	}
 
 	// Note: Passing empty hash as here as it is an extra expense and the hash is not actually used.
-	validators := evm.Context.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
+	validators := ctx.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
 
 	// Ensure index, which is guaranteed to be non-negative, is valid.
 	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
@@ -320,7 +356,7 @@ func copyBLSNumber(result []byte, offset int, uncompressedBytes []byte, offset2 
 }
 
 // Return the validator BLS public key for the validator at given index. The public key is given in uncompressed format, 4*48 bytes.
-func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *getValidatorBLS) Run(input []byte, ctx *celoPrecompileContext) ([]byte, error) {
 	// input is comprised of two arguments:
 	//   index: 32 byte integer representing the index of the validator to get
 	//   blockNumber: 32 byte integer representing the block number to access
@@ -335,12 +371,12 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM) ([]
 		// Validator set for the genesis block is empty, so any index is out of bounds.
 		return nil, ErrValidatorsOutOfBounds
 	}
-	if blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
+	if blockNumber.Cmp(ctx.BlockNumber) > 0 {
 		return nil, ErrBlockNumberOutOfBounds
 	}
 
 	// Note: Passing empty hash as here as it is an extra expense and the hash is not actually used.
-	validators := evm.Context.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
+	validators := ctx.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
 
 	// Ensure index, which is guaranteed to be non-negative, is valid.
 	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
@@ -377,7 +413,7 @@ func (c *numberValidators) RequiredGas(input []byte) uint64 {
 // for subsequent blocks.
 // WARNING: Validator set is always constructed from the canonical chain, therefore this precompile is undefined
 // if the engine is aware of a chain with higher total difficulty.
-func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *numberValidators) Run(input []byte, ctx *celoPrecompileContext) ([]byte, error) {
 	// input is comprised of a single argument:
 	//   blockNumber: 32 byte integer representing the block number to access
 	if len(input) < 32 {
@@ -389,12 +425,12 @@ func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM) ([
 		// Genesis validator set is empty. Return 0.
 		return make([]byte, 32), nil
 	}
-	if blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
+	if blockNumber.Cmp(ctx.BlockNumber) > 0 {
 		return nil, ErrBlockNumberOutOfBounds
 	}
 
 	// Note: Passing empty hash as here as it is an extra expense and the hash is not actually used.
-	validators := evm.Context.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
+	validators := ctx.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
 
 	numberValidators := big.NewInt(int64(len(validators))).Bytes()
 	numberValidatorsBytes := common.LeftPadBytes(numberValidators[:], 32)
@@ -407,8 +443,8 @@ func (c *epochSize) RequiredGas(input []byte) uint64 {
 	return params.GetEpochSizeGas
 }
 
-func (c *epochSize) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
-	epochSize := new(big.Int).SetUint64(evm.Context.EpochSize).Bytes()
+func (c *epochSize) Run(input []byte, ctx *celoPrecompileContext) ([]byte, error) {
+	epochSize := new(big.Int).SetUint64(ctx.EpochSize).Bytes()
 	epochSizeBytes := common.LeftPadBytes(epochSize[:], 32)
 
 	return epochSizeBytes, nil
@@ -420,7 +456,7 @@ func (c *blockNumberFromHeader) RequiredGas(input []byte) uint64 {
 	return params.GetBlockNumberFromHeaderGas
 }
 
-func (c *blockNumberFromHeader) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *blockNumberFromHeader) Run(input []byte) ([]byte, error) {
 	var header types.Header
 	err := rlp.DecodeBytes(input, &header)
 	if err != nil {
@@ -439,7 +475,7 @@ func (c *hashHeader) RequiredGas(input []byte) uint64 {
 	return params.HashHeaderGas
 }
 
-func (c *hashHeader) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *hashHeader) Run(input []byte) ([]byte, error) {
 	var header types.Header
 	err := rlp.DecodeBytes(input, &header)
 	if err != nil {
@@ -459,7 +495,7 @@ func (c *getParentSealBitmap) RequiredGas(input []byte) uint64 {
 
 // Return the signer bitmap from the parent seal of a past block in the chain.
 // Requested parent seal must have occurred within 4 epochs of the current block number.
-func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *getParentSealBitmap) Run(input []byte, ctx *celoPrecompileContext) ([]byte, error) {
 	// input is comprised of a single argument:
 	//   blockNumber: 32 byte integer representing the block number to access
 	if len(input) < 32 {
@@ -469,17 +505,17 @@ func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM)
 	blockNumber := new(big.Int).SetBytes(input[0:32])
 
 	// Ensure the request is for information from a previously sealed block.
-	if blockNumber.Cmp(common.Big0) == 0 || blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
+	if blockNumber.Cmp(common.Big0) == 0 || blockNumber.Cmp(ctx.BlockNumber) > 0 {
 		return nil, ErrBlockNumberOutOfBounds
 	}
 
 	// Ensure the request is for a sufficiently recent block to limit state expansion.
-	historyLimit := new(big.Int).SetUint64(evm.Context.EpochSize * 4)
-	if blockNumber.Cmp(new(big.Int).Sub(evm.Context.BlockNumber, historyLimit)) <= 0 {
+	historyLimit := new(big.Int).SetUint64(ctx.EpochSize * 4)
+	if blockNumber.Cmp(new(big.Int).Sub(ctx.BlockNumber, historyLimit)) <= 0 {
 		return nil, ErrBlockNumberOutOfBounds
 	}
 
-	header := evm.Context.GetHeaderByNumber(blockNumber.Uint64())
+	header := ctx.GetHeaderByNumber(blockNumber.Uint64())
 	if header == nil {
 		log.Error("Unexpected failure to retrieve block in getParentSealBitmap precompile", "blockNumber", blockNumber)
 		return nil, ErrUnexpected
@@ -501,7 +537,7 @@ func (c *getVerifiedSealBitmap) RequiredGas(input []byte) uint64 {
 	return params.GetVerifiedSealBitmapGas
 }
 
-func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *getVerifiedSealBitmap) Run(input []byte, ctx *celoPrecompileContext) ([]byte, error) {
 	// input is comprised of a single argument:
 	//   header:  rlp encoded block header
 	var header types.Header
@@ -510,7 +546,7 @@ func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EV
 	}
 
 	// Verify the seal against the engine rules.
-	if !evm.Context.VerifySeal(&header) {
+	if !ctx.VerifySeal(&header) {
 		return nil, ErrInputVerification
 	}
 
@@ -543,7 +579,7 @@ func (c *cip20HashFunctions) RequiredGas(input []byte) uint64 {
 	return params.InvalidCip20Gas
 }
 
-func (c *cip20HashFunctions) Run(input []byte, _ common.Address, _ *EVM) ([]byte, error) {
+func (c *cip20HashFunctions) Run(input []byte) ([]byte, error) {
 	if len(input) == 0 {
 		return nil, fmt.Errorf("Input Error: 0-byte input")
 	}
@@ -568,7 +604,7 @@ func (c *bls12377G1Add) RequiredGas(input []byte) uint64 {
 	return params.Bls12377G1AddGas
 }
 
-func (c *bls12377G1Add) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *bls12377G1Add) Run(input []byte) ([]byte, error) {
 	// Implements EIP-2539 G1Add precompile.
 	// > G1 addition call expects `256` bytes as an input that is interpreted as byte concatenation of two G1 points (`128` bytes each).
 	// > Output is an encoding of addition operation result - single G1 point (`128` bytes).
@@ -606,7 +642,7 @@ func (c *bls12377G1Mul) RequiredGas(input []byte) uint64 {
 	return params.Bls12377G1MulGas
 }
 
-func (c *bls12377G1Mul) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *bls12377G1Mul) Run(input []byte) ([]byte, error) {
 	// Implements EIP-2539 G1Mul precompile.
 	// > G1 multiplication call expects `160` bytes as an input that is interpreted as byte concatenation of encoding of G1 point (`128` bytes) and encoding of a scalar value (`32` bytes).
 	// > Output is an encoding of multiplication operation result - single G1 point (`128` bytes).
@@ -656,7 +692,7 @@ func (c *bls12377G1MultiExp) RequiredGas(input []byte) uint64 {
 	return (uint64(k) * params.Bls12377G1MulGas * discount) / 1000
 }
 
-func (c *bls12377G1MultiExp) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *bls12377G1MultiExp) Run(input []byte) ([]byte, error) {
 	// Implements EIP-2539 G1MultiExp precompile.
 	// G1 multiplication call expects `160*k` bytes as an input that is interpreted as byte concatenation of `k` slices each of them being a byte concatenation of encoding of G1 point (`128` bytes) and encoding of a scalar value (`32` bytes).
 	// Output is an encoding of multiexponentiation operation result - single G1 point (`128` bytes).
@@ -699,7 +735,7 @@ func (c *bls12377G2Add) RequiredGas(input []byte) uint64 {
 	return params.Bls12377G2AddGas
 }
 
-func (c *bls12377G2Add) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *bls12377G2Add) Run(input []byte) ([]byte, error) {
 	// Implements EIP-2539 G2Add precompile.
 	// > G2 addition call expects `512` bytes as an input that is interpreted as byte concatenation of two G2 points (`256` bytes each).
 	// > Output is an encoding of addition operation result - single G2 point (`256` bytes).
@@ -737,7 +773,7 @@ func (c *bls12377G2Mul) RequiredGas(input []byte) uint64 {
 	return params.Bls12377G2MulGas
 }
 
-func (c *bls12377G2Mul) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *bls12377G2Mul) Run(input []byte) ([]byte, error) {
 	// Implements EIP-2539 G2MUL precompile logic.
 	// > G2 multiplication call expects `288` bytes as an input that is interpreted as byte concatenation of encoding of G2 point (`256` bytes) and encoding of a scalar value (`32` bytes).
 	// > Output is an encoding of multiplication operation result - single G2 point (`256` bytes).
@@ -787,7 +823,7 @@ func (c *bls12377G2MultiExp) RequiredGas(input []byte) uint64 {
 	return (uint64(k) * params.Bls12377G2MulGas * discount) / 1000
 }
 
-func (c *bls12377G2MultiExp) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *bls12377G2MultiExp) Run(input []byte) ([]byte, error) {
 	// Implements EIP-2539 G2MultiExp precompile logic
 	// > G2 multiplication call expects `288*k` bytes as an input that is interpreted as byte concatenation of `k` slices each of them being a byte concatenation of encoding of G2 point (`256` bytes) and encoding of a scalar value (`32` bytes).
 	// > Output is an encoding of multiexponentiation operation result - single G2 point (`256` bytes).
@@ -830,7 +866,7 @@ func (c *bls12377Pairing) RequiredGas(input []byte) uint64 {
 	return params.Bls12377PairingBaseGas + uint64(len(input)/384)*params.Bls12377PairingPerPairGas
 }
 
-func (c *bls12377Pairing) Run(input []byte, caller common.Address, evm *EVM) ([]byte, error) {
+func (c *bls12377Pairing) Run(input []byte) ([]byte, error) {
 	// Implements EIP-2539 Pairing precompile logic.
 	// > Pairing call expects `384*k` bytes as an inputs that is interpreted as byte concatenation of `k` slices. Each slice has the following structure:
 	// > - `128` bytes of G1 point encoding

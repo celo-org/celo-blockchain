@@ -164,26 +164,26 @@ type precompiledFailureTest struct {
 
 // allPrecompiles does not map to the actual set of precompiles, as it also contains
 // repriced versions of precompiles at certain slots
-var allPrecompiles = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}):          &ecrecover{},
-	common.BytesToAddress([]byte{2}):          &sha256hash{},
-	common.BytesToAddress([]byte{3}):          &ripemd160hash{},
-	common.BytesToAddress([]byte{4}):          &dataCopy{},
-	common.BytesToAddress([]byte{5}):          &bigModExp{eip2565: false},
-	common.BytesToAddress([]byte{0xf1, 0xf5}): &bigModExp{eip2565: true}, // "f1f5" otherwise "f5" collides with our precompile (getParentSealBitmapAddress)
-	common.BytesToAddress([]byte{6}):          &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}):          &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}):          &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}):          &blake2F{},
-	common.BytesToAddress([]byte{10}):         &bls12381G1Add{},
-	common.BytesToAddress([]byte{11}):         &bls12381G1Mul{},
-	common.BytesToAddress([]byte{12}):         &bls12381G1MultiExp{},
-	common.BytesToAddress([]byte{13}):         &bls12381G2Add{},
-	common.BytesToAddress([]byte{14}):         &bls12381G2Mul{},
-	common.BytesToAddress([]byte{15}):         &bls12381G2MultiExp{},
-	common.BytesToAddress([]byte{16}):         &bls12381Pairing{},
-	common.BytesToAddress([]byte{17}):         &bls12381MapG1{},
-	common.BytesToAddress([]byte{18}):         &bls12381MapG2{},
+var allPrecompiles = map[common.Address]CeloPrecompiledContract{
+	common.BytesToAddress([]byte{1}):          &wrap{&ecrecover{}},
+	common.BytesToAddress([]byte{2}):          &wrap{&sha256hash{}},
+	common.BytesToAddress([]byte{3}):          &wrap{&ripemd160hash{}},
+	common.BytesToAddress([]byte{4}):          &wrap{&dataCopy{}},
+	common.BytesToAddress([]byte{5}):          &wrap{&bigModExp{eip2565: false}},
+	common.BytesToAddress([]byte{0xf1, 0xf5}): &wrap{&bigModExp{eip2565: true}}, // "f1f5" otherwise "f5" collides with our precompile (getParentSealBitmapAddress)
+	common.BytesToAddress([]byte{6}):          &wrap{&bn256AddIstanbul{}},
+	common.BytesToAddress([]byte{7}):          &wrap{&bn256ScalarMulIstanbul{}},
+	common.BytesToAddress([]byte{8}):          &wrap{&bn256PairingIstanbul{}},
+	common.BytesToAddress([]byte{9}):          &wrap{&blake2F{}},
+	common.BytesToAddress([]byte{10}):         &wrap{&bls12381G1Add{}},
+	common.BytesToAddress([]byte{11}):         &wrap{&bls12381G1Mul{}},
+	common.BytesToAddress([]byte{12}):         &wrap{&bls12381G1MultiExp{}},
+	common.BytesToAddress([]byte{13}):         &wrap{&bls12381G2Add{}},
+	common.BytesToAddress([]byte{14}):         &wrap{&bls12381G2Mul{}},
+	common.BytesToAddress([]byte{15}):         &wrap{&bls12381G2MultiExp{}},
+	common.BytesToAddress([]byte{16}):         &wrap{&bls12381Pairing{}},
+	common.BytesToAddress([]byte{17}):         &wrap{&bls12381MapG1{}},
+	common.BytesToAddress([]byte{18}):         &wrap{&bls12381MapG2{}},
 
 	// Celo Precompiled Contracts
 	celoPrecompileAddress(2):  &transfer{},
@@ -192,30 +192,30 @@ var allPrecompiles = map[common.Address]PrecompiledContract{
 	celoPrecompileAddress(5):  &getValidator{},
 	celoPrecompileAddress(6):  &numberValidators{},
 	celoPrecompileAddress(7):  &epochSize{},
-	celoPrecompileAddress(8):  &blockNumberFromHeader{},
-	celoPrecompileAddress(9):  &hashHeader{},
+	celoPrecompileAddress(8):  &wrap{&blockNumberFromHeader{}},
+	celoPrecompileAddress(9):  &wrap{&hashHeader{}},
 	celoPrecompileAddress(10): &getParentSealBitmap{},
 	celoPrecompileAddress(11): &getVerifiedSealBitmap{},
 
 	// New in Donut hard fork
 	celoPrecompileAddress(12): &ed25519Verify{},
-	celoPrecompileAddress(13): &bls12381G1Add{},
-	celoPrecompileAddress(14): &bls12381G1Mul{},
-	celoPrecompileAddress(15): &bls12381G1MultiExp{},
-	celoPrecompileAddress(16): &bls12381G2Add{},
-	celoPrecompileAddress(17): &bls12381G2Mul{},
-	celoPrecompileAddress(18): &bls12381G2MultiExp{},
-	celoPrecompileAddress(19): &bls12381Pairing{},
-	celoPrecompileAddress(20): &bls12381MapG1{},
-	celoPrecompileAddress(21): &bls12381MapG2{},
-	celoPrecompileAddress(22): &bls12377G1Add{},
-	celoPrecompileAddress(23): &bls12377G1Mul{},
-	celoPrecompileAddress(24): &bls12377G1MultiExp{},
-	celoPrecompileAddress(25): &bls12377G2Add{},
-	celoPrecompileAddress(26): &bls12377G2Mul{},
-	celoPrecompileAddress(27): &bls12377G2MultiExp{},
-	celoPrecompileAddress(28): &bls12377Pairing{},
-	celoPrecompileAddress(29): &cip20HashFunctions{Cip20HashesDonut},
+	celoPrecompileAddress(13): &wrap{&bls12381G1Add{}},
+	celoPrecompileAddress(14): &wrap{&bls12381G1Mul{}},
+	celoPrecompileAddress(15): &wrap{&bls12381G1MultiExp{}},
+	celoPrecompileAddress(16): &wrap{&bls12381G2Add{}},
+	celoPrecompileAddress(17): &wrap{&bls12381G2Mul{}},
+	celoPrecompileAddress(18): &wrap{&bls12381G2MultiExp{}},
+	celoPrecompileAddress(19): &wrap{&bls12381Pairing{}},
+	celoPrecompileAddress(20): &wrap{&bls12381MapG1{}},
+	celoPrecompileAddress(21): &wrap{&bls12381MapG2{}},
+	celoPrecompileAddress(22): &wrap{&bls12377G1Add{}},
+	celoPrecompileAddress(23): &wrap{&bls12377G1Mul{}},
+	celoPrecompileAddress(24): &wrap{&bls12377G1MultiExp{}},
+	celoPrecompileAddress(25): &wrap{&bls12377G2Add{}},
+	celoPrecompileAddress(26): &wrap{&bls12377G2Mul{}},
+	celoPrecompileAddress(27): &wrap{&bls12377G2MultiExp{}},
+	celoPrecompileAddress(28): &wrap{&bls12377Pairing{}},
+	celoPrecompileAddress(29): &wrap{&cip20HashFunctions{Cip20HashesDonut}},
 	celoPrecompileAddress(30): &getValidatorBLS{},
 }
 
@@ -308,7 +308,7 @@ func testPrecompiled(addr string, test precompiledTest, t *testing.T) {
 	in := common.Hex2Bytes(test.Input)
 	gas := p.RequiredGas(in)
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.Name, gas), func(t *testing.T) {
-		res, _, err := RunPrecompiledContract(p, in, gas, common.HexToAddress("1337"), mockEVM)
+		res, _, err := RunPrecompiledContract(p, in, gas, newContext(common.HexToAddress("1337"), mockEVM))
 		if test.ErrorExpected {
 			if err == nil {
 				t.Errorf("Expected error: %v, but no error occurred", test.Expected)
@@ -339,7 +339,7 @@ func testPrecompiledOOG(addr string, test precompiledTest, t *testing.T) {
 	in := common.Hex2Bytes(test.Input)
 	gas := p.RequiredGas(in) - 1
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.Name, gas), func(t *testing.T) {
-		_, _, err := RunPrecompiledContract(p, in, gas, common.HexToAddress("1337"), mockEVM)
+		_, _, err := RunPrecompiledContract(p, in, gas, newContext(common.HexToAddress("1337"), mockEVM))
 		if err.Error() != "out of gas" {
 			t.Errorf("Expected error [out of gas], got [%v]", err)
 		}
@@ -356,7 +356,7 @@ func testPrecompiledFailure(addr string, test precompiledFailureTest, t *testing
 	in := common.Hex2Bytes(test.Input)
 	gas := p.RequiredGas(in)
 	t.Run(test.Name, func(t *testing.T) {
-		_, _, err := RunPrecompiledContract(p, in, gas, common.HexToAddress("1337"), mockEVM)
+		_, _, err := RunPrecompiledContract(p, in, gas, newContext(common.HexToAddress("1337"), mockEVM))
 		if err.Error() != test.ExpectedError {
 			t.Errorf("Expected error [%v], got [%v]", test.ExpectedError, err)
 		}
@@ -388,7 +388,7 @@ func benchmarkPrecompiled(addr string, test precompiledTest, bench *testing.B) {
 		bench.ResetTimer()
 		for i := 0; i < bench.N; i++ {
 			copy(data, in)
-			res, _, err = RunPrecompiledContract(p, data, reqGas, common.HexToAddress("1337"), mockEVM)
+			res, _, err = RunPrecompiledContract(p, data, reqGas, newContext(common.HexToAddress("1337"), mockEVM))
 		}
 		bench.StopTimer()
 		elapsed := uint64(time.Since(start))
