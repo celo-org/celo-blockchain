@@ -3,7 +3,7 @@ package testutil
 import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
-	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 )
 
 type RegistryMock struct {
@@ -35,7 +35,7 @@ func (rm *RegistryMock) AddContract(id common.Hash, address common.Address) {
 func NewSingleMethodRunner(registryId common.Hash, methodName string, mockFn interface{}) *MockEVMRunner {
 	runner := NewMockEVMRunner()
 	registry := NewRegistryMock()
-	runner.RegisterContract(params.RegistrySmartContractAddress, registry)
+	runner.RegisterContract(config.RegistrySmartContractAddress, registry)
 
 	contract := NewSingleMethodContract(registryId, methodName, mockFn)
 

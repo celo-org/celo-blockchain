@@ -25,7 +25,6 @@ import (
 	"sort"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/log"
@@ -304,26 +303,14 @@ func WriteFastTxLookupLimit(db ethdb.KeyValueWriter, number uint64) {
 
 // ReadHeaderRLP retrieves a block header in its raw RLP database encoding.
 func ReadHeaderRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.RawValue {
-	// First try to look up the data in ancient database.
+	// First try to look up the data in ancient database. Extra hash
+	// comparison is necessary since ancient database only maintains
+	// the canonical data.
 	data, _ := db.Ancient(freezerHeaderTable, number)
 
-	// Extra hash comparison is necessary since ancient database only maintains
-	// the canonical data.
-	headerHashCheck := func(data []byte, hash common.Hash) bool {
-		header := new(types.Header)
-		if err := rlp.Decode(bytes.NewReader(data), header); err != nil {
-			log.Error("Error decoding stored block header", "number", number, "err", err)
-		}
-
-		return header.Hash() == hash
-	}
-
-	if len(data) > 0 && headerHashCheck(data, hash) {
-		// Extra hash comparison is necessary since ancient database only maintains
-		// the canonical data.
+	if len(data) > 0 && headerHash(data) == hash {
 		return data
 	}
-
 	// Then try to look up the data in leveldb.
 	data, _ = db.Get(headerKey(number, hash))
 	if len(data) > 0 {
@@ -334,7 +321,7 @@ func ReadHeaderRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.RawValu
 	// but when we reach into leveldb, the data was already moved. That would
 	// result in a not found error.
 	data, _ = db.Ancient(freezerHeaderTable, number)
-	if len(data) > 0 && headerHashCheck(data, hash) {
+	if len(data) > 0 && headerHash(data) == hash {
 		return data
 	}
 	return nil // Can't find the data anywhere.
@@ -402,7 +389,7 @@ func deleteHeaderWithoutNumber(db ethdb.KeyValueWriter, hash common.Hash, number
 	}
 }
 
-// ReadBodyRLP retrieves the block body (transactions) in RLP encoding.
+// ReadBodyRLP retrieves the block body (transactions and uncles) in RLP encoding.
 func ReadBodyRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.RawValue {
 	// First try to look up the data in ancient database. Extra hash
 	// comparison is necessary since ancient database only maintains
@@ -712,16 +699,18 @@ func isBlockReceipt(receipt *receiptLogs) bool {
 // DeriveLogFields fills the logs in receiptLogs with information such as block number, txhash, etc.
 func deriveLogFields(receipts []*receiptLogs, hash common.Hash, number uint64, txs types.Transactions) error {
 	logIndex := uint(0)
-	if len(txs) != len(receipts) {
-		// The receipts may include an additional "block finalization" receipt (only IBFT)
-		if len(txs)+1 != len(receipts) || !isBlockReceipt(receipts[len(receipts)-1]) {
-			return errors.New("transaction and receipt count mismatch")
-		}
+	// The receipts may include an additional "block finalization" receipt (only IBFT)
+	if len(txs) != len(receipts) && (len(txs)+1 != len(receipts) || !isBlockReceipt(receipts[len(receipts)-1])) {
+		return errors.New("transaction and receipt count mismatch")
 	}
-	// len(receipts) is not always strictly equal to len(txs) because of the block finalization receipt (IBFT)
-	// which is always the last receipt
-	for i := 0; i < len(txs); i++ {
-		txHash := txs[i].Hash()
+	for i := 0; i < len(receipts); i++ {
+		// Only IBFT: block finalization receipt has TxHash == blockHash
+		var txHash common.Hash
+		if i == len(txs) {
+			txHash = hash
+		} else {
+			txHash = txs[i].Hash()
+		}
 		// The derived log fields can simply be set from the block and transaction
 		for j := 0; j < len(receipts[i].Logs); j++ {
 			receipts[i].Logs[j].BlockNumber = number
@@ -732,19 +721,6 @@ func deriveLogFields(receipts []*receiptLogs, hash common.Hash, number uint64, t
 			logIndex++
 		}
 	}
-	// Handle block finalization receipt (only IBFT)
-	if len(txs)+1 == len(receipts) {
-		j := len(txs)
-		for k := 0; k < len(receipts[j].Logs); k++ {
-			receipts[j].Logs[k].BlockNumber = number
-			receipts[j].Logs[k].BlockHash = hash
-			receipts[j].Logs[k].TxHash = hash
-			receipts[j].Logs[k].TxIndex = uint(j)
-			receipts[j].Logs[k].Index = logIndex
-			logIndex++
-		}
-	}
-
 	return nil
 }
 
@@ -859,25 +835,6 @@ func DeleteBlockWithoutNumber(db ethdb.KeyValueWriter, hash common.Hash, number 
 	deleteHeaderWithoutNumber(db, hash, number)
 	DeleteBody(db, hash, number)
 	DeleteTd(db, hash, number)
-}
-
-// WriteRandomCommitmentCache will write a random beacon commitment's associated block parent hash
-// (which is used to calculate the commitmented random number).
-func WriteRandomCommitmentCache(db ethdb.KeyValueWriter, commitment common.Hash, parentHash common.Hash) {
-	if err := db.Put(istanbul.RandomnessCommitmentDBLocation(commitment), parentHash.Bytes()); err != nil {
-		log.Crit("Failed to store randomness commitment cache entry", "err", err)
-	}
-}
-
-// ReadRandomCommitmentCache will retun the random beacon commit's associated block parent hash.
-func ReadRandomCommitmentCache(db ethdb.Reader, commitment common.Hash) common.Hash {
-	parentHash, err := db.Get(istanbul.RandomnessCommitmentDBLocation(commitment))
-	if err != nil {
-		log.Warn("Error in trying to retrieve randomness commitment cache entry", "error", err)
-		return common.Hash{}
-	}
-
-	return common.BytesToHash(parentHash)
 }
 
 const badBlockToKeep = 10

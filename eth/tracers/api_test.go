@@ -34,6 +34,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -560,7 +561,7 @@ func TestCallTraceTransactionNativeTransfer(t *testing.T) {
 			Storage: map[common.Hash]common.Hash{
 				// Hashes represent the storage slot for Registry.sol's `registry` mapping
 				// which is stored in the RegistryProxy's storage.
-				// Hashes are computed by taking: keccack(packed(params.GoldTokenRegistryId, 1)),
+				// Hashes are computed by taking: keccack(packed(config.GoldTokenRegistryId, 1)),
 				// where 1 is the storage offset)
 				common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"): common.HexToHash("0xce11"), // Registry Implementation
 				common.HexToHash("0x91646b8507bf2e54d7c3de9155442ba111546b81af1cbdd1f68eeb6926b98d58"): common.HexToHash("0xd023"), // Governance Proxy
@@ -710,7 +711,7 @@ func TestCallTraceTransactionPrecompileTransfer(t *testing.T) {
 				To:      registryProxyAddr,
 				Input:   packedGetAddressForGoldToken,
 				Output:  common.LeftPadBytes(goldToken.addr.Bytes(), 32),
-				Gas:     newRPCUint64(params.MaxGasForGetAddressFor),
+				Gas:     newRPCUint64(contracts.MaxGasForGetAddressFor),
 				GasUsed: newRPCUint64(0),
 				Calls: []callTrace{
 					{

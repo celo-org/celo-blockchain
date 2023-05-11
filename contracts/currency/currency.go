@@ -22,15 +22,22 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
+	"github.com/celo-org/celo-blockchain/contracts/config"
+	"github.com/celo-org/celo-blockchain/contracts/internal/n"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/params"
+)
+
+const (
+	maxGasToReadErc20Balance uint64 = 100 * n.Thousand
+	maxGasForGetWhiteList    uint64 = 200 * n.Thousand
+	maxGasForMedianRate      uint64 = 100 * n.Thousand
 )
 
 var (
-	medianRateMethod   = contracts.NewRegisteredContractMethod(params.SortedOraclesRegistryId, abis.SortedOracles, "medianRate", params.MaxGasForMedianRate)
-	getWhitelistMethod = contracts.NewRegisteredContractMethod(params.FeeCurrencyWhitelistRegistryId, abis.FeeCurrency, "getWhitelist", params.MaxGasForGetWhiteList)
-	getBalanceMethod   = contracts.NewMethod(abis.ERC20, "balanceOf", params.MaxGasToReadErc20Balance)
+	medianRateMethod   = contracts.NewRegisteredContractMethod(config.SortedOraclesRegistryId, abis.SortedOracles, "medianRate", maxGasForMedianRate)
+	getWhitelistMethod = contracts.NewRegisteredContractMethod(config.FeeCurrencyWhitelistRegistryId, abis.FeeCurrency, "getWhitelist", maxGasForGetWhiteList)
+	getBalanceMethod   = contracts.NewMethod(abis.ERC20, "balanceOf", maxGasToReadErc20Balance)
 )
 
 // NoopExchangeRate represents an exchange rate of 1 to 1

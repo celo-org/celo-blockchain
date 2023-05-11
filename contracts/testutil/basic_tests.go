@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/params"
 	. "github.com/onsi/gomega"
 )
 
@@ -89,7 +89,7 @@ func TestFailsWhenContractNotDeployed(t *testing.T, expectedError error, fn inte
 
 		vmRunner := NewMockEVMRunner()
 		registryMock := NewRegistryMock()
-		vmRunner.RegisterContract(params.RegistrySmartContractAddress, registryMock)
+		vmRunner.RegisterContract(config.RegistrySmartContractAddress, registryMock)
 
 		argsValues := vmRunnerArguments(vmRunner, args...)
 		outs := fnValue.Call(argsValues)
