@@ -2,7 +2,6 @@ package rawdb
 
 import (
 	"bytes"
-	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -10,25 +9,6 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
-
-var genesisSupplyKey = []byte("genesis-supply-genesis")
-
-// ReadGenesisCeloSupply retrieves a CELO token supply at genesis
-func ReadGenesisCeloSupply(db ethdb.KeyValueReader) *big.Int {
-	data, err := db.Get(genesisSupplyKey)
-	if err != nil {
-		return nil
-	}
-	genesisSupply := new(big.Int)
-	genesisSupply.SetBytes(data)
-
-	return genesisSupply
-}
-
-// WriteGenesisCeloSupply writes the CELO token supply at genesis
-func WriteGenesisCeloSupply(db ethdb.KeyValueWriter, genesisSupply *big.Int) error {
-	return db.Put(genesisSupplyKey, genesisSupply.Bytes())
-}
 
 // WriteRandomCommitmentCache will write a random beacon commitment's associated block parent hash
 // (which is used to calculate the commitmented random number).
