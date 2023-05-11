@@ -198,8 +198,8 @@ func New(stack *node.Node, config *ethconfig.Config) (*LightEthereum, error) {
 	if istanbul, isIstanbul := leth.engine.(*istanbulBackend.Backend); isIstanbul {
 		istanbul.SetChain(leth.chainreader, nil, nil)
 	}
-	// TODO mcortesi (needs etherbase & gatewayFee?)
-	leth.handler = newClientHandler(syncMode, config.UltraLightServers, config.UltraLightFraction, checkpoint, leth, config.GatewayFee)
+	// TODO mcortesi (needs etherbase?)
+	leth.handler = newClientHandler(syncMode, config.UltraLightServers, config.UltraLightFraction, checkpoint, leth)
 	if leth.handler.ulc != nil {
 		log.Warn("Ultra light client is enabled", "trustedNodes", len(leth.handler.ulc.keys), "minTrustedFraction", leth.handler.ulc.fraction)
 		leth.blockchain.DisableCheckFreq()
@@ -329,11 +329,6 @@ func (s *LightEthereum) APIs() []rpc.API {
 			Service:   downloader.NewPublicDownloaderAPI(s.handler.downloader, s.eventMux),
 			Public:    true,
 		}, {
-			Namespace: "les",
-			Version:   "1.0",
-			Service:   NewPrivateLightClientAPI(s),
-			Public:    false,
-		}, {
 			Namespace: "eth",
 			Version:   "1.0",
 			Service:   filters.NewPublicFilterAPI(s.ApiBackend, true, 5*time.Minute),
@@ -400,10 +395,6 @@ func (s *LightEthereum) Start() error {
 	s.handler.start()
 
 	return nil
-}
-
-func (s *LightEthereum) GetRandomPeerEtherbase() common.Address {
-	return s.peers.randomPeerEtherbase()
 }
 
 // Stop implements node.Lifecycle, terminating all internal goroutines used by the

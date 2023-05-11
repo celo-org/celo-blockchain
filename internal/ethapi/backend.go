@@ -100,8 +100,6 @@ type Backend interface {
 
 	ChainConfig() *params.ChainConfig
 
-	GatewayFeeRecipient() common.Address
-	GatewayFee() *big.Int
 	GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Context) uint64
 	GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) uint64
 

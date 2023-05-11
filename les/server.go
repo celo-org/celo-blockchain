@@ -18,10 +18,8 @@ package les
 
 import (
 	"crypto/ecdsa"
-	"math/rand"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/mclock"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/eth/ethconfig"
@@ -116,7 +114,7 @@ func NewLesServer(node *node.Node, e ethBackend, config *ethconfig.Config) (*Les
 	if config.LightNoSyncServe {
 		issync = func() bool { return true }
 	}
-	srv.handler = newServerHandler(srv, e.BlockChain(), e.ChainDb(), e.TxPool(), issync, config.TxFeeRecipient, config.GatewayFee)
+	srv.handler = newServerHandler(srv, e.BlockChain(), e.ChainDb(), e.TxPool(), issync)
 	srv.costTracker, srv.minCapacity = newCostTracker(e.ChainDb(), config)
 	srv.oracle = srv.setupOracle(node, e.BlockChain().Genesis().Hash(), config)
 
@@ -311,30 +309,4 @@ func (s *LesServer) capacityManagement() {
 			return
 		}
 	}
-}
-
-//This sends messages to light client peers whenever this light server updates gateway fee.
-func (s *LesServer) BroadcastGatewayFeeInfo() error {
-	lightClientPeerNodes := s.peers.allPeers()
-	if s.handler.gatewayFee.Cmp(common.Big0) < 0 {
-		return nil
-	}
-
-	for _, lightClientPeer := range lightClientPeerNodes {
-		currGatewayFeeResp := GatewayFeeInformation{GatewayFee: s.handler.gatewayFee, Etherbase: s.handler.etherbase}
-		reply := lightClientPeer.ReplyGatewayFee(rand.Uint64(), currGatewayFeeResp)
-		if reply == nil {
-			continue
-		}
-		lightClientPeer.queueSend(func() {
-			if err := reply.send(1); err != nil {
-				select {
-				case lightClientPeer.errCh <- err:
-				default:
-				}
-			}
-		})
-	}
-
-	return nil
 }

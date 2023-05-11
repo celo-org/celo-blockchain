@@ -240,7 +240,7 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 		blockchain: chain,
 		eventMux:   evmux,
 	}
-	client.handler = newClientHandler(syncMode, ulcServers, ulcFraction, nil, client, nil)
+	client.handler = newClientHandler(syncMode, ulcServers, ulcFraction, nil, client)
 
 	if client.oracle != nil {
 		client.oracle.Start(backend)
@@ -310,7 +310,7 @@ func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Da
 	server.clientPool = vfs.NewClientPool(db, testBufRecharge, defaultConnectedBias, clock, alwaysTrueFn)
 	server.clientPool.Start()
 	server.clientPool.SetLimits(10000, 10000) // Assign enough capacity for clientpool
-	server.handler = newServerHandler(server, simulation.Blockchain(), db, txpool, func() bool { return true }, common.ZeroAddress, ethconfig.Defaults.GatewayFee)
+	server.handler = newServerHandler(server, simulation.Blockchain(), db, txpool, func() bool { return true })
 	if server.oracle != nil {
 		server.oracle.Start(simulation)
 	}
@@ -346,7 +346,7 @@ func (p *testPeer) handshakeWithServer(t *testing.T, td *big.Int, head common.Ha
 	sendList = sendList.add("headHash", head)
 	sendList = sendList.add("headNum", headNum)
 	sendList = sendList.add("genesisHash", genesis)
-	if p.cpeer.version >= lpv5 {
+	if p.cpeer.version >= lpv4 {
 		sendList = sendList.add("forkID", &forkID)
 	}
 	if err := p2p.ExpectMsg(p.app, StatusMsg, nil); err != nil {
@@ -378,7 +378,7 @@ func (p *testPeer) handshakeWithClient(t *testing.T, td *big.Int, head common.Ha
 	sendList = sendList.add("flowControl/BL", testBufLimit)
 	sendList = sendList.add("flowControl/MRR", testBufRecharge)
 	sendList = sendList.add("flowControl/MRC", costList)
-	if p.speer.version >= lpv5 {
+	if p.speer.version >= lpv4 {
 		sendList = sendList.add("forkID", &forkID)
 		sendList = sendList.add("recentTxLookup", recentTxLookup)
 	}
