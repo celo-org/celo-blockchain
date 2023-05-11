@@ -480,7 +480,7 @@ func handleGetHelperTrieProofs(msg Decoder) (serveRequestFn, uint64, uint64, err
 			// legacy les protocol and drop this hack when the les2/3 are
 			// not supported.
 			err := auxTrie.Prove(request.Key, request.FromLevel, nodes)
-			if p.version >= lpv5 && err != nil {
+			if p.version >= lpv4 && err != nil {
 				return nil
 			}
 			if request.Type == htCanonical && request.AuxReq == htAuxHeader && len(request.Key) == 8 {

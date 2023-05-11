@@ -260,7 +260,7 @@ func testOdr(t *testing.T, protocol int, expFail uint64, checkCached bool, fn od
 	}
 }
 
-func TestGetTxStatusFromUnindexedPeersLES5(t *testing.T) { testGetTxStatusFromUnindexedPeers(t, lpv5) }
+func TestGetTxStatusFromUnindexedPeersLES4(t *testing.T) { testGetTxStatusFromUnindexedPeers(t, lpv4) }
 
 func testGetTxStatusFromUnindexedPeers(t *testing.T, protocol int) {
 	var (

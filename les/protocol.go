@@ -35,19 +35,18 @@ import (
 const (
 	lpv2 = 2
 	lpv3 = 3
-	lpv4 = 4 // Work in progress. Breaking changes expected.
-	lpv5 = 5 // eth lpv4
+	lpv4 = 4
 )
 
 // Supported versions of the les protocol (first is primary)
 var (
-	ClientProtocolVersions    = []uint{lpv2, lpv3, lpv4, lpv5}
-	ServerProtocolVersions    = []uint{lpv2, lpv3, lpv4, lpv5}
+	ClientProtocolVersions    = []uint{lpv2, lpv3, lpv4}
+	ServerProtocolVersions    = []uint{lpv2, lpv3, lpv4}
 	AdvertiseProtocolVersions = []uint{lpv2} // clients are searching for the first advertised protocol in the list
 )
 
 // Number of implemented message corresponding to different protocol versions.
-var ProtocolLengths = map[uint]uint64{lpv2: 24, lpv3: 26, lpv4: 28, lpv5: 28}
+var ProtocolLengths = map[uint]uint64{lpv2: 22, lpv3: 24, lpv4: 24}
 
 const (
 	NetworkId          = 1

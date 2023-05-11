@@ -275,7 +275,7 @@ func (p *peerCommons) handshake(td *big.Int, head common.Hash, headNum uint64, g
 	// If the protocol version is beyond les4, then pass the forkID
 	// as well. Check http://eips.ethereum.org/EIPS/eip-2124 for more
 	// spec detail.
-	if p.version >= lpv5 {
+	if p.version >= lpv4 {
 		send = send.add("forkID", forkID)
 	}
 	// Add client-specified or server-specified fields
@@ -312,7 +312,7 @@ func (p *peerCommons) handshake(td *big.Int, head common.Hash, headNum uint64, g
 		return errResp(ErrProtocolVersionMismatch, "%d (!= %d)", rVersion, p.version)
 	}
 	// Check forkID if the protocol version is beyond the les4
-	if p.version >= lpv5 {
+	if p.version >= lpv4 {
 		var forkID forkid.ID
 		if err := recv.get("forkID", &forkID); err != nil {
 			return err
@@ -642,7 +642,7 @@ func (p *serverPeer) Handshake(genesis common.Hash, forkid forkid.ID, forkFilter
 		if recv.get("txRelay", nil) != nil {
 			p.onlyAnnounce = true
 		}
-		if p.version >= lpv5 {
+		if p.version >= lpv4 {
 			var recentTx uint
 			if err := recv.get("recentTxLookup", &recentTx); err != nil {
 				return err
@@ -1055,7 +1055,7 @@ func (p *clientPeer) Handshake(td *big.Int, head common.Hash, headNum uint64, ge
 	if server.config.UltraLightOnlyAnnounce {
 		recentTx = txIndexDisabled
 	}
-	if recentTx != txIndexUnlimited && p.version < lpv5 {
+	if recentTx != txIndexUnlimited && p.version < lpv4 {
 		return errors.New("Cannot serve old clients without a complete tx index")
 	}
 	// Note: clientPeer.headInfo should contain the last head announced to the client by us.
@@ -1077,7 +1077,7 @@ func (p *clientPeer) Handshake(td *big.Int, head common.Hash, headNum uint64, ge
 			*lists = (*lists).add("serveRecentState", stateRecent)
 			*lists = (*lists).add("txRelay", nil)
 		}
-		if p.version >= lpv5 {
+		if p.version >= lpv4 {
 			*lists = (*lists).add("recentTxLookup", recentTx)
 		}
 		*lists = (*lists).add("flowControl/BL", server.defParams.BufLimit)
