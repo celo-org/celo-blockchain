@@ -633,6 +633,7 @@ func (c *ChainConfig) deepCopy() *ChainConfig {
 		ChurritoBlock:       copyBigIntOrNil(c.ChurritoBlock),
 		DonutBlock:          copyBigIntOrNil(c.DonutBlock),
 		EspressoBlock:       copyBigIntOrNil(c.EspressoBlock),
+		GForkBlock:          copyBigIntOrNil(c.GForkBlock),
 
 		Istanbul: &IstanbulConfig{
 			Epoch:          c.Istanbul.Epoch,
