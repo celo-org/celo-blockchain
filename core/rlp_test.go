@@ -91,20 +91,16 @@ func testRlpIterator(t *testing.T, txs, chainSize, datasize int) {
 	}
 	// Check that txs exist
 	if !it.Next() {
-		t.Fatal("expected 3 elems, got zero")
+		t.Fatal("expected 2 elems, got zero")
 	}
 	txdata := it.Value()
-	// Check that randomness exist
-	if !it.Next() {
-		t.Fatal("expected 3 elems, got one")
-	}
 	// Check that epochSnarkData exist
 	if !it.Next() {
-		t.Fatal("expected 3 elems, got two")
+		t.Fatal("expected 2 elems, got one")
 	}
 	// No more after that
 	if it.Next() {
-		t.Fatal("expected only 3 elems, got more")
+		t.Fatal("expected only 2 elems, got more")
 	}
 	txIt, err := rlp.NewListIterator(txdata)
 	if err != nil {
