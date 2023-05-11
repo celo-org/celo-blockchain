@@ -101,7 +101,7 @@ type fakeChain struct{}
 
 func (f *fakeChain) Config() *params.ChainConfig { return params.MainnetChainConfig }
 func (f *fakeChain) Genesis() *types.Block {
-	return core.MainnetGenesisBlock().ToBlock(rawdb.NewMemoryDatabase())
+	return core.DefaultGenesisBlock().ToBlock(rawdb.NewMemoryDatabase())
 }
 func (f *fakeChain) CurrentHeader() *types.Header { return &types.Header{Number: big.NewInt(10000000)} }
 

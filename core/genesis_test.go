@@ -31,8 +31,8 @@ import (
 	"github.com/davecgh/go-spew/spew"
 )
 
-func TestMainnetGenesisBlock(t *testing.T) {
-	block := MainnetGenesisBlock().ToBlock(nil)
+func TestGenesisBlocks(t *testing.T) {
+	block := DefaultGenesisBlock().ToBlock(nil)
 	if block.Hash() != params.MainnetGenesisHash {
 		t.Errorf("wrong mainnet genesis hash, got %v, want %v", block.Hash().Hex(), params.MainnetGenesisHash.Hex())
 	}
@@ -83,7 +83,7 @@ func TestSetupGenesis(t *testing.T) {
 		{
 			name: "mainnet block in DB, genesis == nil",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
-				MainnetGenesisBlock().MustCommit(db)
+				DefaultGenesisBlock().MustCommit(db)
 				return SetupGenesisBlock(db, nil)
 			},
 			wantHash:   params.MainnetGenesisHash,
@@ -199,7 +199,7 @@ func TestRegistryInGenesis(t *testing.T) {
 		},
 		{
 			name:    "mainnet",
-			genesis: MainnetGenesisBlock,
+			genesis: DefaultGenesisBlock,
 		},
 		{
 			name: "emptyAlloc",
@@ -241,7 +241,7 @@ func TestGenesisHashes(t *testing.T) {
 			hash:    params.BaklavaGenesisHash,
 		},
 		{
-			genesis: MainnetGenesisBlock(),
+			genesis: DefaultGenesisBlock(),
 			hash:    params.MainnetGenesisHash,
 		},
 	}
