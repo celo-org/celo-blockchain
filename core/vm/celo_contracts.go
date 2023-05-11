@@ -6,11 +6,9 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
-	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-bls-go/bls"
 )
 
 var (
@@ -52,45 +50,6 @@ func NewContext(caller common.Address, evm *EVM) *celoPrecompileContext {
 func celoPrecompileAddress(index byte) common.Address {
 	celoPrecompiledContractsAddressOffset := byte(0xff)
 	return common.BytesToAddress(append([]byte{0}, (celoPrecompiledContractsAddressOffset - index)))
-}
-
-type proofOfPossession struct{}
-
-func (c *proofOfPossession) RequiredGas(input []byte) uint64 {
-	return params.ProofOfPossessionGas
-}
-
-func (c *proofOfPossession) Run(input []byte, ctx *celoPrecompileContext) ([]byte, error) {
-	// input is comprised of 3 arguments:
-	//   address:   20 bytes, an address used to generate the proof-of-possession
-	//   publicKey: 96 bytes, representing the public key (defined as a const in bls package)
-	//   signature: 48 bytes, representing the signature on `address` (defined as a const in bls package)
-	// the total length of input required is the sum of these constants
-	if len(input) != common.AddressLength+blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES {
-		return nil, ErrInputLength
-	}
-	addressBytes := input[:common.AddressLength]
-
-	publicKeyBytes := input[common.AddressLength : common.AddressLength+blscrypto.PUBLICKEYBYTES]
-	publicKey, err := bls.DeserializePublicKeyCached(publicKeyBytes)
-	if err != nil {
-		return nil, err
-	}
-	defer publicKey.Destroy()
-
-	signatureBytes := input[common.AddressLength+blscrypto.PUBLICKEYBYTES : common.AddressLength+blscrypto.PUBLICKEYBYTES+blscrypto.SIGNATUREBYTES]
-	signature, err := bls.DeserializeSignature(signatureBytes)
-	if err != nil {
-		return nil, err
-	}
-	defer signature.Destroy()
-
-	err = publicKey.VerifyPoP(addressBytes, signature)
-	if err != nil {
-		return nil, err
-	}
-
-	return true32Byte, nil
 }
 
 type getValidator struct{}

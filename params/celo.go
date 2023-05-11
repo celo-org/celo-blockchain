@@ -11,13 +11,12 @@ const (
 
 // Celo precompiled contracts
 const (
-	ProofOfPossessionGas        uint64 = 350000 // Cost of verifying a BLS proof of possession.
-	GetValidatorGas             uint64 = 1000   // Cost of reading a validator's address.
-	GetValidatorBLSGas          uint64 = 1000   // Cost of reading a validator's BLS public key.
-	GetEpochSizeGas             uint64 = 10     // Cost of querying the number of blocks in an epoch.
-	GetBlockNumberFromHeaderGas uint64 = 10     // Cost of decoding a block header.
-	HashHeaderGas               uint64 = 10     // Cost of hashing a block header.
-	GetParentSealBitmapGas      uint64 = 100    // Cost of reading the parent seal bitmap from the chain.
+	GetValidatorGas             uint64 = 1000 // Cost of reading a validator's address.
+	GetValidatorBLSGas          uint64 = 1000 // Cost of reading a validator's BLS public key.
+	GetEpochSizeGas             uint64 = 10   // Cost of querying the number of blocks in an epoch.
+	GetBlockNumberFromHeaderGas uint64 = 10   // Cost of decoding a block header.
+	HashHeaderGas               uint64 = 10   // Cost of hashing a block header.
+	GetParentSealBitmapGas      uint64 = 100  // Cost of reading the parent seal bitmap from the chain.
 	// May take a bit more time with 100 validators, need to bench that
 	GetVerifiedSealBitmapGas uint64 = 350000 // Cost of verifying the seal on a given RLP encoded header.
 )

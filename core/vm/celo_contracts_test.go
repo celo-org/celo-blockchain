@@ -128,10 +128,6 @@ var getVerifiedSealBitmapTests = []precompiledTest{
 	},
 }
 
-// Tests sample inputs for proofOfPossession
-// NOTE: This currently only verifies that inputs of invalid length are rejected
-func TestPrecompiledProofOfPossession(t *testing.T) { testJson("proofOfPossession", "fb", t) }
-
 // Tests sample inputs for getValidator
 func TestGetValidator(t *testing.T) { testJson("getValidator", "fa", t) }
 
