@@ -883,7 +883,7 @@ func TestTraceBlockWithEIP1559Tx(t *testing.T) {
 		cap := new(big.Int).Set(common.Big1)
 		cap = cap.Add(cap, tip).Add(cap, bf)
 
-		txdata1 := types.NewTx(&types.CeloDynamicFeeTx{
+		txdata1 := types.NewTx(&types.DynamicFeeTx{
 			ChainID:   b.Config().ChainID,
 			Nonce:     0,
 			GasTipCap: tip,
@@ -898,7 +898,7 @@ func TestTraceBlockWithEIP1559Tx(t *testing.T) {
 		)
 		b.AddTx(tx1)
 
-		txdata2 := types.NewTx(&types.CeloDynamicFeeTx{
+		txdata2 := types.NewTx(&types.DynamicFeeTx{
 			ChainID:   b.Config().ChainID,
 			Nonce:     1,
 			GasTipCap: tip,
