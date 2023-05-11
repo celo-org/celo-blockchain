@@ -33,7 +33,7 @@ var (
 	}
 	accountTypeFlag = utils.TextMarshalerFlag{
 		Name:  "type",
-		Usage: `Account type (validator, developer, txNode, faucet, attestation, priceOracle, proxy, attestationBot, votingBot, txNodePrivate, validatorGroup, admin)`,
+		Usage: `Account type (validator, developer, txNode, faucet, attestation, priceOracle, attestationBot, votingBot, txNodePrivate, validatorGroup, admin)`,
 		Value: &env.DeveloperAT,
 	}
 )

@@ -240,25 +240,3 @@ func TestCommittedSubjectRLPEncoding(t *testing.T) {
 		t.Fatalf("RLP Encode/Decode mismatch. Got %v, expected %v", result, original)
 	}
 }
-
-func TestForwardMessageRLPEncoding(t *testing.T) {
-	var result, original *ForwardMessage
-	original = &ForwardMessage{
-		Code:          0x11, // istanbulConsensusMsg, but doesn't matter what it is
-		DestAddresses: []common.Address{common.HexToAddress("123123")},
-		Msg:           []byte{23, 23, 12, 3},
-	}
-
-	rawVal, err := rlp.EncodeToBytes(original)
-	if err != nil {
-		t.Fatalf("Error %v", err)
-	}
-
-	if err = rlp.DecodeBytes(rawVal, &result); err != nil {
-		t.Fatalf("Error %v", err)
-	}
-
-	if !reflect.DeepEqual(original, result) {
-		t.Fatalf("RLP Encode/Decode mismatch. Got %v, expected %v", result, original)
-	}
-}

@@ -26,7 +26,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
@@ -39,10 +38,6 @@ var (
 	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
 )
 
-type ProxyContext interface {
-	GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine
-}
-
 // Manager is the facade and entry point for the implementation of the announce protocol. It exposes methods to
 // start and stop the announce Worker, and to handle announce messages.
 type Manager struct {
@@ -53,7 +48,6 @@ type Manager struct {
 	aWallets *atomic.Value
 
 	addrProvider AddressProvider
-	proxyContext ProxyContext
 	network      Network
 
 	vcGossiper VersionCertificateGossiper
@@ -83,7 +77,7 @@ type Manager struct {
 func NewManager(
 	config *istanbul.Config,
 	aWallets *atomic.Value,
-	network Network, proxyContext ProxyContext,
+	network Network,
 	addrProvider AddressProvider, state *AnnounceState,
 	gossipCache istanbul.GossipCache,
 	checker ValidatorChecker,
@@ -98,7 +92,6 @@ func NewManager(
 		aWallets:         aWallets,
 		config:           config,
 		network:          network,
-		proxyContext:     proxyContext,
 		addrProvider:     addrProvider,
 		gossipCache:      gossipCache,
 		vcGossiper:       vcGossiper,
@@ -115,8 +108,8 @@ func NewManager(
 	return am
 }
 
-func (m *Manager) isProxiedValidator() bool {
-	return m.config.Proxied && m.config.Validator
+func (m *Manager) isValidator() bool {
+	return m.config.Validator
 }
 
 func (m *Manager) Close() error {
@@ -389,12 +382,12 @@ func (m *Manager) GetAnnounceVersion() uint {
 
 // RetrieveEnodeCertificateMsgMap gets the most recent enode certificate messages.
 // May be nil if no message was generated as a result of the core not being
-// started, or if a proxy has not received a message from its proxied validator
+// started
 func (m *Manager) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg {
 	return m.ecertHolder.Get()
 }
 
-// HandleEnodeCertificateMsg handles an enode certificate message for proxied and standalone validators.
+// HandleEnodeCertificateMsg handles an enode certificate message for standalone validators.
 func (m *Manager) HandleEnodeCertificateMsg(_ consensus.Peer, payload []byte) error {
 	logger := m.logger.New("func", "HandleEnodeCertificateMsg")
 
@@ -441,11 +434,6 @@ func (m *Manager) HandleEnodeCertificateMsg(_ consensus.Peer, payload []byte) er
 	if err := m.state.ValEnodeTable.UpsertVersionAndEnode([]*istanbul.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
 		logger.Warn("Error in upserting a val enode table entry", "error", err)
 		return err
-	}
-
-	// Send a valEnodesShare message to the proxy when it's the primary
-	if m.isProxiedValidator() && m.checker.IsValidating() {
-		m.proxyContext.GetProxiedValidatorEngine().SendValEnodesShareMsgToAllProxies()
 	}
 
 	return nil

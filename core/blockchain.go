@@ -1521,7 +1521,7 @@ func (bc *BlockChain) insertPreprocessedBlock(block *types.Block, receipts []*ty
 			log.Warn("Unable to retrieve the author for block", "blockNum", block.NumberU64(), "err", err)
 		}
 
-		if blockAuthor == istEngine.ValidatorAddress() && !istEngine.IsProxy() {
+		if blockAuthor == istEngine.ValidatorAddress() {
 			// Calculate the randomness commitment
 			_, randomCommitment, err = istEngine.GenerateRandomness(block.ParentHash())
 

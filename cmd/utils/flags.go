@@ -36,7 +36,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/fdlimit"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -774,37 +773,6 @@ var (
 		Name:  "announce.aggressivequeryenodegossiponenablement",
 		Usage: "Specifies if this node should aggressively query enodes on announce enablement",
 	}
-
-	// Proxy node settings
-
-	ProxyFlag = cli.BoolFlag{
-		Name:  "proxy.proxy",
-		Usage: "Specifies whether this node is a proxy",
-	}
-	ProxyInternalFacingEndpointFlag = cli.StringFlag{
-		Name:  "proxy.internalendpoint",
-		Usage: "Specifies the internal facing endpoint for this proxy to listen to.  The format should be <ip address>:<port>",
-		Value: ":30503",
-	}
-	ProxiedValidatorAddressFlag = cli.StringFlag{
-		Name:  "proxy.proxiedvalidatoraddress",
-		Usage: "Address of the proxied validator",
-	}
-
-	// Proxied validator settings
-
-	ProxiedFlag = cli.BoolFlag{
-		Name:  "proxy.proxied",
-		Usage: "Specifies whether this validator will be proxied by a proxy node",
-	}
-	ProxyEnodeURLPairsFlag = cli.StringFlag{
-		Name:  "proxy.proxyenodeurlpairs",
-		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a space. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\"",
-	}
-	ProxyAllowPrivateIPFlag = cli.BoolFlag{
-		Name:  "proxy.allowprivateip",
-		Usage: "Specifies whether private IP is allowed for external facing proxy enodeURL",
-	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1461,108 +1429,6 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	cfg.Istanbul.Replica = ctx.GlobalIsSet(IstanbulReplicaFlag.Name)
 	if ctx.GlobalIsSet(MetricsLoadTestCSVFlag.Name) {
 		cfg.Istanbul.LoadTestCSVFile = ctx.GlobalString(MetricsLoadTestCSVFlag.Name)
-	}
-}
-
-func setProxyP2PConfig(ctx *cli.Context, proxyCfg *p2p.Config) {
-	setNodeKey(ctx, proxyCfg)
-	setNAT(ctx, proxyCfg)
-	if ctx.GlobalIsSet(ProxyInternalFacingEndpointFlag.Name) {
-		proxyCfg.ListenAddr = ctx.GlobalString(ProxyInternalFacingEndpointFlag.Name)
-	}
-
-	proxyCfg.NetworkId = getNetworkId(ctx)
-}
-
-// Set all of the proxy related configurations.
-// These configs span the top level node and istanbul module configuration
-func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) {
-	CheckExclusive(ctx, ProxyFlag, ProxiedFlag)
-
-	if ctx.GlobalIsSet(ProxyFlag.Name) {
-		nodeCfg.Proxy = ctx.GlobalBool(ProxyFlag.Name)
-		ethCfg.Istanbul.Proxy = ctx.GlobalBool(ProxyFlag.Name)
-
-		// Mining must not be set for proxies
-		if ctx.GlobalIsSet(MiningEnabledFlag.Name) {
-			Fatalf("Option --%s must not be used if option --%s is used", MiningEnabledFlag.Name, ProxyFlag.Name)
-		}
-		// Replica must not be set for proxies
-		if ctx.GlobalIsSet(IstanbulReplicaFlag.Name) {
-			Fatalf("Option --%s must not be used if option --%s is used", IstanbulReplicaFlag.Name, ProxyFlag.Name)
-		}
-
-		if !ctx.GlobalIsSet(ProxiedValidatorAddressFlag.Name) {
-			Fatalf("Option --%s must be used if option --%s is used", ProxiedValidatorAddressFlag.Name, ProxyFlag.Name)
-		} else {
-			proxiedValidatorAddress := ctx.String(ProxiedValidatorAddressFlag.Name)
-			if !common.IsHexAddress(proxiedValidatorAddress) {
-				Fatalf("Invalid address used for option --%s", ProxiedValidatorAddressFlag.Name)
-			}
-			ethCfg.Istanbul.ProxiedValidatorAddress = common.HexToAddress(proxiedValidatorAddress)
-		}
-
-		if !ctx.GlobalIsSet(ProxyInternalFacingEndpointFlag.Name) {
-			Fatalf("Option --%s must be used if option --%s is used", ProxyInternalFacingEndpointFlag.Name, ProxyFlag.Name)
-		} else {
-			setProxyP2PConfig(ctx, &nodeCfg.ProxyP2P)
-		}
-	}
-
-	if ctx.GlobalIsSet(ProxiedFlag.Name) {
-		ethCfg.Istanbul.Proxied = ctx.GlobalBool(ProxiedFlag.Name)
-
-		// Mining must be set for proxied nodes
-		if !ctx.GlobalIsSet(MiningEnabledFlag.Name) {
-			Fatalf("Option --%s must be used if option --%s is used", MiningEnabledFlag.Name, ProxiedFlag.Name)
-		}
-
-		// Extract the proxy enode url pairs, new flag overriding legacy one
-		var proxyEnodeURLPairs []string
-
-		if ctx.GlobalIsSet(LegacyProxyEnodeURLPairsFlag.Name) {
-			proxyEnodeURLPairs = strings.Split(ctx.String(LegacyProxyEnodeURLPairsFlag.Name), ",")
-			log.Warn("The flag --proxy.proxyenodeurlpair is deprecated and will be removed in the future, please use --proxy.proxyenodeurlpairs")
-		}
-
-		if ctx.GlobalIsSet(ProxyEnodeURLPairsFlag.Name) {
-			proxyEnodeURLPairs = strings.Split(ctx.String(ProxyEnodeURLPairsFlag.Name), ",")
-		}
-		ethCfg.Istanbul.ProxyConfigs = make([]*istanbul.ProxyConfig, len(proxyEnodeURLPairs))
-
-		for i, proxyEnodeURLPairStr := range proxyEnodeURLPairs {
-			proxyEnodeURLPair := strings.Split(proxyEnodeURLPairStr, ";")
-			if len(proxyEnodeURLPair) != 2 {
-				Fatalf("Invalid format for option --%s", ProxyEnodeURLPairsFlag.Name)
-			}
-
-			proxyInternalNode, err := enode.ParseV4(proxyEnodeURLPair[0])
-			if err != nil {
-				Fatalf("Proxy internal facing enodeURL (%s) invalid with parse err: %v", proxyEnodeURLPair[0], err)
-			}
-
-			proxyExternalNode, err := enode.ParseV4(proxyEnodeURLPair[1])
-			if err != nil {
-				Fatalf("Proxy external facing enodeURL (%s) invalid with parse err: %v", proxyEnodeURLPair[1], err)
-			}
-
-			// Check that external IP is not a private IP address.
-			if proxyExternalNode.IsPrivateIP() {
-				if ctx.GlobalBool(ProxyAllowPrivateIPFlag.Name) {
-					log.Warn("Proxy external facing enodeURL (%s) is private IP.", "proxy external enodeURL", proxyEnodeURLPair[1])
-				} else {
-					Fatalf("Proxy external facing enodeURL (%s) cannot be private IP.", "proxy external enodeURL", proxyEnodeURLPair[1])
-				}
-			}
-			ethCfg.Istanbul.ProxyConfigs[i] = &istanbul.ProxyConfig{
-				InternalNode: proxyInternalNode,
-				ExternalNode: proxyExternalNode,
-			}
-		}
-
-		if !ctx.GlobalBool(NoDiscoverFlag.Name) {
-			Fatalf("Option --%s must be used if option --%s is used", NoDiscoverFlag.Name, ProxiedFlag.Name)
-		}
 	}
 }
 

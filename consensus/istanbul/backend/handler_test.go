@@ -98,10 +98,6 @@ func TestRecentMessageCaches(t *testing.T) {
 			shouldCache: false,
 		},
 		{
-			ethMsgCode:  istanbul.FwdMsg,
-			shouldCache: false,
-		},
-		{
 			ethMsgCode:  istanbul.VersionCertificatesMsg,
 			shouldCache: true,
 		},

@@ -152,13 +152,7 @@ var (
 		utils.PingIPFromPacketFlag,
 		utils.UseInMemoryDiscoverTableFlag,
 		utils.VersionCheckFlag,
-		utils.ProxyFlag,
-		utils.ProxyInternalFacingEndpointFlag,
-		utils.ProxiedValidatorAddressFlag,
-		utils.ProxiedFlag,
-		utils.ProxyEnodeURLPairsFlag,
 		utils.LegacyProxyEnodeURLPairsFlag,
-		utils.ProxyAllowPrivateIPFlag,
 	}
 
 	rpcFlags = []cli.Flag{
@@ -416,10 +410,10 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend) {
 	}
 
 	isFullNode := ctx.GlobalString(utils.SyncModeFlag.Name) == "full" || ctx.GlobalString(utils.SyncModeFlag.Name) == "fast"
-	// Miners and proxies only makes sense if a full node is running
-	if ctx.GlobalBool(utils.ProxyFlag.Name) || ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
+	// Miners only makes sense if a full node is running
+	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
 		if !isFullNode {
-			utils.Fatalf("Miners and Proxies must be run as a full node")
+			utils.Fatalf("Miners must be run as a full node")
 		}
 	}
 	// Replicas only makes sense if we are mining
@@ -431,9 +425,6 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend) {
 
 	// Start auxiliary services if enabled
 	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
-		if ctx.GlobalBool(utils.ProxyFlag.Name) {
-			utils.Fatalf("Proxies can't mine")
-		}
 		ethBackend, ok := backend.(*eth.EthAPIBackend)
 		if !ok {
 			utils.Fatalf("Ethereum service not running: %v", err)

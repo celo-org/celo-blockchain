@@ -202,17 +202,6 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		},
 	},
 	{
-		Name: "PROXY",
-		Flags: []cli.Flag{
-			utils.ProxyFlag,
-			utils.ProxyInternalFacingEndpointFlag,
-			utils.ProxiedValidatorAddressFlag,
-			utils.ProxiedFlag,
-			utils.ProxyEnodeURLPairsFlag,
-			utils.ProxyAllowPrivateIPFlag,
-		},
-	},
-	{
 		Name: "ALIASED (deprecated)",
 		Flags: []cli.Flag{
 			utils.EtherbaseFlag,

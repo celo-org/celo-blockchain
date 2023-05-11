@@ -47,7 +47,6 @@ type Node struct {
 	dirLock       fileutil.Releaser // prevents concurrent use of instance directory
 	stop          chan struct{}     // Channel to wait for termination notifications
 	server        *p2p.Server       // Currently running P2P networking layer
-	proxyServer   *p2p.Server
 	startStopLock sync.Mutex // Start/Stop are protected by an additional lock
 	state         int        // Tracks state of node lifecycle
 
@@ -136,22 +135,6 @@ func New(conf *Config) (*Node, error) {
 	}
 	if node.server.Config.NodeDatabase == "" {
 		node.server.Config.NodeDatabase = node.config.NodeDB()
-	}
-
-	if node.config.Proxy {
-		// Initialize the proxy p2p server. This creates the node key and
-		// discovery databases.
-		node.proxyServer = &p2p.Server{Config: conf.ProxyP2P}
-		node.proxyServer.Config.NoDiscovery = true
-		// There can only up to 10 peers within the internal network
-		node.proxyServer.Config.MaxPeers = 10
-		node.proxyServer.Config.PrivateKey = node.config.NodeKey()
-		node.proxyServer.Config.Name = node.config.NodeName()
-		node.proxyServer.Config.Logger = node.log
-		if node.proxyServer.Config.NodeDatabase == "" {
-			node.proxyServer.Config.NodeDatabase = node.config.ProxiedNodeDB()
-		}
-		node.log.Info("Proxy Server Config", "node.proxyServer.Config", node.proxyServer.Config.ListenAddr)
 	}
 
 	// Check HTTP/WS prefixes are valid.
@@ -282,22 +265,12 @@ func (n *Node) openEndpoints() error {
 	if err := n.server.Start(); err != nil {
 		return convertFileLockError(err)
 	}
-	if n.proxyServer != nil {
-		n.log.Info("Starting proxy peer-to-peer node", "instance", n.proxyServer.Name)
-		if err := n.proxyServer.Start(); err != nil {
-			n.server.Stop()
-			return convertFileLockError(err)
-		}
-	}
 
 	// start RPC endpoints
 	err := n.startRPC()
 	if err != nil {
 		n.stopRPC()
 		n.server.Stop()
-		if n.proxyServer != nil {
-			n.proxyServer.Stop()
-		}
 	}
 	return err
 }
@@ -327,9 +300,6 @@ func (n *Node) stopServices(running []Lifecycle) error {
 
 	// Stop p2p networking.
 	n.server.Stop()
-	if n.proxyServer != nil {
-		n.proxyServer.Stop()
-	}
 
 	if len(failure.Services) > 0 {
 		return failure
@@ -476,9 +446,6 @@ func (n *Node) RegisterProtocols(protocols []p2p.Protocol) {
 		panic("can't register protocols on running/stopped node")
 	}
 	n.server.Protocols = append(n.server.Protocols, protocols...)
-	if n.proxyServer != nil {
-		n.proxyServer.Protocols = append(n.proxyServer.Protocols, protocols...)
-	}
 }
 
 // RegisterAPIs registers the APIs a service provides on the node.
@@ -537,16 +504,6 @@ func (n *Node) Server() *p2p.Server {
 	defer n.lock.Unlock()
 
 	return n.server
-}
-
-// ProxyServer retrieves the currently running proxy P2P network layer. This method is meant
-// only to inspect fields of the currently running server. Callers should not
-// start or stop the returned server.
-func (n *Node) ProxyServer() *p2p.Server {
-	n.lock.Lock()
-	defer n.lock.Unlock()
-
-	return n.proxyServer
 }
 
 // DataDir retrieves the current datadir used by the protocol stack.

@@ -102,10 +102,6 @@ func NewPrivateMinerAPI(e *Ethereum) *PrivateMinerAPI {
 
 // Start starts the miner
 func (api *PrivateMinerAPI) Start() error {
-	if api.e.config.Istanbul.Proxy {
-		return errors.New("Can't mine if node is a proxy")
-	}
-
 	return api.e.StartMining()
 }
 

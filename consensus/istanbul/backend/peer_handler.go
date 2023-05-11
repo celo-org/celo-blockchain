@@ -102,7 +102,7 @@ func (vph *validatorPeerHandler) thread() {
 // Returns whether this node should maintain validator connections
 // Only proxies and non proxied validators need to connect maintain validator connections
 func (vph *validatorPeerHandler) MaintainValConnections() bool {
-	return vph.sb.IsProxy() || (vph.sb.IsValidator() && !vph.sb.IsProxiedValidator())
+	return vph.sb.IsValidator()
 }
 
 func (vph *validatorPeerHandler) AddValidatorPeer(node *enode.Node, address common.Address) {

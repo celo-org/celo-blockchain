@@ -44,8 +44,6 @@ const (
 	ConsensusMsg           = 0x11
 	QueryEnodeMsg          = 0x12
 	ValEnodesShareMsg      = 0x13
-	FwdMsg                 = 0x14
-	DelegateSignMsg        = 0x15
 	VersionCertificatesMsg = 0x16
 	EnodeCertificateMsg    = 0x17
 	ValidatorHandshakeMsg  = 0x18

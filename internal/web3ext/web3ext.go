@@ -704,16 +704,6 @@ web3._extend({
 			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter]
 		}),
 		new web3._extend.Method({
-			name: 'addProxy',
-			call: 'istanbul_addProxy',
-			params: 2
-		}),
-		new web3._extend.Method({
-			name: 'removeProxy',
-			call: 'istanbul_removeProxy',
-			params: 1
-		}),
-		new web3._extend.Method({
 			name: 'startAtBlock',
 			call: 'istanbul_startValidatingAtBlock',
 			params: 1,
@@ -765,14 +755,6 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'currentRoundChangeSet',
 			getter: 'istanbul_getCurrentRoundChangeSet',
-		}),
-		new web3._extend.Property({
-			name: 'proxies',
-			getter: 'istanbul_getProxiesInfo',
-		}),
-		new web3._extend.Property({
-			name: 'proxiedValidators',
-			getter: 'istanbul_getProxiedValidators',
 		}),
 		new web3._extend.Property({
 			name: 'validating',

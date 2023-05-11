@@ -146,10 +146,10 @@ type Handler interface {
 	SetP2PServer(P2PServer)
 
 	// RegisterPeer will notify the consensus engine that a new peer has been added
-	RegisterPeer(peer Peer, fromProxiedNode bool) error
+	RegisterPeer(peer Peer) error
 
 	// UnregisterPeer will notify the consensus engine that a new peer has been removed
-	UnregisterPeer(peer Peer, fromProxiedNode bool)
+	UnregisterPeer(peer Peer)
 
 	// Handshake will begin a handshake with a new peer. It returns if the peer
 	// has identified itself as a validator and should bypass any max peer checks.
@@ -168,11 +168,8 @@ type PoW interface {
 type Istanbul interface {
 	Engine
 
-	// IsProxiedValidator returns true if this node is a proxied validator
-	IsProxiedValidator() bool
-
-	// IsProxy returns true if this node is a proxy
-	IsProxy() bool
+	// IsValidator returns true if this node is a validator
+	IsValidator() bool
 
 	// IsPrimary returns true if this node is the primary validator
 	IsPrimary() bool
@@ -200,12 +197,6 @@ type Istanbul interface {
 
 	// StopAnnouncing stops the announcing
 	StopAnnouncing() error
-
-	// StartProxiedValidatorEngine starts the proxied validator engine
-	StartProxiedValidatorEngine() error
-
-	// StopProxiedValidatorEngine stops the proxied validator engine
-	StopProxiedValidatorEngine() error
 
 	// UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch.
 	// The changes are executed inline.

@@ -19,8 +19,6 @@ package istanbul
 import (
 	"fmt"
 
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
@@ -55,14 +53,6 @@ type Config struct {
 	Validator                bool   `toml:",omitempty"` // Specified if this node is configured to validate  (specifically if --mine command line is set)
 	Replica                  bool   `toml:",omitempty"` // Specified if this node is configured to be a replica
 
-	// Proxy Configs
-	Proxy                   bool           `toml:",omitempty"` // Specifies if this node is a proxy
-	ProxiedValidatorAddress common.Address `toml:",omitempty"` // The address of the proxied validator
-
-	// Proxied Validator Configs
-	Proxied      bool           `toml:",omitempty"` // Specifies if this node is proxied
-	ProxyConfigs []*ProxyConfig `toml:",omitempty"` // The set of proxy configs for this proxied validator at startup
-
 	// Announce Configs
 	AnnounceQueryEnodeGossipPeriod                 uint64 `toml:",omitempty"` // Time duration (in seconds) between gossiped query enode messages
 	AnnounceAggressiveQueryEnodeGossipOnEnablement bool   `toml:",omitempty"` // Specifies if this node should aggressively query enodes on announce enablement
@@ -70,12 +60,6 @@ type Config struct {
 
 	// Load test config
 	LoadTestCSVFile string `toml:",omitempty"` // If non-empty, specifies the file to write out csv metrics about the block production cycle to.
-}
-
-// ProxyConfig represents the configuration for validator's proxies
-type ProxyConfig struct {
-	InternalNode *enode.Node `toml:",omitempty"` // The internal facing node of the proxy that this proxied validator will peer with
-	ExternalNode *enode.Node `toml:",omitempty"` // The external facing node of the proxy that the proxied validator will broadcast via the announce message
 }
 
 // DefaultConfig for istanbul consensus engine
@@ -93,8 +77,6 @@ var DefaultConfig = &Config{
 	RoundStateDBPath:               "roundstates",
 	Validator:                      false,
 	Replica:                        false,
-	Proxy:                          false,
-	Proxied:                        false,
 	AnnounceQueryEnodeGossipPeriod: 300, // 5 minutes
 	AnnounceAggressiveQueryEnodeGossipOnEnablement: true,
 	AnnounceAdditionalValidatorsToGossip:           10,

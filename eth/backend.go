@@ -223,7 +223,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		Checkpoint:   checkpoint,
 		Whitelist:    config.Whitelist,
 		server:       stack.Server(),
-		proxyServer:  stack.ProxyServer(),
 		MinSyncPeers: config.MinSyncPeers,
 	}); err != nil {
 		return nil, err
@@ -485,13 +484,6 @@ func (s *Ethereum) StartMining() error {
 			}
 
 			istanbul.Authorize(validator, blsbase, publicKey, wallet.Decrypt, wallet.SignData, blswallet.SignBLS, wallet.SignHash)
-
-			if istanbul.IsProxiedValidator() {
-				if err := istanbul.StartProxiedValidatorEngine(); err != nil {
-					log.Error("Error in starting proxied validator engine", "err", err)
-					return err
-				}
-			}
 		}
 
 		// If mining is started, we can disable the transaction rejection mechanism
@@ -508,15 +500,6 @@ func (s *Ethereum) StartMining() error {
 func (s *Ethereum) StopMining() {
 	// Stop the block creating itself
 	s.miner.Stop()
-
-	// Stop the proxied validator engine
-	if istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend); isIstanbul {
-		if istanbul.IsProxiedValidator() {
-			if err := istanbul.StopProxiedValidatorEngine(); err != nil {
-				log.Warn("Error in stopping proxied validator engine", "err", err)
-			}
-		}
-	}
 }
 
 func (s *Ethereum) startAnnounce() error {

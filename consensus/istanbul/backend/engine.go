@@ -668,17 +668,12 @@ func (sb *Backend) StartValidating() error {
 	// Having coreStarted as false at this point guarantees that announce versions
 	// will be updated by the time announce messages in the announceThread begin
 	// being generated
-	if !sb.IsProxiedValidator() {
-		sb.UpdateAnnounceVersion()
-	}
+	sb.UpdateAnnounceVersion()
 
 	sb.coreStarted.Store(true)
 
-	// coreStarted must be true by this point for validator peers to be successfully added
-	if !sb.config.Proxied {
-		if err := sb.RefreshValPeers(); err != nil {
-			sb.logger.Warn("Error refreshing validator peers", "err", err)
-		}
+	if err := sb.RefreshValPeers(); err != nil {
+		sb.logger.Warn("Error refreshing validator peers", "err", err)
 	}
 
 	return nil
@@ -696,40 +691,6 @@ func (sb *Backend) StopValidating() error {
 		return err
 	}
 	sb.coreStarted.Store(false)
-
-	return nil
-}
-
-// StartProxiedValidatorEngine implements consensus.Istanbul.StartProxiedValidatorEngine
-func (sb *Backend) StartProxiedValidatorEngine() error {
-	sb.proxiedValidatorEngineMu.Lock()
-	defer sb.proxiedValidatorEngineMu.Unlock()
-
-	if sb.proxiedValidatorEngineRunning {
-		return istanbul.ErrStartedProxiedValidatorEngine
-	}
-
-	if !sb.config.Proxied {
-		return istanbul.ErrValidatorNotProxied
-	}
-
-	sb.proxiedValidatorEngine.Start()
-	sb.proxiedValidatorEngineRunning = true
-
-	return nil
-}
-
-// StopProxiedValidatorEngine implements consensus.Istanbul.StopProxiedValidatorEngine
-func (sb *Backend) StopProxiedValidatorEngine() error {
-	sb.proxiedValidatorEngineMu.Lock()
-	defer sb.proxiedValidatorEngineMu.Unlock()
-
-	if !sb.proxiedValidatorEngineRunning {
-		return istanbul.ErrStoppedProxiedValidatorEngine
-	}
-
-	sb.proxiedValidatorEngine.Stop()
-	sb.proxiedValidatorEngineRunning = false
 
 	return nil
 }

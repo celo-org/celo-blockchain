@@ -262,27 +262,6 @@ type CommittedSubject struct {
 	EpochValidatorSetSeal []byte
 }
 
-// ## ForwardMessage #################################################################
-
-// NewForwardMessage constructs a Message instance with the given sender and
-// forwardMessage. Both the forwardMessage instance and the serialized bytes of
-// fowardMessage are part of the returned Message.
-func NewForwardMessage(fowardMessage *ForwardMessage, sender common.Address) *Message {
-	message := &Message{
-		Address:        sender,
-		Code:           FwdMsg,
-		forwardMessage: fowardMessage,
-	}
-	setMessageBytes(message, fowardMessage)
-	return message
-}
-
-type ForwardMessage struct {
-	Code          uint64
-	Msg           []byte
-	DestAddresses []common.Address
-}
-
 // ===============================================================
 //
 // define the IstanbulQueryEnode message format, the QueryEnodeMsgCache entries, the queryEnode send function (both the gossip version and the "retrieve from cache" version), and the announce get function
@@ -425,7 +404,6 @@ type Message struct {
 	prepare             *Subject
 	roundChangeV2       *RoundChangeV2
 	queryEnode          *QueryEnodeData
-	forwardMessage      *ForwardMessage
 	enodeCertificate    *EnodeCertificate
 	versionCertificates []*VersionCertificate
 	valEnodeShareData   *ValEnodesShareData
@@ -481,10 +459,6 @@ func (m *Message) DecodeMessage() error {
 		var q *QueryEnodeData
 		err = m.decode(&q)
 		m.queryEnode = q
-	case FwdMsg:
-		var f *ForwardMessage
-		err = m.decode(&f)
-		m.forwardMessage = f
 	case EnodeCertificateMsg:
 		var e *EnodeCertificate
 		err = m.decode(&e)
@@ -583,11 +557,6 @@ func (m *Message) RoundChangeV2() *RoundChangeV2 {
 // QueryEnode returns query enode data if this is a query enode message.
 func (m *Message) QueryEnodeMsg() *QueryEnodeData {
 	return m.queryEnode
-}
-
-// ForwardMessage returns forward message if this is a forward message.
-func (m *Message) ForwardMessage() *ForwardMessage {
-	return m.forwardMessage
 }
 
 // EnodeCertificate returns the enode certificate if this is an enode
