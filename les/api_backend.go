@@ -34,7 +34,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/light"
@@ -387,15 +386,6 @@ func (b *LesApiBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 	for i := 0; i < bloomFilterThreads; i++ {
 		go session.Multiplex(bloomRetrievalBatch, bloomRetrievalWait, b.eth.bloomRequests)
 	}
-}
-
-func (b *LesApiBackend) GatewayFeeRecipient() common.Address {
-	return b.eth.GetRandomPeerEtherbase()
-}
-
-func (b *LesApiBackend) GatewayFee() *big.Int {
-	// TODO(nategraf): Create a method to fetch the gateway fee values of peers along with the coinbase.
-	return ethconfig.Defaults.GatewayFee
 }
 
 func (b *LesApiBackend) Engine() consensus.Engine {

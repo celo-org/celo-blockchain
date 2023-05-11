@@ -822,26 +822,6 @@ web3._extend({
 			call: 'les_addBalance',
 			params: 2
 		}),
-		new web3._extend.Method({
-			name: 'setGatewayFeeRecipient',
-			call: 'les_setGatewayFeeRecipient',
-			params: 1
-		}),
-		new web3._extend.Method({
-			name: 'requestPeerGatewayFees',
-			call: 'les_requestPeerGatewayFees',
-			params: 0
-		}),
-		new web3._extend.Method({
-			name: 'suggestGatewayFee',
-			call: 'les_suggestGatewayFee',
-			params: 0
-		}),
-		new web3._extend.Method({
-			name: 'setGatewayFee',
-			call: 'les_setGatewayFee',
-			params: 1
-		})
 	],
 	properties:
 	[
@@ -857,18 +837,6 @@ web3._extend({
 			name: 'serverInfo',
 			getter: 'les_serverInfo'
 		}),
-		new web3._extend.Property({
-			name: 'gatewayFee',
-			getter: 'les_gatewayFee'
-		}),
-		new web3._extend.Property({
-			name: 'gatewayFeeRecipient',
-			getter: 'les_gatewayFeeRecipient'
-		}),
-		new web3._extend.Property({
-			name: 'gatewayFeeCache',
-			getter: 'les_gatewayFeeCache'
-		})
 	]
 });
 `

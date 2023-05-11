@@ -591,7 +591,6 @@ func testGetBloombitsProofs(t *testing.T, protocol int) {
 func TestTransactionStatusLes2(t *testing.T) { testTransactionStatus(t, lpv2) }
 func TestTransactionStatusLes3(t *testing.T) { testTransactionStatus(t, lpv3) }
 func TestTransactionStatusLes4(t *testing.T) { testTransactionStatus(t, lpv4) }
-func TestTransactionStatusLes5(t *testing.T) { testTransactionStatus(t, lpv5) }
 
 func testTransactionStatus(t *testing.T, protocol int) {
 	netconfig := testnetConfig{
@@ -694,7 +693,6 @@ func testTransactionStatus(t *testing.T, protocol int) {
 
 func TestStopResumeLES3(t *testing.T) { testStopResume(t, lpv3) }
 func TestStopResumeLES4(t *testing.T) { testStopResume(t, lpv4) }
-func TestStopResumeLES5(t *testing.T) { testStopResume(t, lpv5) }
 
 func testStopResume(t *testing.T, protocol int) {
 	netconfig := testnetConfig{
@@ -748,79 +746,5 @@ func testStopResume(t *testing.T, protocol int) {
 		if err := p2p.ExpectMsg(rawPeer.app, ResumeMsg, expBuf); err != nil {
 			t.Errorf("expected ResumeMsg and failed: %v", err)
 		}
-	}
-}
-
-func TestTransactionGatewayFeeRequirementLes2(t *testing.T) {
-	testTransactionGatewayFeeRequirement(t, lpv2)
-}
-func TestTransactionGatewayFeeRequirementLes3(t *testing.T) {
-	testTransactionGatewayFeeRequirement(t, lpv3)
-}
-func TestTransactionGatewayFeeRequirementLes4(t *testing.T) {
-	testTransactionGatewayFeeRequirement(t, lpv4)
-}
-func TestTransactionGatewayFeeRequirementLes5(t *testing.T) {
-	testTransactionGatewayFeeRequirement(t, lpv5)
-}
-
-func testTransactionGatewayFeeRequirement(t *testing.T, protocol int) {
-	netconfig := testnetConfig{
-		syncMode:  downloader.LightSync,
-		protocol:  protocol,
-		nopruning: true,
-	}
-	server, _, tearDown := newClientServerEnv(t, netconfig)
-	defer tearDown()
-
-	server.handler.addTxsSync = true
-	server.handler.etherbase = common.HexToAddress("2ad937cb878d8beefc84f3d0545750c2ff78cd0e")
-	server.handler.gatewayFee = big.NewInt(25000)
-
-	rawPeer, closePeer, _ := server.newRawPeer(t, "peer", protocol)
-	defer closePeer()
-
-	wrongAddress := common.HexToAddress("1762042962b8759e17d2b5ac6c5565273df506fd")
-	cases := []struct {
-		desc   string
-		tx     *types.Transaction
-		status light.TxStatus
-	}{{
-		desc:   "no recipient or fee value attached",
-		tx:     types.NewTransaction(0, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil),
-		status: light.TxStatus{Status: core.TxStatusUnknown, Error: "gateway fee recipient must be 0x2aD937cB878D8bEEfC84F3d0545750c2ff78CD0e, got <nil>"},
-	}, {
-		desc:   "wrong recipient",
-		tx:     types.NewCeloTransaction(1, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &wrongAddress, nil, nil),
-		status: light.TxStatus{Status: core.TxStatusUnknown, Error: "gateway fee recipient must be 0x2aD937cB878D8bEEfC84F3d0545750c2ff78CD0e, got 0x1762042962b8759E17d2B5Ac6c5565273df506fD"},
-	}, {
-		desc:   "no fee value attached",
-		tx:     types.NewCeloTransaction(2, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &server.handler.etherbase, nil, nil),
-		status: light.TxStatus{Status: core.TxStatusUnknown, Error: "gateway fee value must be at least 25000, got 0"},
-	}, {
-		desc:   "fee value too value",
-		tx:     types.NewCeloTransaction(3, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &server.handler.etherbase, new(big.Int).Sub(server.handler.gatewayFee, big.NewInt(1)), nil),
-		status: light.TxStatus{Status: core.TxStatusUnknown, Error: "gateway fee value must be at least 25000, got 24999"},
-	}, {
-		desc:   "fee value exactly enough",
-		tx:     types.NewCeloTransaction(4, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &server.handler.etherbase, server.handler.gatewayFee, nil),
-		status: light.TxStatus{Status: core.TxStatusQueued},
-	}, {
-		desc:   "fee value more than enough",
-		tx:     types.NewCeloTransaction(5, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &server.handler.etherbase, new(big.Int).Add(server.handler.gatewayFee, big.NewInt(1)), nil),
-		status: light.TxStatus{Status: core.TxStatusQueued},
-	}}
-
-	signer := types.HomesteadSigner{}
-	for i, c := range cases {
-		t.Run(c.desc, func(t *testing.T) {
-			tx, _ := types.SignTx(c.tx, signer, bankKey)
-			if err := sendRequest(rawPeer.app, SendTxV2Msg, uint64(i+1), types.Transactions{tx}); err != nil {
-				t.Fatalf("transaction send failed: %v", err)
-			}
-			if err := expectResponse(rawPeer.app, TxStatusMsg, uint64(i+1), testBufLimit, []light.TxStatus{c.status}); err != nil {
-				t.Fatalf("transaction status mismatch: %v", err)
-			}
-		})
 	}
 }

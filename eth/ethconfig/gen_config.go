@@ -33,9 +33,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		LightNoPrune            bool                   `toml:",omitempty"`
 		LightNoSyncServe        bool                   `toml:",omitempty"`
 		SyncFromCheckpoint      bool                   `toml:",omitempty"`
-		GatewayFee              *big.Int               `toml:",omitempty"`
 		Validator               common.Address         `toml:",omitempty"`
-		TxFeeRecipient          common.Address         `toml:",omitempty"`
 		BLSbase                 common.Address         `toml:",omitempty"`
 		UltraLightServers       []string               `toml:",omitempty"`
 		UltraLightFraction      int                    `toml:",omitempty"`
@@ -82,9 +80,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.LightNoPrune = c.LightNoPrune
 	enc.LightNoSyncServe = c.LightNoSyncServe
 	enc.SyncFromCheckpoint = c.SyncFromCheckpoint
-	enc.GatewayFee = c.GatewayFee
 	enc.Validator = c.Validator
-	enc.TxFeeRecipient = c.TxFeeRecipient
 	enc.BLSbase = c.BLSbase
 	enc.UltraLightServers = c.UltraLightServers
 	enc.UltraLightFraction = c.UltraLightFraction
@@ -135,9 +131,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		LightNoPrune            *bool                  `toml:",omitempty"`
 		LightNoSyncServe        *bool                  `toml:",omitempty"`
 		SyncFromCheckpoint      *bool                  `toml:",omitempty"`
-		GatewayFee              *big.Int               `toml:",omitempty"`
 		Validator               *common.Address        `toml:",omitempty"`
-		TxFeeRecipient          *common.Address        `toml:",omitempty"`
 		BLSbase                 *common.Address        `toml:",omitempty"`
 		UltraLightServers       []string               `toml:",omitempty"`
 		UltraLightFraction      *int                   `toml:",omitempty"`
@@ -219,14 +213,8 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.SyncFromCheckpoint != nil {
 		c.SyncFromCheckpoint = *dec.SyncFromCheckpoint
 	}
-	if dec.GatewayFee != nil {
-		c.GatewayFee = dec.GatewayFee
-	}
 	if dec.Validator != nil {
 		c.Validator = *dec.Validator
-	}
-	if dec.TxFeeRecipient != nil {
-		c.TxFeeRecipient = *dec.TxFeeRecipient
 	}
 	if dec.BLSbase != nil {
 		c.BLSbase = *dec.BLSbase

@@ -61,7 +61,6 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.LightIngressFlag,
 			utils.LightEgressFlag,
 			utils.LightMaxPeersFlag,
-			utils.LightGatewayFeeFlag,
 			utils.UltraLightServersFlag,
 			utils.UltraLightFractionFlag,
 			utils.UltraLightOnlyAnnounceFlag,

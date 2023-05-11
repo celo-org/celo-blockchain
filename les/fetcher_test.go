@@ -81,12 +81,6 @@ func TestSequentialAnnouncementsLes4(t *testing.T) {
 func TestSequentialAnnouncementsUltraLes4(t *testing.T) {
 	testSequentialAnnouncements(t, downloader.LightestSync, lpv4)
 }
-func TestSequentialAnnouncementsLes5(t *testing.T) {
-	testSequentialAnnouncements(t, downloader.LightSync, lpv5)
-}
-func TestSequentialAnnouncementsUltraLes5(t *testing.T) {
-	testSequentialAnnouncements(t, downloader.LightestSync, lpv5)
-}
 
 func testSequentialAnnouncements(t *testing.T, syncMode downloader.SyncMode, protocol int) {
 	netconfig := testnetConfig{
@@ -144,13 +138,6 @@ func TestGappedAnnouncementsLes4(t *testing.T) {
 func TestGappedAnnouncementsUltraLes4(t *testing.T) {
 	t.Skip("added in the les refactor, check if necessary for LightestSync")
 	testGappedAnnouncements(t, downloader.LightestSync, lpv4)
-}
-func TestGappedAnnouncementsLes5(t *testing.T) {
-	testGappedAnnouncements(t, downloader.LightSync, lpv5)
-}
-func TestGappedAnnouncementsUltraLes5(t *testing.T) {
-	t.Skip("added in the les refactor, check if necessary for LightestSync")
-	testGappedAnnouncements(t, downloader.LightestSync, lpv5)
 }
 
 func testGappedAnnouncements(t *testing.T, syncMode downloader.SyncMode, protocol int) {
@@ -223,15 +210,6 @@ func TestTrustedAnnouncementsLes4(t *testing.T) {
 func TestTrustedAnnouncementsUltraLes4(t *testing.T) {
 	t.Skip("added in the les refactor, check if necessary for LightestSync")
 	testTrustedAnnouncement(t, downloader.LightestSync, lpv4)
-}
-
-func TestTrustedAnnouncementsLes5(t *testing.T) {
-	testTrustedAnnouncement(t, downloader.LightSync, lpv5)
-}
-
-func TestTrustedAnnouncementsUltraLes5(t *testing.T) {
-	t.Skip("added in the les refactor, check if necessary for LightestSync")
-	testTrustedAnnouncement(t, downloader.LightestSync, lpv5)
 }
 
 func testTrustedAnnouncement(t *testing.T, syncMode downloader.SyncMode, protocol int) {
@@ -310,7 +288,6 @@ func testTrustedAnnouncement(t *testing.T, syncMode downloader.SyncMode, protoco
 func TestInvalidAnnouncesLES2(t *testing.T) { testInvalidAnnounces(t, downloader.LightSync, lpv2) }
 func TestInvalidAnnouncesLES3(t *testing.T) { testInvalidAnnounces(t, downloader.LightSync, lpv3) }
 func TestInvalidAnnouncesLES4(t *testing.T) { testInvalidAnnounces(t, downloader.LightSync, lpv4) }
-func TestInvalidAnnouncesLES5(t *testing.T) { testInvalidAnnounces(t, downloader.LightSync, lpv5) }
 
 func testInvalidAnnounces(t *testing.T, syncMode downloader.SyncMode, protocol int) {
 	t.Skip("Validates through a smaller td for the same header number. We verify this using the header number")

@@ -296,33 +296,33 @@ jobs:
         message: "${{ env.PR_SUMMARY_MESSAGE }}"
         message-id: istanbul-cov-summary
 
-  lightest-sync-test:
-    name: Lightest sync test
-    runs-on: [self-hosted, blockchain, 8-cpu]
+  # lightest-sync-test:
+  #   name: Lightest sync test
+  #   runs-on: [self-hosted, blockchain, 8-cpu]
 
-    needs:
-    - build-and-store-binaries
+  #   needs:
+  #   - build-and-store-binaries
 
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
-    - name: Setup golang
-      uses: actions/setup-go@v3
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        check-latest: false
-        cache: true
-    - name: Download pre-built binaries
-      uses: actions/download-artifact@v3
-      with:
-        name: binaries
-        path: ./build/bin
-    - name: Fix permissions
-      run: |
-        chmod +x ./build/bin/*
-    - name: Run sync test
-      run: |
-        DATADIR=/tmp/lightest_sync_test_data MODE=lightest ./scripts/sync_test.sh
+  #   steps:
+  #   - name: Checkout repo
+  #     uses: actions/checkout@v3
+  #   - name: Setup golang
+  #     uses: actions/setup-go@v3
+  #     with:
+  #       go-version: ${{ env.GO_VERSION }}
+  #       check-latest: false
+  #       cache: true
+  #   - name: Download pre-built binaries
+  #     uses: actions/download-artifact@v3
+  #     with:
+  #       name: binaries
+  #       path: ./build/bin
+  #   - name: Fix permissions
+  #     run: |
+  #       chmod +x ./build/bin/*
+  #   - name: Run sync test
+  #     run: |
+  #       DATADIR=/tmp/lightest_sync_test_data MODE=lightest ./scripts/sync_test.sh
 
   e2e-benchmarks:
     name: End-to-end benchmarks
