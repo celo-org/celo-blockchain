@@ -1,8 +1,0 @@
-[
-  {
-    "Input": "",
-    "Expected": "invalid input length",
-    "ErrorExpected": true,
-    "Name": "empty_input"
-  }
-]
