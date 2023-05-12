@@ -520,24 +520,28 @@ func (st *StateTransition) buyGasAlternativeCurrency(espresso bool) error {
 	if err != nil {
 		return err
 	}
+
+	mgval := new(big.Int).SetUint64(st.msg.Gas())
+	mgval = mgval.Mul(mgval, st.gasPrice)
+	balanceCheck := mgval
 	if espresso {
-		// feeGap = GasFeeCap * gas + gatewayFee, as in (4)
-		feeGap := new(big.Int).SetUint64(st.msg.Gas())
-		feeGap.Mul(feeGap, st.gasFeeCap)
-		if st.msg.GatewayFeeRecipient() != nil {
-			feeGap.Add(feeGap, st.msg.GatewayFee())
-		}
-		if balance.Cmp(feeGap) < 0 {
-			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), balance, feeGap)
+		balanceCheck := new(big.Int).SetUint64(st.msg.Gas())
+		balanceCheck = balanceCheck.Mul(balanceCheck, st.gasFeeCap)
+		// We don't add st.value because it's on a different currency
+	}
+
+	if st.msg.GatewayFeeRecipient() != nil {
+		balanceCheck = balanceCheck.Add(balanceCheck, st.msg.GatewayFee())
+		mgval = mgval.Add(mgval, st.msg.GatewayFee())
+	}
+
+	if espresso {
+		if have, want := balance, balanceCheck; have.Cmp(want) < 0 {
+			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
 		}
 	} else {
-		// effectiveFee = GasPrice * gas + gatewayFee, as in (3)
-		effectiveFee := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
-		if st.msg.GatewayFeeRecipient() != nil {
-			effectiveFee.Add(effectiveFee, st.msg.GatewayFee())
-		}
-		if balance.Cmp(effectiveFee) <= 0 {
-			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), balance, effectiveFee)
+		if have, want := balance, balanceCheck; have.Cmp(want) <= 0 {
+			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
 		}
 	}
 
@@ -547,14 +551,8 @@ func (st *StateTransition) buyGasAlternativeCurrency(espresso bool) error {
 	st.gas += st.msg.Gas()
 
 	st.initialGas = st.msg.Gas()
-
-	effectiveFee := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
-	// If GatewayFeeRecipient is unspecified, the gateway fee value is ignore and the sender is not charged.
-	if st.msg.GatewayFeeRecipient() != nil {
-		effectiveFee.Add(effectiveFee, st.msg.GatewayFee())
-	}
-	log.Trace("Debiting fee", "from", st.msg.From(), "amount", effectiveFee, "feeCurrency", st.msg.FeeCurrency())
-	return erc20gas.DebitFees(st.evm, st.msg.From(), effectiveFee, st.msg.FeeCurrency())
+	// st.state.SubBalance(st.msg.From(), mgval) // We don't do this since it's on a differente currency
+	return erc20gas.DebitFees(st.evm, st.msg.From(), mgval, st.msg.FeeCurrency())
 }
 
 func CheckEthCompatibility(msg Message) error {
