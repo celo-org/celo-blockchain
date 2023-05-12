@@ -508,29 +508,21 @@ func (st *StateTransition) distributeTxFees() error {
 //   - Post-Espresso: it ensures balance >= GasFeeCap * gas + gatewayFee (4)
 func (st *StateTransition) canPayFee(accountOwner common.Address, feeCurrency *common.Address, espresso bool) error {
 	if feeCurrency == nil {
-		balance := st.state.GetBalance(st.msg.From())
+		mgval := new(big.Int).SetUint64(st.msg.Gas())
+		mgval = mgval.Mul(mgval, st.gasPrice)
+		balanceCheck := mgval
 		if espresso {
-			// feeGap = GasFeeCap * gas + value + gatewayFee, as in (2)
-			feeGap := new(big.Int).SetUint64(st.msg.Gas())
-			feeGap.Mul(feeGap, st.gasFeeCap)
-			feeGap.Add(feeGap, st.value)
-			if st.msg.GatewayFeeRecipient() != nil {
-				feeGap.Add(feeGap, st.msg.GatewayFee())
-			}
+			balanceCheck = new(big.Int).SetUint64(st.msg.Gas())
+			balanceCheck = balanceCheck.Mul(balanceCheck, st.gasFeeCap)
+			balanceCheck.Add(balanceCheck, st.value)
+		}
 
-			if balance.Cmp(feeGap) < 0 {
-				return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), balance, feeGap)
-			}
-		} else {
-			// effectiveFee = GasPrice * gas + gatewayFee, as in (1)
-			effectiveFee := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
-			if st.msg.GatewayFeeRecipient() != nil {
-				effectiveFee.Add(effectiveFee, st.msg.GatewayFee())
-			}
+		if st.msg.GatewayFeeRecipient() != nil {
+			balanceCheck = balanceCheck.Add(balanceCheck, st.msg.GatewayFee())
+		}
 
-			if balance.Cmp(effectiveFee) < 0 {
-				return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), balance, effectiveFee)
-			}
+		if have, want := st.state.GetBalance(st.msg.From()), balanceCheck; have.Cmp(want) < 0 {
+			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
 		}
 		return nil
 	} else {
