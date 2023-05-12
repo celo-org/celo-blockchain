@@ -64,8 +64,6 @@ var PrecompiledContractsByzantium = map[common.Address]CeloPrecompiledContract{
 	common.BytesToAddress([]byte{8}): &wrap{&bn256PairingByzantium{}},
 
 	// Celo Precompiled Contracts
-	celoPrecompileAddress(3):  &fractionMulExp{},
-	celoPrecompileAddress(4):  &proofOfPossession{},
 	celoPrecompileAddress(5):  &getValidator{},
 	celoPrecompileAddress(6):  &numberValidators{},
 	celoPrecompileAddress(7):  &epochSize{},
@@ -89,8 +87,6 @@ var PrecompiledContractsIstanbul = map[common.Address]CeloPrecompiledContract{
 	common.BytesToAddress([]byte{9}): &wrap{&blake2F{}},
 
 	// Celo Precompiled Contracts
-	celoPrecompileAddress(3):  &fractionMulExp{},
-	celoPrecompileAddress(4):  &proofOfPossession{},
 	celoPrecompileAddress(5):  &getValidator{},
 	celoPrecompileAddress(6):  &numberValidators{},
 	celoPrecompileAddress(7):  &epochSize{},
@@ -114,9 +110,6 @@ var PrecompiledContractsDonut = map[common.Address]CeloPrecompiledContract{
 	common.BytesToAddress([]byte{9}): &wrap{&blake2F{}},
 
 	// Celo Precompiled Contracts
-
-	celoPrecompileAddress(3):  &fractionMulExp{},
-	celoPrecompileAddress(4):  &proofOfPossession{},
 	celoPrecompileAddress(5):  &getValidator{},
 	celoPrecompileAddress(6):  &numberValidators{},
 	celoPrecompileAddress(7):  &epochSize{},
@@ -124,25 +117,8 @@ var PrecompiledContractsDonut = map[common.Address]CeloPrecompiledContract{
 	celoPrecompileAddress(9):  &wrap{&hashHeader{}},
 	celoPrecompileAddress(10): &getParentSealBitmap{},
 	celoPrecompileAddress(11): &getVerifiedSealBitmap{},
+
 	// New in Donut hard fork
-	celoPrecompileAddress(12): &ed25519Verify{},
-	celoPrecompileAddress(13): &wrap{&bls12381G1Add{}},
-	celoPrecompileAddress(14): &wrap{&bls12381G1Mul{}},
-	celoPrecompileAddress(15): &wrap{&bls12381G1MultiExp{}},
-	celoPrecompileAddress(16): &wrap{&bls12381G2Add{}},
-	celoPrecompileAddress(17): &wrap{&bls12381G2Mul{}},
-	celoPrecompileAddress(18): &wrap{&bls12381G2MultiExp{}},
-	celoPrecompileAddress(19): &wrap{&bls12381Pairing{}},
-	celoPrecompileAddress(20): &wrap{&bls12381MapG1{}},
-	celoPrecompileAddress(21): &wrap{&bls12381MapG2{}},
-	celoPrecompileAddress(22): &wrap{&bls12377G1Add{}},
-	celoPrecompileAddress(23): &wrap{&bls12377G1Mul{}},
-	celoPrecompileAddress(24): &wrap{&bls12377G1MultiExp{}},
-	celoPrecompileAddress(25): &wrap{&bls12377G2Add{}},
-	celoPrecompileAddress(26): &wrap{&bls12377G2Mul{}},
-	celoPrecompileAddress(27): &wrap{&bls12377G2MultiExp{}},
-	celoPrecompileAddress(28): &wrap{&bls12377Pairing{}},
-	celoPrecompileAddress(29): &wrap{&cip20HashFunctions{Cip20HashesDonut}},
 	celoPrecompileAddress(30): &getValidatorBLS{},
 }
 
@@ -160,8 +136,6 @@ var PrecompiledContractsE = map[common.Address]CeloPrecompiledContract{
 	common.BytesToAddress([]byte{9}): &wrap{&blake2F{}},
 
 	// Celo Precompiled Contracts
-	celoPrecompileAddress(3):  &fractionMulExp{},
-	celoPrecompileAddress(4):  &proofOfPossession{},
 	celoPrecompileAddress(5):  &getValidator{},
 	celoPrecompileAddress(6):  &numberValidators{},
 	celoPrecompileAddress(7):  &epochSize{},
@@ -171,24 +145,6 @@ var PrecompiledContractsE = map[common.Address]CeloPrecompiledContract{
 	celoPrecompileAddress(11): &getVerifiedSealBitmap{},
 
 	// New in Donut hard fork
-	celoPrecompileAddress(12): &ed25519Verify{},
-	celoPrecompileAddress(13): &wrap{&bls12381G1Add{}},
-	celoPrecompileAddress(14): &wrap{&bls12381G1Mul{}},
-	celoPrecompileAddress(15): &wrap{&bls12381G1MultiExp{}},
-	celoPrecompileAddress(16): &wrap{&bls12381G2Add{}},
-	celoPrecompileAddress(17): &wrap{&bls12381G2Mul{}},
-	celoPrecompileAddress(18): &wrap{&bls12381G2MultiExp{}},
-	celoPrecompileAddress(19): &wrap{&bls12381Pairing{}},
-	celoPrecompileAddress(20): &wrap{&bls12381MapG1{}},
-	celoPrecompileAddress(21): &wrap{&bls12381MapG2{}},
-	celoPrecompileAddress(22): &wrap{&bls12377G1Add{}},
-	celoPrecompileAddress(23): &wrap{&bls12377G1Mul{}},
-	celoPrecompileAddress(24): &wrap{&bls12377G1MultiExp{}},
-	celoPrecompileAddress(25): &wrap{&bls12377G2Add{}},
-	celoPrecompileAddress(26): &wrap{&bls12377G2Mul{}},
-	celoPrecompileAddress(27): &wrap{&bls12377G2MultiExp{}},
-	celoPrecompileAddress(28): &wrap{&bls12377Pairing{}},
-	celoPrecompileAddress(29): &wrap{&cip20HashFunctions{Cip20HashesDonut}},
 	celoPrecompileAddress(30): &getValidatorBLS{},
 }
 
@@ -358,9 +314,10 @@ var (
 // modexpMultComplexity implements bigModexp multComplexity formula, as defined in EIP-198
 //
 // def mult_complexity(x):
-//    if x <= 64: return x ** 2
-//    elif x <= 1024: return x ** 2 // 4 + 96 * x - 3072
-//    else: return x ** 2 // 16 + 480 * x - 199680
+//
+//	if x <= 64: return x ** 2
+//	elif x <= 1024: return x ** 2 // 4 + 96 * x - 3072
+//	else: return x ** 2 // 16 + 480 * x - 199680
 //
 // where is x is max(length_of_MODULUS, length_of_BASE)
 func modexpMultComplexity(x *big.Int) *big.Int {
