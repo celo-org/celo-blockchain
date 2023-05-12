@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - master
+      - feature-split
 
   pull_request:
     branches:
       - master
+      - feature-split
 
 concurrency: 
   group: ${{ github.head_ref }}
