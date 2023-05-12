@@ -48,8 +48,7 @@ func newBlockChainWithKeys(genesis *core.Genesis, privateKey *ecdsa.PrivateKey) 
 
 	b, _ := New(&config, memDB).(*Backend)
 
-	var publicKey ecdsa.PublicKey
-	publicKey = privateKey.PublicKey
+	publicKey := privateKey.PublicKey
 	address := crypto.PubkeyToAddress(publicKey)
 	decryptFn := DecryptFn(privateKey)
 	signerFn := SignFn(privateKey)
