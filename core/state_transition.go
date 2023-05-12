@@ -267,26 +267,19 @@ func (st *StateTransition) buyGas(espresso bool) error {
 
 	if st.msg.GatewayFeeRecipient() != nil {
 		balanceCheck = balanceCheck.Add(balanceCheck, st.msg.GatewayFee())
+		mgval = mgval.Add(mgval, st.msg.GatewayFee())
 	}
 
 	if have, want := st.state.GetBalance(st.msg.From()), balanceCheck; have.Cmp(want) < 0 {
 		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
 	}
-
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
 		return err
 	}
 	st.gas += st.msg.Gas()
 
 	st.initialGas = st.msg.Gas()
-
-	effectiveFee := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
-	// If GatewayFeeRecipient is unspecified, the gateway fee value is ignore and the sender is not charged.
-	if st.msg.GatewayFeeRecipient() != nil {
-		effectiveFee.Add(effectiveFee, st.msg.GatewayFee())
-	}
-	log.Trace("Debiting fee", "from", st.msg.From(), "amount", effectiveFee, "feeCurrency", nil)
-	st.state.SubBalance(st.msg.From(), effectiveFee)
+	st.state.SubBalance(st.msg.From(), mgval)
 	return nil
 }
 
