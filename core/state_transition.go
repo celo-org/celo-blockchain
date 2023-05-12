@@ -564,7 +564,7 @@ func (st *StateTransition) buyGasAlternativeCurrency(espresso bool) error {
 	mgval = mgval.Mul(mgval, st.gasPrice)
 	balanceCheck := mgval
 	if espresso {
-		balanceCheck := new(big.Int).SetUint64(st.msg.Gas())
+		balanceCheck = new(big.Int).SetUint64(st.msg.Gas())
 		balanceCheck = balanceCheck.Mul(balanceCheck, st.gasFeeCap)
 		// We don't add st.value because it's on a different currency
 	}
@@ -576,12 +576,12 @@ func (st *StateTransition) buyGasAlternativeCurrency(espresso bool) error {
 
 	var hasEnoughBalance bool
 	if espresso {
-		hasEnoughBalance = balance.Cmp(mgval) >= 0 // (2)
+		hasEnoughBalance = balance.Cmp(balanceCheck) >= 0 // (2)
 	} else {
-		hasEnoughBalance = balance.Cmp(mgval) > 0 // (1)
+		hasEnoughBalance = balance.Cmp(balanceCheck) > 0 // (1)
 	}
 	if !hasEnoughBalance {
-		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), balance, mgval)
+		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), balance, balanceCheck)
 	}
 
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
