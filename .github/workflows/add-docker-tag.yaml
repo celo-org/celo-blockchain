@@ -51,5 +51,5 @@ jobs:
 
       - id: add-tag-celo-org
         run: |
-          gcloud container images add-tag us-docker.pkg.dev/celo-org/gcr.io/geth:${{ inputs.origin-tag }} us-docker.pkg.dev/celo-org/gcr.io/geth:${{ inputs.destination-tag }}
-          gcloud container images add-tag us-docker.pkg.dev/celo-org/gcr.io/geth-all:${{ inputs.origin-tag }} us-docker.pkg.dev/celo-org/gcr.io/geth-all:${{ inputs.destination-tag }}
+          gcloud container images add-tag us-docker.pkg.dev/celo-org/us.gcr.io/geth:${{ inputs.origin-tag }} us-docker.pkg.dev/celo-org/us.gcr.io/geth:${{ inputs.destination-tag }}
+          gcloud container images add-tag us-docker.pkg.dev/celo-org/us.gcr.io/geth-all:${{ inputs.origin-tag }} us-docker.pkg.dev/celo-org/us.gcr.io/geth-all:${{ inputs.destination-tag }}

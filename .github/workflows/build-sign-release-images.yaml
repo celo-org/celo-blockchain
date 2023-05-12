@@ -99,7 +99,7 @@ jobs:
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
       service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
-      artifact-registry: us-docker.pkg.dev/celo-org/gcr.io/geth
+      artifact-registry: us-docker.pkg.dev/celo-org/us.gcr.io/geth
       tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
       context: .
 
@@ -111,7 +111,7 @@ jobs:
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
       service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
-      artifact-registry: us-docker.pkg.dev/celo-org/gcr.io/geth-all
+      artifact-registry: us-docker.pkg.dev/celo-org/us.gcr.io/geth-all
       tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
       context: .
       file: Dockerfile.alltools
