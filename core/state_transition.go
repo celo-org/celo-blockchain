@@ -590,7 +590,7 @@ func (st *StateTransition) buyGasAlternativeCurrency(espresso bool) error {
 	st.gas += st.msg.Gas()
 
 	st.initialGas = st.msg.Gas()
-	// st.state.SubBalance(st.msg.From(), mgval) // We don't do this since it's on a differente currency
+	// st.state.SubBalance(st.msg.From(), mgval) // We don't do this since it's on a different currency
 	return erc20gas.DebitFees(st.evm, st.msg.From(), mgval, st.msg.FeeCurrency())
 }
 
