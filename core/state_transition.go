@@ -335,7 +335,6 @@ func (st *StateTransition) preCheck() error {
 	}
 
 	espresso := st.evm.ChainConfig().IsEspresso(st.evm.Context.BlockNumber)
-
 	if err := st.checkCurrencyIsWhitelisted(espresso); err != nil {
 		return err
 	}
@@ -423,18 +422,25 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		ret, st.gas, vmerr = st.evm.Call(sender, st.to(), st.data, st.gas, st.value)
 	}
 
-	if !espresso {
-		// Before EIP-3529: refunds were capped to gasUsed / 2
-		st.refundGas(params.RefundQuotient)
-	} else {
-		// After EIP-3529: refunds are capped to gasUsed / 5
-		st.refundGas(params.RefundQuotientEIP3529)
-	}
+	// CELO: This functionality has been extracted to distributeFees()
 
-	err = st.distributeTxFees()
-	if err != nil {
+	// if !london {
+	// 	// Before EIP-3529: refunds were capped to gasUsed / 2
+	// 	st.refundGas(params.RefundQuotient)
+	// } else {
+	// 	// After EIP-3529: refunds are capped to gasUsed / 5
+	// 	st.refundGas(params.RefundQuotientEIP3529)
+	// }
+	// effectiveTip := st.gasPrice
+	// if london {
+	// 	effectiveTip = cmath.BigMin(st.gasTipCap, new(big.Int).Sub(st.gasFeeCap, st.evm.Context.BaseFee))
+	// }
+	// st.state.AddBalance(st.evm.Context.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip))
+
+	if err = st.distributeTxFees(espresso); err != nil {
 		return nil, err
 	}
+
 	return &ExecutionResult{
 		UsedGas:    st.gasUsed(),
 		Err:        vmerr,
@@ -449,6 +455,13 @@ func (st *StateTransition) refundGas(refundQuotient uint64) {
 		refund = st.state.GetRefund()
 	}
 	st.gas += refund
+
+	// CELO: This is being handled on distributedTxFees as there are more rules to it
+
+	// // Return ETH for remaining gas, exchanged at the original rate.
+	// remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
+	// st.state.AddBalance(st.msg.From(), remaining)
+
 	// Also return remaining gas to the block gas counter so it is
 	// available for the next transaction.
 	st.gp.AddGas(st.gas)
@@ -460,64 +473,81 @@ func (st *StateTransition) gasUsed() uint64 {
 }
 
 // distributeTxFees calculates the amounts and recipients of transaction fees and credits the accounts.
-func (st *StateTransition) distributeTxFees() error {
-	// Run only primary evm.Call() with tracer
-	if st.evm.GetDebug() {
-		st.evm.SetDebug(false)
-		defer func() { st.evm.SetDebug(true) }()
+func (st *StateTransition) distributeTxFees(espresso bool) error {
+	if !espresso {
+		// Before EIP-3529: refunds were capped to gasUsed / 2
+		st.refundGas(params.RefundQuotient)
+	} else {
+		// After EIP-3529: refunds are capped to gasUsed / 5
+		st.refundGas(params.RefundQuotientEIP3529)
 	}
 
-	// Determine the refund and transaction fee to be distributed.
-	refund := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
-	gasUsed := new(big.Int).SetUint64(st.gasUsed())
-	totalTxFee := new(big.Int).Mul(gasUsed, st.gasPrice)
-	from := st.msg.From()
+	// st.gas = gas que hay q devolver (gas q queda despues de ejecutar todo y aplicar el aplicar)
+	remainingGas := st.gas
+	usedGas := st.initialGas - remainingGas
+
+	toRefund := new(big.Int).Mul(new(big.Int).SetUint64(remainingGas), st.gasPrice)
+	toPayTotal := new(big.Int).Mul(new(big.Int).SetUint64(usedGas), st.gasPrice)
 
 	// Divide the transaction into a base (the minimum transaction fee) and tip (any extra, or min(max tip, feecap - GPM) if espresso).
-	baseTxFee := new(big.Int).Mul(gasUsed, st.baseFee)
+	toPayBase := new(big.Int).Mul(new(big.Int).SetUint64(usedGas), st.baseFee)
 	// No need to do effectiveTip calculation, because st.gasPrice == effectiveGasPrice, and effectiveTip = effectiveGasPrice - baseTxFee
-	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
-
-	feeCurrency := st.msg.FeeCurrency()
+	toPayTip := new(big.Int).Sub(toPayTotal, toPayBase)
 
 	gatewayFeeRecipient := st.msg.GatewayFeeRecipient()
 	if gatewayFeeRecipient == nil {
 		gatewayFeeRecipient = &common.ZeroAddress
 	}
 
-	caller := &vmcontext.SharedEVMRunner{EVM: st.evm}
-	governanceAddress, err := contracts.GetRegisteredAddress(caller, config.GovernanceRegistryId)
+	governanceAddress, err := st.getGovernanceAddress()
 	if err != nil {
-		if err != contracts.ErrSmartContractNotDeployed && err != contracts.ErrRegistryContractNotDeployed {
-			return err
-		}
-		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
-		governanceAddress = common.ZeroAddress
-		refund.Add(refund, baseTxFee)
-		baseTxFee = new(big.Int)
+		return err
+	}
+	if governanceAddress == common.ZeroAddress {
+		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", toPayBase)
+		toRefund.Add(toRefund, toPayBase)
+		toPayBase = new(big.Int)
 	}
 
-	log.Trace("distributeTxFees", "from", from, "refund", refund, "feeCurrency", st.msg.FeeCurrency(),
+	log.Trace("distributeTxFees", "from", st.msg.From(), "refund", toRefund, "feeCurrency", st.msg.FeeCurrency(),
 		"gatewayFeeRecipient", *gatewayFeeRecipient, "gatewayFee", st.msg.GatewayFee(),
-		"coinbaseFeeRecipient", st.evm.Context.Coinbase, "coinbaseFee", tipTxFee,
-		"comunityFundRecipient", governanceAddress, "communityFundFee", baseTxFee)
-	if feeCurrency == nil {
+		"coinbaseFeeRecipient", st.evm.Context.Coinbase, "coinbaseFee", toPayTip,
+		"comunityFundRecipient", governanceAddress, "communityFundFee", toPayBase)
+
+	if st.msg.FeeCurrency() == nil {
 		if gatewayFeeRecipient != &common.ZeroAddress {
 			st.state.AddBalance(*gatewayFeeRecipient, st.msg.GatewayFee())
 		}
 		if governanceAddress != common.ZeroAddress {
-			st.state.AddBalance(governanceAddress, baseTxFee)
+			st.state.AddBalance(governanceAddress, toPayBase)
 		}
-		st.state.AddBalance(st.evm.Context.Coinbase, tipTxFee)
-		st.state.AddBalance(from, refund)
+		st.state.AddBalance(st.evm.Context.Coinbase, toPayTip)
+		st.state.AddBalance(st.msg.From(), toRefund)
 	} else {
-		if err = erc20gas.CreditFees(st.evm, from, st.evm.Context.Coinbase, gatewayFeeRecipient, governanceAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
-			log.Error("Error crediting", "from", from, "coinbase", st.evm.Context.Coinbase, "gateway", gatewayFeeRecipient, "fund", governanceAddress)
+		if err = erc20gas.CreditFees(st.evm, st.msg.From(), st.evm.Context.Coinbase, gatewayFeeRecipient, governanceAddress, toRefund, toPayTip, st.msg.GatewayFee(), toPayBase, st.msg.FeeCurrency()); err != nil {
+			log.Error("Error crediting", "from", st.msg.From(), "coinbase", st.evm.Context.Coinbase, "gateway", gatewayFeeRecipient, "fund", governanceAddress)
 			return err
 		}
 
 	}
 	return nil
+}
+
+func (st *StateTransition) getGovernanceAddress() (common.Address, error) {
+	// Run only primary evm.Call() with tracer
+	if st.evm.GetDebug() {
+		st.evm.SetDebug(false)
+		defer func() { st.evm.SetDebug(true) }()
+	}
+	caller := &vmcontext.SharedEVMRunner{EVM: st.evm}
+	governanceAddress, err := contracts.GetRegisteredAddress(caller, config.GovernanceRegistryId)
+	if err != nil {
+		if err != contracts.ErrSmartContractNotDeployed && err != contracts.ErrRegistryContractNotDeployed {
+			return common.ZeroAddress, err
+		}
+		return common.ZeroAddress, nil
+	}
+	return governanceAddress, nil
 }
 
 // byGasAlternativeCurrency checks whether accountOwner's balance can cover transaction fee.
