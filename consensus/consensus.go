@@ -136,6 +136,9 @@ type Handler interface {
 	// NewWork handles a new work event from the miner
 	NewWork() error
 
+	// NewChainHead handles a new head block
+	NewChainHead(*types.Block)
+
 	// HandleMsg handles a message from peer
 	HandleMsg(address common.Address, data p2p.Msg, peer Peer) (bool, error)
 
@@ -170,12 +173,6 @@ type Istanbul interface {
 
 	// IsValidator returns true if this node is a validator
 	IsValidator() bool
-
-	// IsPrimary returns true if this node is the primary validator
-	IsPrimary() bool
-
-	// IsPrimaryForSeq returns true if this node is the primary validator for the sequence
-	IsPrimaryForSeq(seq *big.Int) bool
 
 	// SetChain injects the blockchain and related functions to the istanbul consensus engine
 	SetChain(chain ChainContext, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error))

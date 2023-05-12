@@ -755,13 +755,6 @@ var (
 		Value: "",
 	}
 
-	// Istanbul settings
-
-	IstanbulReplicaFlag = cli.BoolFlag{
-		Name:  "istanbul.replica",
-		Usage: "Run this node as a validator replica. Must be paired with --mine. Use the RPCs to enable participation in consensus.",
-	}
-
 	// Announce settings
 
 	AnnounceQueryEnodeGossipPeriodFlag = cli.Uint64Flag{
@@ -1421,12 +1414,10 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(LegacyIstanbulProposerPolicyFlag.Name) {
 		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", LegacyIstanbulProposerPolicyFlag.Name)
 	}
-	cfg.Istanbul.ReplicaStateDBPath = stack.ResolvePath(cfg.Istanbul.ReplicaStateDBPath)
 	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
 	cfg.Istanbul.VersionCertificateDBPath = stack.ResolvePath(cfg.Istanbul.VersionCertificateDBPath)
 	cfg.Istanbul.RoundStateDBPath = stack.ResolvePath(cfg.Istanbul.RoundStateDBPath)
 	cfg.Istanbul.Validator = ctx.GlobalIsSet(MiningEnabledFlag.Name) || ctx.GlobalIsSet(DeveloperFlag.Name)
-	cfg.Istanbul.Replica = ctx.GlobalIsSet(IstanbulReplicaFlag.Name)
 	if ctx.GlobalIsSet(MetricsLoadTestCSVFlag.Name) {
 		cfg.Istanbul.LoadTestCSVFile = ctx.GlobalString(MetricsLoadTestCSVFlag.Name)
 	}

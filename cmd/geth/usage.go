@@ -190,9 +190,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 	},
 	{
 		Name: "ISTANBUL",
-		Flags: []cli.Flag{
-			utils.IstanbulReplicaFlag,
-		},
+		Flags: []cli.Flag{},
 	},
 	{
 		Name: "ANNOUNCE",

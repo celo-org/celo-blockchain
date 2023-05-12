@@ -102,8 +102,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 	}
 
 	// If we got here, then that means that there is an istanbul message type that either there
-	// is an istanbul message that is not handled, or it's a forward message not handled (e.g. a
-	// node other than a proxy received the message).
+	// is an istanbul message that is not handled.
 	logger.Error("Unhandled istanbul message", "address", addr, "peer's enodeURL", peer.Node().String(), "ethMsgCode", msg.Code)
 	return false, nil
 }
@@ -231,9 +230,9 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 }
 
 // Actions triggered by a new block being added to the chain.
-func (sb *Backend) newChainHead(newBlock *types.Block) {
+func (sb *Backend) NewChainHead(newBlock *types.Block) {
 
-	sb.logger.Trace("Start newChainHead", "number", newBlock.Number().Uint64())
+	sb.logger.Trace("Start NewChainHead", "number", newBlock.Number().Uint64())
 
 	// Update metrics for whether we were elected and signed the parent of this block.
 	sb.UpdateMetricsForParentOfBlock(newBlock)
@@ -265,7 +264,7 @@ func (sb *Backend) newChainHead(newBlock *types.Block) {
 
 	sb.blocksFinalizedTransactionsGauge.Update(int64(len(newBlock.Transactions())))
 	sb.blocksFinalizedGasUsedGauge.Update(int64(newBlock.GasUsed()))
-	sb.logger.Trace("End newChainHead", "number", newBlock.Number().Uint64())
+	sb.logger.Trace("End NewChainHead", "number", newBlock.Number().Uint64())
 }
 
 func (sb *Backend) RegisterPeer(peer consensus.Peer) error {

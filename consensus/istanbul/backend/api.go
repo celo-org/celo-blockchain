@@ -18,13 +18,11 @@ package backend
 
 import (
 	"fmt"
-	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/replica"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -181,43 +179,6 @@ func (api *API) ForceRoundChange() (bool, error) {
 	}
 	api.istanbul.core.ForceRoundChange()
 	return true, nil
-}
-
-// StartValidating starts the consensus engine
-func (api *API) StartValidating() error {
-	return api.istanbul.MakePrimary()
-}
-
-// StopValidating stops the consensus engine from participating in consensus
-func (api *API) StopValidating() error {
-	return api.istanbul.MakeReplica()
-}
-
-// StartValidatingAtBlock starts the consensus engine on the given
-// block number.
-func (api *API) StartValidatingAtBlock(blockNumber int64) error {
-	seq := big.NewInt(blockNumber)
-	return api.istanbul.SetStartValidatingBlock(seq)
-}
-
-// StopValidatingAtBlock stops the consensus engine from participating in consensus
-// on the given block number.
-func (api *API) StopValidatingAtBlock(blockNumber int64) error {
-	seq := big.NewInt(blockNumber)
-	return api.istanbul.SetStopValidatingBlock(seq)
-}
-
-// IsValidating returns true if this node is participating in the consensus protocol
-func (api *API) IsValidating() bool {
-	return api.istanbul.IsValidating()
-}
-
-// GetCurrentReplicaState retrieves the current replica state
-func (api *API) GetCurrentReplicaState() (*replica.ReplicaStateSummary, error) {
-	if api.istanbul.replicaState != nil {
-		return api.istanbul.replicaState.Summary(), nil
-	}
-	return &replica.ReplicaStateSummary{State: "Not a validator"}, nil
 }
 
 // ResendPreprepare sends again the preprepare message

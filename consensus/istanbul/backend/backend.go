@@ -30,7 +30,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/replica"
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/contracts"
@@ -97,16 +96,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	}
 
 	backend.core = istanbulCore.New(backend, backend.config)
-
-	if config.Validator {
-		rs, err := replica.NewState(config.Replica, config.ReplicaStateDBPath, backend.StartValidating, backend.StopValidating)
-		if err != nil {
-			logger.Crit("Can't open ReplicaStateDB", "err", err, "dbpath", config.ReplicaStateDBPath)
-		}
-		backend.replicaState = rs
-	} else {
-		backend.replicaState = nil
-	}
 
 	backend.vph = newVPH(backend)
 	valEnodeTable, err := announce.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph)
@@ -211,7 +200,6 @@ type Backend struct {
 	currentBlock func() *types.Block
 	hasBadBlock  func(hash common.Hash) bool
 	stateAt      func(hash common.Hash) (*state.StateDB, error)
-	replicaState replica.State
 
 	processBlock        func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
 	validateState       func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
@@ -311,7 +299,6 @@ func (sb *Backend) isCoreStarted() bool {
 
 // IsValidating return true if instance is validating
 func (sb *Backend) IsValidating() bool {
-	// TODO: Maybe a little laggy, but primary / replica should track the core
 	return sb.isCoreStarted()
 }
 
@@ -359,11 +346,6 @@ func (sb *Backend) Close() error {
 	}
 	if err := sb.announceManager.Close(); err != nil {
 		errs = append(errs, err)
-	}
-	if sb.replicaState != nil {
-		if err := sb.replicaState.Close(); err != nil {
-			errs = append(errs, err)
-		}
 	}
 	if err := sb.csvRecorder.Close(); err != nil {
 		errs = append(errs, err)
@@ -924,27 +906,6 @@ func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte
 		}
 
 		return istanbul.CheckValidatorSignature(validator.NewSet(validators), data, sig)
-	}
-}
-
-func (sb *Backend) IsPrimaryForSeq(seq *big.Int) bool {
-	if sb.replicaState != nil {
-		return sb.replicaState.IsPrimaryForSeq(seq)
-	}
-	return false
-}
-
-func (sb *Backend) IsPrimary() bool {
-	if sb.replicaState != nil {
-		return sb.replicaState.IsPrimary()
-	}
-	return false
-}
-
-// UpdateReplicaState updates the replica state with the latest seq.
-func (sb *Backend) UpdateReplicaState(seq *big.Int) {
-	if sb.replicaState != nil {
-		sb.replicaState.NewChainHead(seq)
 	}
 }
 

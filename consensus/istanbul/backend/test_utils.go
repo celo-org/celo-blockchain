@@ -40,7 +40,6 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 func newBlockChainWithKeys(genesis *core.Genesis, privateKey *ecdsa.PrivateKey) (*core.BlockChain, *Backend, *istanbul.Config) {
 	memDB := rawdb.NewMemoryDatabase()
 	config := *istanbul.DefaultConfig
-	config.ReplicaStateDBPath = ""
 	config.ValidatorEnodeDBPath = ""
 	config.VersionCertificateDBPath = ""
 	config.RoundStateDBPath = ""

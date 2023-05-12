@@ -46,12 +46,10 @@ type Config struct {
 	ProposerPolicy              ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
 	Epoch                       uint64         `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
 
-	ReplicaStateDBPath       string `toml:",omitempty"` // The location for the validator replica state DB
 	ValidatorEnodeDBPath     string `toml:",omitempty"` // The location for the validator enodes DB
 	VersionCertificateDBPath string `toml:",omitempty"` // The location for the signed announce version DB
 	RoundStateDBPath         string `toml:",omitempty"` // The location for the round states DB
 	Validator                bool   `toml:",omitempty"` // Specified if this node is configured to validate  (specifically if --mine command line is set)
-	Replica                  bool   `toml:",omitempty"` // Specified if this node is configured to be a replica
 
 	// Announce Configs
 	AnnounceQueryEnodeGossipPeriod                 uint64 `toml:",omitempty"` // Time duration (in seconds) between gossiped query enode messages
@@ -71,12 +69,10 @@ var DefaultConfig = &Config{
 	BlockPeriod:                    5,
 	ProposerPolicy:                 ShuffledRoundRobin,
 	Epoch:                          30000,
-	ReplicaStateDBPath:             "replicastate",
 	ValidatorEnodeDBPath:           "validatorenodes",
 	VersionCertificateDBPath:       "versioncertificates",
 	RoundStateDBPath:               "roundstates",
 	Validator:                      false,
-	Replica:                        false,
 	AnnounceQueryEnodeGossipPeriod: 300, // 5 minutes
 	AnnounceAggressiveQueryEnodeGossipOnEnablement: true,
 	AnnounceAdditionalValidatorsToGossip:           10,

@@ -704,28 +704,6 @@ web3._extend({
 			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter]
 		}),
 		new web3._extend.Method({
-			name: 'startAtBlock',
-			call: 'istanbul_startValidatingAtBlock',
-			params: 1,
-			inputFormatter: [null]
-		}),
-		new web3._extend.Method({
-			name: 'stopAtBlock',
-			call: 'istanbul_stopValidatingAtBlock',
-			params: 1,
-			inputFormatter: [null]
-		}),
-		new web3._extend.Method({
-			name: 'start',
-			call: 'istanbul_startValidating',
-			params: 0,
-		}),
-		new web3._extend.Method({
-			name: 'stop',
-			call: 'istanbul_stopValidating',
-			params: 0,
-		}),
-		new web3._extend.Method({
 			name: 'resendPreprepare',
 			call: 'istanbul_resendPreprepare',
 			params: 0,
@@ -755,14 +733,6 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'currentRoundChangeSet',
 			getter: 'istanbul_getCurrentRoundChangeSet',
-		}),
-		new web3._extend.Property({
-			name: 'validating',
-			getter: 'istanbul_isValidating',
-		}),
-		new web3._extend.Property({
-			name: 'replicaState',
-			getter: 'istanbul_getCurrentReplicaState',
 		}),
 	],
 	properties: []

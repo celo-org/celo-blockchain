@@ -146,7 +146,6 @@ var (
 		utils.LegacyIstanbulRequestTimeoutFlag,
 		utils.LegacyIstanbulBlockPeriodFlag,
 		utils.LegacyIstanbulProposerPolicyFlag,
-		utils.IstanbulReplicaFlag,
 		utils.AnnounceQueryEnodeGossipPeriodFlag,
 		utils.AnnounceAggressiveQueryEnodeGossipOnEnablementFlag,
 		utils.PingIPFromPacketFlag,
@@ -414,12 +413,6 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend) {
 	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
 		if !isFullNode {
 			utils.Fatalf("Miners must be run as a full node")
-		}
-	}
-	// Replicas only makes sense if we are mining
-	if ctx.GlobalBool(utils.IstanbulReplicaFlag.Name) {
-		if !(ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name)) {
-			utils.Fatalf("Must run a replica with mining enabled or in dev mode.")
 		}
 	}
 
