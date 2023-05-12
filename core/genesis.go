@@ -382,7 +382,7 @@ func DefaultAlfajoresGenesisBlock() *Genesis {
 // DeveloperGenesisBlock returns the 'geth --dev' genesis block.
 func DeveloperGenesisBlock(period uint64) *Genesis {
 	// Override the default period to the user requested one
-	config := *params.DeveloperChainConfig
+	config := *params.IstanbulTestChainConfig
 	config.Istanbul.BlockPeriod = period
 	devAlloc := &GenesisAlloc{}
 	devAlloc.UnmarshalJSON([]byte(devAllocJSON))
