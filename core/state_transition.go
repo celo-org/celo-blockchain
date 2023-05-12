@@ -255,6 +255,11 @@ func (st *StateTransition) to() common.Address {
 	return *st.msg.To()
 }
 
+// buyGas checks whether accountOwner's balance can cover transaction fee.
+//
+// For native token(CELO) as feeCurrency:
+//   - Pre-Espresso: it ensures balance >= GasPrice * gas + gatewayFee (1)
+//   - Post-Espresso: it ensures balance >= GasFeeCap * gas + gatewayFee + value (2)
 func (st *StateTransition) buyGas(espresso bool) error {
 	mgval := new(big.Int).SetUint64(st.msg.Gas())
 	mgval = mgval.Mul(mgval, st.gasPrice)
@@ -515,6 +520,10 @@ func (st *StateTransition) distributeTxFees() error {
 	return nil
 }
 
+// byGasAlternativeCurrency checks whether accountOwner's balance can cover transaction fee.
+// For non-native tokens(cUSD, cEUR, ...) as feeCurrency:
+//   - Pre-Espresso: it ensures balance > GasPrice * gas + gatewayFee (1)
+//   - Post-Espresso: it ensures balance >= GasFeeCap * gas + gatewayFee (2) (CIP-45)
 func (st *StateTransition) buyGasAlternativeCurrency(espresso bool) error {
 	balance, err := currency.GetBalanceOf(st.vmRunner, st.msg.From(), *st.msg.FeeCurrency())
 	if err != nil {
@@ -535,14 +544,14 @@ func (st *StateTransition) buyGasAlternativeCurrency(espresso bool) error {
 		mgval = mgval.Add(mgval, st.msg.GatewayFee())
 	}
 
+	var hasEnoughBalance bool
 	if espresso {
-		if have, want := balance, balanceCheck; have.Cmp(want) < 0 {
-			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
-		}
+		hasEnoughBalance = balance.Cmp(mgval) >= 0 // (2)
 	} else {
-		if have, want := balance, balanceCheck; have.Cmp(want) <= 0 {
-			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
-		}
+		hasEnoughBalance = balance.Cmp(mgval) > 0 // (1)
+	}
+	if !hasEnoughBalance {
+		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), balance, mgval)
 	}
 
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
