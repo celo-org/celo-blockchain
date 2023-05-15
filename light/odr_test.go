@@ -118,8 +118,6 @@ type odrTestFnNum func(ctx context.Context, db ethdb.Database, bc *core.BlockCha
 
 func TestOdrGetBlockLes2(t *testing.T) { testChainOdr(t, 1, odrGetBlock) }
 
-func TestOdrGetBlockLightest(t *testing.T) { testLightestChainOdr(t, 1, odrGetBlockHashOrNumber) }
-
 func odrGetBlock(ctx context.Context, db ethdb.Database, bc *core.BlockChain, lc *LightChain, bhash common.Hash) ([]byte, error) {
 	var block *types.Block
 	var err error
@@ -315,7 +313,7 @@ func testChainOdr(t *testing.T, protocol int, fn odrTestFn) {
 	for i, block := range gchain {
 		headers[i] = block.Header()
 	}
-	if _, err := lightchain.InsertHeaderChain(headers, 1, true); err != nil {
+	if _, err := lightchain.InsertHeaderChain(headers, 1); err != nil {
 		t.Fatal(err)
 	}
 
@@ -357,91 +355,4 @@ func testChainOdr(t *testing.T, protocol int, fn odrTestFn) {
 	t.Log("checking without ODR, should be cached")
 	odr.disable = true
 	test(len(gchain))
-}
-
-func testLightestChainOdr(t *testing.T, protocol int, fn odrTestFnNum) {
-	var (
-		sdb     = rawdb.NewMemoryDatabase()
-		ldb     = rawdb.NewMemoryDatabase()
-		gspec   = core.Genesis{Alloc: core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}}}
-		genesis = gspec.MustCommit(sdb)
-	)
-	gspec.MustCommit(ldb)
-	// Assemble the test environment
-	blockchain, _ := core.NewBlockChain(sdb, nil, params.IstanbulTestChainConfig, mockEngine.NewFullFaker(), vm.Config{}, nil, nil)
-	gchain, _ := core.GenerateChain(params.IstanbulTestChainConfig, genesis, mockEngine.NewFaker(), sdb, 4, testChainGen)
-	if _, err := blockchain.InsertChain(gchain); err != nil {
-		t.Fatal(err)
-	}
-
-	odr := &testOdr{sdb: sdb, ldb: ldb, indexerConfig: TestClientIndexerConfig}
-	lightchain, err := NewLightChain(odr, params.IstanbulTestChainConfig, mockEngine.NewFullFaker(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	test := func(expFail int, tryHash bool) {
-		for i := uint64(0); i <= blockchain.CurrentHeader().Number.Uint64(); i++ {
-			bhash := rawdb.ReadCanonicalHash(sdb, i)
-			var origin blockHashOrNumber
-			if tryHash {
-				origin = blockHashOrNumber{Hash: bhash}
-			} else {
-				origin = blockHashOrNumber{Number: &i}
-			}
-			b1, err := fn(NoOdr, sdb, blockchain, nil, origin)
-			if err != nil {
-				t.Fatalf("error in full-node test for block %d: %v", i, err)
-			}
-
-			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-			defer cancel()
-
-			exp := i < uint64(expFail)
-			b2, err := fn(ctx, ldb, nil, lightchain, origin)
-			if err != nil && exp {
-				t.Errorf("error in ODR test for block %d: %v", i, err)
-			}
-
-			eq := bytes.Equal(b1, b2)
-			if exp && !eq {
-				t.Errorf("ODR test output for tryHash %t block %d doesn't match full node", tryHash, i)
-			}
-
-			header := rawdb.ReadHeader(odr.ldb, bhash, i)
-			if exp {
-				if header == nil {
-					t.Errorf("ODR test for tryHash %t block %d did not properly receive/store header", tryHash, i)
-				}
-				headers := []*types.Header{header}
-
-				externTd := lightchain.GetTd(header.Hash(), header.Number.Uint64())
-				localTd := lightchain.GetTd(lightchain.CurrentHeader().Hash(), lightchain.CurrentHeader().Number.Uint64())
-				if externTd != nil && externTd.Cmp(localTd) <= 0 {
-					// If it has no difficulty, it wasn't stored properly (ignored)
-					continue
-				}
-				if _, err := lightchain.InsertHeaderChain(headers, 1, true); err != nil {
-					t.Errorf("ODR test for tryHash %t block %d could not insert header to headerchain", tryHash, i)
-				}
-			}
-		}
-	}
-	// expect retrievals to fail (except genesis block) without a les peer
-	t.Log("checking without ODR")
-	odr.disable = true
-	test(1, true)
-	test(1, false)
-
-	// expect all retrievals to pass with ODR enabled
-	t.Log("checking with ODR")
-	odr.disable = false
-	test(len(gchain), true)
-	test(len(gchain), false)
-
-	// still expect all retrievals to pass, now data should be cached locally
-	t.Log("checking without ODR, should be cached")
-	odr.disable = true
-	test(len(gchain), true)
-	test(len(gchain), false)
 }

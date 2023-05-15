@@ -34,21 +34,8 @@ type pruner struct {
 	wg       sync.WaitGroup
 }
 
-// nonNil returns all non nil indexers
-func nonNil(indexers []*core.ChainIndexer) []*core.ChainIndexer {
-	nn := make([]*core.ChainIndexer, 0, len(indexers))
-	for _, i := range indexers {
-		if i != nil {
-			nn = append(nn, i)
-		}
-	}
-	return nn
-}
-
 // newPruner returns a light chain pruner instance.
 func newPruner(db ethdb.Database, indexers ...*core.ChainIndexer) *pruner {
-	// filter out possible nil indexers (celo lightest mode)
-	indexers = nonNil(indexers)
 	pruner := &pruner{
 		db:       db,
 		indexers: indexers,

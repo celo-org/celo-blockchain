@@ -23,11 +23,10 @@ import "fmt"
 type SyncMode uint32
 
 const (
-	FullSync     SyncMode = iota // Synchronise the entire blockchain history from full blocks
-	FastSync                     // Quickly download the headers, full sync only at the chain head
-	SnapSync                     // Download the chain and the state via compact snapshots
-	LightSync                    // Download only the headers and terminate afterwards
-	LightestSync                 // Synchronise one block per Epoch (Celo-specific mode)
+	FullSync  SyncMode = iota // Synchronise the entire blockchain history from full blocks
+	FastSync                  // Quickly download the headers, full sync only at the chain
+	SnapSync                  // Download the chain and the state via compact snapshots
+	LightSync                 // Download only the headers and terminate afterwards
 )
 
 func FromString(syncModeStr string) SyncMode {
@@ -40,15 +39,13 @@ func FromString(syncModeStr string) SyncMode {
 	// 	return SnapSync
 	case "light":
 		return LightSync
-	case "lightest":
-		return LightestSync
 	default:
 		panic("Unknown syncModeStr: " + syncModeStr)
 	}
 }
 
 func (mode SyncMode) IsValid() bool {
-	return mode >= FullSync && mode <= LightestSync
+	return mode >= FullSync && mode <= LightSync
 }
 
 // String implements the stringer interface.
@@ -62,8 +59,6 @@ func (mode SyncMode) String() string {
 	// 	return "snap"
 	case LightSync:
 		return "light"
-	case LightestSync:
-		return "lightest"
 	default:
 		return "unknown"
 	}
@@ -80,8 +75,6 @@ func (mode SyncMode) MarshalText() ([]byte, error) {
 	// TODO: Implement snap sync
 	case LightSync:
 		return []byte("light"), nil
-	case LightestSync:
-		return []byte("lightest"), nil
 	default:
 		return nil, fmt.Errorf("unknown sync mode %d", mode)
 	}
@@ -98,45 +91,8 @@ func (mode *SyncMode) UnmarshalText(text []byte) error {
 	// TODO: Implement snap sync
 	case "light":
 		*mode = LightSync
-	case "lightest":
-		*mode = LightestSync
 	default:
-		return fmt.Errorf(`unknown sync mode %q, want "full", "fast", "light", or "lightest"`, text)
+		return fmt.Errorf(`unknown sync mode %q, want "full", "fast" or "light"`, text)
 	}
 	return nil
-}
-
-// TODO: Enable snap sync mode here. (https://github.com/celo-org/celo-blockchain/issues/1735)
-
-// Returns true if the all headers and not just some a small, discontinuous, set of headers are fetched.
-func (mode SyncMode) SyncFullHeaderChain() bool {
-	switch mode {
-	case FullSync:
-		return true
-	case FastSync:
-		return true
-	case LightSync:
-		return true
-	case LightestSync:
-		return false
-	default:
-		panic(fmt.Errorf("unknown sync mode %d", mode))
-	}
-}
-
-// Returns true if the full blocks (and not just headers) are fetched.
-// If a mode returns true here then it will return true for `SyncFullHeaderChain` as well.
-func (mode SyncMode) SyncFullBlockChain() bool {
-	switch mode {
-	case FullSync:
-		return true
-	case FastSync:
-		return true
-	case LightSync:
-		return false
-	case LightestSync:
-		return false
-	default:
-		panic(fmt.Errorf("unknown sync mode %d", mode))
-	}
 }

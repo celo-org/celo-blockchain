@@ -113,7 +113,7 @@ func TestCheckValidatorSignature(t *testing.T) {
 
 func TestNormalCommit(t *testing.T) {
 
-	chain, backend := newBlockChain(1, true)
+	chain, backend := newBlockChain(1)
 	defer chain.Stop()
 	block := makeBlockWithoutSeal(chain, backend, chain.Genesis())
 	expBlock, _ := backend.signBlock(block)
@@ -143,7 +143,7 @@ func TestNormalCommit(t *testing.T) {
 
 func TestInvalidCommit(t *testing.T) {
 
-	chain, backend := newBlockChain(1, true)
+	chain, backend := newBlockChain(1)
 	defer chain.Stop()
 	block := makeBlockWithoutSeal(chain, backend, chain.Genesis())
 	expBlock, _ := backend.signBlock(block)
@@ -158,7 +158,7 @@ func TestInvalidCommit(t *testing.T) {
 
 func TestGetProposer(t *testing.T) {
 	numValidators := 1
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators)
 	chain, engine, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[0])
 	defer chain.Stop()
 	if _, err := makeBlock(nodeKeys, chain, engine, chain.Genesis()); err != nil {

@@ -42,12 +42,11 @@ import (
 )
 
 var (
-	MaxBlockFetch       = 128 // Amount of blocks to be fetched per retrieval request
-	MaxHeaderFetch      = 192 // Amount of block headers to be fetched per retrieval request
-	MaxEpochHeaderFetch = 192 // Number of epoch block headers to fetch (only used in IBFT consensus + Lightest sync mode)
-	MaxSkeletonSize     = 128 // Number of header fetches to need for a skeleton assembly
-	MaxReceiptFetch     = 256 // Amount of transaction receipts to allow fetching per request
-	MaxStateFetch       = 384 // Amount of node state values to allow fetching per request
+	MaxBlockFetch   = 128 // Amount of blocks to be fetched per retrieval request
+	MaxHeaderFetch  = 192 // Amount of block headers to be fetched per retrieval request
+	MaxSkeletonSize = 128 // Number of header fetches to need for a skeleton assembly
+	MaxReceiptFetch = 256 // Amount of transaction receipts to allow fetching per request
+	MaxStateFetch   = 384 // Amount of node state values to allow fetching per request
 
 	maxQueuedHeaders            = 32 * 1024                         // [celo/63|eth/62] Maximum number of headers to queue for import (DOS protection)
 	maxHeadersProcess           = 2048                              // Number of header download results to import at once into the chain
@@ -177,7 +176,7 @@ type LightChain interface {
 	GetTd(common.Hash, uint64) *big.Int
 
 	// InsertHeaderChain inserts a batch of headers into the local chain.
-	InsertHeaderChain([]*types.Header, int, bool) (int, error)
+	InsertHeaderChain([]*types.Header, int) (int, error)
 
 	Config() *params.ChainConfig
 	// SetHead rewinds the local chain to a new head.
@@ -832,7 +831,7 @@ func (d *Downloader) findAncestor(p *peerConnection, remoteHeader *types.Header)
 
 	// If we're doing a light sync, ensure the floor doesn't go below the CHT, as
 	// all headers before that point will be missing.
-	if !mode.SyncFullBlockChain() {
+	if mode == LightSync {
 		// If we don't know the current CHT position, find it
 		if d.genesis == 0 {
 			header := d.lightchain.CurrentHeader()
@@ -1056,7 +1055,6 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, height uint64)
 	timeout := time.NewTimer(0) // timer to dump a non-responsive active peer
 	<-timeout.C                 // timeout channel should be initially empty
 	defer timeout.Stop()
-	epoch := d.epoch
 
 	var ttl time.Duration
 	getHeaders := func(from uint64) {
@@ -1077,53 +1075,22 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, height uint64)
 	}
 
 	mode := d.getMode()
-	getEpochHeaders := func(fromEpochBlock uint64) {
-		if mode != LightestSync {
-			panic("This method should be called only in LightestSync mode")
-		}
-		if fromEpochBlock%epoch != 0 {
-			panic(fmt.Sprintf(
-				"Logic error: getEpochHeaders received a request to fetch non-epoch block %d with epoch %d",
-				fromEpochBlock, epoch))
-		}
 
-		request = time.Now()
+	// 	request = time.Now()
 
-		ttl = d.peers.rates.TargetTimeout()
-		timeout.Reset(ttl)
+	// 	ttl = d.peers.rates.TargetTimeout()
+	// 	timeout.Reset(ttl)
 
-		// if epoch is 100 and we fetch from=1000 and skip=100 then we will get
-		// 1000, 1101, 1202, 1303 ...
-		// So, skip has to be epoch - 1 to get the right set of blocks.
-		skip := int(epoch - 1)
-		count := MaxEpochHeaderFetch
-		log.Trace("getEpochHeaders", "from", fromEpochBlock, "count", count, "skip", skip)
-		p.log.Trace("Fetching full headers", "count", count, "from", fromEpochBlock)
-		go p.peer.RequestHeadersByNumber(fromEpochBlock, count, skip, false)
-	}
+	// 	// if epoch is 100 and we fetch from=1000 and skip=100 then we will get
+	// 	// 1000, 1101, 1202, 1303 ...
+	// 	// So, skip has to be epoch - 1 to get the right set of blocks.
+	// 	skip := int(epoch - 1)
+	// 	count := MaxEpochHeaderFetch
+	// 	log.Trace("getEpochHeaders", "from", fromEpochBlock, "count", count, "skip", skip)
+	// 	p.log.Trace("Fetching full headers", "count", count, "from", fromEpochBlock)
+	// 	go p.peer.RequestHeadersByNumber(fromEpochBlock, count, skip, false)
+	// }
 
-	// Returns true if a header(s) fetch request was made, false if the syncing is finished.
-	getEpochOrNormalHeaders := func(from uint64) bool {
-		// Download the epoch headers including and beyond the current head.
-		nextEpochBlock := (from-1)/epoch*epoch + epoch
-		// If we're still not synced up to the latest epoch, sync only epoch headers.
-		// Otherwise, sync block headers as we would normally in light sync.
-		log.Trace("Getting headers in lightest sync mode", "from", from, "height", height, "nextEpochBlock", nextEpochBlock, "epoch", epoch)
-		if nextEpochBlock < height {
-			getEpochHeaders(nextEpochBlock)
-			return true
-		} else if from <= height {
-			getHeaders(height)
-			return true
-		} else {
-			// During repeated invocations, "from" can be more than height since the blocks could have
-			// created after this method was invoked and in that case, the from which is one beyond the
-			// last fetched header number can be more than the height.
-			// If we have already fetched a block header >= height block header then we declare that the sync
-			// is finished and stop.
-			return false
-		}
-	}
 	// TODO(ponti): Re add the "moving" pivot, after changing the way we calculate the uptimeScore
 	// getNextPivot := func() {
 	// 	pivoting = true
@@ -1142,17 +1109,8 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, height uint64)
 	// Start pulling the header chain skeleton until all is done
 	ancestor := from
 
-	if mode == LightestSync {
-		if epoch == 0 {
-			panic("Epoch cannot be 0 in IBFT + LightestSync")
-		}
-		// Don't fetch skeleton, only fetch the headers.
-		skeleton = false
-		getEpochOrNormalHeaders(from)
-	} else {
-		log.Trace("getHeaders#initialHeaderDownload", "from", from)
-		getHeaders(from)
-	}
+	log.Trace("getHeaders#initialHeaderDownload", "from", from)
+	getHeaders(from)
 
 	for {
 		select {
@@ -1290,43 +1248,25 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, height uint64)
 				case <-d.cancelCh:
 					return errCanceled
 				}
-				// In all other sync modes, we fetch the block immediately after the current block.
-				// In the lightest sync mode, increment the value by epoch instead.
-				if mode == LightestSync {
-					lastFetchedHeaderNumber := headers[len(headers)-1].Number.Uint64()
-					moreHeaderFetchesPending := getEpochOrNormalHeaders(lastFetchedHeaderNumber + 1)
-					if !moreHeaderFetchesPending {
-						p.log.Debug("No more headers available")
-						select {
-						case d.headerProcCh <- nil:
-							return nil
-						case <-d.cancelCh:
-							return errCanceled
-						}
-					}
-				} else {
-					from += uint64(len(headers))
-					log.Trace("getHeaders#downloadMoreHeaders", "from", from)
-					// If we're still skeleton filling fast sync, check pivot staleness
-					// before continuing to the next skeleton filling
 
-					// TODO(ponti): Re add the "moving" pivot, after changing the way we calculate the uptimeScore
-					// if skeleton && pivot > 0 {
-					// 	getNextPivot()
-					// } else {
-					getHeaders(from)
-					// }
-				}
+				from += uint64(len(headers))
+				log.Trace("getHeaders#downloadMoreHeaders", "from", from)
+				// If we're still skeleton filling fast sync, check pivot staleness
+				// before continuing to the next skeleton filling
+
+				// TODO(ponti): Re add the "moving" pivot, after changing the way we calculate the uptimeScore
+				// if skeleton && pivot > 0 {
+				// 	getNextPivot()
+				// } else {
+				getHeaders(from)
+				// }
+				// }
 			} else {
 				// No headers delivered, or all of them being delayed, sleep a bit and retry
 				p.log.Trace("All headers delayed, waiting")
 				select {
 				case <-time.After(fsHeaderContCheck):
-					if mode == LightestSync {
-						getEpochOrNormalHeaders(from)
-					} else {
-						getHeaders(from)
-					}
+					getHeaders(from)
 					continue
 				case <-d.cancelCh:
 					return errCanceled
@@ -1659,7 +1599,7 @@ func (d *Downloader) processHeaders(origin uint64, td *big.Int) error {
 	defer func() {
 		if rollback > 0 {
 			lastHeader, lastFastBlock, lastBlock := d.lightchain.CurrentHeader().Number, common.Big0, common.Big0
-			if mode.SyncFullBlockChain() {
+			if mode != LightSync {
 				lastFastBlock = d.blockchain.CurrentFastBlock().Number()
 				lastBlock = d.blockchain.CurrentBlock().Number()
 			}
@@ -1668,7 +1608,7 @@ func (d *Downloader) processHeaders(origin uint64, td *big.Int) error {
 				log.Error("Failed to roll back chain segment", "head", rollback-1, "err", err)
 			}
 			curFastBlock, curBlock := common.Big0, common.Big0
-			if mode.SyncFullBlockChain() {
+			if mode != LightSync {
 				curFastBlock = d.blockchain.CurrentFastBlock().Number()
 				curBlock = d.blockchain.CurrentBlock().Number()
 			}
@@ -1709,7 +1649,7 @@ func (d *Downloader) processHeaders(origin uint64, td *big.Int) error {
 				// L: Sync begins, and finds common ancestor at 11
 				// L: Request new headers up from 11 (R's TD was higher, it must have something)
 				// R: Nothing to give
-				if mode.SyncFullBlockChain() {
+				if mode != LightSync {
 					head := d.blockchain.CurrentBlock()
 					if !gotHeaders && td.Cmp(d.blockchain.GetTd(head.Hash(), head.NumberU64())) > 0 {
 						rollbackErr = errStallingPeer
@@ -1752,7 +1692,7 @@ func (d *Downloader) processHeaders(origin uint64, td *big.Int) error {
 				chunk := headers[:limit]
 
 				// In case of header only syncing, validate the chunk immediately
-				if mode == FastSync || !mode.SyncFullBlockChain() { // mode != FullSync ?
+				if mode == FastSync || mode == LightSync {
 					// If we're importing pure headers, verify based on their recentness
 					var pivot uint64
 
@@ -1766,7 +1706,7 @@ func (d *Downloader) processHeaders(origin uint64, td *big.Int) error {
 					if chunk[len(chunk)-1].Number.Uint64()+uint64(fsHeaderForceVerify) > pivot {
 						frequency = 1
 					}
-					if n, err := d.lightchain.InsertHeaderChain(chunk, frequency, mode.SyncFullHeaderChain()); err != nil {
+					if n, err := d.lightchain.InsertHeaderChain(chunk, frequency); err != nil {
 						rollbackErr = err
 
 						// If some headers were inserted, track them as uncertain
@@ -1787,7 +1727,7 @@ func (d *Downloader) processHeaders(origin uint64, td *big.Int) error {
 					}
 				}
 				// Unless we're doing light chains, schedule the headers for associated content retrieval
-				if mode.SyncFullBlockChain() {
+				if mode == FullSync || mode == FastSync {
 					// If we've reached the allowed number of pending headers, stall a bit
 					for d.queue.PendingBlocks() >= maxQueuedHeaders || d.queue.PendingReceipts() >= maxQueuedHeaders {
 						select {

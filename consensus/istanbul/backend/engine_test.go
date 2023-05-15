@@ -42,7 +42,7 @@ func stopEngine(engine *Backend) {
 func TestPrepare(t *testing.T) {
 	g := NewGomegaWithT(t)
 
-	chain, engine := newBlockChain(1, true)
+	chain, engine := newBlockChain(1)
 	defer stopEngine(engine)
 	defer chain.Stop()
 	header := makeHeader(chain.Genesis(), engine.config)
@@ -58,7 +58,7 @@ func TestMakeBlockWithSignature(t *testing.T) {
 	g := NewGomegaWithT(t)
 
 	numValidators := 1
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators)
 	chain, engine, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[0])
 
 	defer stopEngine(engine)
@@ -76,7 +76,7 @@ func TestMakeBlockWithSignature(t *testing.T) {
 }
 
 func TestSealCommitted(t *testing.T) {
-	chain, engine := newBlockChain(1, true)
+	chain, engine := newBlockChain(1)
 	defer stopEngine(engine)
 	defer chain.Stop()
 	// In normal case, the StateProcessResult should be passed into Commit
@@ -107,7 +107,7 @@ func TestSealCommitted(t *testing.T) {
 
 func TestVerifyHeader(t *testing.T) {
 	g := NewGomegaWithT(t)
-	chain, engine := newBlockChain(1, true)
+	chain, engine := newBlockChain(1)
 	defer stopEngine(engine)
 	defer chain.Stop()
 
@@ -146,7 +146,7 @@ func TestVerifyHeader(t *testing.T) {
 func TestVerifySeal(t *testing.T) {
 	g := NewGomegaWithT(t)
 	numValidators := 1
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators)
 	chain, engine, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[0])
 	defer stopEngine(engine)
 	defer chain.Stop()
@@ -193,7 +193,7 @@ func TestVerifySeal(t *testing.T) {
 
 func TestVerifyHeaders(t *testing.T) {
 	numValidators := 1
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators)
 	chain, engine, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[0])
 	defer stopEngine(engine)
 	defer chain.Stop()
@@ -299,30 +299,6 @@ func TestVerifyHeaders(t *testing.T) {
 				break OUT3
 			}
 		}
-	})
-}
-
-func TestVerifyHeaderWithoutFullChain(t *testing.T) {
-	chain, engine := newBlockChain(1, false)
-	defer stopEngine(engine)
-	defer chain.Stop()
-
-	t.Run("should allow future block without full chain available", func(t *testing.T) {
-		g := NewGomegaWithT(t)
-		block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-		header := block.Header()
-		header.Time = uint64(now().Unix() + 3)
-		err := engine.VerifyHeader(chain, header, false)
-		g.Expect(err).To(BeIdenticalTo(errEmptyAggregatedSeal))
-	})
-
-	t.Run("should reject future block without full chain available", func(t *testing.T) {
-		g := NewGomegaWithT(t)
-		block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-		header := block.Header()
-		header.Time = uint64(now().Unix() + 10)
-		err := engine.VerifyHeader(chain, header, false)
-		g.Expect(err).To(BeIdenticalTo(consensus.ErrFutureBlock))
 	})
 }
 

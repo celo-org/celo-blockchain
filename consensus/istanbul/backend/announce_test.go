@@ -19,7 +19,7 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	t.Skip() // Flaky
 	// Create three backends
 	numValidators := 3
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators)
 
 	chain0, engine0, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[0])
 	defer chain0.Stop()
@@ -153,7 +153,7 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 func TestHandleEnodeCertificateMsg(t *testing.T) {
 	// Create two backends
 	numValidators := 2
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators)
 
 	chain0, engine0, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[0])
 	defer chain0.Stop()
@@ -206,7 +206,7 @@ func TestHandleEnodeCertificateMsg(t *testing.T) {
 func TestSetAndShareUpdatedAnnounceVersion(t *testing.T) {
 	// Create one backend
 	numValidators := 1
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators)
 
 	chain, engine, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[0])
 	defer chain.Stop()

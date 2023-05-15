@@ -353,15 +353,8 @@ func (lc *LightChain) Rollback(chain []common.Hash, fullHeaderChainAvailable boo
 		// last step, however the direction of rollback is from high
 		// to low, so it's safe the update in-memory markers directly.
 		if head := lc.hc.CurrentHeader(); head.Hash() == hash {
-			parentHeader := lc.GetHeader(head.ParentHash, head.Number.Uint64()-1)
-			// In all sync modes except LightestSync, a complete header chain is available.
-			// Maintain the old behavior in those cases.
-			if parentHeader != nil {
-				rawdb.WriteHeadHeaderHash(batch, head.ParentHash)
-				lc.hc.SetCurrentHeader(parentHeader)
-			} else {
-				log.Warn(fmt.Sprintf("Cannot rollback current head %v, parent block is missing", head))
-			}
+			rawdb.WriteHeadHeaderHash(batch, head.ParentHash)
+			lc.hc.SetCurrentHeader(lc.GetHeader(head.ParentHash, head.Number.Uint64()-1))
 		}
 	}
 	if err := batch.Write(); err != nil {
@@ -396,12 +389,12 @@ func (lc *LightChain) postChainEvents(events []interface{}) {
 //
 // In the case of a light chain, InsertHeaderChain also creates and posts light
 // chain events when necessary.
-func (lc *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int, contiguousHeaders bool) (int, error) {
+func (lc *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (int, error) {
 	if atomic.LoadInt32(&lc.disableCheckFreq) == 1 {
 		checkFreq = 0
 	}
 	start := time.Now()
-	if i, err := lc.hc.ValidateHeaderChain(chain, checkFreq, contiguousHeaders); err != nil {
+	if i, err := lc.hc.ValidateHeaderChain(chain, checkFreq); err != nil {
 		log.Error(fmt.Sprintf("Failed to validate the header chain at %d due to \"%v\"", i, err))
 		return i, err
 	}

@@ -153,7 +153,7 @@ func (hc *HeaderChain) writeHeaders(headers []*types.Header) (result *headerWrit
 		return &headerWriteResult{}, nil
 	}
 	ptd := hc.GetTd(headers[0].ParentHash, headers[0].Number.Uint64()-1)
-	if ptd == nil && hc.config.FullHeaderChainAvailable {
+	if ptd == nil {
 		return &headerWriteResult{}, consensus.ErrUnknownAncestor
 	}
 	var (
@@ -256,13 +256,6 @@ func (hc *HeaderChain) writeHeaders(headers []*types.Header) (result *headerWrit
 				headHeader = hc.GetHeader(headHash, headNumber)
 			)
 			for rawdb.ReadCanonicalHash(hc.chainDb, headNumber) != headHash {
-				// In some sync modes we do not have all headers.
-				if !hc.config.FullHeaderChainAvailable {
-					if headHeader == nil {
-						log.Debug("WriteHeader/nil head header encountered")
-						break
-					}
-				}
 				rawdb.WriteCanonicalHash(markerBatch, headHash, headNumber)
 				headHash = headHeader.ParentHash
 				headNumber = headHeader.Number.Uint64() - 1
@@ -310,29 +303,29 @@ func (hc *HeaderChain) writeHeaders(headers []*types.Header) (result *headerWrit
 	}, nil
 }
 
-func (hc *HeaderChain) ValidateHeaderChain(chain []*types.Header, checkFreq int, contiguousHeaders bool) (int, error) {
+func (hc *HeaderChain) ValidateHeaderChain(chain []*types.Header, checkFreq int) (int, error) {
 	// Do a sanity check that the provided chain is actually ordered and linked
-	if contiguousHeaders {
-		for i := 1; i < len(chain); i++ {
-			if chain[i].Number.Uint64() != chain[i-1].Number.Uint64()+1 {
-				hash := chain[i].Hash()
-				parentHash := chain[i-1].Hash()
-				// Chain broke ancestry, log a message (programming error) and skip insertion
-				log.Error("Non contiguous header insert", "number", chain[i].Number, "hash", hash,
-					"parent", chain[i].ParentHash, "prevnumber", chain[i-1].Number, "prevhash", parentHash)
-				return 0, fmt.Errorf("non contiguous insert: item %d is #%d [%x..], item %d is #%d [%x..] (parent [%x..])", i-1, chain[i-1].Number,
-					parentHash.Bytes()[:4], i, chain[i].Number, hash.Bytes()[:4], chain[i].ParentHash[:4])
-			}
-			// If the header is a banned one, straight out abort
-			if BadHashes[chain[i].ParentHash] {
-				return i - 1, ErrBannedHash
-			}
-			// If it's the last header in the cunk, we need to check it too
-			if i == len(chain)-1 && BadHashes[chain[i].Hash()] {
-				return i, ErrBannedHash
-			}
+	for i := 1; i < len(chain); i++ {
+		if chain[i].Number.Uint64() != chain[i-1].Number.Uint64()+1 {
+			hash := chain[i].Hash()
+			parentHash := chain[i-1].Hash()
+			// Chain broke ancestry, log a message (programming error) and skip insertion
+			log.Error("Non contiguous header insert", "number", chain[i].Number, "hash", hash,
+				"parent", chain[i].ParentHash, "prevnumber", chain[i-1].Number, "prevhash", parentHash)
+
+			return 0, fmt.Errorf("non contiguous insert: item %d is #%d [%x..], item %d is #%d [%x..] (parent [%x..])", i-1, chain[i-1].Number,
+				parentHash.Bytes()[:4], i, chain[i].Number, hash.Bytes()[:4], chain[i].ParentHash[:4])
+		}
+		// If the header is a banned one, straight out abort
+		if BadHashes[chain[i].ParentHash] {
+			return i - 1, ErrBannedHash
+		}
+		// If it's the last header in the cunk, we need to check it too
+		if i == len(chain)-1 && BadHashes[chain[i].Hash()] {
+			return i, ErrBannedHash
 		}
 	}
+
 	// Generate the list of seal verification requests, and start the parallel verifier
 	seals := make([]bool, len(chain))
 	if checkFreq != 0 {
@@ -585,11 +578,6 @@ func (hc *HeaderChain) SetHead(head uint64, updateFn UpdateHeadBlocksCallback, d
 		var nums []uint64
 		parent := hc.GetHeader(hdr.ParentHash, num-1)
 		if parent == nil {
-			if !hc.config.FullHeaderChainAvailable {
-				for i := hc.config.Istanbul.Epoch; i < num; i += hc.config.Istanbul.Epoch {
-					nums = append(nums, i)
-				}
-			}
 			parent = hc.genesisHeader
 		}
 		parentHash = parent.Hash()

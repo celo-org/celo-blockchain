@@ -69,7 +69,7 @@ func newCanonical(engine consensus.Engine, n int, full bool) (ethdb.Database, *B
 	}
 	// Header-only chain requested
 	headers := makeHeaderChain(genesis.Header(), n, engine, db, canonicalSeed)
-	_, err := blockchain.InsertHeaderChain(headers, 1, true)
+	_, err := blockchain.InsertHeaderChain(headers, 1)
 	return db, blockchain, err
 }
 
@@ -110,7 +110,7 @@ func testFork(t *testing.T, blockchain *BlockChain, i, n int, full bool, compara
 		}
 	} else {
 		headerChainB = makeHeaderChain(blockchain2.CurrentHeader(), n, mockEngine.NewFaker(), db, forkSeed)
-		if _, err := blockchain2.InsertHeaderChain(headerChainB, 1, true); err != nil {
+		if _, err := blockchain2.InsertHeaderChain(headerChainB, 1); err != nil {
 			t.Fatalf("failed to insert forking chain: %v", err)
 		}
 	}
@@ -409,10 +409,10 @@ func testReorg(t *testing.T, first, second []int64, td int64, full bool) {
 		for i, block := range diffBlocks {
 			diffHeaders[i] = block.Header()
 		}
-		if _, err := blockchain.InsertHeaderChain(easyHeaders, 1, true); err != nil {
+		if _, err := blockchain.InsertHeaderChain(easyHeaders, 1); err != nil {
 			t.Fatalf("failed to insert easy chain: %v", err)
 		}
-		if _, err := blockchain.InsertHeaderChain(diffHeaders, 1, true); err != nil {
+		if _, err := blockchain.InsertHeaderChain(diffHeaders, 1); err != nil {
 			t.Fatalf("failed to insert difficult chain: %v", err)
 		}
 	}
@@ -471,7 +471,7 @@ func testBadHashes(t *testing.T, full bool) {
 		BadHashes[headers[2].Hash()] = true
 		defer func() { delete(BadHashes, headers[2].Hash()) }()
 
-		_, err = blockchain.InsertHeaderChain(headers, 1, true)
+		_, err = blockchain.InsertHeaderChain(headers, 1)
 	}
 	if !errors.Is(err, ErrBannedHash) {
 		t.Errorf("error mismatch: have: %v, want: %v", err, ErrBannedHash)
@@ -503,7 +503,7 @@ func testReorgBadHashes(t *testing.T, full bool) {
 		BadHashes[blocks[3].Header().Hash()] = true
 		defer func() { delete(BadHashes, blocks[3].Header().Hash()) }()
 	} else {
-		if _, err = blockchain.InsertHeaderChain(headers, 1, true); err != nil {
+		if _, err = blockchain.InsertHeaderChain(headers, 1); err != nil {
 			t.Errorf("failed to import headers: %v", err)
 		}
 		if blockchain.CurrentHeader().Hash() != headers[3].Hash() {
@@ -566,7 +566,7 @@ func testInsertNonceError(t *testing.T, full bool) {
 
 			blockchain.engine = mockEngine.NewFakeFailer(failNum)
 			blockchain.hc.engine = blockchain.engine
-			failRes, err = blockchain.InsertHeaderChain(headers, 1, true)
+			failRes, err = blockchain.InsertHeaderChain(headers, 1)
 		}
 		// Check that the returned error indicates the failure
 		if failRes != failAt {
@@ -636,7 +636,7 @@ func TestFastVsFullChains(t *testing.T) {
 	for i, block := range blocks {
 		headers[i] = block.Header()
 	}
-	if n, err := fast.InsertHeaderChain(headers, 1, true); err != nil {
+	if n, err := fast.InsertHeaderChain(headers, 1); err != nil {
 		t.Fatalf("failed to insert header %d: %v", n, err)
 	}
 	if n, err := fast.InsertReceiptChain(blocks, receipts, 0); err != nil {
@@ -656,7 +656,7 @@ func TestFastVsFullChains(t *testing.T) {
 	ancient, _ := NewBlockChain(ancientDb, nil, gspec.Config, mockEngine.NewFaker(), vm.Config{}, nil, nil)
 	defer ancient.Stop()
 
-	if n, err := ancient.InsertHeaderChain(headers, 1, true); err != nil {
+	if n, err := ancient.InsertHeaderChain(headers, 1); err != nil {
 		t.Fatalf("failed to insert header %d: %v", n, err)
 	}
 	if n, err := ancient.InsertReceiptChain(blocks, receipts, uint64(len(blocks)/2)); err != nil {
@@ -789,7 +789,7 @@ func TestLightVsFastVsFullChainHeads(t *testing.T) {
 	for i, block := range blocks {
 		headers[i] = block.Header()
 	}
-	if n, err := fast.InsertHeaderChain(headers, 1, true); err != nil {
+	if n, err := fast.InsertHeaderChain(headers, 1); err != nil {
 		t.Fatalf("failed to insert header %d: %v", n, err)
 	}
 	if n, err := fast.InsertReceiptChain(blocks, receipts, 0); err != nil {
@@ -805,7 +805,7 @@ func TestLightVsFastVsFullChainHeads(t *testing.T) {
 	ancient, _ := NewBlockChain(ancientDb, nil, gspec.Config, mockEngine.NewFaker(), vm.Config{}, nil, nil)
 	defer ancient.Stop()
 
-	if n, err := ancient.InsertHeaderChain(headers, 1, true); err != nil {
+	if n, err := ancient.InsertHeaderChain(headers, 1); err != nil {
 		t.Fatalf("failed to insert header %d: %v", n, err)
 	}
 	if n, err := ancient.InsertReceiptChain(blocks, receipts, uint64(3*len(blocks)/4)); err != nil {
@@ -822,7 +822,7 @@ func TestLightVsFastVsFullChainHeads(t *testing.T) {
 	lightDb, delfn := makeDb()
 	defer delfn()
 	light, _ := NewBlockChain(lightDb, nil, gspec.Config, mockEngine.NewFaker(), vm.Config{}, nil, nil)
-	if n, err := light.InsertHeaderChain(headers, 1, true); err != nil {
+	if n, err := light.InsertHeaderChain(headers, 1); err != nil {
 		t.Fatalf("failed to insert header %d: %v", n, err)
 	}
 	defer light.Stop()
@@ -1622,7 +1622,7 @@ func TestBlockchainRecovery(t *testing.T) {
 	for i, block := range blocks {
 		headers[i] = block.Header()
 	}
-	if n, err := ancient.InsertHeaderChain(headers, 1, true); err != nil {
+	if n, err := ancient.InsertHeaderChain(headers, 1); err != nil {
 		t.Fatalf("failed to insert header %d: %v", n, err)
 	}
 	if n, err := ancient.InsertReceiptChain(blocks, receipts, uint64(3*len(blocks)/4)); err != nil {
@@ -1831,7 +1831,7 @@ func testInsertKnownChainData(t *testing.T, typ string) {
 			for _, block := range blocks {
 				headers = append(headers, block.Header())
 			}
-			_, err := chain.InsertHeaderChain(headers, 1, true)
+			_, err := chain.InsertHeaderChain(headers, 1)
 			return err
 		}
 		asserter = func(t *testing.T, block *types.Block) {
@@ -1845,7 +1845,7 @@ func testInsertKnownChainData(t *testing.T, typ string) {
 			for _, block := range blocks {
 				headers = append(headers, block.Header())
 			}
-			_, err := chain.InsertHeaderChain(headers, 1, true)
+			_, err := chain.InsertHeaderChain(headers, 1)
 			if err != nil {
 				return err
 			}
@@ -1989,7 +1989,7 @@ func TestTransactionIndices(t *testing.T) {
 	for i, block := range blocks {
 		headers[i] = block.Header()
 	}
-	if n, err := chain.InsertHeaderChain(headers, 0, true); err != nil {
+	if n, err := chain.InsertHeaderChain(headers, 0); err != nil {
 		t.Fatalf("failed to insert header %d: %v", n, err)
 	}
 	if n, err := chain.InsertReceiptChain(blocks, receipts, 128); err != nil {
@@ -2116,7 +2116,7 @@ func TestSkipStaleTxIndicesInFastSync(t *testing.T) {
 	for i, block := range blocks {
 		headers[i] = block.Header()
 	}
-	if n, err := chain.InsertHeaderChain(headers, 0, true); err != nil {
+	if n, err := chain.InsertHeaderChain(headers, 0); err != nil {
 		t.Fatalf("failed to insert header %d: %v", n, err)
 	}
 	// The indices before ancient-N(32) should be ignored. After that all blocks should be indexed.

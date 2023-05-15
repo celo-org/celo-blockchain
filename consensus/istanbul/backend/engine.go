@@ -126,9 +126,6 @@ func (sb *Backend) verifyHeader(chain consensus.ChainHeaderReader, header *types
 	// If the full chain isn't available (as on mobile devices), don't reject future blocks
 	// This is due to potential clock skew
 	allowedFutureBlockTime := uint64(now().Unix())
-	if !chain.Config().FullHeaderChainAvailable {
-		allowedFutureBlockTime = allowedFutureBlockTime + mobileAllowedClockSkew
-	}
 
 	// Don't waste time checking blocks from the future
 	if header.Time > allowedFutureBlockTime {
@@ -141,27 +138,6 @@ func (sb *Backend) verifyHeader(chain consensus.ChainHeaderReader, header *types
 	}
 
 	return sb.verifyCascadingFields(chain, header, emptyAggregatedSeal, parents)
-}
-
-// A sanity check for lightest mode. Checks that the correct epoch block exists for this header
-func (sb *Backend) checkEpochBlockExists(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
-	number := header.Number.Uint64()
-	// Check that latest epoch block is available
-	epoch := istanbul.GetEpochNumber(number, sb.config.Epoch)
-	epochBlockNumber := istanbul.GetEpochLastBlockNumber(epoch-1, sb.config.Epoch)
-	if number == epochBlockNumber {
-		epochBlockNumber = istanbul.GetEpochLastBlockNumber(epoch-2, sb.config.Epoch)
-	}
-	for _, hdr := range parents {
-		if hdr.Number.Uint64() == epochBlockNumber {
-			return nil
-		}
-	}
-	parent := chain.GetHeaderByNumber(epochBlockNumber)
-	if parent == nil || parent.Number.Uint64() != epochBlockNumber {
-		return consensus.ErrUnknownAncestor
-	}
-	return nil
 }
 
 // verifyCascadingFields verifies all the header fields that are not standalone,
@@ -183,19 +159,15 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainHeaderReader, head
 	} else {
 		parent = chain.GetHeader(header.ParentHash, number-1)
 	}
-	if chain.Config().FullHeaderChainAvailable {
 
-		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
-			return consensus.ErrUnknownAncestor
-		}
-		if parent.Time+sb.config.BlockPeriod > header.Time {
-			return errInvalidTimestamp
-		}
-		// Verify validators in extraData. Validators in snapshot and extraData should be the same.
-		if err := sb.verifySigner(chain, header, parents); err != nil {
-			return err
-		}
-	} else if err := sb.checkEpochBlockExists(chain, header, parents); err != nil {
+	if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
+		return consensus.ErrUnknownAncestor
+	}
+	if parent.Time+sb.config.BlockPeriod > header.Time {
+		return errInvalidTimestamp
+	}
+	// Verify validators in extraData. Validators in snapshot and extraData should be the same.
+	if err := sb.verifySigner(chain, header, parents); err != nil {
 		return err
 	}
 
@@ -306,7 +278,7 @@ func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainHeaderReader, head
 	// is the genesis block which contains no parent signatures.
 	// The parent commit messages are only used for the uptime calculation,
 	// so ultralight clients don't need to verify them
-	if number > 1 && chain.Config().FullHeaderChainAvailable {
+	if number > 1 {
 		sb.logger.Trace("verifyAggregatedSeals: verifying parent seals for block", "num", number)
 		var parentValidators istanbul.ValidatorSet
 		// The first block in an epoch will have a different validator set than the block

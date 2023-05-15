@@ -30,8 +30,8 @@ import (
 // in this test, we can set n to 1, and it means we can process Istanbul and commit a
 // block by one node. Otherwise, if n is larger than 1, we have to generate
 // other fake events to process Istanbul.
-func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
-	genesis, nodeKeys := getGenesisAndKeys(n, isFullChain)
+func newBlockChain(n int) (*core.BlockChain, *Backend) {
+	genesis, nodeKeys := getGenesisAndKeys(n)
 
 	bc, be, _ := newBlockChainWithKeys(genesis, nodeKeys[0])
 	return bc, be
@@ -90,7 +90,7 @@ func newBlockChainWithKeys(genesis *core.Genesis, privateKey *ecdsa.PrivateKey) 
 	return blockchain, b, &config
 }
 
-func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey) {
+func getGenesisAndKeys(n int) (*core.Genesis, []*ecdsa.PrivateKey) {
 	// Setup validators
 	var nodeKeys = make([]*ecdsa.PrivateKey, n)
 	validators := make([]istanbul.ValidatorData, n)
@@ -115,9 +115,7 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 	// generate genesis block
 	genesis := core.DefaultGenesisBlock()
 	genesis.Config = params.IstanbulTestChainConfig
-	if !isFullChain {
-		genesis.Config.FullHeaderChainAvailable = false
-	}
+
 	// force enable Istanbul engine
 	genesis.Config.Istanbul = &params.IstanbulConfig{
 		Epoch: 10,
@@ -333,7 +331,7 @@ func SignHashFn(key *ecdsa.PrivateKey) istanbul.HashSignerFn {
 }
 
 func newBackend() (b *Backend) {
-	_, b = newBlockChain(4, true)
+	_, b = newBlockChain(4)
 
 	key, _ := generatePrivateKey()
 	address := crypto.PubkeyToAddress(key.PublicKey)
@@ -353,6 +351,6 @@ func (testBackendFactoryImpl) New(genesisCfg *core.Genesis, privateKey *ecdsa.Pr
 }
 
 // GetGenesisAndKeys is part of TestBackendInterface
-func (testBackendFactoryImpl) GetGenesisAndKeys(numValidators int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey) {
-	return getGenesisAndKeys(numValidators, isFullChain)
+func (testBackendFactoryImpl) GetGenesisAndKeys(numValidators int) (*core.Genesis, []*ecdsa.PrivateKey) {
+	return getGenesisAndKeys(numValidators)
 }
