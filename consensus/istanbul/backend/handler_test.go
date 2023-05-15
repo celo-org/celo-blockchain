@@ -65,7 +65,7 @@ func (p *MockPeer) PurposeIsSet(purpose p2p.PurposeFlag) bool {
 }
 
 func TestIstanbulMessage(t *testing.T) {
-	chain, backend := newBlockChain(1, true)
+	chain, backend := newBlockChain(1)
 	defer chain.Stop()
 
 	// generate one msg
@@ -116,7 +116,7 @@ func TestRecentMessageCaches(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		chain, backend := newBlockChain(1, true)
+		chain, backend := newBlockChain(1)
 
 		// generate a msg that is not an Announce
 		data := []byte("data1")
@@ -157,7 +157,7 @@ func TestRecentMessageCaches(t *testing.T) {
 }
 
 func TestReadValidatorHandshakeMessage(t *testing.T) {
-	chain, backend := newBlockChain(2, true)
+	chain, backend := newBlockChain(2)
 	defer chain.Stop()
 
 	peer := &MockPeer{

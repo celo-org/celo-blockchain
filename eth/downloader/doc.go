@@ -37,10 +37,6 @@ sync.
 Light: Downloads only headers during sync and then downloads other data on
 demand in order to service rpc requests.
 
-Lightest: Like light but downloads only one header per epoch, which on mainnet
-means one header out of every 17280 headers. This is particularly fast only
-takes 20 seconds or so to get synced.
-
 Sync process detail
 
 Syncing is initiated with one peer (see eth.loop), the peer selected to sync
@@ -136,14 +132,9 @@ the chain of the main peer they are syncing against. Whether fetching skeleton
 headers or not requests for headers are done in batches of up to 192
 (MaxHeaderFetch) headers.
 
-If lightest sync {
-	fetch just epoch headers till current epoch then fetch all subsequent headers. (no skeleton)
-} else {
-	fetch  headers using the skeleton approach, until no more skeleton headers
-	are returned then switch to requesting all subsequent headers from the
-	peer.
-}
-
+fetch  headers using the skeleton approach, until no more skeleton headers
+are returned then switch to requesting all subsequent headers from the
+peer.
 
 Wait for headers to be received.
 

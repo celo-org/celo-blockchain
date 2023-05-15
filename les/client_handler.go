@@ -76,7 +76,6 @@ func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFrac
 		height = (checkpoint.SectionIndex+1)*params.CHTFrequency - 1
 	}
 	handler.fetcher = newLightFetcher(backend.blockchain, backend.engine, backend.peers, handler.ulc, backend.chainDb, backend.reqDist, handler.synchronise, handler.syncMode)
-	// TODO mcortesi lightest boolean
 	handler.downloader = downloader.New(height, backend.chainDb, nil, backend.eventMux, nil, backend.blockchain, handler.removePeer)
 	handler.backend.peers.subscribe((*downloaderPeerNotify)(handler))
 	return handler
@@ -239,8 +238,7 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 		// Filter out the explicitly requested header by the retriever
 		if h.backend.retriever.requested(resp.ReqID) {
 			if len(headers) != 0 {
-				contiguousHeaders := h.syncMode != downloader.LightestSync
-				if _, err := h.fetcher.chain.InsertHeaderChain(resp.Headers, 1, contiguousHeaders); err != nil {
+				if _, err := h.fetcher.chain.InsertHeaderChain(resp.Headers, 1); err != nil {
 					return err
 				}
 			}

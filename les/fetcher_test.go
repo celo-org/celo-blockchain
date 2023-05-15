@@ -66,20 +66,11 @@ func verifyChainHeight(t *testing.T, fetcher *lightFetcher, height uint64) {
 func TestSequentialAnnouncementsLes2(t *testing.T) {
 	testSequentialAnnouncements(t, downloader.LightSync, lpv2)
 }
-func TestSequentialAnnouncementsUltraLes2(t *testing.T) {
-	testSequentialAnnouncements(t, downloader.LightestSync, lpv2)
-}
 func TestSequentialAnnouncementsLes3(t *testing.T) {
 	testSequentialAnnouncements(t, downloader.LightSync, lpv3)
 }
-func TestSequentialAnnouncementsUltraLes3(t *testing.T) {
-	testSequentialAnnouncements(t, downloader.LightestSync, lpv3)
-}
 func TestSequentialAnnouncementsLes4(t *testing.T) {
 	testSequentialAnnouncements(t, downloader.LightSync, lpv4)
-}
-func TestSequentialAnnouncementsUltraLes4(t *testing.T) {
-	testSequentialAnnouncements(t, downloader.LightestSync, lpv4)
 }
 
 func testSequentialAnnouncements(t *testing.T, syncMode downloader.SyncMode, protocol int) {
@@ -121,23 +112,11 @@ func testSequentialAnnouncements(t *testing.T, syncMode downloader.SyncMode, pro
 func TestGappedAnnouncementsLes2(t *testing.T) {
 	testGappedAnnouncements(t, downloader.LightSync, lpv2)
 }
-func TestGappedAnnouncementsUltraLes2(t *testing.T) {
-	t.Skip("added in the les refactor, check if necessary for LightestSync")
-	testGappedAnnouncements(t, downloader.LightestSync, lpv2)
-}
 func TestGappedAnnouncementsLes3(t *testing.T) {
 	testGappedAnnouncements(t, downloader.LightSync, lpv3)
 }
-func TestGappedAnnouncementsUltraLes3(t *testing.T) {
-	t.Skip("added in the les refactor, check if necessary for LightestSync")
-	testGappedAnnouncements(t, downloader.LightestSync, lpv3)
-}
 func TestGappedAnnouncementsLes4(t *testing.T) {
 	testGappedAnnouncements(t, downloader.LightSync, lpv4)
-}
-func TestGappedAnnouncementsUltraLes4(t *testing.T) {
-	t.Skip("added in the les refactor, check if necessary for LightestSync")
-	testGappedAnnouncements(t, downloader.LightestSync, lpv4)
 }
 
 func testGappedAnnouncements(t *testing.T, syncMode downloader.SyncMode, protocol int) {
@@ -190,26 +169,12 @@ func TestTrustedAnnouncementsLes2(t *testing.T) {
 	testTrustedAnnouncement(t, downloader.LightSync, lpv2)
 }
 
-func TestTrustedAnnouncementsUltraLes2(t *testing.T) {
-	t.Skip("added in the les refactor, check if necessary for LightestSync")
-	testTrustedAnnouncement(t, downloader.LightestSync, lpv2)
-}
 func TestTrustedAnnouncementsLes3(t *testing.T) {
 	testTrustedAnnouncement(t, downloader.LightSync, lpv3)
 }
 
-func TestTrustedAnnouncementsUltraLes3(t *testing.T) {
-	t.Skip("added in the les refactor, check if necessary for LightestSync")
-	testTrustedAnnouncement(t, downloader.LightestSync, lpv3)
-}
-
 func TestTrustedAnnouncementsLes4(t *testing.T) {
 	testTrustedAnnouncement(t, downloader.LightSync, lpv4)
-}
-
-func TestTrustedAnnouncementsUltraLes4(t *testing.T) {
-	t.Skip("added in the les refactor, check if necessary for LightestSync")
-	testTrustedAnnouncement(t, downloader.LightestSync, lpv4)
 }
 
 func testTrustedAnnouncement(t *testing.T, syncMode downloader.SyncMode, protocol int) {

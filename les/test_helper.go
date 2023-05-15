@@ -182,9 +182,9 @@ func prepare(n int, backend *backends.SimulatedBackend) {
 // testIndexers creates a set of indexers with specified params for testing purpose.
 func testIndexers(db ethdb.Database, odr light.OdrBackend, config *light.IndexerConfig, disablePruning bool) []*core.ChainIndexer {
 	var indexers [3]*core.ChainIndexer
-	indexers[0] = light.NewChtIndexer(db, odr, config.ChtSize, config.ChtConfirms, disablePruning, true)
-	indexers[1] = core.NewBloomIndexer(db, config.BloomSize, config.BloomConfirms, true)
-	indexers[2] = light.NewBloomTrieIndexer(db, odr, config.BloomSize, config.BloomTrieSize, disablePruning, true)
+	indexers[0] = light.NewChtIndexer(db, odr, config.ChtSize, config.ChtConfirms, disablePruning)
+	indexers[1] = core.NewBloomIndexer(db, config.BloomSize, config.BloomConfirms)
+	indexers[2] = light.NewBloomTrieIndexer(db, odr, config.BloomSize, config.BloomTrieSize, disablePruning)
 	// make bloomTrieIndexer as a child indexer of bloom indexer.
 	indexers[1].AddChildIndexer(indexers[2])
 	return indexers[:]
@@ -200,7 +200,6 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 		}
 		oracle *checkpointoracle.CheckpointOracle
 	)
-	gspec.Config.FullHeaderChainAvailable = syncMode.SyncFullHeaderChain()
 	genesis := gspec.MustCommit(db)
 	chain, _ := light.NewLightChain(odr, gspec.Config, engine, nil)
 	if indexers != nil {

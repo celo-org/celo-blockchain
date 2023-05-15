@@ -218,7 +218,7 @@ func (e *MockEngine) VerifyHeader(chain consensus.ChainHeaderReader, header *typ
 		return nil
 	}
 	parent := chain.GetHeader(header.ParentHash, number-1)
-	if parent == nil && chain.Config().FullHeaderChainAvailable {
+	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
 	// Sanity checks passed, do a proper verification
@@ -336,7 +336,7 @@ func (e *MockEngine) verifyHeaderWorker(chain consensus.ChainHeaderReader, heade
 	} else if headers[index-1].Hash() == headers[index].ParentHash {
 		parent = headers[index-1]
 	}
-	if parent == nil && chain.Config().FullHeaderChainAvailable {
+	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
 	if chain.GetHeader(headers[index].Hash(), headers[index].Number.Uint64()) != nil {

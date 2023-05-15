@@ -174,7 +174,7 @@ func newLightFetcher(chain *light.LightChain, engine consensus.Engine, peers *se
 		if ulc != nil {
 			checkFreq = 0
 		}
-		i, err := chain.InsertHeaderChain(headers, checkFreq, syncMode.SyncFullHeaderChain())
+		i, err := chain.InsertHeaderChain(headers, checkFreq)
 		if err == consensus.ErrFutureBlock {
 			return i, nil
 		}
@@ -463,7 +463,7 @@ func (f *lightFetcher) mainloop() {
 						for i, j := 0, len(untrusted)-1; i < j; i, j = i+1, j-1 {
 							untrusted[i], untrusted[j] = untrusted[j], untrusted[i]
 						}
-						f.chain.Rollback(untrusted, f.syncMode.SyncFullHeaderChain())
+						f.chain.Rollback(untrusted, true)
 					}
 				} else {
 					log.Error("Common ancestor of origin header and current header is nil", "origin hash", origin.Hash(), "current header hash", head.Hash())

@@ -84,13 +84,8 @@ type LightEthereum struct {
 func New(stack *node.Node, config *ethconfig.Config) (*LightEthereum, error) {
 	var chainName string
 	syncMode := downloader.FromString(config.SyncMode.String())
-	var fullChainAvailable bool
 	if syncMode == downloader.LightSync {
 		chainName = "lightchaindata"
-		fullChainAvailable = true
-	} else if syncMode == downloader.LightestSync {
-		chainName = "lightestchaindata"
-		fullChainAvailable = false
 	} else {
 		panic("Unexpected sync mode: " + syncMode.String())
 	}
@@ -128,6 +123,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*LightEthereum, error) {
 		engine:         ethconfig.CreateConsensusEngine(stack, chainConfig, config, chainDb),
 		networkId:      config.NetworkId,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
+		bloomIndexer:   core.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations),
 		p2pServer:      stack.Server(),
 		p2pConfig:      &stack.Config().P2P,
 		udpEnabled:     stack.Config().P2P.DiscoveryV5,
@@ -144,12 +140,8 @@ func New(stack *node.Node, config *ethconfig.Config) (*LightEthereum, error) {
 	leth.relay = newLesTxRelay(peers, leth.retriever)
 
 	leth.odr = NewLesOdr(chainDb, light.DefaultClientIndexerConfig, leth.peers, leth.retriever)
-	// If the full chain is not available then indexing each block header isn't possible.
-	if fullChainAvailable {
-		leth.bloomIndexer = core.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations, fullChainAvailable)
-		leth.chtIndexer = light.NewChtIndexer(chainDb, leth.odr, params.CHTFrequency, params.HelperTrieConfirmations, config.LightNoPrune, fullChainAvailable)
-		leth.bloomTrieIndexer = light.NewBloomTrieIndexer(chainDb, leth.odr, params.BloomBitsBlocksClient, params.BloomTrieFrequency, config.LightNoPrune, fullChainAvailable)
-	}
+	leth.chtIndexer = light.NewChtIndexer(chainDb, leth.odr, params.CHTFrequency, params.HelperTrieConfirmations, config.LightNoPrune)
+	leth.bloomTrieIndexer = light.NewBloomTrieIndexer(chainDb, leth.odr, params.BloomBitsBlocksClient, params.BloomTrieFrequency, config.LightNoPrune)
 	leth.odr.SetIndexers(leth.chtIndexer, leth.bloomTrieIndexer, leth.bloomIndexer)
 
 	checkpoint := config.Checkpoint

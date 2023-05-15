@@ -49,17 +49,6 @@ func GetHeaderByNumber(ctx context.Context, odr OdrBackend, number uint64) (*typ
 			return header, nil
 		}
 	}
-	// if check merged into the refactor from upstream
-	// on upstream commit (6eef141)
-	if odr.ChtIndexer() == nil {
-		// If `ChtIndexer` is `nil` then we are effectively in `lightest` mode
-		r := &HeaderRequest{Origin: blockHashOrNumber{Number: &number}}
-		if err := odr.Retrieve(ctx, r); err != nil {
-			log.Error("Error after retrieve", "Err", err)
-			return nil, err
-		}
-		return r.Header, nil
-	}
 	// Retrieve the header via ODR, ensure the requested header is covered
 	// by local trusted CHT.
 	chts, _, chtHead := odr.ChtIndexer().Sections()

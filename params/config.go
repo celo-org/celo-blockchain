@@ -152,9 +152,8 @@ var (
 			ProposerPolicy: 0,
 		},
 
-		FullHeaderChainAvailable: true,
-		Faker:                    true,
-		FakeBaseFee:              common.Big0,
+		Faker:       true,
+		FakeBaseFee: common.Big0,
 	}
 	IstanbulTestChainConfig = TestChainConfig.
 				deepCopy().
@@ -256,7 +255,6 @@ type ChainConfig struct {
 	Istanbul *IstanbulConfig `json:"istanbul,omitempty"`
 	// This does not belong here but passing it to every function is not possible since that breaks
 	// some implemented interfaces and introduces churn across the geth codebase.
-	FullHeaderChainAvailable bool // False for lightest Sync mode, true otherwise
 
 	// Requests mock engine if true
 	Faker       bool     `json:"faker,omitempty"`
@@ -639,9 +637,8 @@ func (c *ChainConfig) deepCopy() *ChainConfig {
 			// V2Block:        copyBigIntOrNil(c.Istanbul.V2Block),
 		},
 
-		FullHeaderChainAvailable: c.FullHeaderChainAvailable,
-		Faker:                    c.Faker,
-		FakeBaseFee:              c.FakeBaseFee,
+		Faker:       c.Faker,
+		FakeBaseFee: c.FakeBaseFee,
 	}
 	return cpy
 }
