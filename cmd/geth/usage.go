@@ -189,10 +189,6 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		Flags: metricsFlags,
 	},
 	{
-		Name: "ISTANBUL",
-		Flags: []cli.Flag{},
-	},
-	{
 		Name: "ANNOUNCE",
 		Flags: []cli.Flag{
 			utils.AnnounceQueryEnodeGossipPeriodFlag,
