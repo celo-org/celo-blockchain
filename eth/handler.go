@@ -127,7 +127,7 @@ type handler struct {
 	wg        sync.WaitGroup
 	peerWG    sync.WaitGroup
 
-	server      *p2p.Server
+	server *p2p.Server
 }
 
 func newHandler(config *handlerConfig) (*handler, error) {
@@ -136,16 +136,16 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		config.EventMux = new(event.TypeMux) // Nicety initialization for tests
 	}
 	h := &handler{
-		networkID:   config.Network,
-		forkFilter:  forkid.NewFilter(config.Chain),
-		eventMux:    config.EventMux,
-		database:    config.Database,
-		txpool:      config.TxPool,
-		chain:       config.Chain,
-		peers:       newPeerSet(),
-		whitelist:   config.Whitelist,
-		quitSync:    make(chan struct{}),
-		server:      config.server,
+		networkID:  config.Network,
+		forkFilter: forkid.NewFilter(config.Chain),
+		eventMux:   config.EventMux,
+		database:   config.Database,
+		txpool:     config.TxPool,
+		chain:      config.Chain,
+		peers:      newPeerSet(),
+		whitelist:  config.Whitelist,
+		quitSync:   make(chan struct{}),
+		server:     config.server,
 	}
 
 	if consensusHandler, ok := h.chain.Engine().(consensus.Handler); ok {

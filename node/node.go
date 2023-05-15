@@ -47,8 +47,8 @@ type Node struct {
 	dirLock       fileutil.Releaser // prevents concurrent use of instance directory
 	stop          chan struct{}     // Channel to wait for termination notifications
 	server        *p2p.Server       // Currently running P2P networking layer
-	startStopLock sync.Mutex // Start/Stop are protected by an additional lock
-	state         int        // Tracks state of node lifecycle
+	startStopLock sync.Mutex        // Start/Stop are protected by an additional lock
+	state         int               // Tracks state of node lifecycle
 
 	lock          sync.Mutex
 	lifecycles    []Lifecycle // All registered backends, services, and auxiliary services that have a lifecycle
