@@ -44,7 +44,6 @@ func TestTransferCELO(t *testing.T) {
 	devAccounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
 	sender := devAccounts[0]
 	recipient := devAccounts[1]
-	gateWayFeeRecipient := devAccounts[2]
 
 	// Get datum to set GasPrice/MaxFeePerGas/MaxPriorityFeePerGas to sensible values
 	header, err := network[0].WsClient.HeaderByNumber(ctx, common.Big0)
@@ -67,11 +66,11 @@ func TestTransferCELO(t *testing.T) {
 		{
 			name: "eth incompatible LegacyTxType",
 			txArgs: &ethapi.TransactionArgs{
-				To:                  &recipient.Address,
-				Value:               (*hexutil.Big)(new(big.Int).SetInt64(oneCelo)),
-				GasPrice:            (*hexutil.Big)(datum.Mul(datum, new(big.Int).SetInt64(4))),
-				GatewayFee:          (*hexutil.Big)(new(big.Int).SetInt64(oneCelo / 10)),
-				GatewayFeeRecipient: &gateWayFeeRecipient.Address,
+				To:       &recipient.Address,
+				Value:    (*hexutil.Big)(new(big.Int).SetInt64(oneCelo)),
+				GasPrice: (*hexutil.Big)(datum.Mul(datum, new(big.Int).SetInt64(4))),
+				// It needs something different than nil. This test is not validating that the currency was whitelisted
+				FeeCurrency: &common.ZeroAddress,
 			},
 		},
 		{
@@ -105,7 +104,7 @@ func TestTransferCELO(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			watcher := test.NewBalanceWatcher(client, []common.Address{sender.Address, recipient.Address, gateWayFeeRecipient.Address, node.Address})
+			watcher := test.NewBalanceWatcher(client, []common.Address{sender.Address, recipient.Address, node.Address})
 			blockNum, err := client.BlockNumber(ctx)
 			require.NoError(t, err)
 			signer := types.MakeSigner(devAccounts[0].ChainConfig, new(big.Int).SetUint64(blockNum))
@@ -152,19 +151,9 @@ func TestTransferCELO(t *testing.T) {
 				fee = new(big.Int).Add(tip, baseFee)
 			}
 			consumed := new(big.Int).Add(tx.Value(), fee)
-			if tx.GatewayFeeRecipient() != nil && tx.GatewayFee() != nil {
-				consumed.Add(consumed, tx.GatewayFee())
-			}
 			expected = new(big.Int).Neg(consumed)
 			actual = watcher.Delta(sender.Address)
 			assert.Equal(t, expected, actual, "Sender's balance decrease unexpected", "expected", expected.Int64(), "actual", expected.Int64())
-
-			// Check gateway fee
-			if tx.GatewayFeeRecipient() != nil && tx.GatewayFee() != nil {
-				expected = tx.GatewayFee()
-				actual = watcher.Delta(gateWayFeeRecipient.Address)
-				assert.Equal(t, expected, actual, "gateWayFeeRecipient's balance increase unexpected", "expected", expected.Int64(), "actual", actual.Int64())
-			}
 		})
 	}
 }
