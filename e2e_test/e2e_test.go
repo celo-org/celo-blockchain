@@ -101,12 +101,6 @@ func TestEpochBlockMarshaling(t *testing.T) {
 	// Wait for the whole network to process the transaction.
 	err = network.AwaitBlock(ctx, 6)
 	require.NoError(t, err)
-	b := network[0].Tracker.GetProcessedBlock(6)
-
-	// Check that epoch snark data was actually unmarshalled, I.E there was
-	// something there.
-	assert.True(t, len(b.EpochSnarkData().Signature) > 0)
-	assert.True(t, b.EpochSnarkData().Bitmap.Uint64() > 0)
 }
 
 // This test checks that a network can have validators shut down mid operation

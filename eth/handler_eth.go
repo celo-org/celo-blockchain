@@ -68,8 +68,8 @@ func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 		return h.handleHeaders(peer, *packet)
 
 	case *eth.BlockBodiesPacket:
-		blockHashes, transactions, randomness, epochSnarkData := packet.Unpack()
-		return h.handleBodies(peer, blockHashes, transactions, randomness, epochSnarkData)
+		blockHashes, transactions, randomness := packet.Unpack()
+		return h.handleBodies(peer, blockHashes, transactions, randomness)
 
 	case *eth.NodeDataPacket:
 		if err := h.downloader.DeliverNodeData(peer.ID(), *packet); err != nil {
@@ -162,14 +162,14 @@ func (h *ethHandler) handleHeaders(peer *eth.Peer, headers []*types.Header) erro
 
 // handleBodies is invoked from a peer's message handler when it transmits a batch
 // of block bodies for the local node to process.
-func (h *ethHandler) handleBodies(peer *eth.Peer, blockHashes []common.Hash, transactions [][]*types.Transaction, randomness []*types.Randomness, epochSnarkData []*types.EpochSnarkData) error {
+func (h *ethHandler) handleBodies(peer *eth.Peer, blockHashes []common.Hash, transactions [][]*types.Transaction, randomness []*types.Randomness) error {
 	// Filter out any explicitly requested bodies, deliver the rest to the downloader
-	filter := len(blockHashes) > 0 || len(transactions) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0
+	filter := len(blockHashes) > 0 || len(transactions) > 0 || len(randomness) > 0
 	if filter {
-		blockHashes, transactions, randomness, epochSnarkData = h.blockFetcher.FilterBodies(peer.ID(), blockHashes, transactions, randomness, epochSnarkData, time.Now())
+		blockHashes, transactions, randomness = h.blockFetcher.FilterBodies(peer.ID(), blockHashes, transactions, randomness, time.Now())
 	}
-	if len(blockHashes) > 0 || len(transactions) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0 || !filter {
-		err := h.downloader.DeliverBodies(peer.ID(), transactions, randomness, epochSnarkData)
+	if len(blockHashes) > 0 || len(transactions) > 0 || len(randomness) > 0 || !filter {
+		err := h.downloader.DeliverBodies(peer.ID(), transactions, randomness)
 		if err != nil {
 			log.Debug("Failed to deliver bodies", "err", err)
 		}

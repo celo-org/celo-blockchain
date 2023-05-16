@@ -215,18 +215,16 @@ func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]*typ
 		blockHashes := make([]common.Hash, 0, len(hashes))
 		transactions := make([][]*types.Transaction, 0, len(hashes))
 		randomness := make([]*types.Randomness, 0, len(hashes))
-		epochSnarkData := make([]*types.EpochSnarkData, 0, len(hashes))
 
 		for _, hash := range hashes {
 			if block, ok := closure[hash]; ok {
 				blockHashes = append(blockHashes, hash)
 				transactions = append(transactions, block.Transactions())
 				randomness = append(randomness, block.Randomness())
-				epochSnarkData = append(epochSnarkData, block.EpochSnarkData())
 			}
 		}
 		// Return on a new thread
-		go f.fetcher.FilterBodies(peer, blockHashes, transactions, randomness, epochSnarkData, time.Now().Add(drift))
+		go f.fetcher.FilterBodies(peer, blockHashes, transactions, randomness, time.Now().Add(drift))
 
 		return nil
 	}

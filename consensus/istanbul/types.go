@@ -113,9 +113,10 @@ func (v *View) String() string {
 }
 
 // Cmp compares v and y and returns:
-//   -1 if v <  y
-//    0 if v == y
-//   +1 if v >  y
+//
+//	-1 if v <  y
+//	 0 if v == y
+//	+1 if v >  y
 func (v *View) Cmp(y *View) int {
 	if v.Sequence.Cmp(y.Sequence) != 0 {
 		return v.Sequence.Cmp(y.Sequence)
@@ -158,7 +159,6 @@ func EmptyPreparedCertificate() PreparedCertificate {
 	}
 	block := &types.Block{}
 	block = block.WithRandomness(&types.EmptyRandomness)
-	block = block.WithEpochSnarkData(&types.EmptyEpochSnarkData)
 
 	return PreparedCertificate{
 		Proposal:                block.WithHeader(emptyHeader),

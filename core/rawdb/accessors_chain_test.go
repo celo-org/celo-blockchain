@@ -73,7 +73,7 @@ func TestBodyStorage(t *testing.T) {
 	db := NewMemoryDatabase()
 
 	// Create a test body to move around the database and make sure it's really new
-	body := &types.Body{Randomness: &types.Randomness{}, EpochSnarkData: &types.EpochSnarkData{}}
+	body := &types.Body{Randomness: &types.Randomness{}}
 
 	hasher := sha3.NewLegacyKeccak256()
 	rlp.Encode(hasher, body)
@@ -343,7 +343,7 @@ func TestBlockReceiptStorage(t *testing.T) {
 	tx1 := types.NewTransaction(1, common.HexToAddress("0x1"), big.NewInt(1), 1, big.NewInt(1), nil)
 	tx2 := types.NewTransaction(2, common.HexToAddress("0x2"), big.NewInt(2), 2, big.NewInt(2), nil)
 
-	body := &types.Body{Transactions: types.Transactions{tx1, tx2}, Randomness: &types.Randomness{}, EpochSnarkData: &types.EpochSnarkData{}}
+	body := &types.Body{Transactions: types.Transactions{tx1, tx2}, Randomness: &types.Randomness{}}
 
 	// Create the two receipts to manage afterwards
 	receipt1 := &types.Receipt{
@@ -699,7 +699,7 @@ func testReadLogs(t *testing.T, ibftBlock bool) {
 	tx1 := types.NewTransaction(1, common.HexToAddress("0x1"), big.NewInt(1), 1, big.NewInt(1), nil)
 	tx2 := types.NewTransaction(2, common.HexToAddress("0x2"), big.NewInt(2), 2, big.NewInt(2), nil)
 
-	body := &types.Body{Randomness: &types.Randomness{}, EpochSnarkData: &types.EpochSnarkData{}, Transactions: types.Transactions{tx1, tx2}}
+	body := &types.Body{Randomness: &types.Randomness{}, Transactions: types.Transactions{tx1, tx2}}
 
 	// Create the two receipts to manage afterwards
 	receipt1 := &types.Receipt{

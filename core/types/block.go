@@ -18,7 +18,6 @@
 package types
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"math/big"
@@ -29,14 +28,12 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 var (
-	EmptyRootHash       = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
-	EmptyRandomness     = Randomness{}
-	EmptyEpochSnarkData = EpochSnarkData{}
+	EmptyRootHash   = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+	EmptyRandomness = Randomness{}
 )
 
 //go:generate gencodec -type Header -field-override headerMarshaling -out gen_header_json.go
@@ -143,79 +140,18 @@ func (r *Randomness) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{r.Revealed, r.Committed})
 }
 
-type EpochSnarkData struct {
-	Bitmap    *big.Int
-	Signature []byte
-}
-
-// Size returns the approximate memory used by all internal contents. It is used
-// to approximate and limit the memory consumption of various caches.
-func (r *EpochSnarkData) Size() common.StorageSize {
-	return common.StorageSize(blscrypto.SIGNATUREBYTES + (r.Bitmap.BitLen() / 8))
-}
-
-func (r *EpochSnarkData) DecodeRLP(s *rlp.Stream) error {
-	var epochSnarkData struct {
-		Bitmap    *big.Int
-		Signature []byte
-	}
-	if err := s.Decode(&epochSnarkData); err != nil {
-		return err
-	}
-	r.Bitmap = epochSnarkData.Bitmap
-	r.Signature = epochSnarkData.Signature
-	return nil
-}
-
-func (r *EpochSnarkData) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{r.Bitmap, r.Signature})
-}
-
-func (r *EpochSnarkData) IsEmpty() bool {
-	return len(r.Signature) == 0
-}
-
-// MarshalJSON marshals as JSON.
-func (r EpochSnarkData) MarshalJSON() ([]byte, error) {
-	type EpochSnarkData struct {
-		Bitmap    hexutil.Bytes
-		Signature hexutil.Bytes
-	}
-	var enc EpochSnarkData
-	enc.Bitmap = r.Bitmap.Bytes()
-	enc.Signature = r.Signature
-	return json.Marshal(&enc)
-}
-
-// UnmarshalJSON unmarshals from JSON.
-func (r *EpochSnarkData) UnmarshalJSON(input []byte) error {
-	type EpochSnarkData struct {
-		Bitmap    hexutil.Bytes
-		Signature hexutil.Bytes
-	}
-	var dec EpochSnarkData
-	if err := json.Unmarshal(input, &dec); err != nil {
-		return err
-	}
-	r.Bitmap = new(big.Int).SetBytes(dec.Bitmap)
-	r.Signature = dec.Signature
-	return nil
-}
-
 // Body is a simple (mutable, non-safe) data container for storing and moving
 // a block's data contents (transactions and uncles) together.
 type Body struct {
-	Transactions   []*Transaction
-	Randomness     *Randomness
-	EpochSnarkData *EpochSnarkData
+	Transactions []*Transaction
+	Randomness   *Randomness
 }
 
 // Block represents an entire block in the Ethereum blockchain.
 type Block struct {
-	header         *Header
-	transactions   Transactions
-	randomness     *Randomness
-	epochSnarkData *EpochSnarkData
+	header       *Header
+	transactions Transactions
+	randomness   *Randomness
 
 	// caches
 	hash atomic.Value
@@ -233,10 +169,9 @@ type Block struct {
 
 // "external" block encoding. used for eth protocol, etc.
 type extblock struct {
-	Header         *Header
-	Txs            []*Transaction
-	Randomness     *Randomness
-	EpochSnarkData *EpochSnarkData
+	Header     *Header
+	Txs        []*Transaction
+	Randomness *Randomness
 }
 
 // NewBlock creates a new block. The input data is copied,
@@ -246,7 +181,7 @@ type extblock struct {
 // The values of TxHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs and receipts.
 func NewBlock(header *Header, txs []*Transaction, receipts []*Receipt, randomness *Randomness, hasher TrieHasher) *Block {
-	b := &Block{header: CopyHeader(header), td: new(big.Int), randomness: randomness, epochSnarkData: &EmptyEpochSnarkData}
+	b := &Block{header: CopyHeader(header), td: new(big.Int), randomness: randomness}
 
 	// TODO: panic if len(txs) != len(receipts)
 	if len(txs) == 0 {
@@ -275,7 +210,7 @@ func NewBlock(header *Header, txs []*Transaction, receipts []*Receipt, randomnes
 // header data is copied, changes to header and to the field values
 // will not affect the block.
 func NewBlockWithHeader(header *Header) *Block {
-	return &Block{header: CopyHeader(header), randomness: &EmptyRandomness, epochSnarkData: &EmptyEpochSnarkData}
+	return &Block{header: CopyHeader(header), randomness: &EmptyRandomness}
 }
 
 // CopyHeader creates a deep copy of a block header to prevent side effects from
@@ -310,7 +245,7 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&eb); err != nil {
 		return err
 	}
-	b.header, b.transactions, b.randomness, b.epochSnarkData = eb.Header, eb.Txs, eb.Randomness, eb.EpochSnarkData
+	b.header, b.transactions, b.randomness = eb.Header, eb.Txs, eb.Randomness
 	b.size.Store(common.StorageSize(rlp.ListSize(size)))
 	return nil
 }
@@ -318,18 +253,16 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 // EncodeRLP serializes b into the Ethereum RLP block format.
 func (b *Block) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, extblock{
-		Header:         b.header,
-		Txs:            b.transactions,
-		Randomness:     b.randomness,
-		EpochSnarkData: b.epochSnarkData,
+		Header:     b.header,
+		Txs:        b.transactions,
+		Randomness: b.randomness,
 	})
 }
 
 // TODO: copies
 
-func (b *Block) Transactions() Transactions      { return b.transactions }
-func (b *Block) Randomness() *Randomness         { return b.randomness }
-func (b *Block) EpochSnarkData() *EpochSnarkData { return b.epochSnarkData }
+func (b *Block) Transactions() Transactions { return b.transactions }
+func (b *Block) Randomness() *Randomness    { return b.randomness }
 
 func (b *Block) Transaction(hash common.Hash) *Transaction {
 	for _, transaction := range b.transactions {
@@ -357,7 +290,7 @@ func (b *Block) Header() *Header        { return CopyHeader(b.header) }
 func (b *Block) MutableHeader() *Header { return b.header }
 
 // Body returns the non-header content of the block.
-func (b *Block) Body() *Body { return &Body{b.transactions, b.randomness, b.epochSnarkData} }
+func (b *Block) Body() *Body { return &Body{b.transactions, b.randomness} }
 
 // Size returns the true RLP encoded storage size of the block, either by encoding
 // and returning it, or returning a previsouly cached value.
@@ -390,49 +323,32 @@ func (b *Block) WithHeader(header *Header) *Block {
 	cpy := CopyHeader(header)
 
 	return &Block{
-		header:         cpy,
-		transactions:   b.transactions,
-		randomness:     b.randomness,
-		epochSnarkData: b.epochSnarkData,
+		header:       cpy,
+		transactions: b.transactions,
+		randomness:   b.randomness,
 	}
 }
 
 // WithRandomness returns a new block with the given randomness.
 func (b *Block) WithRandomness(randomness *Randomness) *Block {
 	block := &Block{
-		header:         b.header,
-		transactions:   b.transactions,
-		randomness:     randomness,
-		epochSnarkData: b.epochSnarkData,
-	}
-	return block
-}
-
-// WithEpochSnarkData returns a new block with the given epoch SNARK data.
-func (b *Block) WithEpochSnarkData(epochSnarkData *EpochSnarkData) *Block {
-	block := &Block{
-		header:         b.header,
-		transactions:   b.transactions,
-		randomness:     b.randomness,
-		epochSnarkData: epochSnarkData,
+		header:       b.header,
+		transactions: b.transactions,
+		randomness:   randomness,
 	}
 	return block
 }
 
 // WithBody returns a new block with the given transaction contents.
-func (b *Block) WithBody(transactions []*Transaction, randomness *Randomness, epochSnarkData *EpochSnarkData) *Block {
+func (b *Block) WithBody(transactions []*Transaction, randomness *Randomness) *Block {
 	block := &Block{
-		header:         CopyHeader(b.header),
-		transactions:   make([]*Transaction, len(transactions)),
-		randomness:     randomness,
-		epochSnarkData: epochSnarkData,
+		header:       CopyHeader(b.header),
+		transactions: make([]*Transaction, len(transactions)),
+		randomness:   randomness,
 	}
 	copy(block.transactions, transactions)
 	if randomness == nil {
 		block.randomness = &EmptyRandomness
-	}
-	if epochSnarkData == nil {
-		block.epochSnarkData = &EmptyEpochSnarkData
 	}
 	return block
 }

@@ -64,11 +64,10 @@ type fetchRequest struct {
 type fetchResult struct {
 	pending int32 // Flag telling what deliveries are outstanding
 
-	Header         *types.Header
-	Transactions   types.Transactions
-	Receipts       types.Receipts
-	Randomness     *types.Randomness
-	EpochSnarkData *types.EpochSnarkData
+	Header       *types.Header
+	Transactions types.Transactions
+	Receipts     types.Receipts
+	Randomness   *types.Randomness
 }
 
 func newFetchResult(header *types.Header, fastSync bool) *fetchResult {
@@ -476,9 +475,10 @@ func (q *queue) ReserveReceipts(p *peerConnection, count int) (*fetchRequest, bo
 // to access the queue, so they already need a lock anyway.
 //
 // Returns:
-//   item     - the fetchRequest
-//   progress - whether any progress was made
-//   throttle - if the caller should throttle for a while
+//
+//	item     - the fetchRequest
+//	progress - whether any progress was made
+//	throttle - if the caller should throttle for a while
 func (q *queue) reserveHeaders(p *peerConnection, count int, taskPool map[common.Hash]*types.Header, taskQueue *prque.Prque,
 	pendPool map[string]*fetchRequest, kind uint) (*fetchRequest, bool, bool) {
 	// Short circuit if the pool has been depleted, or if the peer's already
@@ -779,7 +779,7 @@ func (q *queue) DeliverHeaders(id string, headers []*types.Header, headerProcCh 
 // DeliverBodies injects a block body retrieval response into the results queue.
 // The method returns the number of blocks bodies accepted from the delivery and
 // also wakes any threads waiting for data delivery.
-func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, randomnessList []*types.Randomness, epochSnarkDataList []*types.EpochSnarkData) (int, error) {
+func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, randomnessList []*types.Randomness) (int, error) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 	trieHasher := trie.NewStackTrie(nil)
@@ -793,7 +793,6 @@ func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, randomn
 	reconstruct := func(index int, result *fetchResult) {
 		result.Transactions = txLists[index]
 		result.Randomness = randomnessList[index]
-		result.EpochSnarkData = epochSnarkDataList[index]
 		result.SetBodyDone()
 	}
 	return q.deliver(id, q.blockTaskPool, q.blockTaskQueue, q.blockPendPool,

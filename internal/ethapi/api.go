@@ -700,10 +700,10 @@ func (s *PublicBlockChainAPI) GetHeaderByHash(ctx context.Context, hash common.H
 }
 
 // GetBlockByNumber returns the requested canonical block.
-// * When blockNr is -1 the chain head is returned.
-// * When blockNr is -2 the pending chain head is returned.
-// * When fullTx is true all transactions in the block are returned, otherwise
-//   only the transaction hash is returned.
+//   - When blockNr is -1 the chain head is returned.
+//   - When blockNr is -2 the pending chain head is returned.
+//   - When fullTx is true all transactions in the block are returned, otherwise
+//     only the transaction hash is returned.
 func (s *PublicBlockChainAPI) GetBlockByNumber(ctx context.Context, number rpc.BlockNumber, fullTx bool) (map[string]interface{}, error) {
 	block, err := s.b.BlockByNumber(ctx, number)
 	if block != nil && err == nil {
@@ -1152,15 +1152,6 @@ func RPCMarshalBlock(block *types.Block, inclTx bool, fullTx bool, baseFeeFn fun
 	fields["randomness"] = map[string]interface{}{
 		"revealed":  hexutil.Bytes(block.Randomness().Revealed.Bytes()),
 		"committed": hexutil.Bytes(block.Randomness().Committed.Bytes()),
-	}
-	epochSnarkData := block.EpochSnarkData()
-	if epochSnarkData != nil && !epochSnarkData.IsEmpty() {
-		fields["epochSnarkData"] = map[string]interface{}{
-			"bitmap":    hexutil.Bytes(block.EpochSnarkData().Bitmap.Bytes()),
-			"signature": hexutil.Bytes(block.EpochSnarkData().Signature),
-		}
-	} else {
-		fields["epochSnarkData"] = nil
 	}
 
 	if inclTx {

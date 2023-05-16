@@ -520,10 +520,6 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	}
 	// update block's header
 	block = block.WithHeader(h)
-	block = block.WithEpochSnarkData(&types.EpochSnarkData{
-		Bitmap:    aggregatedEpochValidatorSetSeal.Bitmap,
-		Signature: aggregatedEpochValidatorSetSeal.Signature,
-	})
 	if sb.csvRecorder != nil {
 		sb.recordBlockProductionTimes(block.Header().Number.Uint64(), len(block.Transactions()), block.GasUsed(), aggregatedSeal.Round.Uint64())
 	}
