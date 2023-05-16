@@ -24,27 +24,25 @@ import (
 
 // LegacyTx is the transaction data of regular Ethereum transactions.
 type LegacyTx struct {
-	Nonce               uint64          // nonce of sender account
-	GasPrice            *big.Int        // wei per gas
-	Gas                 uint64          // gas limit
-	FeeCurrency         *common.Address // nil means native currency
-	GatewayFeeRecipient *common.Address // nil means no gateway fee is paid
-	GatewayFee          *big.Int
-	To                  *common.Address `rlp:"nil"` // nil means contract creation
-	Value               *big.Int        // wei amount
-	Data                []byte          // contract invocation input data
-	V, R, S             *big.Int        // signature values
+	Nonce       uint64          // nonce of sender account
+	GasPrice    *big.Int        // wei per gas
+	Gas         uint64          // gas limit
+	FeeCurrency *common.Address // nil means native currency
+	To          *common.Address `rlp:"nil"` // nil means contract creation
+	Value       *big.Int        // wei amount
+	Data        []byte          // contract invocation input data
+	V, R, S     *big.Int        // signature values
 
 	// This is only used when marshaling to JSON.
 	Hash *common.Hash `rlp:"-"`
 
-	// Whether this is an ethereum-compatible transaction (i.e. with FeeCurrency, GatewayFeeRecipient and GatewayFee omitted)
+	// Whether this is an ethereum-compatible transaction (i.e. with FeeCurrency omitted)
 	EthCompatible bool `rlp:"-"`
 }
 
 // NewCeloTransaction creates an unsigned legacy transaction.
 // Deprecated: use NewTx instead.
-func NewCeloTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int, data []byte) *Transaction {
+func NewCeloTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency *common.Address, data []byte) *Transaction {
 	return NewTx(&LegacyTx{
 		Nonce:    nonce,
 		To:       &to,
@@ -54,9 +52,7 @@ func NewCeloTransaction(nonce uint64, to common.Address, amount *big.Int, gasLim
 		Data:     data,
 
 		// Celo specific fields
-		FeeCurrency:         feeCurrency,
-		GatewayFeeRecipient: gatewayFeeRecipient,
-		GatewayFee:          gatewayFee,
+		FeeCurrency: feeCurrency,
 	})
 }
 
@@ -78,7 +74,7 @@ func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit u
 
 // NewCeloContractCreation creates an unsigned legacy transaction.
 // Deprecated: use NewTx instead.
-func NewCeloContractCreation(nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int, data []byte) *Transaction {
+func NewCeloContractCreation(nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency *common.Address, data []byte) *Transaction {
 	return NewTx(&LegacyTx{
 		Nonce:    nonce,
 		Value:    amount,
@@ -87,9 +83,7 @@ func NewCeloContractCreation(nonce uint64, amount *big.Int, gasLimit uint64, gas
 		Data:     data,
 
 		// Celo specific fields
-		FeeCurrency:         feeCurrency,
-		GatewayFeeRecipient: gatewayFeeRecipient,
-		GatewayFee:          gatewayFee,
+		FeeCurrency: feeCurrency,
 	})
 }
 
@@ -123,10 +117,8 @@ func (tx *LegacyTx) copy() TxData {
 		S:        new(big.Int),
 
 		// Celo specific fields
-		FeeCurrency:         tx.FeeCurrency,         // TODO: copy pointed-to address
-		GatewayFeeRecipient: tx.GatewayFeeRecipient, // TODO: copy pointed-to address
-		GatewayFee:          new(big.Int),
-		EthCompatible:       tx.EthCompatible,
+		FeeCurrency:   tx.FeeCurrency, // TODO: copy pointed-to address
+		EthCompatible: tx.EthCompatible,
 	}
 	if tx.Value != nil {
 		cpy.Value.Set(tx.Value)
@@ -142,9 +134,6 @@ func (tx *LegacyTx) copy() TxData {
 	}
 	if tx.S != nil {
 		cpy.S.Set(tx.S)
-	}
-	if tx.GatewayFee != nil {
-		cpy.GatewayFee.Set(tx.GatewayFee)
 	}
 	return cpy
 }
@@ -170,7 +159,5 @@ func (tx *LegacyTx) setSignatureValues(chainID, v, r, s *big.Int) {
 	tx.V, tx.R, tx.S = v, r, s
 }
 
-func (tx *LegacyTx) feeCurrency() *common.Address         { return tx.FeeCurrency }
-func (tx *LegacyTx) gatewayFeeRecipient() *common.Address { return tx.GatewayFeeRecipient }
-func (tx *LegacyTx) gatewayFee() *big.Int                 { return tx.GatewayFee }
-func (tx *LegacyTx) ethCompatible() bool                  { return tx.EthCompatible }
+func (tx *LegacyTx) feeCurrency() *common.Address { return tx.FeeCurrency }
+func (tx *LegacyTx) ethCompatible() bool          { return tx.EthCompatible }

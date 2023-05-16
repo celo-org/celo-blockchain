@@ -76,8 +76,6 @@ type SendTxArgs struct {
 	MaxFeePerGas         *hexutil.Big             `json:"maxFeePerGas"`
 	MaxPriorityFeePerGas *hexutil.Big             `json:"maxPriorityFeePerGas"`
 	FeeCurrency          *common.MixedcaseAddress `json:"feeCurrency"`
-	GatewayFeeRecipient  *common.MixedcaseAddress `json:"gatewayFeeRecipient"`
-	GatewayFee           hexutil.Big              `json:"gatewayFee"`
 	Value                hexutil.Big              `json:"value"`
 	Nonce                hexutil.Uint64           `json:"nonce"`
 	EthCompatible        bool                     `json:"ethCompatible"`
@@ -114,7 +112,6 @@ func (args *SendTxArgs) ToTransaction() *types.Transaction {
 		GasPrice:             args.GasPrice,
 		MaxFeePerGas:         args.MaxFeePerGas,
 		MaxPriorityFeePerGas: args.MaxPriorityFeePerGas,
-		GatewayFee:           &args.GatewayFee,
 		Value:                &args.Value,
 		Nonce:                &args.Nonce,
 		Data:                 args.Data,
@@ -125,10 +122,6 @@ func (args *SendTxArgs) ToTransaction() *types.Transaction {
 	if args.FeeCurrency != nil {
 		feeCurrency := args.FeeCurrency.Address()
 		txArgs.FeeCurrency = &feeCurrency
-	}
-	if args.GatewayFeeRecipient != nil {
-		gatewayFeeRecipient := args.GatewayFeeRecipient.Address()
-		txArgs.GatewayFeeRecipient = &gatewayFeeRecipient
 	}
 	// Add the To-field, if specified
 	if args.To != nil {

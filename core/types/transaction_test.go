@@ -43,8 +43,6 @@ var (
 		big.NewInt(0), 0, big.NewInt(0),
 		nil,
 		nil,
-		nil,
-		nil,
 	)
 
 	rightvrsTx, _ = NewCeloTransaction(
@@ -53,8 +51,6 @@ var (
 		big.NewInt(10),
 		2000,
 		big.NewInt(1),
-		nil,
-		nil,
 		nil,
 		common.FromHex("5544"),
 	).WithSignature(
@@ -290,51 +286,6 @@ func TestTxAmountChanged(t *testing.T) {
 	}
 
 	tx.inner.(*LegacyTx).Value = big.NewInt(20)
-
-	from, err := Sender(HomesteadSigner{}, tx)
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
-
-	if addr == from {
-		t.Error("derived address shouldn't match")
-	}
-}
-
-func TestTxGatewayFeeRecipientChanged(t *testing.T) {
-	_, addr := defaultTestKey()
-
-	tx, err := decodeTx(signAndEncodeTx(rightvrsTx))
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
-
-	recipientAddr := common.HexToAddress("b94f5374fce5edbc8e2a8697c15331677e6ebf0b")
-	tx.inner.(*LegacyTx).GatewayFeeRecipient = &recipientAddr
-
-	from, err := Sender(HomesteadSigner{}, tx)
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
-
-	if addr == from {
-		t.Error("derived address shouldn't match")
-	}
-}
-
-func TestTxGatewayFee(t *testing.T) {
-	_, addr := defaultTestKey()
-
-	tx, err := decodeTx(signAndEncodeTx(rightvrsTx))
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
-
-	tx.inner.(*LegacyTx).GatewayFee.SetInt64(5)
 
 	from, err := Sender(HomesteadSigner{}, tx)
 	if err != nil {

@@ -45,16 +45,17 @@ func CreditFees(
 	evm *vm.EVM,
 	from common.Address,
 	feeRecipient common.Address,
-	gatewayFeeRecipient *common.Address,
 	communityFund common.Address,
 	refund *big.Int,
 	tipTxFee *big.Int,
-	gatewayFee *big.Int,
 	baseTxFee *big.Int,
 	feeCurrency *common.Address) error {
 	// Function is "creditGasFees(address,address,address,address,uint256,uint256,uint256,uint256)"
 	functionSelector := hexutil.MustDecode("0x6a30b253")
-	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(from), common.AddressToAbi(feeRecipient), common.AddressToAbi(*gatewayFeeRecipient), common.AddressToAbi(communityFund), common.AmountToAbi(refund), common.AmountToAbi(tipTxFee), common.AmountToAbi(gatewayFee), common.AmountToAbi(baseTxFee)})
+	// Gateway fee was removed but the contract still has those parameters
+	gatewayFeeRecipient := common.Address{}
+	gatewayFee := common.Big0
+	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(from), common.AddressToAbi(feeRecipient), common.AddressToAbi(gatewayFeeRecipient), common.AddressToAbi(communityFund), common.AmountToAbi(refund), common.AmountToAbi(tipTxFee), common.AmountToAbi(gatewayFee), common.AmountToAbi(baseTxFee)})
 
 	// Run only primary evm.Call() with tracer
 	if evm.GetDebug() {

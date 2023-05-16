@@ -122,8 +122,7 @@ func dummyBlock(number int64) *types.Block {
 		Extra:   []byte{01, 02},
 	}
 	feeCurrencyAddr := common.HexToAddress("02")
-	gatewayFeeRecipientAddr := common.HexToAddress("03")
-	tx := types.NewCeloTransaction(1, common.HexToAddress("01"), big.NewInt(1), 10000, big.NewInt(10), &feeCurrencyAddr, &gatewayFeeRecipientAddr, big.NewInt(34), []byte{04})
+	tx := types.NewCeloTransaction(1, common.HexToAddress("01"), big.NewInt(1), 10000, big.NewInt(10), &feeCurrencyAddr, []byte{04})
 	return types.NewBlock(header, []*types.Transaction{tx}, nil, nil, newHasher())
 }
 func dummyMessage(code uint64) *Message {

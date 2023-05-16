@@ -52,14 +52,12 @@ type TransactOpts struct {
 	Signer  SignerFn       // Method to use for signing the transaction (mandatory)
 	ChainID *big.Int       // Chain/network id for use for replay protection during signing (nil = no replay protection)
 
-	Value               *big.Int        // Funds to transfer along along the transaction (nil = 0 = no funds)
-	GasPrice            *big.Int        // Gas price to use for the transaction execution (nil = gas price oracle)
-	FeeCurrency         *common.Address // Fee currency to be used for transaction (nil = default currency = Celo Gold)
-	GatewayFeeRecipient *common.Address // Address to which gateway fees should be paid (nil = no gateway fees are paid)
-	GatewayFee          *big.Int        // Value of gateway fees to be paid (nil = no gateway fees are paid)
-	GasFeeCap           *big.Int        // Gas fee cap to use for the 1559 transaction execution (nil = gas price oracle)
-	GasTipCap           *big.Int        // Gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle)
-	GasLimit            uint64          // Gas limit to set for the transaction execution (0 = estimate)
+	Value       *big.Int        // Funds to transfer along along the transaction (nil = 0 = no funds)
+	GasPrice    *big.Int        // Gas price to use for the transaction execution (nil = gas price oracle)
+	FeeCurrency *common.Address // Fee currency to be used for transaction (nil = default currency = Celo Gold)
+	GasFeeCap   *big.Int        // Gas fee cap to use for the 1559 transaction execution (nil = gas price oracle)
+	GasTipCap   *big.Int        // Gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle)
+	GasLimit    uint64          // Gas limit to set for the transaction execution (0 = estimate)
 
 	Context context.Context // Network context to support cancellation and timeouts (nil = no timeout)
 }
@@ -342,10 +340,6 @@ func (c *BoundContract) transactionFor(opts *TransactOpts, contract *common.Addr
 	//	feeCurrency = c.backend.SuggestFeeCurrency(opts.Context)
 	//}
 
-	gatewayFeeRecipient := opts.GatewayFeeRecipient
-	gatewayFee := opts.GatewayFee
-	// TODO(nategraf): Add SuggestGatewayFee to Transactor.
-
 	gasLimit := opts.GasLimit
 	if gasLimit == 0 {
 		// Gas estimation cannot succeed without code for method invocations
@@ -358,16 +352,14 @@ func (c *BoundContract) transactionFor(opts *TransactOpts, contract *common.Addr
 		}
 		// If the contract surely has code (or code is not needed), estimate the transaction
 		msg := ethereum.CallMsg{
-			From:                opts.From,
-			To:                  contract,
-			GasPrice:            opts.GasPrice,
-			GasTipCap:           opts.GasTipCap,
-			GasFeeCap:           opts.GasFeeCap,
-			Value:               value,
-			FeeCurrency:         feeCurrency,
-			GatewayFeeRecipient: gatewayFeeRecipient,
-			GatewayFee:          gatewayFee,
-			Data:                input,
+			From:        opts.From,
+			To:          contract,
+			GasPrice:    opts.GasPrice,
+			GasTipCap:   opts.GasTipCap,
+			GasFeeCap:   opts.GasFeeCap,
+			Value:       value,
+			FeeCurrency: feeCurrency,
+			Data:        input,
 		}
 		gasLimit, err = c.backend.EstimateGas(ensureContext(opts.Context), msg)
 		if err != nil {
@@ -381,14 +373,12 @@ func (c *BoundContract) transactionFor(opts *TransactOpts, contract *common.Addr
 	var rawTx *types.Transaction
 	if opts.GasFeeCap == nil {
 		baseTx := &types.LegacyTx{
-			Nonce:               nonce,
-			GasPrice:            opts.GasPrice,
-			Gas:                 gasLimit,
-			Value:               value,
-			FeeCurrency:         feeCurrency,
-			GatewayFeeRecipient: gatewayFeeRecipient,
-			GatewayFee:          gatewayFee,
-			Data:                input,
+			Nonce:       nonce,
+			GasPrice:    opts.GasPrice,
+			Gas:         gasLimit,
+			Value:       value,
+			FeeCurrency: feeCurrency,
+			Data:        input,
 		}
 		if contract != nil {
 			baseTx.To = &c.address

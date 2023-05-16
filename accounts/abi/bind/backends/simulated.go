@@ -790,21 +790,19 @@ type callMsg struct {
 	ethereum.CallMsg
 }
 
-func (m callMsg) From() common.Address                 { return m.CallMsg.From }
-func (m callMsg) Nonce() uint64                        { return 0 }
-func (m callMsg) IsFake() bool                         { return true }
-func (m callMsg) To() *common.Address                  { return m.CallMsg.To }
-func (m callMsg) GasPrice() *big.Int                   { return m.CallMsg.GasPrice }
-func (m callMsg) GasFeeCap() *big.Int                  { return m.CallMsg.GasFeeCap }
-func (m callMsg) GasTipCap() *big.Int                  { return m.CallMsg.GasTipCap }
-func (m callMsg) FeeCurrency() *common.Address         { return m.CallMsg.FeeCurrency }
-func (m callMsg) GatewayFeeRecipient() *common.Address { return m.CallMsg.GatewayFeeRecipient }
-func (m callMsg) GatewayFee() *big.Int                 { return m.CallMsg.GatewayFee }
-func (m callMsg) Gas() uint64                          { return m.CallMsg.Gas }
-func (m callMsg) Value() *big.Int                      { return m.CallMsg.Value }
-func (m callMsg) Data() []byte                         { return m.CallMsg.Data }
-func (m callMsg) EthCompatible() bool                  { return m.CallMsg.EthCompatible }
-func (m callMsg) AccessList() types.AccessList         { return m.CallMsg.AccessList }
+func (m callMsg) From() common.Address         { return m.CallMsg.From }
+func (m callMsg) Nonce() uint64                { return 0 }
+func (m callMsg) IsFake() bool                 { return true }
+func (m callMsg) To() *common.Address          { return m.CallMsg.To }
+func (m callMsg) GasPrice() *big.Int           { return m.CallMsg.GasPrice }
+func (m callMsg) GasFeeCap() *big.Int          { return m.CallMsg.GasFeeCap }
+func (m callMsg) GasTipCap() *big.Int          { return m.CallMsg.GasTipCap }
+func (m callMsg) FeeCurrency() *common.Address { return m.CallMsg.FeeCurrency }
+func (m callMsg) Gas() uint64                  { return m.CallMsg.Gas }
+func (m callMsg) Value() *big.Int              { return m.CallMsg.Value }
+func (m callMsg) Data() []byte                 { return m.CallMsg.Data }
+func (m callMsg) EthCompatible() bool          { return m.CallMsg.EthCompatible }
+func (m callMsg) AccessList() types.AccessList { return m.CallMsg.AccessList }
 
 // filterBackend implements filters.Backend to support filtering for logs without
 // taking bloom-bits acceleration structures into account.

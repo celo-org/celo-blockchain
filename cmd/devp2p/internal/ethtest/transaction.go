@@ -300,7 +300,7 @@ func unknownTx(s *Suite) *types.Transaction {
 	if tx.To() != nil {
 		to = *tx.To()
 	}
-	txNew := types.NewCeloTransaction(tx.Nonce()+1, to, tx.Value(), tx.Gas(), tx.GasPrice(), tx.FeeCurrency(), tx.GatewayFeeRecipient(), tx.GatewayFee(), tx.Data())
+	txNew := types.NewCeloTransaction(tx.Nonce()+1, to, tx.Value(), tx.Gas(), tx.GasPrice(), tx.FeeCurrency(), tx.Data())
 	return signWithFaucet(s.chain.chainConfig, txNew)
 }
 
@@ -364,7 +364,7 @@ func invalidNonceTx(s *Suite) *types.Transaction {
 	if tx.To() != nil {
 		to = *tx.To()
 	}
-	txNew := types.NewCeloTransaction(tx.Nonce()-2, to, tx.Value(), tx.Gas(), tx.GasPrice(), tx.FeeCurrency(), tx.GatewayFeeRecipient(), tx.GatewayFee(), tx.Data())
+	txNew := types.NewCeloTransaction(tx.Nonce()-2, to, tx.Value(), tx.Gas(), tx.GasPrice(), tx.FeeCurrency(), tx.Data())
 	return signWithFaucet(s.chain.chainConfig, txNew)
 }
 
@@ -378,7 +378,7 @@ func hugeAmount(s *Suite) *types.Transaction {
 	if tx.To() != nil {
 		to = *tx.To()
 	}
-	txNew := types.NewCeloTransaction(tx.Nonce(), to, amount, tx.Gas(), tx.GasPrice(), tx.FeeCurrency(), tx.GatewayFeeRecipient(), tx.GatewayFee(), tx.Data())
+	txNew := types.NewCeloTransaction(tx.Nonce(), to, amount, tx.Gas(), tx.GasPrice(), tx.FeeCurrency(), tx.Data())
 	return signWithFaucet(s.chain.chainConfig, txNew)
 }
 
@@ -392,7 +392,7 @@ func hugeGasPrice(s *Suite) *types.Transaction {
 	if tx.To() != nil {
 		to = *tx.To()
 	}
-	txNew := types.NewCeloTransaction(tx.Nonce(), to, tx.Value(), tx.Gas(), gasPrice, tx.FeeCurrency(), tx.GatewayFeeRecipient(), tx.GatewayFee(), tx.Data())
+	txNew := types.NewCeloTransaction(tx.Nonce(), to, tx.Value(), tx.Gas(), gasPrice, tx.FeeCurrency(), tx.Data())
 	return signWithFaucet(s.chain.chainConfig, txNew)
 }
 
@@ -405,7 +405,7 @@ func hugeData(s *Suite) *types.Transaction {
 	if tx.To() != nil {
 		to = *tx.To()
 	}
-	txNew := types.NewCeloTransaction(tx.Nonce(), to, tx.Value(), tx.Gas(), tx.GasPrice(), tx.FeeCurrency(), tx.GatewayFeeRecipient(), tx.GatewayFee(), largeBuffer(2))
+	txNew := types.NewCeloTransaction(tx.Nonce(), to, tx.Value(), tx.Gas(), tx.GasPrice(), tx.FeeCurrency(), largeBuffer(2))
 	return signWithFaucet(s.chain.chainConfig, txNew)
 }
 

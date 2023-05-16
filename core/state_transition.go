@@ -97,8 +97,6 @@ type Message interface {
 	// nil correspond to Celo Gold (native currency).
 	// All other values should correspond to ERC20 contract addresses extended to be compatible with gas payments.
 	FeeCurrency() *common.Address
-	GatewayFeeRecipient() *common.Address
-	GatewayFee() *big.Int
 	// Whether this transaction omitted the 3 Celo-only fields (FeeCurrency & co.)
 	EthCompatible() bool
 }
@@ -241,7 +239,7 @@ func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner, 
 // with gas price set to zero if the sender doesn't have funds to pay for gas.
 // Returns the gas used (which does not include gas refunds) and an error if it failed.
 func ApplyMessageWithoutGasPriceMinimum(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*ExecutionResult, error) {
-	log.Trace("Applying state transition message without gas price minimum", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas limit", msg.Gas(), "value", msg.Value(), "data", msg.Data())
+	log.Trace("Applying state transition message without gas price minimum", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "fee currency", msg.FeeCurrency(), "gas limit", msg.Gas(), "value", msg.Value(), "data", msg.Data())
 	st := NewStateTransition(evm, msg, gp, vmRunner, sysCtx)
 	st.baseFee = common.Big0
 	return st.TransitionDb()
@@ -258,8 +256,8 @@ func (st *StateTransition) to() common.Address {
 // buyGas checks whether accountOwner's balance can cover transaction fee.
 //
 // For native token(CELO) as feeCurrency:
-//   - Pre-Espresso: it ensures balance >= GasPrice * gas + gatewayFee (1)
-//   - Post-Espresso: it ensures balance >= GasFeeCap * gas + gatewayFee + value (2)
+//   - Pre-Espresso: it ensures balance >= GasPrice * gas (1)
+//   - Post-Espresso: it ensures balance >= GasFeeCap * gas + value (2)
 func (st *StateTransition) buyGas(espresso bool) error {
 	mgval := new(big.Int).SetUint64(st.msg.Gas())
 	mgval = mgval.Mul(mgval, st.gasPrice)
@@ -268,11 +266,6 @@ func (st *StateTransition) buyGas(espresso bool) error {
 		balanceCheck = new(big.Int).SetUint64(st.msg.Gas())
 		balanceCheck = balanceCheck.Mul(balanceCheck, st.gasFeeCap)
 		balanceCheck.Add(balanceCheck, st.value)
-	}
-
-	if st.msg.GatewayFeeRecipient() != nil {
-		balanceCheck = balanceCheck.Add(balanceCheck, st.msg.GatewayFee())
-		mgval = mgval.Add(mgval, st.msg.GatewayFee())
 	}
 
 	if have, want := st.state.GetBalance(st.msg.From()), balanceCheck; have.Cmp(want) < 0 {
@@ -494,11 +487,6 @@ func (st *StateTransition) distributeTxFees(espresso bool) error {
 	// No need to do effectiveTip calculation, because st.gasPrice == effectiveGasPrice, and effectiveTip = effectiveGasPrice - baseTxFee
 	toPayTip := new(big.Int).Sub(toPayTotal, toPayBase)
 
-	gatewayFeeRecipient := st.msg.GatewayFeeRecipient()
-	if gatewayFeeRecipient == nil {
-		gatewayFeeRecipient = &common.ZeroAddress
-	}
-
 	governanceAddress, err := st.getGovernanceAddress()
 	if err != nil {
 		return err
@@ -510,22 +498,18 @@ func (st *StateTransition) distributeTxFees(espresso bool) error {
 	}
 
 	log.Trace("distributeTxFees", "from", st.msg.From(), "refund", toRefund, "feeCurrency", st.msg.FeeCurrency(),
-		"gatewayFeeRecipient", *gatewayFeeRecipient, "gatewayFee", st.msg.GatewayFee(),
 		"coinbaseFeeRecipient", st.evm.Context.Coinbase, "coinbaseFee", toPayTip,
 		"comunityFundRecipient", governanceAddress, "communityFundFee", toPayBase)
 
 	if st.msg.FeeCurrency() == nil {
-		if gatewayFeeRecipient != &common.ZeroAddress {
-			st.state.AddBalance(*gatewayFeeRecipient, st.msg.GatewayFee())
-		}
 		if governanceAddress != common.ZeroAddress {
 			st.state.AddBalance(governanceAddress, toPayBase)
 		}
 		st.state.AddBalance(st.evm.Context.Coinbase, toPayTip)
 		st.state.AddBalance(st.msg.From(), toRefund)
 	} else {
-		if err = erc20gas.CreditFees(st.evm, st.msg.From(), st.evm.Context.Coinbase, gatewayFeeRecipient, governanceAddress, toRefund, toPayTip, st.msg.GatewayFee(), toPayBase, st.msg.FeeCurrency()); err != nil {
-			log.Error("Error crediting", "from", st.msg.From(), "coinbase", st.evm.Context.Coinbase, "gateway", gatewayFeeRecipient, "fund", governanceAddress)
+		if err = erc20gas.CreditFees(st.evm, st.msg.From(), st.evm.Context.Coinbase, governanceAddress, toRefund, toPayTip, toPayBase, st.msg.FeeCurrency()); err != nil {
+			log.Error("Error crediting", "from", st.msg.From(), "coinbase", st.evm.Context.Coinbase, "fund", governanceAddress)
 			return err
 		}
 
@@ -552,8 +536,8 @@ func (st *StateTransition) getGovernanceAddress() (common.Address, error) {
 
 // byGasAlternativeCurrency checks whether accountOwner's balance can cover transaction fee.
 // For non-native tokens(cUSD, cEUR, ...) as feeCurrency:
-//   - Pre-Espresso: it ensures balance > GasPrice * gas + gatewayFee (1)
-//   - Post-Espresso: it ensures balance >= GasFeeCap * gas + gatewayFee (2) (CIP-45)
+//   - Pre-Espresso: it ensures balance > GasPrice * gas (1)
+//   - Post-Espresso: it ensures balance >= GasFeeCap * gas (2) (CIP-45)
 func (st *StateTransition) buyGasAlternativeCurrency(espresso bool) error {
 	balance, err := currency.GetBalanceOf(st.vmRunner, st.msg.From(), *st.msg.FeeCurrency())
 	if err != nil {
@@ -567,11 +551,6 @@ func (st *StateTransition) buyGasAlternativeCurrency(espresso bool) error {
 		balanceCheck = new(big.Int).SetUint64(st.msg.Gas())
 		balanceCheck = balanceCheck.Mul(balanceCheck, st.gasFeeCap)
 		// We don't add st.value because it's on a different currency
-	}
-
-	if st.msg.GatewayFeeRecipient() != nil {
-		balanceCheck = balanceCheck.Add(balanceCheck, st.msg.GatewayFee())
-		mgval = mgval.Add(mgval, st.msg.GatewayFee())
 	}
 
 	var hasEnoughBalance bool
@@ -595,7 +574,7 @@ func (st *StateTransition) buyGasAlternativeCurrency(espresso bool) error {
 }
 
 func CheckEthCompatibility(msg Message) error {
-	if msg.EthCompatible() && !(msg.FeeCurrency() == nil && msg.GatewayFeeRecipient() == nil && msg.GatewayFee().Sign() == 0) {
+	if msg.EthCompatible() && !(msg.FeeCurrency() == nil) {
 		return types.ErrEthCompatibleTransactionIsntCompatible
 	}
 	return nil

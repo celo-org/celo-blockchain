@@ -51,16 +51,12 @@ func checkFeeFromCeloTx(ctx context.Context, b Backend, tx *types.Transaction) e
 	return CheckTxFee(currencyManager, tx.FeeCurrency(), tx.Fee(), b.RPCTxFeeCap())
 }
 
-func checkFeeFromCeloCurrency(ctx context.Context, b Backend, feeCurrency *common.Address, gasPrice *big.Int, gas uint64, gatewayFee *big.Int) error {
+func checkFeeFromCeloCurrency(ctx context.Context, b Backend, feeCurrency *common.Address, gasPrice *big.Int, gas uint64) error {
 	currencyManager, err := newCurrencyManager(ctx, b)
 	if err != nil {
 		return err
 	}
-	gFee := gatewayFee
-	if gFee == nil {
-		gFee = big.NewInt(0)
-	}
-	fee := types.Fee(gasPrice, gas, gFee)
+	fee := types.Fee(gasPrice, gas)
 	return CheckTxFee(currencyManager, feeCurrency, fee, b.RPCTxFeeCap())
 }
 

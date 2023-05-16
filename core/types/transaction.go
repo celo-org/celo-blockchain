@@ -96,9 +96,7 @@ type TxData interface {
 
 	// Celo specific fields
 	feeCurrency() *common.Address
-	gatewayFeeRecipient() *common.Address
-	gatewayFee() *big.Int
-	// Whether this is an ethereum-compatible transaction (i.e. with FeeCurrency, GatewayFeeRecipient and GatewayFee omitted)
+	// Whether this is an ethereum-compatible transaction (i.e. with FeeCurrency omitted)
 	ethCompatible() bool
 }
 
@@ -308,13 +306,10 @@ func (tx *Transaction) To() *common.Address {
 	return &cpy
 }
 
-// Cost returns value + gasprice * gaslimit + gatewayfee.
+// Cost returns value + gasprice * gaslimit.
 func (tx *Transaction) Cost() *big.Int {
 	total := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(tx.Gas()))
 	total.Add(total, tx.Value())
-	if gatewayFee := tx.GatewayFee(); gatewayFee != nil {
-		total.Add(total, gatewayFee)
-	}
 	return total
 }
 
@@ -450,36 +445,22 @@ func (tx *Transaction) WithSignature(signer Signer, sig []byte) (*Transaction, e
 // FeeCurrency returns the fee currency of the transaction. Nil implies paying in CELO.
 func (tx *Transaction) FeeCurrency() *common.Address { return tx.inner.feeCurrency() }
 
-// GatewayFeeRecipient returns the address to the send the gateway fee to. Nil implies no recipient.
-func (tx *Transaction) GatewayFeeRecipient() *common.Address { return tx.inner.gatewayFeeRecipient() }
-
-// GatewayFee returns the fee that should be paid to the gateway fee recipient.
-// Will not return nil, but instead returns 0 if the underlying transction does not have a gatewayfee.
-func (tx *Transaction) GatewayFee() *big.Int {
-	if tx.inner.gatewayFee() != nil {
-		return new(big.Int).Set(tx.inner.gatewayFee())
-	} else {
-		return big.NewInt(0)
-	}
-}
-
 // EthCompatible returns true iff the RLP form of the LegacyTx does not have the celo specific fields.
 func (tx *Transaction) EthCompatible() bool { return tx.inner.ethCompatible() }
 
 // Fee calculates the fess paid by the transaction include the gateway fee.
 func (tx *Transaction) Fee() *big.Int {
-	return Fee(tx.inner.gasPrice(), tx.inner.gas(), tx.GatewayFee())
+	return Fee(tx.inner.gasPrice(), tx.inner.gas())
 }
 
 // Fee calculates the transaction fee (gasLimit * gasPrice + gatewayFee)
-func Fee(gasPrice *big.Int, gasLimit uint64, gatewayFee *big.Int) *big.Int {
-	gasFee := new(big.Int).Mul(gasPrice, big.NewInt(int64(gasLimit)))
-	return gasFee.Add(gasFee, gatewayFee)
+func Fee(gasPrice *big.Int, gasLimit uint64) *big.Int {
+	return new(big.Int).Mul(gasPrice, big.NewInt(int64(gasLimit)))
 }
 
 // CheckEthCompatibility checks that the Celo-only fields are nil-or-0 if EthCompatible is true
 func (tx *Transaction) CheckEthCompatibility() error {
-	if tx.EthCompatible() && !(tx.FeeCurrency() == nil && tx.GatewayFeeRecipient() == nil && tx.GatewayFee().Sign() == 0) {
+	if tx.EthCompatible() && !(tx.FeeCurrency() == nil) {
 		return ErrEthCompatibleTransactionIsntCompatible
 	}
 	return nil
@@ -653,28 +634,26 @@ func (t *TransactionsByPriceAndNonce) Pop() {
 //
 // NOTE: In a future PR this will be removed.
 type Message struct {
-	to                  *common.Address
-	from                common.Address
-	nonce               uint64
-	amount              *big.Int
-	gasLimit            uint64
-	gasPrice            *big.Int
-	gasFeeCap           *big.Int
-	gasTipCap           *big.Int
-	feeCurrency         *common.Address
-	gatewayFeeRecipient *common.Address
-	gatewayFee          *big.Int
-	data                []byte
-	accessList          AccessList
-	ethCompatible       bool
-	isFake              bool
+	to            *common.Address
+	from          common.Address
+	nonce         uint64
+	amount        *big.Int
+	gasLimit      uint64
+	gasPrice      *big.Int
+	gasFeeCap     *big.Int
+	gasTipCap     *big.Int
+	feeCurrency   *common.Address
+	data          []byte
+	accessList    AccessList
+	ethCompatible bool
+	isFake        bool
 }
 
 func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int,
 	gasLimit uint64, gasPrice, gasFeeCap, gasTipCap *big.Int,
-	feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int,
+	feeCurrency *common.Address,
 	data []byte, accessList AccessList, ethCompatible, isFake bool) Message {
-	m := Message{
+	return Message{
 		from:       from,
 		to:         to,
 		nonce:      nonce,
@@ -688,15 +667,9 @@ func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *b
 		isFake:     isFake,
 
 		// Celo specific fields
-		feeCurrency:         feeCurrency,
-		gatewayFeeRecipient: gatewayFeeRecipient,
-		gatewayFee:          gatewayFee,
-		ethCompatible:       ethCompatible,
+		feeCurrency:   feeCurrency,
+		ethCompatible: ethCompatible,
 	}
-	if m.gatewayFee == nil {
-		m.gatewayFee = new(big.Int)
-	}
-	return m
 }
 
 // AsMessage returns the transaction as a core.Message.
@@ -714,17 +687,12 @@ func (tx *Transaction) AsMessage(s Signer, baseFee *big.Int) (Message, error) {
 		isFake:     false,
 
 		// Celo specific fields
-		feeCurrency:         tx.FeeCurrency(),
-		gatewayFeeRecipient: tx.GatewayFeeRecipient(),
-		gatewayFee:          new(big.Int),
-		ethCompatible:       tx.EthCompatible(),
+		feeCurrency:   tx.FeeCurrency(),
+		ethCompatible: tx.EthCompatible(),
 	}
 	// If baseFee provided, set gasPrice to effectiveGasPrice.
 	if baseFee != nil {
 		msg.gasPrice = math.BigMin(msg.gasPrice.Add(msg.gasTipCap, baseFee), msg.gasFeeCap)
-	}
-	if gatewayFee := tx.GatewayFee(); gatewayFee != nil {
-		msg.gatewayFee.Set(gatewayFee)
 	}
 	var err error
 	msg.from, err = Sender(s, tx)
@@ -745,10 +713,8 @@ func (m Message) IsFake() bool           { return m.isFake }
 
 func (m Message) Fee() *big.Int {
 	gasFee := new(big.Int).Mul(m.gasPrice, big.NewInt(int64(m.gasLimit)))
-	return gasFee.Add(gasFee, m.gatewayFee)
+	return gasFee
 }
 
-func (m Message) EthCompatible() bool                  { return m.ethCompatible }
-func (m Message) FeeCurrency() *common.Address         { return m.feeCurrency }
-func (m Message) GatewayFeeRecipient() *common.Address { return m.gatewayFeeRecipient }
-func (m Message) GatewayFee() *big.Int                 { return m.gatewayFee }
+func (m Message) EthCompatible() bool          { return m.ethCompatible }
+func (m Message) FeeCurrency() *common.Address { return m.feeCurrency }

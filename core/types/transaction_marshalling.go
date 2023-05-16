@@ -43,9 +43,7 @@ type txJSON struct {
 	To                   *common.Address `json:"to"`
 
 	// Celo specific fields
-	FeeCurrency         *common.Address `json:"feeCurrency"`         // nil means native currency
-	GatewayFeeRecipient *common.Address `json:"gatewayFeeRecipient"` // nil means no gateway fee is paid
-	GatewayFee          *hexutil.Big    `json:"gatewayFee"`
+	FeeCurrency *common.Address `json:"feeCurrency"` // nil means native currency
 
 	// Access list transaction fields:
 	ChainID    *hexutil.Big `json:"chainId,omitempty"`
@@ -54,7 +52,7 @@ type txJSON struct {
 	// Only used for encoding:
 	Hash common.Hash `json:"hash"`
 
-	// Whether this is an ethereum-compatible transaction (i.e. with FeeCurrency, GatewayFeeRecipient and GatewayFee omitted)
+	// Whether this is an ethereum-compatible transaction (i.e. with FeeCurrency omitted)
 	EthCompatible bool `json:"ethCompatible"`
 }
 
@@ -76,8 +74,6 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		enc.To = t.To()
 		enc.V = (*hexutil.Big)(tx.V)
 		enc.FeeCurrency = tx.FeeCurrency // todo: check if needs deep copy
-		enc.GatewayFeeRecipient = tx.GatewayFeeRecipient
-		enc.GatewayFee = (*hexutil.Big)(tx.GatewayFee)
 		enc.R = (*hexutil.Big)(tx.R)
 		enc.S = (*hexutil.Big)(tx.S)
 		enc.EthCompatible = tx.EthCompatible
@@ -142,11 +138,6 @@ func (t *Transaction) UnmarshalJSON(input []byte) error {
 			return errors.New("missing required field 'value' in transaction")
 		}
 		itx.FeeCurrency = dec.FeeCurrency
-		itx.GatewayFeeRecipient = dec.GatewayFeeRecipient
-		itx.GatewayFee = new(big.Int)
-		if dec.GatewayFee != nil {
-			itx.GatewayFee.Set((*big.Int)(dec.GatewayFee))
-		}
 		itx.EthCompatible = dec.EthCompatible
 		itx.Value = (*big.Int)(dec.Value)
 		if dec.Data == nil {

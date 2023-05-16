@@ -1297,7 +1297,7 @@ func TestEIP155Transition(t *testing.T) {
 			tx      *types.Transaction
 			err     error
 			basicTx = func(signer types.Signer) (*types.Transaction, error) {
-				return types.SignTx(types.NewCeloTransaction(block.TxNonce(address), common.Address{}, new(big.Int), 21000, block.MinimumGasPrice(nil), nil, nil, nil, nil), signer, key)
+				return types.SignTx(types.NewCeloTransaction(block.TxNonce(address), common.Address{}, new(big.Int), 21000, block.MinimumGasPrice(nil), nil, nil), signer, key)
 			}
 		)
 		switch i {
@@ -1360,7 +1360,7 @@ func TestEIP155Transition(t *testing.T) {
 			tx      *types.Transaction
 			err     error
 			basicTx = func(signer types.Signer) (*types.Transaction, error) {
-				return types.SignTx(types.NewCeloTransaction(block.TxNonce(address), common.Address{}, new(big.Int), 21000, block.MinimumGasPrice(nil), nil, nil, nil, nil), signer, key)
+				return types.SignTx(types.NewCeloTransaction(block.TxNonce(address), common.Address{}, new(big.Int), 21000, block.MinimumGasPrice(nil), nil, nil), signer, key)
 			}
 		)
 		if i == 0 {
@@ -1408,11 +1408,11 @@ func TestEIP161AccountRemoval(t *testing.T) {
 		)
 		switch i {
 		case 0:
-			tx, err = types.SignTx(types.NewCeloTransaction(block.TxNonce(address), theAddr, new(big.Int), 21000, block.MinimumGasPrice(nil), nil, nil, nil, nil), signer, key)
+			tx, err = types.SignTx(types.NewCeloTransaction(block.TxNonce(address), theAddr, new(big.Int), 21000, block.MinimumGasPrice(nil), nil, nil), signer, key)
 		case 1:
-			tx, err = types.SignTx(types.NewCeloTransaction(block.TxNonce(address), theAddr, new(big.Int), 21000, block.MinimumGasPrice(nil), nil, nil, nil, nil), signer, key)
+			tx, err = types.SignTx(types.NewCeloTransaction(block.TxNonce(address), theAddr, new(big.Int), 21000, block.MinimumGasPrice(nil), nil, nil), signer, key)
 		case 2:
-			tx, err = types.SignTx(types.NewCeloTransaction(block.TxNonce(address), theAddr, new(big.Int), 21000, block.MinimumGasPrice(nil), nil, nil, nil, nil), signer, key)
+			tx, err = types.SignTx(types.NewCeloTransaction(block.TxNonce(address), theAddr, new(big.Int), 21000, block.MinimumGasPrice(nil), nil, nil), signer, key)
 		}
 		if err != nil {
 			t.Fatal(err)

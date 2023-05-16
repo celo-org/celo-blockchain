@@ -117,12 +117,12 @@ func transaction(nonce uint64, gaslimit uint64, key *ecdsa.PrivateKey) *types.Tr
 }
 
 func pricedTransaction(nonce uint64, gaslimit uint64, gasprice *big.Int, key *ecdsa.PrivateKey) *types.Transaction {
-	tx, _ := types.SignTx(types.NewCeloTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, gasprice, nil, nil, nil, nil), types.HomesteadSigner{}, key)
+	tx, _ := types.SignTx(types.NewCeloTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, gasprice, nil, nil), types.HomesteadSigner{}, key)
 	return tx
 }
 
-func lesTransaction(nonce uint64, gaslimit uint64, gatewayFee *big.Int, key *ecdsa.PrivateKey) *types.Transaction {
-	tx, _ := types.SignTx(types.NewCeloTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, big.NewInt(1), nil, &common.Address{}, gatewayFee, nil), types.HomesteadSigner{}, key)
+func lesTransaction(nonce uint64, gaslimit uint64, key *ecdsa.PrivateKey) *types.Transaction {
+	tx, _ := types.SignTx(types.NewCeloTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, big.NewInt(1), nil, nil), types.HomesteadSigner{}, key)
 	return tx
 }
 
@@ -135,7 +135,7 @@ func pricedDataTransaction(nonce uint64, gaslimit uint64, gasprice *big.Int, key
 }
 
 func protectedTransaction(nonce uint64, gaslimit uint64, key *ecdsa.PrivateKey) *types.Transaction {
-	tx, _ := types.SignTx(types.NewCeloTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, big.NewInt(1), nil, nil, nil, nil), eip155Signer, key)
+	tx, _ := types.SignTx(types.NewCeloTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, big.NewInt(1), nil, nil), eip155Signer, key)
 	return tx
 }
 
@@ -341,15 +341,8 @@ func TestInvalidTransactions(t *testing.T) {
 		t.Error("expected", ErrIntrinsicGas, "got", err)
 	}
 
-	// TODO(joshua): Convert this to testAddGatewayFee
-	// Adding a gateway fee should result in insufficient funds again.
-	tx = lesTransaction(0, 100, big.NewInt(50), key)
-	if err := pool.AddRemote(tx); err != ErrInsufficientFunds {
-		t.Error("expected", ErrInsufficientFunds)
-	}
-
-	// Should return to intrinsic gas error when gateway fee is covered.
-	pool.currentState.AddBalance(from, tx.GatewayFee())
+	tx = lesTransaction(0, 100, key)
+	// Should return to intrinsic gas error
 	if err := pool.AddRemote(tx); err != ErrIntrinsicGas {
 		t.Error("expected", ErrIntrinsicGas, "got", err)
 	}

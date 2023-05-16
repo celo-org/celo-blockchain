@@ -1210,29 +1210,27 @@ func (s *PublicBlockChainAPI) rpcMarshalBlock(ctx context.Context, b *types.Bloc
 
 // RPCTransaction represents a transaction that will serialize to the RPC representation of a transaction
 type RPCTransaction struct {
-	BlockHash           *common.Hash      `json:"blockHash"`
-	BlockNumber         *hexutil.Big      `json:"blockNumber"`
-	From                common.Address    `json:"from"`
-	Gas                 hexutil.Uint64    `json:"gas"`
-	GasPrice            *hexutil.Big      `json:"gasPrice"`
-	GasFeeCap           *hexutil.Big      `json:"maxFeePerGas,omitempty"`
-	GasTipCap           *hexutil.Big      `json:"maxPriorityFeePerGas,omitempty"`
-	FeeCurrency         *common.Address   `json:"feeCurrency"`
-	GatewayFeeRecipient *common.Address   `json:"gatewayFeeRecipient"`
-	GatewayFee          *hexutil.Big      `json:"gatewayFee"`
-	Hash                common.Hash       `json:"hash"`
-	Input               hexutil.Bytes     `json:"input"`
-	Nonce               hexutil.Uint64    `json:"nonce"`
-	To                  *common.Address   `json:"to"`
-	TransactionIndex    *hexutil.Uint64   `json:"transactionIndex"`
-	Value               *hexutil.Big      `json:"value"`
-	Type                hexutil.Uint64    `json:"type"`
-	Accesses            *types.AccessList `json:"accessList,omitempty"`
-	ChainID             *hexutil.Big      `json:"chainId,omitempty"`
-	V                   *hexutil.Big      `json:"v"`
-	R                   *hexutil.Big      `json:"r"`
-	S                   *hexutil.Big      `json:"s"`
-	EthCompatible       bool              `json:"ethCompatible"`
+	BlockHash        *common.Hash      `json:"blockHash"`
+	BlockNumber      *hexutil.Big      `json:"blockNumber"`
+	From             common.Address    `json:"from"`
+	Gas              hexutil.Uint64    `json:"gas"`
+	GasPrice         *hexutil.Big      `json:"gasPrice"`
+	GasFeeCap        *hexutil.Big      `json:"maxFeePerGas,omitempty"`
+	GasTipCap        *hexutil.Big      `json:"maxPriorityFeePerGas,omitempty"`
+	FeeCurrency      *common.Address   `json:"feeCurrency"`
+	Hash             common.Hash       `json:"hash"`
+	Input            hexutil.Bytes     `json:"input"`
+	Nonce            hexutil.Uint64    `json:"nonce"`
+	To               *common.Address   `json:"to"`
+	TransactionIndex *hexutil.Uint64   `json:"transactionIndex"`
+	Value            *hexutil.Big      `json:"value"`
+	Type             hexutil.Uint64    `json:"type"`
+	Accesses         *types.AccessList `json:"accessList,omitempty"`
+	ChainID          *hexutil.Big      `json:"chainId,omitempty"`
+	V                *hexutil.Big      `json:"v"`
+	R                *hexutil.Big      `json:"r"`
+	S                *hexutil.Big      `json:"s"`
+	EthCompatible    bool              `json:"ethCompatible"`
 }
 
 // newRPCTransaction returns a transaction that will serialize to the RPC
@@ -1255,22 +1253,20 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 	from, _ := types.Sender(signer, tx)
 	v, r, s := tx.RawSignatureValues()
 	result := &RPCTransaction{
-		Type:                hexutil.Uint64(tx.Type()),
-		From:                from,
-		Gas:                 hexutil.Uint64(tx.Gas()),
-		GasPrice:            (*hexutil.Big)(tx.GasPrice()),
-		FeeCurrency:         tx.FeeCurrency(),
-		GatewayFeeRecipient: tx.GatewayFeeRecipient(),
-		GatewayFee:          (*hexutil.Big)(tx.GatewayFee()),
-		Hash:                tx.Hash(),
-		Input:               hexutil.Bytes(tx.Data()),
-		Nonce:               hexutil.Uint64(tx.Nonce()),
-		To:                  tx.To(),
-		Value:               (*hexutil.Big)(tx.Value()),
-		V:                   (*hexutil.Big)(v),
-		R:                   (*hexutil.Big)(r),
-		S:                   (*hexutil.Big)(s),
-		EthCompatible:       tx.EthCompatible(),
+		Type:          hexutil.Uint64(tx.Type()),
+		From:          from,
+		Gas:           hexutil.Uint64(tx.Gas()),
+		GasPrice:      (*hexutil.Big)(tx.GasPrice()),
+		FeeCurrency:   tx.FeeCurrency(),
+		Hash:          tx.Hash(),
+		Input:         hexutil.Bytes(tx.Data()),
+		Nonce:         hexutil.Uint64(tx.Nonce()),
+		To:            tx.To(),
+		Value:         (*hexutil.Big)(tx.Value()),
+		V:             (*hexutil.Big)(v),
+		R:             (*hexutil.Big)(r),
+		S:             (*hexutil.Big)(s),
+		EthCompatible: tx.EthCompatible(),
 	}
 	if blockHash != (common.Hash{}) {
 		result.BlockHash = &blockHash
@@ -1877,7 +1873,7 @@ func (s *PublicTransactionPoolAPI) Resend(ctx context.Context, sendArgs Transact
 	if gasLimit != nil {
 		gas = uint64(*gasLimit)
 	}
-	if err := checkFeeFromCeloCurrency(ctx, s.b, sendArgs.FeeCurrency, price, gas, (*big.Int)(sendArgs.GatewayFee)); err != nil {
+	if err := checkFeeFromCeloCurrency(ctx, s.b, sendArgs.FeeCurrency, price, gas); err != nil {
 		return common.Hash{}, err
 	}
 	// Iterate the pending list for replacement

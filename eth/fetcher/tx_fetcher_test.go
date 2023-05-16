@@ -32,10 +32,10 @@ import (
 var (
 	// testTxs is a set of transactions to use during testing that have meaningful hashes.
 	testTxs = []*types.Transaction{
-		types.NewCeloTransaction(5577006791947779410, common.Address{0x0f}, new(big.Int), 0, new(big.Int), nil, nil, nil, nil),
-		types.NewCeloTransaction(15352856648520921629, common.Address{0xbb}, new(big.Int), 0, new(big.Int), nil, nil, nil, nil),
-		types.NewCeloTransaction(3916589616287113937, common.Address{0x86}, new(big.Int), 0, new(big.Int), nil, nil, nil, nil),
-		types.NewCeloTransaction(9828766684487745566, common.Address{0xac}, new(big.Int), 0, new(big.Int), nil, nil, nil, nil),
+		types.NewCeloTransaction(5577006791947779410, common.Address{0x0f}, new(big.Int), 0, new(big.Int), nil, nil),
+		types.NewCeloTransaction(15352856648520921629, common.Address{0xbb}, new(big.Int), 0, new(big.Int), nil, nil),
+		types.NewCeloTransaction(3916589616287113937, common.Address{0x86}, new(big.Int), 0, new(big.Int), nil, nil),
+		types.NewCeloTransaction(9828766684487745566, common.Address{0xac}, new(big.Int), 0, new(big.Int), nil, nil),
 	}
 	// testTxsHashes is the hashes of the test transactions above
 	testTxsHashes = []common.Hash{testTxs[0].Hash(), testTxs[1].Hash(), testTxs[2].Hash(), testTxs[3].Hash()}

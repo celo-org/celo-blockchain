@@ -41,8 +41,6 @@ type TransactionArgs struct {
 	MaxFeePerGas         *hexutil.Big    `json:"maxFeePerGas"`
 	MaxPriorityFeePerGas *hexutil.Big    `json:"maxPriorityFeePerGas"`
 	FeeCurrency          *common.Address `json:"feeCurrency"`
-	GatewayFeeRecipient  *common.Address `json:"gatewayFeeRecipient"`
-	GatewayFee           *hexutil.Big    `json:"gatewayFee"`
 	Value                *hexutil.Big    `json:"value"`
 	Nonce                *hexutil.Uint64 `json:"nonce"`
 	EthCompatible        bool            `json:"ethCompatible"`
@@ -161,8 +159,6 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 			MaxFeePerGas:         args.MaxFeePerGas,
 			MaxPriorityFeePerGas: args.MaxPriorityFeePerGas,
 			FeeCurrency:          args.FeeCurrency,
-			GatewayFee:           args.GatewayFee,
-			GatewayFeeRecipient:  args.GatewayFeeRecipient,
 			Value:                args.Value,
 			Data:                 (*hexutil.Bytes)(&data),
 			AccessList:           args.AccessList,
@@ -249,7 +245,7 @@ func (args *TransactionArgs) ToMessage(globalGasCap uint64, baseFee *big.Int) (t
 	if args.AccessList != nil {
 		accessList = *args.AccessList
 	}
-	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, gasFeeCap, gasTipCap, args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee.ToInt(), data, accessList, args.EthCompatible, true)
+	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, gasFeeCap, gasTipCap, args.FeeCurrency, data, accessList, args.EthCompatible, true)
 	return msg, nil
 }
 
@@ -297,8 +293,6 @@ func (args *TransactionArgs) toTransaction() *types.Transaction {
 		}
 		if !args.EthCompatible {
 			data.(*types.LegacyTx).FeeCurrency = args.FeeCurrency
-			data.(*types.LegacyTx).GatewayFeeRecipient = args.GatewayFeeRecipient
-			data.(*types.LegacyTx).GatewayFee = args.GatewayFee.ToInt()
 		}
 	}
 	return types.NewTx(data)
@@ -312,7 +306,7 @@ func (args *TransactionArgs) ToTransaction() *types.Transaction {
 
 func (args *TransactionArgs) checkEthCompatibility() error {
 	// Reject if Celo-only fields set when EthCompatible is true
-	if args.EthCompatible && !(args.FeeCurrency == nil && args.GatewayFeeRecipient == nil && (args.GatewayFee == nil || args.GatewayFee.ToInt().Sign() == 0)) {
+	if args.EthCompatible && !(args.FeeCurrency == nil) {
 		return types.ErrEthCompatibleTransactionIsntCompatible
 	}
 	return nil

@@ -80,9 +80,7 @@ func toCeloRlpList(tx LegacyTx) celoTxRlpList {
 		S:        tx.S,
 
 		// Celo specific fields
-		FeeCurrency:         tx.FeeCurrency,
-		GatewayFeeRecipient: tx.GatewayFeeRecipient,
-		GatewayFee:          tx.GatewayFee,
+		FeeCurrency: tx.FeeCurrency,
 	}
 }
 
@@ -100,8 +98,6 @@ func (tx *LegacyTx) setTxFromEthCompatibleRlpList(rlplist ethCompatibleTxRlpList
 
 	// Celo specific fields
 	tx.FeeCurrency = nil
-	tx.GatewayFeeRecipient = nil
-	tx.GatewayFee = big.NewInt(0)
 	tx.EthCompatible = true
 }
 
@@ -119,8 +115,6 @@ func (tx *LegacyTx) setTxFromCeloRlpList(rlplist celoTxRlpList) {
 
 	// Celo specific fields
 	tx.FeeCurrency = rlplist.FeeCurrency
-	tx.GatewayFeeRecipient = rlplist.GatewayFeeRecipient
-	tx.GatewayFee = rlplist.GatewayFee
 	tx.EthCompatible = false
 }
 
