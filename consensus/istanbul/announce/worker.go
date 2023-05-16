@@ -42,7 +42,7 @@ type worker struct {
 	enodeGossiper     EnodeQueryGossiper
 	config            *istanbul.Config
 	countPeers        PeerCounterFn
-	vpap              ValProxyAssigmnentProvider
+	veap              ValEnodeAssigmentProvider
 	avs               VersionSharer
 
 	updateAnnounceVersionCh chan struct{}
@@ -61,7 +61,7 @@ func NewWorker(initialWaitPeriod time.Duration,
 	enodeGossiper EnodeQueryGossiper,
 	config *istanbul.Config,
 	countPeersFn PeerCounterFn,
-	vpap ValProxyAssigmnentProvider,
+	veap ValEnodeAssigmentProvider,
 	avs VersionSharer) Worker {
 	return &worker{
 		logger:                  log.New("module", "announceWorker"),
@@ -75,7 +75,7 @@ func NewWorker(initialWaitPeriod time.Duration,
 		enodeGossiper:           enodeGossiper,
 		config:                  config,
 		countPeers:              countPeersFn,
-		vpap:                    vpap,
+		veap:                    veap,
 		avs:                     avs,
 		updateAnnounceVersionCh: make(chan struct{}, 1),
 		announceThreadQuit:      make(chan struct{}),
@@ -188,7 +188,7 @@ func (w *worker) GenerateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbu
 	for i, valEnodeEntry := range valEnodeEntries {
 		valAddresses[i] = valEnodeEntry.Address
 	}
-	valProxyAssignments, err := w.vpap.GetValProxyAssignments(valAddresses)
+	valEnodeAssignments, err := w.veap.GetValEnodeAssignments(valAddresses)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +196,7 @@ func (w *worker) GenerateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbu
 	var enodeQueries []*EnodeQuery
 	for _, valEnodeEntry := range valEnodeEntries {
 		if valEnodeEntry.PublicKey != nil {
-			externalEnode := valProxyAssignments[valEnodeEntry.Address]
+			externalEnode := valEnodeAssignments[valEnodeEntry.Address]
 			if externalEnode == nil {
 				continue
 			}

@@ -62,7 +62,7 @@ type Manager struct {
 
 	worker Worker
 
-	vpap ValProxyAssigmnentProvider
+	veap ValEnodeAssigmentProvider
 
 	announceRunning  bool
 	announceMu       sync.RWMutex
@@ -84,7 +84,7 @@ func NewManager(
 	ovcp OutboundVersionCertificateProcessor,
 	ecertHolder EnodeCertificateMsgHolder,
 	vcGossiper VersionCertificateGossiper,
-	vpap ValProxyAssigmnentProvider,
+	veap ValEnodeAssigmentProvider,
 	worker Worker) *Manager {
 
 	am := &Manager{
@@ -99,7 +99,7 @@ func NewManager(
 		checker:          checker,
 		ovcp:             ovcp,
 		ecertHolder:      ecertHolder,
-		vpap:             vpap,
+		veap:             veap,
 		worker:           worker,
 		announceThreadWg: new(sync.WaitGroup),
 		announceRunning:  false,
@@ -223,9 +223,9 @@ func (m *Manager) answerQueryEnodeMsg(address common.Address, node *enode.Node, 
 	logger := m.logger.New("func", "answerQueryEnodeMsg", "address", address)
 
 	// Get the external enode that this validator is assigned to
-	externalEnodeMap, err := m.vpap.GetValProxyAssignments([]common.Address{address})
+	externalEnodeMap, err := m.veap.GetValEnodeAssignments([]common.Address{address})
 	if err != nil {
-		logger.Warn("Error in retrieving assigned proxy for remote validator", "address", address, "err", err)
+		logger.Warn("Error in retrieving assigned enode for validator", "address", address, "err", err)
 		return err
 	}
 

@@ -124,15 +124,15 @@ func createAnnounceManager(backend *Backend) *announce.Manager {
 	ecertHolder := announce.NewLockedHolder()
 	pruner := announce.NewAnnounceStatePruner(backend.RetrieveValidatorConnSet)
 
-	var vpap announce.ValProxyAssigmnentProvider
+	var veap announce.ValEnodeAssigmentProvider
 	var ecertGenerator announce.EnodeCertificateMsgGenerator
 	var onNewEnodeMsgs announce.OnNewEnodeCertsMsgSentFn
 	ecertGenerator = announce.NewEnodeCertificateMsgGenerator(announce.NewSelfExternalFacingEnodeGetter(backend.SelfNode))
-	vpap = announce.NewSelfValProxyAssigmentProvider(backend.SelfNode)
+	veap = announce.NewSelfValEnodeAssigmentProvider(backend.SelfNode)
 	onNewEnodeMsgs = nil
 
 	avs := announce.NewVersionSharer(&backend.aWallets, backend, state, ovcp, ecertGenerator, ecertHolder, onNewEnodeMsgs)
-	worker := createAnnounceWorker(backend, state, ovcp, vcGossiper, checker, pruner, vpap, avs)
+	worker := createAnnounceWorker(backend, state, ovcp, vcGossiper, checker, pruner, veap, avs)
 	return announce.NewManager(
 		backend.config,
 		&backend.aWallets,
@@ -144,14 +144,14 @@ func createAnnounceManager(backend *Backend) *announce.Manager {
 		ovcp,
 		ecertHolder,
 		vcGossiper,
-		vpap,
+		veap,
 		worker)
 }
 
 func createAnnounceWorker(backend *Backend, state *announce.AnnounceState, ovcp announce.OutboundVersionCertificateProcessor,
 	vcGossiper announce.VersionCertificateGossiper,
 	checker announce.ValidatorChecker, pruner announce.AnnounceStatePruner,
-	vpap announce.ValProxyAssigmnentProvider, avs announce.VersionSharer) announce.Worker {
+	veap announce.ValEnodeAssigmentProvider, avs announce.VersionSharer) announce.Worker {
 	announceVersion := announce.NewAtomicVersion()
 	peerCounter := func(purpose p2p.PurposeFlag) int {
 		return len(backend.broadcaster.FindPeers(nil, p2p.AnyPurpose))
@@ -180,7 +180,7 @@ func createAnnounceWorker(backend *Backend, state *announce.AnnounceState, ovcp 
 		enodeGossiper,
 		backend.config,
 		peerCounter,
-		vpap,
+		veap,
 		avs,
 	)
 }
@@ -333,7 +333,7 @@ func (sb *Backend) Address() common.Address {
 	return sb.wallets().Ecdsa.Address
 }
 
-// SelfNode returns the owner's node (if this is a proxy, it will return the external node)
+// SelfNode returns the owner's node
 func (sb *Backend) SelfNode() *enode.Node {
 	return sb.p2pserver.Self()
 }
