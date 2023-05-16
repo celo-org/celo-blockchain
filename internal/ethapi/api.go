@@ -1609,7 +1609,7 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 
 	fields := generateReceiptResponse(receipt, signer, tx, blockHash, blockNumber, index)
 	// Assign the effective gas price paid
-	if !s.b.ChainConfig().IsEspresso(bigblock) {
+	if !s.b.ChainConfig().IsLondon(bigblock) {
 		fields["effectiveGasPrice"] = hexutil.Uint64(tx.GasPrice().Uint64())
 	} else {
 		// var gasPrice *big.Int = new(big.Int)

@@ -367,6 +367,18 @@ func (c *ChainConfig) IsIstanbul(num *big.Int) bool {
 	return isForked(c.IstanbulBlock, num)
 }
 
+// IsBerlin returns whether num is either equal to the Berlin fork block or greater.
+// Celo change: This is used to keep code close to upstream, but uses Espresso activation block
+func (c *ChainConfig) IsBerlin(num *big.Int) bool {
+	return isForked(c.EspressoBlock, num)
+}
+
+// IsLondon returns whether num is either equal to the London fork block or greater.
+// Celo change: This is used to keep code close to upstream, but uses Espresso activation block
+func (c *ChainConfig) IsLondon(num *big.Int) bool {
+	return isForked(c.EspressoBlock, num)
+}
+
 // IsChurrito returns whether num represents a block number after the Churrito fork
 func (c *ChainConfig) IsChurrito(num *big.Int) bool {
 	return isForked(c.ChurritoBlock, num)
@@ -571,8 +583,8 @@ type Rules struct {
 	ChainID                                                 *big.Int
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
-	// IsBerlin, IsLondon, IsCatalyst                          bool
-	IsChurrito, IsDonut, IsEspresso, IsGFork bool
+	IsBerlin, IsLondon                                      bool
+	IsChurrito, IsDonut, IsEspresso, IsGFork                bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -591,13 +603,12 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsConstantinople: c.IsConstantinople(num),
 		IsPetersburg:     c.IsPetersburg(num),
 		IsIstanbul:       c.IsIstanbul(num),
-		// IsBerlin:         c.IsBerlin(num),
-		// IsLondon:         c.IsLondon(num),
-		// IsCatalyst:       c.IsCatalyst(num),
-		IsChurrito: c.IsChurrito(num),
-		IsDonut:    c.IsDonut(num),
-		IsEspresso: c.IsEspresso(num),
-		IsGFork:    c.IsGFork(num),
+		IsBerlin:         c.IsBerlin(num),
+		IsLondon:         c.IsLondon(num),
+		IsChurrito:       c.IsChurrito(num),
+		IsDonut:          c.IsDonut(num),
+		IsEspresso:       c.IsEspresso(num),
+		IsGFork:          c.IsGFork(num),
 	}
 }
 
