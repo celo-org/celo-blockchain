@@ -1,3 +1,4 @@
+//go:build !amd64 || generic
 // +build !amd64 generic
 
 // Native go field arithmetic code is generated with 'goff'

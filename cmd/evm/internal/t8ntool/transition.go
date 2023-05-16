@@ -88,7 +88,7 @@ func Transition(ctx *cli.Context) error {
 	log.Root().SetHandler(glogger)
 
 	// TODO this command is broken: vmContext and vmRunner can not be created as required
-	log.Crit("Command does not work as expected. Requires Bug Fixing")
+	// log.Crit("Command does not work as expected. Requires Bug Fixing")
 
 	var (
 		err     error
