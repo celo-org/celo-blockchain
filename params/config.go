@@ -379,13 +379,6 @@ func (c *ChainConfig) IsLondon(num *big.Int) bool {
 	return isForked(c.EspressoBlock, num)
 }
 
-// IsCatalyst returns whether num is either equal to the Merge fork block or greater.
-// TODO(paul): what to do about that?
-func (c *ChainConfig) IsCatalyst(num *big.Int) bool {
-	// return isForked(c.CatalystBlock, num)
-	return false
-}
-
 // IsChurrito returns whether num represents a block number after the Churrito fork
 func (c *ChainConfig) IsChurrito(num *big.Int) bool {
 	return isForked(c.ChurritoBlock, num)
