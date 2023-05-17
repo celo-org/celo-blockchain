@@ -339,7 +339,7 @@ func (lc *LightChain) StopInsert() {
 
 // Rollback is designed to remove a chain of links from the database that aren't
 // certain enough to be valid.
-func (lc *LightChain) Rollback(chain []common.Hash, fullHeaderChainAvailable bool) {
+func (lc *LightChain) Rollback(chain []common.Hash) {
 	log.Warn(fmt.Sprintf("Rollback %v", chain))
 	lc.chainmu.Lock()
 	defer lc.chainmu.Unlock()

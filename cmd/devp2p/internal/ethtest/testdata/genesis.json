@@ -18,8 +18,7 @@
     "lookbackwindow": 3,
     "blockperiod": 1,
     "requesttimeout": 3000
-   },
-   "FullHeaderChainAvailable": false
+   }
   },
   "timestamp": "0x615dfa21",
   "extraData": "0xecc833a7747eaa8327335e8e0c6b6d8aa3a38d0063591e43ce116ccf5c89753ef884d594039eaa4f6c1ff4586873852ef3c1b81a44d2729ef862b86040d2ebd74fafb063047a458d983eb642cb7d97bf73d042e29c5ae217374f0b69c73d67fe5116a88a3e2a2fd22893a600fa79ddde9107cb516184094aa1789840f86658f42ad8960f7d76ac31f47ad794454e5c8dbbc1c5ff5838538bb03868008080c3808080c3808080",

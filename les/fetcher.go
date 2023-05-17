@@ -463,7 +463,7 @@ func (f *lightFetcher) mainloop() {
 						for i, j := 0, len(untrusted)-1; i < j; i, j = i+1, j-1 {
 							untrusted[i], untrusted[j] = untrusted[j], untrusted[i]
 						}
-						f.chain.Rollback(untrusted, true)
+						f.chain.Rollback(untrusted)
 					}
 				} else {
 					log.Error("Common ancestor of origin header and current header is nil", "origin hash", origin.Hash(), "current header hash", head.Hash())

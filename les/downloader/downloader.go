@@ -1076,36 +1076,6 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, height uint64)
 
 	mode := d.getMode()
 
-	// 	request = time.Now()
-
-	// 	ttl = d.peers.rates.TargetTimeout()
-	// 	timeout.Reset(ttl)
-
-	// 	// if epoch is 100 and we fetch from=1000 and skip=100 then we will get
-	// 	// 1000, 1101, 1202, 1303 ...
-	// 	// So, skip has to be epoch - 1 to get the right set of blocks.
-	// 	skip := int(epoch - 1)
-	// 	count := MaxEpochHeaderFetch
-	// 	log.Trace("getEpochHeaders", "from", fromEpochBlock, "count", count, "skip", skip)
-	// 	p.log.Trace("Fetching full headers", "count", count, "from", fromEpochBlock)
-	// 	go p.peer.RequestHeadersByNumber(fromEpochBlock, count, skip, false)
-	// }
-
-	// TODO(ponti): Re add the "moving" pivot, after changing the way we calculate the uptimeScore
-	// getNextPivot := func() {
-	// 	pivoting = true
-	// 	request = time.Now()
-
-	// 	ttl = d.requestTTL()
-	// 	timeout.Reset(ttl)
-
-	// 	d.pivotLock.RLock()
-	// 	pivot := d.pivotHeader.Number.Uint64()
-	// 	d.pivotLock.RUnlock()
-
-	// 	p.log.Trace("Fetching next pivot header", "number", pivot+fsMinFullBlocks)
-	// 	go p.peer.RequestHeadersByNumber(pivot+fsMinFullBlocks, 2, int(fsMinFullBlocks-9), false) // move +64 when it's 2x64-8 deep
-	// }
 	// Start pulling the header chain skeleton until all is done
 	ancestor := from
 
@@ -1253,14 +1223,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, height uint64)
 				log.Trace("getHeaders#downloadMoreHeaders", "from", from)
 				// If we're still skeleton filling fast sync, check pivot staleness
 				// before continuing to the next skeleton filling
-
-				// TODO(ponti): Re add the "moving" pivot, after changing the way we calculate the uptimeScore
-				// if skeleton && pivot > 0 {
-				// 	getNextPivot()
-				// } else {
 				getHeaders(from)
-				// }
-				// }
 			} else {
 				// No headers delivered, or all of them being delayed, sleep a bit and retry
 				p.log.Trace("All headers delayed, waiting")
