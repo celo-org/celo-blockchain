@@ -33,38 +33,28 @@ import (
 func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	genesis, nodeKeys := getGenesisAndKeys(n, isFullChain)
 
-	bc, be, _ := newBlockChainWithKeys(false, common.Address{}, false, genesis, nodeKeys[0])
+	bc, be, _ := newBlockChainWithKeys(genesis, nodeKeys[0])
 	return bc, be
 }
 
-func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isProxied bool, genesis *core.Genesis, privateKey *ecdsa.PrivateKey) (*core.BlockChain, *Backend, *istanbul.Config) {
+func newBlockChainWithKeys(genesis *core.Genesis, privateKey *ecdsa.PrivateKey) (*core.BlockChain, *Backend, *istanbul.Config) {
 	memDB := rawdb.NewMemoryDatabase()
 	config := *istanbul.DefaultConfig
-	config.ReplicaStateDBPath = ""
 	config.ValidatorEnodeDBPath = ""
 	config.VersionCertificateDBPath = ""
 	config.RoundStateDBPath = ""
-	config.Proxy = isProxy
-	config.ProxiedValidatorAddress = proxiedValAddress
-	config.Proxied = isProxied
-	config.Validator = !isProxy
+	config.Validator = true
 	istanbul.ApplyParamsChainConfigToConfig(genesis.Config, &config)
 
 	b, _ := New(&config, memDB).(*Backend)
 
-	var publicKey ecdsa.PublicKey
-	if !isProxy {
-		publicKey = privateKey.PublicKey
-		address := crypto.PubkeyToAddress(publicKey)
-		decryptFn := DecryptFn(privateKey)
-		signerFn := SignFn(privateKey)
-		signerBLSFn := SignBLSFn(privateKey)
-		signerHashFn := SignHashFn(privateKey)
-		b.Authorize(address, address, &publicKey, decryptFn, signerFn, signerBLSFn, signerHashFn)
-	} else {
-		proxyNodeKey, _ := crypto.GenerateKey()
-		publicKey = proxyNodeKey.PublicKey
-	}
+	publicKey := privateKey.PublicKey
+	address := crypto.PubkeyToAddress(publicKey)
+	decryptFn := DecryptFn(privateKey)
+	signerFn := SignFn(privateKey)
+	signerBLSFn := SignBLSFn(privateKey)
+	signerHashFn := SignHashFn(privateKey)
+	b.Authorize(address, address, &publicKey, decryptFn, signerFn, signerBLSFn, signerHashFn)
 
 	genesis.MustCommit(memDB)
 
@@ -85,22 +75,17 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 	b.SetP2PServer(consensustest.NewMockP2PServer(&publicKey))
 	b.StartAnnouncing()
 
-	if !isProxy {
-		b.SetCallBacks(blockchain.HasBadBlock,
-			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
-				return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
-			},
-			blockchain.Validator().ValidateState,
-			func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) {
-				if err := blockchain.InsertPreprocessedBlock(block, receipts, logs, state); err != nil {
-					panic(fmt.Sprintf("could not InsertPreprocessedBlock: %v", err))
-				}
-			})
-		if isProxied {
-			b.StartProxiedValidatorEngine()
-		}
-		b.StartValidating()
-	}
+	b.SetCallBacks(blockchain.HasBadBlock,
+		func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
+			return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
+		},
+		blockchain.Validator().ValidateState,
+		func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) {
+			if err := blockchain.InsertPreprocessedBlock(block, receipts, logs, state); err != nil {
+				panic(fmt.Sprintf("could not InsertPreprocessedBlock: %v", err))
+			}
+		})
+	b.StartValidating()
 
 	return blockchain, b, &config
 }
@@ -362,8 +347,8 @@ type testBackendFactoryImpl struct{}
 var TestBackendFactory backendtest.TestBackendFactory = testBackendFactoryImpl{}
 
 // New is part of TestBackendInterface.
-func (testBackendFactoryImpl) New(isProxy bool, proxiedValAddress common.Address, isProxied bool, genesisCfg *core.Genesis, privateKey *ecdsa.PrivateKey) (backendtest.TestBackendInterface, *istanbul.Config) {
-	_, be, config := newBlockChainWithKeys(isProxy, proxiedValAddress, isProxied, genesisCfg, privateKey)
+func (testBackendFactoryImpl) New(genesisCfg *core.Genesis, privateKey *ecdsa.PrivateKey) (backendtest.TestBackendInterface, *istanbul.Config) {
+	_, be, config := newBlockChainWithKeys(genesisCfg, privateKey)
 	return be, config
 }
 

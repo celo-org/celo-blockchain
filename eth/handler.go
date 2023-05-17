@@ -88,7 +88,6 @@ type handlerConfig struct {
 	Checkpoint   *params.TrustedCheckpoint // Hard coded checkpoint for sync challenges
 	Whitelist    map[uint64]common.Hash    // Hard coded whitelist for sync challenged
 	server       *p2p.Server
-	proxyServer  *p2p.Server
 	MinSyncPeers int // The minimum peers required to sstart syncing
 }
 
@@ -128,8 +127,7 @@ type handler struct {
 	wg        sync.WaitGroup
 	peerWG    sync.WaitGroup
 
-	server      *p2p.Server
-	proxyServer *p2p.Server
+	server *p2p.Server
 }
 
 func newHandler(config *handlerConfig) (*handler, error) {
@@ -138,17 +136,16 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		config.EventMux = new(event.TypeMux) // Nicety initialization for tests
 	}
 	h := &handler{
-		networkID:   config.Network,
-		forkFilter:  forkid.NewFilter(config.Chain),
-		eventMux:    config.EventMux,
-		database:    config.Database,
-		txpool:      config.TxPool,
-		chain:       config.Chain,
-		peers:       newPeerSet(),
-		whitelist:   config.Whitelist,
-		quitSync:    make(chan struct{}),
-		server:      config.server,
-		proxyServer: config.proxyServer,
+		networkID:  config.Network,
+		forkFilter: forkid.NewFilter(config.Chain),
+		eventMux:   config.EventMux,
+		database:   config.Database,
+		txpool:     config.TxPool,
+		chain:      config.Chain,
+		peers:      newPeerSet(),
+		whitelist:  config.Whitelist,
+		quitSync:   make(chan struct{}),
+		server:     config.server,
 	}
 
 	if consensusHandler, ok := h.chain.Engine().(consensus.Handler); ok {
@@ -287,7 +284,6 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 	}
 	// Ignore max peer and max inbound peer check if:
 	//  - this is a trusted or statically dialed peer
-	//  - the peer is from from the proxy server (e.g. peers connected to this node's internal network interface)
 	//  - forcePeer is true
 	if !forcePeer {
 		// KJUE - Remove the server not nil check after restoring peer check in server.go
@@ -300,7 +296,7 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 		// (eth and les) exceeds the total max peers. This checks if the number
 		// of eth peers exceeds the eth max peers.
 		isStaticOrTrusted := peer.Peer.Info().Network.Trusted || peer.Peer.Info().Network.Static
-		if !isStaticOrTrusted && h.peers.len() >= h.maxPeers && peer.Peer.Server != h.proxyServer {
+		if !isStaticOrTrusted && h.peers.len() >= h.maxPeers {
 			return p2p.DiscTooManyPeers
 		}
 	}
@@ -341,7 +337,7 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 	}
 	// Register the peer with the consensus engine.
 	if handler, ok := h.chain.Engine().(consensus.Handler); ok {
-		if err := handler.RegisterPeer(peer, peer.Peer.Server == h.proxyServer); err != nil {
+		if err := handler.RegisterPeer(peer); err != nil {
 			return err
 		}
 	}
@@ -441,7 +437,7 @@ func (h *handler) unregisterPeer(id string) *ethPeer {
 		log.Error("Peer removal from tx fetcher  failed", "peer", id, "err", err)
 	}
 	if handler, ok := h.chain.Engine().(consensus.Handler); ok {
-		handler.UnregisterPeer(peer, peer.Peer.Server == h.proxyServer)
+		handler.UnregisterPeer(peer)
 	}
 	if err := h.peers.unregisterPeer(id); err != nil {
 		logger.Error("Ethereum peer removal failed", "err", err)

@@ -97,10 +97,6 @@ func (self *testSystemBackend) Validators(proposal istanbul.Proposal) istanbul.V
 	return self.peers
 }
 
-func (self *testSystemBackend) IsValidating() bool {
-	return true
-}
-
 func (self *testSystemBackend) ChainConfig() *params.ChainConfig {
 	return &params.ChainConfig{
 		DonutBlock: self.donutBlock,
@@ -113,14 +109,6 @@ func (self *testSystemBackend) HashForBlock(number uint64) common.Hash {
 	hash := common.Hash{}
 	copy(hash[:], buffer.Bytes())
 	return hash
-}
-
-func (self *testSystemBackend) IsPrimary() bool {
-	return true
-}
-
-func (self *testSystemBackend) IsPrimaryForSeq(seq *big.Int) bool {
-	return true
 }
 
 func (self *testSystemBackend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.ValidatorSet, error) {
@@ -261,8 +249,6 @@ func (self *testSystemBackend) AuthorForBlock(number uint64) common.Address {
 func (self *testSystemBackend) ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	return self.peers
 }
-
-func (self *testSystemBackend) UpdateReplicaState(seq *big.Int) { /* pass */ }
 
 func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (istanbul.Message, error) {
 	message := new(istanbul.Message)

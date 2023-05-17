@@ -159,7 +159,7 @@ func TestInvalidCommit(t *testing.T) {
 func TestGetProposer(t *testing.T) {
 	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
-	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	chain, engine, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[0])
 	defer chain.Stop()
 	if _, err := makeBlock(nodeKeys, chain, engine, chain.Genesis()); err != nil {
 		t.Errorf("Failed to make a block: %v", err)

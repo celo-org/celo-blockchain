@@ -36,12 +36,11 @@ import (
 )
 
 const (
-	datadirPrivateKey          = "nodekey"            // Path within the datadir to the node's private key
-	datadirDefaultKeyStore     = "keystore"           // Path within the datadir to the keystore
-	datadirStaticNodes         = "static-nodes.json"  // Path within the datadir to the static node list
-	datadirTrustedNodes        = "trusted-nodes.json" // Path within the datadir to the trusted node list
-	datadirNodeDatabase        = "nodes"              // Path within the datadir to store the node infos
-	datadirProxiedNodeDatabase = "proxied-nodes"
+	datadirPrivateKey      = "nodekey"            // Path within the datadir to the node's private key
+	datadirDefaultKeyStore = "keystore"           // Path within the datadir to the keystore
+	datadirStaticNodes     = "static-nodes.json"  // Path within the datadir to the static node list
+	datadirTrustedNodes    = "trusted-nodes.json" // Path within the datadir to the trusted node list
+	datadirNodeDatabase    = "nodes"              // Path within the datadir to store the node infos
 )
 
 // Config represents a small collection of configuration values to fine tune the
@@ -67,12 +66,8 @@ type Config struct {
 	// in memory.
 	DataDir string
 
-	// Specifies if this node is a proxy
-	Proxy bool
-
 	// Configuration of peer-to-peer networking.
-	P2P      p2p.Config
-	ProxyP2P p2p.Config
+	P2P p2p.Config
 
 	// KeyStoreDir is the file system folder that contains private keys. The directory can
 	// be specified as a relative path, in which case it is resolved relative to the
@@ -231,14 +226,6 @@ func (c *Config) NodeDB() string {
 		return "" // ephemeral
 	}
 	return c.ResolvePath(datadirNodeDatabase)
-}
-
-// NodeDB returns the path to the proxy discovery node database.
-func (c *Config) ProxiedNodeDB() string {
-	if c.DataDir == "" {
-		return "" // ephemeral
-	}
-	return c.ResolvePath(datadirProxiedNodeDatabase)
 }
 
 // DefaultIPCEndpoint returns the IPC path used by default.

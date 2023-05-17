@@ -15,8 +15,6 @@ type VersionSharer interface {
 	// It will:
 	//  1) Generate a new enode certificate
 	//  2) Multicast the new enode certificate to all peers in the validator conn set
-	//	   * Note: If this is a proxied validator, it's multicast message will be wrapped within a forward
-	//       message to the proxy, which will in turn send the enode certificate to remote validators.
 	//  3) Generate a new version certificate
 	//  4) Gossip the new version certificate to all peers
 	ShareVersion(version uint) error

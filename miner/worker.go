@@ -229,7 +229,7 @@ func (w *worker) start() {
 	}
 
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		if istanbul.IsPrimary() {
+		if istanbul.IsValidator() {
 			istanbul.StartValidating()
 		}
 	}

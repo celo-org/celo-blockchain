@@ -57,7 +57,7 @@ The Announce protocol objective is to allow all [NearlyElectedValidator] to main
 
 To ensure that validator [eNodeURL] tables don't get stale, each validator's [eNodeURL] is paired with a version number. [NearlyElectedValidator] nodes should ignore [eNodeURL] entries with values from versions older than one currently in their table. The current convention used is that versions are unix timestamps from the moment of the update.
 
-As part of the protocol's design, a [NearlyElectedValidator] can advertise different [eNodeURL] values for different destinations. This is important since validators can live behind multiple proxies and thus have more than one [eNodeURL]. That being said, the announce protocol itself is agnostic to the concept of proxies, it cares only for the sharing of `<validator address, validator eNodeUrl>` mapping tuples. It is the proxy implementation's responsibility to ensure the correct behavior of this specification.
+As part of the protocol's design, a [NearlyElectedValidator] can advertise different [eNodeURL] values for different destinations. This is important since validators can live behind multiple proxies and thus have more than one [eNodeURL]. That being said, the announce protocol itself is agnostic to the concept of proxies, it cares only for the sharing of `<validator address, validator eNodeUrl>` mapping tuples.
 
 ### Concealing eNodeURL values
 

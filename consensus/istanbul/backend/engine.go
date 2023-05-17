@@ -31,7 +31,6 @@ import (
 	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 
 	"github.com/celo-org/celo-blockchain/core"
-	ethCore "github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
@@ -587,47 +586,6 @@ func (sb *Backend) SetChain(chain consensus.ChainContext, currentBlock func() *t
 	sb.chain = chain
 	sb.currentBlock = currentBlock
 	sb.stateAt = stateAt
-
-	if bc, ok := chain.(*ethCore.BlockChain); ok {
-		// Batched. For stats & announce
-		chainHeadCh := make(chan ethCore.ChainHeadEvent, 10)
-		chainHeadSub := bc.SubscribeChainHeadEvent(chainHeadCh)
-
-		go func() {
-			defer chainHeadSub.Unsubscribe()
-			// Loop to run on new chain head events. Chain head events may be batched.
-			for {
-				select {
-				case chainHeadEvent := <-chainHeadCh:
-					sb.newChainHead(chainHeadEvent.Block)
-				case err := <-chainHeadSub.Err():
-					log.Error("Error in istanbul's subscription to the blockchain's chainhead event", "err", err)
-					return
-				}
-			}
-		}()
-
-		// Unbatched event listener
-		chainEventCh := make(chan ethCore.ChainEvent, 10)
-		chainEventSub := bc.SubscribeChainEvent(chainEventCh)
-
-		go func() {
-			defer chainEventSub.Unsubscribe()
-			// Loop to update replica state. Listens to chain events to avoid batching.
-			for {
-				select {
-				case chainEvent := <-chainEventCh:
-					if !sb.isCoreStarted() && sb.replicaState != nil {
-						consensusBlock := new(big.Int).Add(chainEvent.Block.Number(), common.Big1)
-						sb.replicaState.NewChainHead(consensusBlock)
-					}
-				case err := <-chainEventSub.Err():
-					log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
-					return
-				}
-			}
-		}()
-	}
 }
 
 // SetCallBacks implements consensus.Istanbul.SetCallBacks
@@ -665,20 +623,10 @@ func (sb *Backend) StartValidating() error {
 		return err
 	}
 
-	// Having coreStarted as false at this point guarantees that announce versions
-	// will be updated by the time announce messages in the announceThread begin
-	// being generated
-	if !sb.IsProxiedValidator() {
-		sb.UpdateAnnounceVersion()
-	}
-
 	sb.coreStarted.Store(true)
 
-	// coreStarted must be true by this point for validator peers to be successfully added
-	if !sb.config.Proxied {
-		if err := sb.RefreshValPeers(); err != nil {
-			sb.logger.Warn("Error refreshing validator peers", "err", err)
-		}
+	if err := sb.RefreshValPeers(); err != nil {
+		sb.logger.Warn("Error refreshing validator peers", "err", err)
 	}
 
 	return nil
@@ -698,56 +646,6 @@ func (sb *Backend) StopValidating() error {
 	sb.coreStarted.Store(false)
 
 	return nil
-}
-
-// StartProxiedValidatorEngine implements consensus.Istanbul.StartProxiedValidatorEngine
-func (sb *Backend) StartProxiedValidatorEngine() error {
-	sb.proxiedValidatorEngineMu.Lock()
-	defer sb.proxiedValidatorEngineMu.Unlock()
-
-	if sb.proxiedValidatorEngineRunning {
-		return istanbul.ErrStartedProxiedValidatorEngine
-	}
-
-	if !sb.config.Proxied {
-		return istanbul.ErrValidatorNotProxied
-	}
-
-	sb.proxiedValidatorEngine.Start()
-	sb.proxiedValidatorEngineRunning = true
-
-	return nil
-}
-
-// StopProxiedValidatorEngine implements consensus.Istanbul.StopProxiedValidatorEngine
-func (sb *Backend) StopProxiedValidatorEngine() error {
-	sb.proxiedValidatorEngineMu.Lock()
-	defer sb.proxiedValidatorEngineMu.Unlock()
-
-	if !sb.proxiedValidatorEngineRunning {
-		return istanbul.ErrStoppedProxiedValidatorEngine
-	}
-
-	sb.proxiedValidatorEngine.Stop()
-	sb.proxiedValidatorEngineRunning = false
-
-	return nil
-}
-
-// MakeReplica clears the start/stop state & stops this node from participating in consensus
-func (sb *Backend) MakeReplica() error {
-	if sb.replicaState != nil {
-		return sb.replicaState.MakeReplica()
-	}
-	return istanbul.ErrUnauthorizedAddress
-}
-
-// MakePrimary clears the start/stop state & makes this node participate in consensus
-func (sb *Backend) MakePrimary() error {
-	if sb.replicaState != nil {
-		return sb.replicaState.MakePrimary()
-	}
-	return istanbul.ErrUnauthorizedAddress
 }
 
 // snapshot retrieves the validator set needed to sign off on the block immediately after 'number'.  E.g. if you need to find the validator set that needs to sign off on block 6,
@@ -966,28 +864,6 @@ func (sb *Backend) addParentSeal(chain consensus.ChainHeaderReader, header *type
 	}
 
 	return writeAggregatedSeal(header, createParentSeal(), true)
-}
-
-// SetStartValidatingBlock sets block that the validator will start validating on (inclusive)
-func (sb *Backend) SetStartValidatingBlock(blockNumber *big.Int) error {
-	if sb.replicaState == nil {
-		return errNotAValidator
-	}
-	if blockNumber.Cmp(sb.currentBlock().Number()) < 0 {
-		return errors.New("blockNumber should be greater than the current block number")
-	}
-	return sb.replicaState.SetStartValidatingBlock(blockNumber)
-}
-
-// SetStopValidatingBlock sets the block that the validator will stop just before (exclusive range)
-func (sb *Backend) SetStopValidatingBlock(blockNumber *big.Int) error {
-	if sb.replicaState == nil {
-		return errNotAValidator
-	}
-	if blockNumber.Cmp(sb.currentBlock().Number()) < 0 {
-		return errors.New("blockNumber should be greater than the current block number")
-	}
-	return sb.replicaState.SetStopValidatingBlock(blockNumber)
 }
 
 // FIXME: Need to update this for Istanbul

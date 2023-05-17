@@ -44,7 +44,6 @@ var (
 	egressTrafficMeter               = metrics.NewRegisteredMeter(egressMeterName, nil)
 	activePeerGauge                  = metrics.NewRegisteredGauge("p2p/peers", nil)
 	activeValidatorsPeerGauge        = metrics.NewRegisteredGauge("p2p/peers/validators", nil)   // Gauge tracking the current validators peer count
-	activeProxiesPeerGauge           = metrics.NewRegisteredGauge("p2p/peers/proxies", nil)      // Gauge tracking the current proxies peer count
 	discoveredPeersCounter           = metrics.NewRegisteredCounter("p2p/peers/discovered", nil) // Counter of the total discovered peers
 )
 

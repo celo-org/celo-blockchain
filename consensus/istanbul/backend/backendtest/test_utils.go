@@ -34,7 +34,7 @@ type TestBackendInterface interface {
 }
 
 type TestBackendFactory interface {
-	New(isProxy bool, proxiedValAddress common.Address, isProxied bool, genesisCfg *core.Genesis, privateKey *ecdsa.PrivateKey) (TestBackendInterface, *istanbul.Config)
+	New(genesisCfg *core.Genesis, privateKey *ecdsa.PrivateKey) (TestBackendInterface, *istanbul.Config)
 
 	GetGenesisAndKeys(numValidators int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey)
 }
@@ -45,8 +45,8 @@ func InitTestBackendFactory(impl TestBackendFactory) {
 	testBackendFactoryImpl = impl
 }
 
-func NewTestBackend(isProxy bool, proxiedValAddress common.Address, isProxied bool, genesisCfg *core.Genesis, privateKey *ecdsa.PrivateKey) (TestBackendInterface, *istanbul.Config) {
-	return testBackendFactoryImpl.New(isProxy, proxiedValAddress, isProxied, genesisCfg, privateKey)
+func NewTestBackend(genesisCfg *core.Genesis, privateKey *ecdsa.PrivateKey) (TestBackendInterface, *istanbul.Config) {
+	return testBackendFactoryImpl.New(genesisCfg, privateKey)
 }
 
 func GetGenesisAndKeys(numValidators int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey) {

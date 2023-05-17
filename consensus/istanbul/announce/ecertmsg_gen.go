@@ -9,9 +9,7 @@ import (
 type EnodeCertificateMsgGenerator interface {
 	// GenerateEnodeCertificateMsgs generates a map of enode certificate messages.
 	// One certificate message is generated for each external enode this node possesses generated for
-	// each external enode this node possesses. A unproxied validator will have one enode, while a
-	// proxied validator may have one for each proxy.. Each enode is a key in the returned map, and the
-	// value is the certificate message.
+	// each external enode this node possesses.
 	GenerateEnodeCertificateMsgs(ei *istanbul.EcdsaInfo, version uint) (map[enode.ID]*istanbul.EnodeCertMsg, error)
 }
 

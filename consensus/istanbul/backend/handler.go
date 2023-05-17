@@ -25,7 +25,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/rlp"
@@ -54,60 +53,13 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		return true, errDecodeFailed
 	}
 
-	if sb.IsProxy() {
-		switch msg.Code {
-		// TODO(Joshua): Decide to pull out specific proxy handlers
-		case istanbul.ValEnodesShareMsg:
-			fallthrough
-		case istanbul.FwdMsg:
-			fallthrough
-		case istanbul.ConsensusMsg:
-			fallthrough
-		case istanbul.EnodeCertificateMsg:
-			// This will handle the following messages:
-			// 1) ValEnodesShareMsg
-			// 2) FwdMsg
-			// 3) ConsensusMsg
-			// 4) EnodeCertificateMsg
-			// No error on skipped messages
-			return sb.proxyEngine.HandleMsg(peer, msg.Code, data)
-		case istanbul.DelegateSignMsg:
-			go sb.delegateSignFeed.Send(istanbul.MessageWithPeerIDEvent{
-				PeerID:  peer.Node().ID(),
-				Payload: data,
-			})
-			return true, nil
-		case istanbul.QueryEnodeMsg:
-			go sb.announceManager.HandleQueryEnodeMsg(addr, peer, data)
-			return true, nil
-		case istanbul.VersionCertificatesMsg:
-			go sb.announceManager.HandleVersionCertificatesMsg(addr, peer, data)
-			return true, nil
-		case istanbul.ValidatorHandshakeMsg:
-			logger.Warn("Received unexpected Istanbul validator handshake message")
-			return true, nil
-		default:
-			logger.Error("Unhandled istanbul message as proxy", "address", addr, "peer's enodeURL", peer.Node().String(), "ethMsgCode", msg.Code)
-			return false, nil
-		}
-	} else if sb.IsValidating() {
+	if sb.IsValidating() {
 		// Handle messages as primary validator
 		switch msg.Code {
 		case istanbul.ConsensusMsg:
 			go sb.istanbulEventMux.Post(istanbul.MessageEvent{
 				Payload: data,
 			})
-			return true, nil
-		case istanbul.DelegateSignMsg:
-			if sb.shouldHandleDelegateSign(peer) {
-				go sb.delegateSignFeed.Send(istanbul.MessageWithPeerIDEvent{
-					PeerID:  peer.Node().ID(),
-					Payload: data,
-				})
-				return true, nil
-			}
-			logger.Error("Delegate Sign message sent from a node that is not a valid proxy", "peer", peer)
-			// Do not return an error, otherwise bad ethstat setup might cause disconnecting from proxy
 			return true, nil
 		case istanbul.EnodeCertificateMsg:
 			go sb.announceManager.HandleEnodeCertificateMsg(peer, data)
@@ -131,17 +83,6 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		case istanbul.ConsensusMsg:
 			// Ignore consensus messages
 			return true, nil
-		case istanbul.DelegateSignMsg:
-			if sb.shouldHandleDelegateSign(peer) {
-				go sb.delegateSignFeed.Send(istanbul.MessageWithPeerIDEvent{
-					PeerID:  peer.Node().ID(),
-					Payload: data,
-				})
-				return true, nil
-			}
-			logger.Error("Delegate Sign message sent from a node that is not a valid proxy", "peer", peer)
-			// Do not return an error, otherwise bad ethstat setup might cause disconnecting from proxy
-			return true, nil
 		case istanbul.EnodeCertificateMsg:
 			go sb.announceManager.HandleEnodeCertificateMsg(peer, data)
 			return true, nil
@@ -161,29 +102,9 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 	}
 
 	// If we got here, then that means that there is an istanbul message type that either there
-	// is an istanbul message that is not handled, or it's a forward message not handled (e.g. a
-	// node other than a proxy received the message).
+	// is an istanbul message that is not handled.
 	logger.Error("Unhandled istanbul message", "address", addr, "peer's enodeURL", peer.Node().String(), "ethMsgCode", msg.Code)
 	return false, nil
-}
-
-func (sb *Backend) shouldHandleDelegateSign(peer consensus.Peer) bool {
-	if sb.IsProxy() {
-		return true
-	} else if sb.IsProxiedValidator() {
-		isStatsProxy, err := sb.proxiedValidatorEngine.IsProxyPeer(peer.Node().ID())
-		if err != nil {
-			sb.logger.Warn("Error when checking if peer handling delegateSign is a proxy", "err", err)
-		}
-		return isStatsProxy
-	}
-
-	return false
-}
-
-// SubscribeNewDelegateSignEvent subscribes a channel to any new delegate sign messages
-func (sb *Backend) SubscribeNewDelegateSignEvent(ch chan<- istanbul.MessageWithPeerIDEvent) event.Subscription {
-	return sb.delegateSignScope.Track(sb.delegateSignFeed.Subscribe(ch))
 }
 
 // SetBroadcaster implements consensus.Handler.SetBroadcaster
@@ -309,17 +230,16 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 }
 
 // Actions triggered by a new block being added to the chain.
-func (sb *Backend) newChainHead(newBlock *types.Block) {
+func (sb *Backend) NewChainHead(newBlock *types.Block) {
 
-	sb.logger.Trace("Start newChainHead", "number", newBlock.Number().Uint64())
+	sb.logger.Trace("Start NewChainHead", "number", newBlock.Number().Uint64())
 
 	// Update metrics for whether we were elected and signed the parent of this block.
 	sb.UpdateMetricsForParentOfBlock(newBlock)
 
 	// If this is the last block of the epoch:
 	// * Print an easy to find log message giving our address and whether we're elected in next epoch.
-	// * If this is a node maintaining validator connections (e.g. a proxy or a standalone validator), refresh the validator enode table.
-	// * If this is a proxied validator, notify the proxied validator engine of a new epoch.
+	// * If this is a node maintaining validator connections, refresh the validator enode table.
 	if istanbul.IsLastBlockOfEpoch(newBlock.Number().Uint64(), sb.config.Epoch) {
 
 		sb.coreMu.RLock()
@@ -339,34 +259,19 @@ func (sb *Backend) newChainHead(newBlock *types.Block) {
 				sb.logger.Warn("Error refreshing validator peers", "err", err)
 			}
 		}
-
-		if sb.IsProxiedValidator() {
-			if err := sb.proxiedValidatorEngine.NewEpoch(); err != nil {
-				sb.logger.Warn("Error while notifying proxied validator engine of new epoch", "err", err)
-			}
-		}
 	}
 
 	sb.blocksFinalizedTransactionsGauge.Update(int64(len(newBlock.Transactions())))
 	sb.blocksFinalizedGasUsedGauge.Update(int64(newBlock.GasUsed()))
-	sb.logger.Trace("End newChainHead", "number", newBlock.Number().Uint64())
+	sb.logger.Trace("End NewChainHead", "number", newBlock.Number().Uint64())
 }
 
-func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
+func (sb *Backend) RegisterPeer(peer consensus.Peer) error {
 	// TODO: For added security, we may want verify that all newly connected proxied peer has the
 	// correct validator key
 	logger := sb.logger.New("func", "RegisterPeer")
 
-	logger.Trace("RegisterPeer called", "peer", peer, "isProxiedPeer", isProxiedPeer)
-
-	// Check to see if this connecting peer is a proxied validator
-	if sb.IsProxy() && isProxiedPeer {
-		sb.proxyEngine.RegisterProxiedValidatorPeer(peer)
-	} else if sb.IsProxiedValidator() {
-		if err := sb.proxiedValidatorEngine.RegisterProxyPeer(peer); err != nil {
-			return err
-		}
-	}
+	logger.Trace("RegisterPeer called", "peer", peer)
 
 	if err := sb.announceManager.SendVersionCertificateTable(peer); err != nil {
 		logger.Debug("Error sending all version certificates", "err", err)
@@ -375,13 +280,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
 	return nil
 }
 
-func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
-	if sb.IsProxy() && isProxiedPeer {
-		sb.proxyEngine.UnregisterProxiedValidatorPeer(peer)
-	} else if sb.IsProxiedValidator() {
-		sb.proxiedValidatorEngine.UnregisterProxyPeer(peer)
-	}
-}
+func (sb *Backend) UnregisterPeer(peer consensus.Peer) {}
 
 // Handshake allows the initiating peer to identify itself as a validator
 func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
@@ -517,17 +416,6 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 	knownVersion, err := sb.valEnodeTable.GetVersionFromAddress(msg.Address)
 	if err == nil && enodeCertificate.Version < knownVersion {
 		logger.Debug("Received a validator handshake message with an old version", "received version", enodeCertificate.Version, "known version", knownVersion)
-		return false, nil
-	}
-
-	// Forward this message to the proxied validator if this is a proxy.
-	// We leave the validator to determine if the proxy should add this node
-	// to its val enode table, which occurs if the proxied validator sends back
-	// the enode certificate to this proxy.
-	if sb.IsProxy() {
-		if err := sb.proxyEngine.SendMsgToProxiedValidators(istanbul.EnodeCertificateMsg, &msg); err != nil {
-			logger.Warn("Error in sending enode certificate to proxied validator", "err", err)
-		}
 		return false, nil
 	}
 
