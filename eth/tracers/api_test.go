@@ -428,7 +428,7 @@ func TestOverriddenTraceCall(t *testing.T) {
 				Input:   hexutil.Bytes(common.Hex2Bytes("8381f58a")),
 				Output:  hexutil.Bytes(common.BigToHash(big.NewInt(123)).Bytes()),
 				Gas:     newRPCUint64(24978936),
-				GasUsed: newRPCUint64(983), // TODO ethereum cost 2283, check if this is right
+				GasUsed: newRPCUint64(2283),
 				Value:   (*hexutil.Big)(big.NewInt(0)),
 			},
 		},
