@@ -45,7 +45,6 @@ type Config struct {
 	Blockchain                 BlockchainParameters
 	Random                     RandomParameters
 	Attestations               AttestationsParameters
-	TransferWhitelist          TransferWhitelistParameters
 	ReserveSpenderMultiSig     MultiSigParameters
 	GovernanceApproverMultiSig MultiSigParameters
 	DoubleSigningSlasher       DoubleSigningSlasherParameters
@@ -236,12 +235,6 @@ type EpochRewardsParameters struct {
 
 type EpochRewardsParametersMarshaling struct {
 	MaxValidatorEpochPayment *bigintstr.BigIntStr `json:"maxValidatorEpochPayment"`
-}
-
-// TransferWhitelistParameters are the initial configuration parameters for TransferWhitelist
-type TransferWhitelistParameters struct {
-	Addresses   []common.Address `json:"addresses"`
-	RegistryIDs []common.Hash    `json:"registryIds"`
 }
 
 // GoldTokenParameters are the initial configuration parameters for GoldToken

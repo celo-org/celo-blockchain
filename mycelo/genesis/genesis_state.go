@@ -91,85 +91,82 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 		// i:02, migr:03 Freezer
 		ctx.deployFreezer,
 
-		// i:03, migr:03 TransferWhitelist
-		ctx.deployTransferWhitelist,
-
-		// i:04, migr:03 FeeCurrencyWhitelist
+		// i:03, migr:03 FeeCurrencyWhitelist
 		ctx.deployFeeCurrencyWhitelist,
 
-		// i:05, migr:04 GoldToken
+		// i:04, migr:04 GoldToken
 		ctx.deployGoldToken,
 
-		// i:06, migr:05 SortedOracles
+		// i:05, migr:05 SortedOracles
 		ctx.deploySortedOracles,
 
-		// i:07, migr:06 GasPriceMinimum
+		// i:06, migr:06 GasPriceMinimum
 		ctx.deployGasPriceMinimum,
 
-		// i:08, migr:07 Reserve
+		// i:07, migr:07 Reserve
 		ctx.deployReserve,
 
-		// i:09, migr:08 ReserveSpenderMultisig (requires reserve to work)
+		// i:08, migr:08 ReserveSpenderMultisig (requires reserve to work)
 		ctx.deployReserveSpenderMultisig,
 
-		// i:10, migr:09 StableToken, StableTokenEUR and StableTokenBRL
+		// i:09, migr:09 StableToken, StableTokenEUR and StableTokenBRL
 		ctx.deployStableTokens,
 
-		// i:11, migr:10 Exchange, ExchangeEUR and ExchangeBRL
+		// i:10, migr:10 Exchange, ExchangeEUR and ExchangeBRL
 		ctx.deployExchanges,
 
-		// i:12, migr:11 Accounts
+		// i:11, migr:11 Accounts
 		ctx.deployAccounts,
 
-		// i:13, migr:12 LockedGold
+		// i:12, migr:12 LockedGold
 		ctx.deployLockedGold,
 
-		// i:14, migr:13 Validators
+		// i:13, migr:13 Validators
 		ctx.deployValidators,
 
-		// i:15, migr:14 Election
+		// i:14, migr:14 Election
 		ctx.deployElection,
 
-		// i:16, migr:15 EpochRewards
+		// i:15, migr:15 EpochRewards
 		ctx.deployEpochRewards,
 
-		// i:17, migr:16 Random
+		// i:16, migr:16 Random
 		ctx.deployRandom,
 
-		// i:18, migr17 Attestations
+		// i:17, migr17 Attestations
 		ctx.deployAttestations,
 
-		// 1:19, migr:18 Escrow
+		// 1:18, migr:18 Escrow
 		ctx.deployEscrow,
 
-		// i:20, migr:19 BlockchainParameters
+		// i:19, migr:19 BlockchainParameters
 		ctx.deployBlockchainParameters,
 
-		// i:21, migr:20 GovernanceSlasher
+		// i:20, migr:20 GovernanceSlasher
 		ctx.deployGovernanceSlasher,
 
-		// i:22, migr:21 DoubleSigningSlasher
+		// i:21, migr:21 DoubleSigningSlasher
 		ctx.deployDoubleSigningSlasher,
 
-		// i:23, migr:22 DowntimeSlasher
+		// i:22, migr:22 DowntimeSlasher
 		ctx.deployDowntimeSlasher,
 
-		// i:24, migr:23 GovernanceApproverMultiSig
+		// i:23, migr:23 GovernanceApproverMultiSig
 		ctx.deployGovernanceApproverMultiSig,
 
-		// i:25, migr:24 GrandaMento
+		// i:24, migr:24 GrandaMento
 		ctx.deployGrandaMento,
 
-		// i:26, migr:25 FederatedAttestations
+		// i:25, migr:25 FederatedAttestations
 		ctx.deployFederatedAttestations,
 
-		// i:27, migr:26 OdisPayment
+		// i:26, migr:26 OdisPayment
 		ctx.deployOdisPayments,
 
-		// i:28, migr:27 Governance
+		// i:27, migr:27 Governance
 		ctx.deployGovernance,
 
-		// i:29, migr:28 Elect Validators
+		// i:28, migr:28 Elect Validators
 		ctx.electValidators,
 	}
 
@@ -279,41 +276,6 @@ func (ctx *deployContext) deployCoreContract(name string, initialize func(contra
 	proxyAddress := env.MustProxyAddressFor(name)
 	ctx.logger.Info("Add entry to registry", "name", name, "address", proxyAddress)
 	if err := ctx.contract("Registry").SimpleCall("setAddressFor", name, proxyAddress); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (ctx *deployContext) deployTransferWhitelist() error {
-	name := "TransferWhitelist"
-	logger := ctx.logger.New("contract", name)
-
-	contract, err := contract.DeployCoreContract(
-		ctx.runtimeConfig,
-		"TransferWhitelist",
-		ctx.truffleReader.MustReadBytecodeFor("TransferWhitelist"),
-		env.MustProxyAddressFor("Registry"),
-	)
-	if err != nil {
-		return err
-	}
-	logger.Info("Contract deployed", "address", contract.Address)
-
-	logger.Debug("setDirectlyWhitelistedAddresses")
-	err = contract.SimpleCall("setDirectlyWhitelistedAddresses", ctx.genesisConfig.TransferWhitelist.Addresses)
-	if err != nil {
-		return err
-	}
-
-	logger.Debug("setWhitelistedContractIdentifiers")
-	err = contract.SimpleCall("setWhitelistedContractIdentifiers", ctx.genesisConfig.TransferWhitelist.RegistryIDs)
-	if err != nil {
-		return err
-	}
-
-	logger.Info("Add to Registry")
-	if err := ctx.contract("Registry").SimpleCall("setAddressFor", name, contract.Address); err != nil {
 		return err
 	}
 
