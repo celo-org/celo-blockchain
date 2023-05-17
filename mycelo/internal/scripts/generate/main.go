@@ -39,7 +39,6 @@ var contractNames = []string{
 	"Proxy",
 	"Registry",
 	"Freezer",
-	"TransferWhitelist",
 	"FeeCurrencyWhitelist",
 	"GoldToken",
 	"SortedOracles",
