@@ -147,12 +147,12 @@ func TestPrestateTracerCreate2(t *testing.T) {
 		GasPrice: big.NewInt(1),
 	}
 	context := vm.BlockContext{
-		CanTransfer:          vmcontext.CanTransfer,
-		Transfer:             vmcontext.TobinTransfer,
-		Coinbase:             common.Address{},
-		BlockNumber:          new(big.Int).SetUint64(8000000),
-		Time:                 new(big.Int).SetUint64(5),
-		GetRegisteredAddress: vmcontext.GetRegisteredAddress,
+		CanTransfer:        vmcontext.CanTransfer,
+		Transfer:           vmcontext.TobinTransfer,
+		Coinbase:           common.Address{},
+		BlockNumber:        new(big.Int).SetUint64(8000000),
+		Time:               new(big.Int).SetUint64(5),
+		IsGoldTokenAddress: vmcontext.IsGoldTokenAddress,
 	}
 	alloc := core.GenesisAlloc{}
 
@@ -222,12 +222,12 @@ func TestPrestateTracerTransfer(t *testing.T) {
 		GasPrice: big.NewInt(1),
 	}
 	context := vm.BlockContext{
-		CanTransfer:          vmcontext.CanTransfer,
-		Transfer:             vmcontext.TobinTransfer,
-		Coinbase:             common.Address{},
-		BlockNumber:          new(big.Int).SetUint64(8000000),
-		Time:                 new(big.Int).SetUint64(5),
-		GetRegisteredAddress: vmcontext.GetRegisteredAddress,
+		CanTransfer:        vmcontext.CanTransfer,
+		Transfer:           vmcontext.TobinTransfer,
+		Coinbase:           common.Address{},
+		BlockNumber:        new(big.Int).SetUint64(8000000),
+		Time:               new(big.Int).SetUint64(5),
+		IsGoldTokenAddress: vmcontext.IsGoldTokenAddress,
 	}
 	alloc := core.GenesisAlloc{}
 	alloc[origin] = core.GenesisAccount{
