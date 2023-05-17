@@ -42,24 +42,14 @@ func (sb *Backend) getPeersFromDestAddresses(destAddresses []common.Address) map
 // Multicast implements istanbul.Backend.Multicast
 // Multicast will send the eth message (with the message's payload and msgCode field set to the params
 // payload and ethMsgCode respectively) to the nodes with the signing address in the destAddresses param.
-// If this node is proxied and destAddresses is not nil, the message will be wrapped
-// in an istanbul.ForwardMessage to ensure the proxy sends it to the correct
-// destAddresses.
 func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error {
 	logger := sb.logger.New("func", "Multicast")
 
 	var err error
 
-	if sb.IsProxiedValidator() {
-		err = sb.proxiedValidatorEngine.SendForwardMsgToAllProxies(destAddresses, ethMsgCode, payload)
-		if err != nil {
-			logger.Warn("Error in sending forward message to the proxies", "err", err)
-		}
-	} else {
-		destPeers := sb.getPeersFromDestAddresses(destAddresses)
-		if len(destPeers) > 0 {
-			sb.asyncMulticast(destPeers, payload, ethMsgCode)
-		}
+	destPeers := sb.getPeersFromDestAddresses(destAddresses)
+	if len(destPeers) > 0 {
+		sb.asyncMulticast(destPeers, payload, ethMsgCode)
 	}
 
 	if sendToSelf {

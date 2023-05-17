@@ -143,9 +143,6 @@ func (p *Peer) AddPurpose(purpose PurposeFlag) {
 	if purpose.IsSet(ValidatorPurpose) && !p.purposes.IsSet(ValidatorPurpose) {
 		activeValidatorsPeerGauge.Inc(1)
 	}
-	if purpose.IsSet(ProxyPurpose) && !p.purposes.IsSet(ProxyPurpose) {
-		activeProxiesPeerGauge.Inc(1)
-	}
 
 	p.purposes = p.purposes.Add(purpose)
 }
@@ -157,9 +154,6 @@ func (p *Peer) RemovePurpose(purpose PurposeFlag) {
 	// assumes we are still connected...
 	if purpose.IsSet(ValidatorPurpose) && p.purposes.IsSet(ValidatorPurpose) {
 		activeValidatorsPeerGauge.Dec(1)
-	}
-	if purpose.IsSet(ProxyPurpose) && p.purposes.IsSet(ProxyPurpose) {
-		activeProxiesPeerGauge.Dec(1)
 	}
 
 	p.purposes = p.purposes.Remove(purpose)
@@ -272,12 +266,9 @@ func newPeer(log log.Logger, conn *conn, protocols []Protocol, purpose PurposeFl
 		Server:   server,
 	}
 
-	// Increase connection metrics for proxies & validators
+	// Increase connection metrics for proxies
 	if p.purposes.IsSet(ValidatorPurpose) {
 		activeValidatorsPeerGauge.Inc(1)
-	}
-	if p.purposes.IsSet(ProxyPurpose) {
-		activeProxiesPeerGauge.Inc(1)
 	}
 
 	return p
@@ -331,13 +322,10 @@ loop:
 		}
 	}
 
-	// Decrease connection metrics for proxies & validators
+	// Decrease connection metrics for validators
 	p.purposesMu.Lock()
 	if p.purposes.IsSet(ValidatorPurpose) {
 		activeValidatorsPeerGauge.Dec(1)
-	}
-	if p.purposes.IsSet(ProxyPurpose) {
-		activeProxiesPeerGauge.Dec(1)
 	}
 
 	if p.purposes.HasPurpose() {

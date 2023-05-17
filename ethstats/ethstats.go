@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -69,13 +68,9 @@ const (
 	txChanSize = 4096
 	// chainHeadChanSize is the size of channel listening to ChainHeadEvent.
 	chainHeadChanSize = 10
-	// istDelegateSignChanSize is the size of the channel listening to DelegateSignEvent
-	istDelegateSignChanSize = 5
 
 	// connectionTimeout waits for the websocket connection to be established
 	connectionTimeout = 10
-	// delegateSignTimeout waits for the proxy to sign a message
-	delegateSignTimeout = 5
 	// wait longer if there are difficulties with login
 	loginTimeout = 50
 	// statusUpdateInterval is the frequency of sending full node reports
@@ -215,13 +210,6 @@ func New(node *node.Node, backend backend, engine consensus.Engine, url string) 
 	)
 	istanbulBackend := engine.(*istanbulBackend.Backend)
 
-	if !istanbulBackend.IsProxiedValidator() {
-		// Parse the netstats connection url
-		if err := parseEthstatsURL(url, &name, &celostatsHost); err != nil {
-			return err
-		}
-	}
-
 	ethstats := &Service{
 		engine:          engine,
 		backend:         backend,
@@ -274,146 +262,114 @@ func (s *Service) loop(ctx context.Context) {
 	var (
 		headCh = make(chan *types.Block, 1)
 		txCh   = make(chan struct{}, 1)
-		signCh = make(chan *DelegateSignMessage, 1)
 		sendCh = make(chan *StatsPayload, 1)
 	)
 
 	group, ctxGroup := errgroup.WithContext(ctx)
-	group.Go(func() error { return s.handleDelegateSignEvents(ctxGroup, sendCh, signCh) })
 	group.Go(func() error { return s.handleNewTransactionEvents(ctxGroup, txCh) })
 	group.Go(func() error { return s.handleChainHeadEvents(ctxGroup, headCh) })
 
-	if s.istanbulBackend.IsProxiedValidator() {
-		group.Go(func() error {
-			for {
-				select {
-				case delegateSignMsg := <-signCh:
-					if s.istanbulBackend.IsValidating() {
-						s.fillWithValidatorInfo(&delegateSignMsg.Payload)
-						if err := s.handleDelegateSign(&delegateSignMsg.Payload, delegateSignMsg.PeerID); err != nil {
-							log.Warn("Delegate sign failed", "err", err)
-						}
+	group.Go(func() error {
+		// Resolve the URL, defaulting to TLS, but falling back to none too
+		path := fmt.Sprintf("%s/api", s.celostatsHost)
+		urls := []string{path}
+
+		// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
+		if !strings.Contains(path, "://") {
+			urls = []string{"wss://" + path, "ws://" + path}
+		}
+
+		errTimer := time.NewTimer(0)
+		defer errTimer.Stop()
+		// Loop reporting until termination
+		for {
+			select {
+			case <-ctxGroup.Done():
+				return ctxGroup.Err()
+			case <-errTimer.C:
+				var (
+					conn *connWrapper
+					err  error
+				)
+				// Establish a websocket connection to the server on any supported URL
+				dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
+				header := make(http.Header)
+				header.Set("origin", "http://localhost")
+				for _, url := range urls {
+					c, _, e := dialer.Dial(url, header)
+					err = e
+					if err == nil {
+						conn = newConnectionWrapper(c)
+						break
 					}
-				case <-ctxGroup.Done():
-					return ctxGroup.Err()
 				}
-			}
-		})
-	} else {
-		group.Go(func() error {
-			// Resolve the URL, defaulting to TLS, but falling back to none too
-			path := fmt.Sprintf("%s/api", s.celostatsHost)
-			urls := []string{path}
 
-			// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
-			if !strings.Contains(path, "://") {
-				urls = []string{"wss://" + path, "ws://" + path}
-			}
+				if err != nil {
+					log.Warn("Stats server unreachable", "err", err)
+					errTimer.Reset(connectionTimeout * time.Second)
+					continue
+				}
 
-			errTimer := time.NewTimer(0)
-			defer errTimer.Stop()
-			// Loop reporting until termination
-			for {
-				select {
-				case <-ctxGroup.Done():
-					return ctxGroup.Err()
-				case <-errTimer.C:
-					var (
-						conn *connWrapper
-						err  error
-					)
-					// Establish a websocket connection to the server on any supported URL
-					dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
-					header := make(http.Header)
-					header.Set("origin", "http://localhost")
-					for _, url := range urls {
-						c, _, e := dialer.Dial(url, header)
-						err = e
-						if err == nil {
-							conn = newConnectionWrapper(c)
-							break
-						}
-					}
+				// Authenticate the client with the server
+				if err = s.login(conn, sendCh); err != nil {
+					log.Warn("Stats login failed", "err", err)
+					conn.Close()
+					errTimer.Reset(connectionTimeout * time.Second)
+					continue
+				}
 
-					if err != nil {
-						log.Warn("Stats server unreachable", "err", err)
-						errTimer.Reset(connectionTimeout * time.Second)
-						continue
-					}
+				// This go routine will close when the connection gets closed/lost
+				go s.readLoop(conn)
 
-					// Authenticate the client with the server
-					if err = s.login(conn, sendCh); err != nil {
-						log.Warn("Stats login failed", "err", err)
-						conn.Close()
-						errTimer.Reset(connectionTimeout * time.Second)
-						continue
-					}
-
-					// This go routine will close when the connection gets closed/lost
-					go s.readLoop(conn)
-
-					// Send the initial stats so our node looks decent from the get go
-					if err = s.report(conn, sendCh); err != nil {
-						log.Warn("Initial stats report failed", "err", err)
-						conn.Close()
-						errTimer.Reset(0)
-						continue
-					}
-
-					// Keep sending status updates until the connection breaks
-					fullReport := time.NewTicker(statusUpdateInterval * time.Second)
-
-					for err == nil {
-						select {
-						case <-ctxGroup.Done():
-							fullReport.Stop()
-							// Make sure the connection is closed
-							conn.Close()
-							return ctxGroup.Err()
-
-						case <-fullReport.C:
-							if err = s.report(conn, sendCh); err != nil {
-								log.Warn("Full stats report failed", "err", err)
-							}
-						case list := <-s.histCh:
-							if err = s.reportHistory(conn, list); err != nil {
-								log.Warn("Requested history report failed", "err", err)
-							}
-						case head := <-headCh:
-							if err = s.reportBlock(conn, head); err != nil {
-								log.Warn("Block stats report failed", "err", err)
-							}
-							if err = s.reportPending(conn); err != nil {
-								log.Warn("Post-block transaction stats report failed", "err", err)
-							}
-						case <-txCh:
-							if err = s.reportPending(conn); err != nil {
-								log.Warn("Transaction stats report failed", "err", err)
-							}
-						case signedMessage := <-sendCh:
-							// if it is a ping or hello message, it shouldn't be handled here
-							if signedMessage.Action != actionNodePing && signedMessage.Action != actionHello {
-								if err = s.handleDelegateSend(conn, signedMessage); err != nil {
-									log.Warn("Delegate send failed", "err", err)
-								}
-							} else {
-								// As both discarded messages, if they were required should eventually close the connection
-								// we just warn the user to avoid possible unnecessary disconnections (for example, from
-								// another backup validator)
-								log.Warn("Signed message discarded", "Action", signedMessage.Action)
-							}
-						}
-					}
-					fullReport.Stop()
-
-					// Make sure the connection is closed
+				// Send the initial stats so our node looks decent from the get go
+				if err = s.report(conn, sendCh); err != nil {
+					log.Warn("Initial stats report failed", "err", err)
 					conn.Close()
 					errTimer.Reset(0)
-					// Continues with the for, and tries to login again until the ctx was cancelled
+					continue
 				}
+
+				// Keep sending status updates until the connection breaks
+				fullReport := time.NewTicker(statusUpdateInterval * time.Second)
+
+				for err == nil {
+					select {
+					case <-ctxGroup.Done():
+						fullReport.Stop()
+						// Make sure the connection is closed
+						conn.Close()
+						return ctxGroup.Err()
+
+					case <-fullReport.C:
+						if err = s.report(conn, sendCh); err != nil {
+							log.Warn("Full stats report failed", "err", err)
+						}
+					case list := <-s.histCh:
+						if err = s.reportHistory(conn, list); err != nil {
+							log.Warn("Requested history report failed", "err", err)
+						}
+					case head := <-headCh:
+						if err = s.reportBlock(conn, head); err != nil {
+							log.Warn("Block stats report failed", "err", err)
+						}
+						if err = s.reportPending(conn); err != nil {
+							log.Warn("Post-block transaction stats report failed", "err", err)
+						}
+					case <-txCh:
+						if err = s.reportPending(conn); err != nil {
+							log.Warn("Transaction stats report failed", "err", err)
+						}
+					}
+				}
+				fullReport.Stop()
+
+				// Make sure the connection is closed
+				conn.Close()
+				errTimer.Reset(0)
+				// Continues with the for, and tries to login again until the ctx was cancelled
 			}
-		})
-	}
+		}
+	})
 
 	group.Wait()
 }
@@ -466,13 +422,6 @@ func (s *Service) login(conn *connWrapper, sendCh chan *StatsPayload) error {
 		return err
 	}
 
-	if s.istanbulBackend.IsProxy() {
-		// Proxy needs a delegate send of a hello action here to get ACK
-		if err := s.waitAndDelegateMessageWithTimeout(conn, sendCh, actionHello); err != nil {
-			return err
-		}
-	}
-
 	// Retrieve the remote ack or connection termination
 	var ack map[string][]string
 
@@ -503,115 +452,6 @@ func (s *Service) login(conn *connWrapper, sendCh chan *StatsPayload) error {
 	}
 
 	return nil
-}
-
-func (s *Service) waitAndDelegateMessageWithTimeout(conn *connWrapper, sendCh chan *StatsPayload, action string) error {
-	for {
-		select {
-		case signedMessage := <-sendCh:
-			err := s.handleDelegateSend(conn, signedMessage)
-			// The wait and delegate message, basically requires that some message was already returned.
-			// It is possible to receive an old message signed that was queue before.
-			// With this, we only continue if that message was present, otherwise we delegate that message
-			// and continue
-			if signedMessage.Action == action {
-				return err
-			} else {
-				if err != nil {
-					log.Warn("Delegate send failed", "err", err)
-				}
-			}
-		case <-time.After(delegateSignTimeout * time.Second):
-			return errors.New("delegation sign timeout")
-		}
-	}
-}
-
-var nodeNameRegex = regexp.MustCompile(`(.*)/(.*)/(.*)/(.*)`)
-
-func (s *Service) fillWithValidatorInfo(message *StatsPayload) {
-	if message.Action == actionHello {
-		msg, ok := message.Stats.(map[string]interface{})
-		if ok {
-			proxyInfo, ok := msg["info"].(map[string]interface{})
-			if ok {
-				infos := s.server.NodeInfo()
-				proxyNode := proxyInfo["node"].(string)
-				proxyNodeParts := nodeNameRegex.FindStringSubmatch(proxyNode)
-				validatorNodeParts := nodeNameRegex.FindStringSubmatch(infos.Name)
-				// if one of the regex failed, maintain the proxy node name
-				if proxyNodeParts != nil && validatorNodeParts != nil {
-					proxyInfo["node"] = fmt.Sprintf(
-						"%s/%s(val:%s)/%s/%s",
-						proxyNodeParts[1],
-						proxyNodeParts[2],
-						validatorNodeParts[2],
-						proxyNodeParts[3],
-						proxyNodeParts[4],
-					)
-				}
-			}
-		}
-	}
-}
-
-func (s *Service) handleDelegateSign(messageToSign *StatsPayload, peerID enode.ID) error {
-	signedStats, err := s.signStats(messageToSign.Stats)
-	if err != nil {
-		return err
-	}
-
-	signedMessage := &StatsPayload{
-		Action: messageToSign.Action,
-		Stats:  signedStats,
-	}
-	msg, err := json.Marshal(signedMessage)
-	if err != nil {
-		return err
-	}
-	return s.istanbulBackend.SendDelegateSignMsgToProxy(msg, peerID)
-}
-
-func (s *Service) handleDelegateSend(conn *connWrapper, signedMessage *StatsPayload) error {
-	report := map[string][]interface{}{
-		"emit": {signedMessage.Action, signedMessage.Stats},
-	}
-	return conn.WriteJSON(report)
-}
-
-func (s *Service) handleDelegateSignEvents(ctx context.Context, sendCh chan *StatsPayload, signCh chan *DelegateSignMessage) error {
-	ch := make(chan istanbul.MessageWithPeerIDEvent, istDelegateSignChanSize)
-	subscription := s.istanbulBackend.SubscribeNewDelegateSignEvent(ch)
-	defer subscription.Unsubscribe()
-
-	for {
-		select {
-		case msg := <-ch:
-			var delegateSignMessage DelegateSignMessage
-			delegateSignMessage.PeerID = msg.PeerID
-			if err := json.Unmarshal(msg.Payload, &delegateSignMessage.Payload); err != nil {
-				continue
-			}
-			if s.istanbulBackend.IsProxy() {
-				// proxy should send to websocket
-				select {
-				case sendCh <- &delegateSignMessage.Payload:
-				default:
-				}
-			} else if s.istanbulBackend.IsProxiedValidator() {
-				// proxied validator should sign
-				select {
-				case signCh <- &delegateSignMessage:
-				default:
-				}
-			}
-		case err := <-subscription.Err():
-			log.Error("Subscription for handle signing messages failed", "err", err)
-			return err
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
 }
 
 func (s *Service) handleNewTransactionEvents(ctx context.Context, txChan chan struct{}) error {
@@ -819,12 +659,6 @@ func (s *Service) reportLatency(conn *connWrapper, sendCh chan *StatsPayload) er
 	if err := s.sendStats(conn, actionNodePing, ping); err != nil {
 		return err
 	}
-	// Proxy needs a delegate send of a node-ping action here to get ACK
-	if s.istanbulBackend.IsProxy() {
-		if err := s.waitAndDelegateMessageWithTimeout(conn, sendCh, actionNodePing); err != nil {
-			return err
-		}
-	}
 	// Wait for the pong request to arrive back
 	select {
 	case <-s.pongCh:
@@ -931,24 +765,6 @@ func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
 }
 
 func (s *Service) sendStats(conn *connWrapper, action string, stats interface{}) error {
-	if s.istanbulBackend.IsProxy() {
-		statsWithAction := map[string]interface{}{
-			"stats":  stats,
-			"action": action,
-		}
-		msg, err := json.Marshal(statsWithAction)
-		if err != nil {
-			return err
-		}
-		go func() {
-			err := s.istanbulBackend.SendDelegateSignMsgToProxiedValidator(msg)
-			if err != nil {
-				log.Warn("Failed to delegate", "err", err)
-				conn.Close()
-			}
-		}()
-		return nil
-	}
 	signedStats, err := s.signStats(stats)
 	if err != nil {
 		return err
@@ -1189,7 +1005,6 @@ type nodeStats struct {
 	Active   bool `json:"active"`
 	Syncing  bool `json:"syncing"`
 	Mining   bool `json:"mining"`
-	Proxy    bool `json:"proxy"`
 	Elected  bool `json:"elected"`
 	Peers    int  `json:"peers"`
 	GasPrice int  `json:"gasPrice"`
@@ -1203,7 +1018,6 @@ func (s *Service) reportStats(conn *connWrapper) error {
 	var (
 		validatorAddress common.Address
 		mining           bool
-		proxy            bool
 		elected          bool
 		syncing          bool
 		gasprice         int
@@ -1214,7 +1028,6 @@ func (s *Service) reportStats(conn *connWrapper) error {
 		validatorAddress = s.istanbulBackend.ValidatorAddress()
 		block := fullBackend.CurrentBlock()
 
-		proxy = s.istanbulBackend.IsProxy()
 		mining = fullBackend.Miner().Mining()
 
 		elected = false
@@ -1248,7 +1061,6 @@ func (s *Service) reportStats(conn *connWrapper) error {
 			Active:   true,
 			Mining:   mining,
 			Elected:  elected,
-			Proxy:    proxy,
 			Peers:    s.server.PeerCount(),
 			GasPrice: gasprice,
 			Syncing:  syncing,

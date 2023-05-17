@@ -16,7 +16,7 @@ var (
 type EnodeCertificateMsgHolder interface {
 	// Get gets the most recent enode certificate messages.
 	// May be nil if no message was generated as a result of the core not being
-	// started, or if a proxy has not received a message from its proxied validator
+	// started
 	Get() map[enode.ID]*istanbul.EnodeCertMsg
 	Set(enodeCertMsgMap map[enode.ID]*istanbul.EnodeCertMsg) error
 }
@@ -24,12 +24,8 @@ type EnodeCertificateMsgHolder interface {
 type lockedHolder struct {
 	logger log.Logger
 	// The enode certificate message map contains the most recently generated
-	// enode certificates for each external node ID (e.g. will have one entry per proxy
-	// for a proxied validator, or just one entry if it's a standalone validator).
-	// Each proxy will just have one entry for their own external node ID.
-	// Used for proving itself as a validator in the handshake for externally exposed nodes,
-	// or by saving latest generated certificate messages by proxied validators to send
-	// to their proxies.
+	// enode certificates for each external node ID (e.g. will have one entry if it's a standalone validator).
+	// Used for proving itself as a validator in the handshake for externally exposed nodes
 	enodeCertificateMsgMap     map[enode.ID]*istanbul.EnodeCertMsg
 	enodeCertificateMsgVersion uint
 	enodeCertificateMsgMapMu   sync.RWMutex // This protects both enodeCertificateMsgMap and enodeCertificateMsgVersion
@@ -43,7 +39,7 @@ func NewLockedHolder() EnodeCertificateMsgHolder {
 
 // RetrieveEnodeCertificateMsgMap gets the most recent enode certificate messages.
 // May be nil if no message was generated as a result of the core not being
-// started, or if a proxy has not received a message from its proxied validator
+// started
 func (h *lockedHolder) Get() map[enode.ID]*istanbul.EnodeCertMsg {
 	h.enodeCertificateMsgMapMu.Lock()
 	defer h.enodeCertificateMsgMapMu.Unlock()
@@ -77,8 +73,6 @@ func (h *lockedHolder) Set(enodeCertMsgMap map[enode.ID]*istanbul.EnodeCertMsg) 
 		return istanbul.ErrInvalidEnodeCertMsgMapOldVersion
 	} else if *enodeCertVersion == h.enodeCertificateMsgVersion {
 		// This function may be called with the same enode certificate.
-		// Proxied validators will periodically send the same enode certificate to it's proxies,
-		// to ensure that the proxies to eventually get their enode certificates.
 		logger.Trace("Attempting to set an enode certificate with the same version as the previous set enode certificate's")
 	} else {
 		logger.Debug("Setting enode certificate", "version", *enodeCertVersion)

@@ -30,9 +30,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/replica"
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/election"
@@ -99,35 +97,12 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 
 	backend.core = istanbulCore.New(backend, backend.config)
 
-	if config.Validator {
-		rs, err := replica.NewState(config.Replica, config.ReplicaStateDBPath, backend.StartValidating, backend.StopValidating)
-		if err != nil {
-			logger.Crit("Can't open ReplicaStateDB", "err", err, "dbpath", config.ReplicaStateDBPath)
-		}
-		backend.replicaState = rs
-	} else {
-		backend.replicaState = nil
-	}
-
 	backend.vph = newVPH(backend)
 	valEnodeTable, err := announce.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph)
 	if err != nil {
 		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
 	}
 	backend.valEnodeTable = valEnodeTable
-
-	// If this node is a proxy or is a proxied validator, then create the appropriate proxy engine object
-	if backend.IsProxy() {
-		backend.proxyEngine, err = proxy.NewProxyEngine(backend, backend.config)
-		if err != nil {
-			logger.Crit("Can't create a new proxy engine", "err", err)
-		}
-	} else if backend.IsProxiedValidator() {
-		backend.proxiedValidatorEngine, err = proxy.NewProxiedValidatorEngine(backend, backend.config)
-		if err != nil {
-			logger.Crit("Can't create a new proxied validator engine", "err", err)
-		}
-	}
 
 	backend.announceManager = createAnnounceManager(backend)
 
@@ -149,27 +124,18 @@ func createAnnounceManager(backend *Backend) *announce.Manager {
 	ecertHolder := announce.NewLockedHolder()
 	pruner := announce.NewAnnounceStatePruner(backend.RetrieveValidatorConnSet)
 
-	var vpap announce.ValProxyAssigmnentProvider
+	var veap announce.ValEnodeAssigmentProvider
 	var ecertGenerator announce.EnodeCertificateMsgGenerator
 	var onNewEnodeMsgs announce.OnNewEnodeCertsMsgSentFn
-	if backend.IsProxiedValidator() {
-		ecertGenerator = announce.NewEnodeCertificateMsgGenerator(
-			announce.NewProxiedExternalFacingEnodeGetter(backend.proxiedValidatorEngine.GetProxiesAndValAssignments),
-		)
-		vpap = announce.NewProxiedValProxyAssigmentProvider(backend.proxiedValidatorEngine.GetValidatorProxyAssignments)
-		onNewEnodeMsgs = backend.proxiedValidatorEngine.SendEnodeCertsToAllProxies
-	} else {
-		ecertGenerator = announce.NewEnodeCertificateMsgGenerator(announce.NewSelfExternalFacingEnodeGetter(backend.SelfNode))
-		vpap = announce.NewSelfValProxyAssigmentProvider(backend.SelfNode)
-		onNewEnodeMsgs = nil
-	}
+	ecertGenerator = announce.NewEnodeCertificateMsgGenerator(announce.NewSelfExternalFacingEnodeGetter(backend.SelfNode))
+	veap = announce.NewSelfValEnodeAssigmentProvider(backend.SelfNode)
+	onNewEnodeMsgs = nil
 
 	avs := announce.NewVersionSharer(&backend.aWallets, backend, state, ovcp, ecertGenerator, ecertHolder, onNewEnodeMsgs)
-	worker := createAnnounceWorker(backend, state, ovcp, vcGossiper, checker, pruner, vpap, avs)
+	worker := createAnnounceWorker(backend, state, ovcp, vcGossiper, checker, pruner, veap, avs)
 	return announce.NewManager(
 		backend.config,
 		&backend.aWallets,
-		backend,
 		backend,
 		backend,
 		state,
@@ -178,14 +144,14 @@ func createAnnounceManager(backend *Backend) *announce.Manager {
 		ovcp,
 		ecertHolder,
 		vcGossiper,
-		vpap,
+		veap,
 		worker)
 }
 
 func createAnnounceWorker(backend *Backend, state *announce.AnnounceState, ovcp announce.OutboundVersionCertificateProcessor,
 	vcGossiper announce.VersionCertificateGossiper,
 	checker announce.ValidatorChecker, pruner announce.AnnounceStatePruner,
-	vpap announce.ValProxyAssigmnentProvider, avs announce.VersionSharer) announce.Worker {
+	veap announce.ValEnodeAssigmentProvider, avs announce.VersionSharer) announce.Worker {
 	announceVersion := announce.NewAtomicVersion()
 	peerCounter := func(purpose p2p.PurposeFlag) int {
 		return len(backend.broadcaster.FindPeers(nil, p2p.AnyPurpose))
@@ -214,7 +180,7 @@ func createAnnounceWorker(backend *Backend, state *announce.AnnounceState, ovcp 
 		enodeGossiper,
 		backend.config,
 		peerCounter,
-		vpap,
+		veap,
 		avs,
 	)
 }
@@ -234,7 +200,6 @@ type Backend struct {
 	currentBlock func() *types.Block
 	hasBadBlock  func(hash common.Hash) bool
 	stateAt      func(hash common.Hash) (*state.StateDB, error)
-	replicaState replica.State
 
 	processBlock        func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
 	validateState       func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
@@ -266,9 +231,6 @@ type Backend struct {
 	valEnodeTable *announce.ValidatorEnodeDB
 
 	announceManager *announce.Manager
-
-	delegateSignFeed  event.Feed
-	delegateSignScope event.SubscriptionScope
 
 	// Metric timer used to record block finalization times.
 	finalizationTimer metrics.Timer
@@ -323,14 +285,6 @@ type Backend struct {
 	// Handler to manage and maintain validator peer connections
 	vph *validatorPeerHandler
 
-	// Handler for proxy related functionality
-	proxyEngine proxy.ProxyEngine
-
-	// Handler for proxied validator related functionality
-	proxiedValidatorEngine        proxy.ProxiedValidatorEngine
-	proxiedValidatorEngineRunning bool
-	proxiedValidatorEngineMu      sync.RWMutex
-
 	// RandomSeed (and it's mutex) used to generate the random beacon randomness
 	randomSeed   []byte
 	randomSeedMu sync.Mutex
@@ -343,35 +297,12 @@ func (sb *Backend) isCoreStarted() bool {
 	return sb.coreStarted.Load().(bool)
 }
 
-// IsProxy returns true if instance has proxy flag
-func (sb *Backend) IsProxy() bool {
-	return sb.config.Proxy
-}
-
-// GetProxyEngine returns the proxy engine object
-func (sb *Backend) GetProxyEngine() proxy.ProxyEngine {
-	return sb.proxyEngine
-}
-
-// IsProxiedValidator returns true if instance has proxied validator flag
-func (sb *Backend) IsProxiedValidator() bool {
-	return sb.config.Proxied && sb.IsValidator()
-}
-
-// GetProxiedValidatorEngine returns the proxied validator engine object
-func (sb *Backend) GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine {
-	sb.proxiedValidatorEngineMu.RLock()
-	defer sb.proxiedValidatorEngineMu.RUnlock()
-	return sb.proxiedValidatorEngine
-}
-
 // IsValidating return true if instance is validating
 func (sb *Backend) IsValidating() bool {
-	// TODO: Maybe a little laggy, but primary / replica should track the core
 	return sb.isCoreStarted()
 }
 
-// IsValidator return if instance is a validator (either proxied or standalone)
+// IsValidator return if instance is a validator
 func (sb *Backend) IsValidator() bool {
 	return sb.config.Validator
 }
@@ -379,26 +310,6 @@ func (sb *Backend) IsValidator() bool {
 // ChainConfig returns the configuration from the embedded blockchain reader.
 func (sb *Backend) ChainConfig() *params.ChainConfig {
 	return sb.chain.Config()
-}
-
-// SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
-// if one exists
-func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte, peerID enode.ID) error {
-	if sb.IsProxiedValidator() {
-		return sb.proxiedValidatorEngine.SendDelegateSignMsgToProxy(msg, peerID)
-	} else {
-		return errors.New("No Proxy found")
-	}
-}
-
-// SendDelegateSignMsgToProxiedValidator sends an istanbulDelegateSign message to a
-// proxied validator if one exists
-func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
-	if sb.IsProxy() {
-		return sb.proxyEngine.SendDelegateSignMsgToProxiedValidator(msg)
-	} else {
-		return errors.New("No Proxied Validator found")
-	}
 }
 
 // Authorize implements istanbul.Backend.Authorize
@@ -422,25 +333,19 @@ func (sb *Backend) Address() common.Address {
 	return sb.wallets().Ecdsa.Address
 }
 
-// SelfNode returns the owner's node (if this is a proxy, it will return the external node)
+// SelfNode returns the owner's node
 func (sb *Backend) SelfNode() *enode.Node {
 	return sb.p2pserver.Self()
 }
 
 // Close the backend
 func (sb *Backend) Close() error {
-	sb.delegateSignScope.Close()
 	var errs []error
 	if err := sb.valEnodeTable.Close(); err != nil {
 		errs = append(errs, err)
 	}
 	if err := sb.announceManager.Close(); err != nil {
 		errs = append(errs, err)
-	}
-	if sb.replicaState != nil {
-		if err := sb.replicaState.Close(); err != nil {
-			errs = append(errs, err)
-		}
 	}
 	if err := sb.csvRecorder.Close(); err != nil {
 		errs = append(errs, err)
@@ -834,9 +739,6 @@ func (sb *Backend) RefreshValPeers() error {
 }
 
 func (sb *Backend) ValidatorAddress() common.Address {
-	if sb.IsProxy() {
-		return sb.config.ProxiedValidatorAddress
-	}
 	return sb.Address()
 }
 
@@ -982,22 +884,6 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 	return validatorsSet, currentBlock.Number().Uint64(), connSetTS, nil
 }
 
-func (sb *Backend) AddProxy(node, externalNode *enode.Node) error {
-	if sb.IsProxiedValidator() {
-		return sb.proxiedValidatorEngine.AddProxy(node, externalNode)
-	} else {
-		return proxy.ErrNodeNotProxiedValidator
-	}
-}
-
-func (sb *Backend) RemoveProxy(node *enode.Node) error {
-	if sb.IsProxiedValidator() {
-		return sb.proxiedValidatorEngine.RemoveProxy(node)
-	} else {
-		return proxy.ErrNodeNotProxiedValidator
-	}
-}
-
 // VerifyPendingBlockValidatorSignature will verify that the message sender is a validator that is responsible
 // for the current pending block (the next block right after the head block).
 func (sb *Backend) VerifyPendingBlockValidatorSignature(data []byte, sig []byte) (common.Address, error) {
@@ -1020,27 +906,6 @@ func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte
 		}
 
 		return istanbul.CheckValidatorSignature(validator.NewSet(validators), data, sig)
-	}
-}
-
-func (sb *Backend) IsPrimaryForSeq(seq *big.Int) bool {
-	if sb.replicaState != nil {
-		return sb.replicaState.IsPrimaryForSeq(seq)
-	}
-	return false
-}
-
-func (sb *Backend) IsPrimary() bool {
-	if sb.replicaState != nil {
-		return sb.replicaState.IsPrimary()
-	}
-	return false
-}
-
-// UpdateReplicaState updates the replica state with the latest seq.
-func (sb *Backend) UpdateReplicaState(seq *big.Int) {
-	if sb.replicaState != nil {
-		sb.replicaState.NewChainHead(seq)
 	}
 }
 
@@ -1112,7 +977,7 @@ func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istan
 
 // RetrieveEnodeCertificateMsgMap gets the most recent enode certificate messages.
 // May be nil if no message was generated as a result of the core not being
-// started, or if a proxy has not received a message from its proxied validator
+// started
 func (sb *Backend) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg {
 	return sb.announceManager.RetrieveEnodeCertificateMsgMap()
 }

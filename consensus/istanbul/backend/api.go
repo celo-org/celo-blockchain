@@ -17,21 +17,16 @@
 package backend
 
 import (
-	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/replica"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/core"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/rpc"
 )
 
@@ -144,41 +139,6 @@ func (api *API) GetProposer(sequence *rpc.BlockNumber, round *uint64) (common.Ad
 	return proposer.Address(), nil
 }
 
-// AddProxy peers with a remote node that acts as a proxy, even if slots are full
-func (api *API) AddProxy(url, externalUrl string) (bool, error) {
-	if !api.istanbul.config.Proxied {
-		api.istanbul.logger.Error("Add proxy node failed: this node is not configured to be proxied")
-		return false, errors.New("Can't add proxy for node that is not configured to be proxied")
-	}
-
-	node, err := enode.ParseV4(url)
-	if err != nil {
-		return false, fmt.Errorf("invalid enode: %v", err)
-	}
-
-	externalNode, err := enode.ParseV4(externalUrl)
-	if err != nil {
-		return false, fmt.Errorf("invalid external enode: %v", err)
-	}
-
-	err = api.istanbul.AddProxy(node, externalNode)
-	return true, err
-}
-
-// RemoveProxy removes a node from acting as a proxy
-func (api *API) RemoveProxy(url string) (bool, error) {
-	// Try to remove the url as a proxy and return
-	node, err := enode.ParseV4(url)
-	if err != nil {
-		return false, fmt.Errorf("invalid enode: %v", err)
-	}
-	if err = api.istanbul.RemoveProxy(node); err != nil {
-		return false, err
-	}
-
-	return true, nil
-}
-
 // Retrieve the Validator Enode Table
 func (api *API) GetValEnodeTable() (map[string]*announce.ValEnodeEntryInfo, error) {
 	return api.istanbul.valEnodeTable.ValEnodeTableInfo()
@@ -219,76 +179,6 @@ func (api *API) ForceRoundChange() (bool, error) {
 	}
 	api.istanbul.core.ForceRoundChange()
 	return true, nil
-}
-
-// GetProxiesInfo retrieves all the proxied validator's proxies' info
-func (api *API) GetProxiesInfo() ([]*proxy.ProxyInfo, error) {
-	if api.istanbul.IsProxiedValidator() {
-		proxies, valAssignments, err := api.istanbul.proxiedValidatorEngine.GetProxiesAndValAssignments()
-
-		if err != nil {
-			return nil, err
-		}
-
-		proxyInfoArray := make([]*proxy.ProxyInfo, 0, len(proxies))
-
-		for _, proxyObj := range proxies {
-			proxyInfoArray = append(proxyInfoArray, proxy.NewProxyInfo(proxyObj, valAssignments[proxyObj.ID()]))
-		}
-
-		return proxyInfoArray, nil
-	} else {
-		return nil, proxy.ErrNodeNotProxiedValidator
-	}
-}
-
-// ProxiedValidators retrieves all of the proxies connected proxied validators.
-// Note that we plan to support validators per proxy in the future, so this function
-// is plural and returns an array of proxied validators.  This is to prevent
-// future backwards compatibility issues.
-func (api *API) GetProxiedValidators() ([]*proxy.ProxiedValidatorInfo, error) {
-	if api.istanbul.IsProxy() {
-		return api.istanbul.proxyEngine.GetProxiedValidatorsInfo()
-	} else {
-		return nil, proxy.ErrNodeNotProxy
-	}
-}
-
-// StartValidating starts the consensus engine
-func (api *API) StartValidating() error {
-	return api.istanbul.MakePrimary()
-}
-
-// StopValidating stops the consensus engine from participating in consensus
-func (api *API) StopValidating() error {
-	return api.istanbul.MakeReplica()
-}
-
-// StartValidatingAtBlock starts the consensus engine on the given
-// block number.
-func (api *API) StartValidatingAtBlock(blockNumber int64) error {
-	seq := big.NewInt(blockNumber)
-	return api.istanbul.SetStartValidatingBlock(seq)
-}
-
-// StopValidatingAtBlock stops the consensus engine from participating in consensus
-// on the given block number.
-func (api *API) StopValidatingAtBlock(blockNumber int64) error {
-	seq := big.NewInt(blockNumber)
-	return api.istanbul.SetStopValidatingBlock(seq)
-}
-
-// IsValidating returns true if this node is participating in the consensus protocol
-func (api *API) IsValidating() bool {
-	return api.istanbul.IsValidating()
-}
-
-// GetCurrentReplicaState retrieves the current replica state
-func (api *API) GetCurrentReplicaState() (*replica.ReplicaStateSummary, error) {
-	if api.istanbul.replicaState != nil {
-		return api.istanbul.replicaState.Summary(), nil
-	}
-	return &replica.ReplicaStateSummary{State: "Not a validator"}, nil
 }
 
 // ResendPreprepare sends again the preprepare message

@@ -21,11 +21,11 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	numValidators := 3
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 
-	chain0, engine0, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	chain0, engine0, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[0])
 	defer chain0.Stop()
-	chain1, engine1, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[1])
+	chain1, engine1, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[1])
 	defer chain1.Stop()
-	chain2, engine2, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[2])
+	chain2, engine2, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[2])
 	defer chain2.Stop()
 
 	// Wait a bit so that the announce versions are generated for the engines
@@ -155,9 +155,9 @@ func TestHandleEnodeCertificateMsg(t *testing.T) {
 	numValidators := 2
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 
-	chain0, engine0, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	chain0, engine0, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[0])
 	defer chain0.Stop()
-	chain1, engine1, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[1])
+	chain1, engine1, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[1])
 	defer chain1.Stop()
 
 	engine0Node := engine0.SelfNode()
@@ -208,7 +208,7 @@ func TestSetAndShareUpdatedAnnounceVersion(t *testing.T) {
 	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 
-	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	chain, engine, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[0])
 	defer chain.Stop()
 
 	// Wait a bit so that the announce versions are generated for the engines
@@ -224,7 +224,6 @@ func TestSetAndShareUpdatedAnnounceVersion(t *testing.T) {
 	enodeCertMsgs := engine.RetrieveEnodeCertificateMsgMap()
 
 	// For a standalone validator, there should be only one entry in the enodeCert Map.
-	// TODO.  Add test case for when the engine has proxies
 	selfEnode := engine.SelfNode()
 	enodeCertMsg := enodeCertMsgs[selfEnode.ID()]
 

@@ -136,6 +136,9 @@ type Handler interface {
 	// NewWork handles a new work event from the miner
 	NewWork() error
 
+	// NewChainHead handles a new head block
+	NewChainHead(*types.Block)
+
 	// HandleMsg handles a message from peer
 	HandleMsg(address common.Address, data p2p.Msg, peer Peer) (bool, error)
 
@@ -146,10 +149,10 @@ type Handler interface {
 	SetP2PServer(P2PServer)
 
 	// RegisterPeer will notify the consensus engine that a new peer has been added
-	RegisterPeer(peer Peer, fromProxiedNode bool) error
+	RegisterPeer(peer Peer) error
 
 	// UnregisterPeer will notify the consensus engine that a new peer has been removed
-	UnregisterPeer(peer Peer, fromProxiedNode bool)
+	UnregisterPeer(peer Peer)
 
 	// Handshake will begin a handshake with a new peer. It returns if the peer
 	// has identified itself as a validator and should bypass any max peer checks.
@@ -168,17 +171,8 @@ type PoW interface {
 type Istanbul interface {
 	Engine
 
-	// IsProxiedValidator returns true if this node is a proxied validator
-	IsProxiedValidator() bool
-
-	// IsProxy returns true if this node is a proxy
-	IsProxy() bool
-
-	// IsPrimary returns true if this node is the primary validator
-	IsPrimary() bool
-
-	// IsPrimaryForSeq returns true if this node is the primary validator for the sequence
-	IsPrimaryForSeq(seq *big.Int) bool
+	// IsValidator returns true if this node is a validator
+	IsValidator() bool
 
 	// SetChain injects the blockchain and related functions to the istanbul consensus engine
 	SetChain(chain ChainContext, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error))
@@ -200,12 +194,6 @@ type Istanbul interface {
 
 	// StopAnnouncing stops the announcing
 	StopAnnouncing() error
-
-	// StartProxiedValidatorEngine starts the proxied validator engine
-	StartProxiedValidatorEngine() error
-
-	// StopProxiedValidatorEngine stops the proxied validator engine
-	StopProxiedValidatorEngine() error
 
 	// UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch.
 	// The changes are executed inline.

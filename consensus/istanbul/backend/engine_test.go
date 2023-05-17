@@ -59,7 +59,7 @@ func TestMakeBlockWithSignature(t *testing.T) {
 
 	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
-	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	chain, engine, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[0])
 
 	defer stopEngine(engine)
 	defer chain.Stop()
@@ -147,7 +147,7 @@ func TestVerifySeal(t *testing.T) {
 	g := NewGomegaWithT(t)
 	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
-	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	chain, engine, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[0])
 	defer stopEngine(engine)
 	defer chain.Stop()
 
@@ -194,7 +194,7 @@ func TestVerifySeal(t *testing.T) {
 func TestVerifyHeaders(t *testing.T) {
 	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
-	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	chain, engine, _ := newBlockChainWithKeys(genesisCfg, nodeKeys[0])
 	defer stopEngine(engine)
 	defer chain.Stop()
 	genesis := chain.Genesis()

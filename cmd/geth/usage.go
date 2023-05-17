@@ -189,27 +189,10 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		Flags: metricsFlags,
 	},
 	{
-		Name: "ISTANBUL",
-		Flags: []cli.Flag{
-			utils.IstanbulReplicaFlag,
-		},
-	},
-	{
 		Name: "ANNOUNCE",
 		Flags: []cli.Flag{
 			utils.AnnounceQueryEnodeGossipPeriodFlag,
 			utils.AnnounceAggressiveQueryEnodeGossipOnEnablementFlag,
-		},
-	},
-	{
-		Name: "PROXY",
-		Flags: []cli.Flag{
-			utils.ProxyFlag,
-			utils.ProxyInternalFacingEndpointFlag,
-			utils.ProxiedValidatorAddressFlag,
-			utils.ProxiedFlag,
-			utils.ProxyEnodeURLPairsFlag,
-			utils.ProxyAllowPrivateIPFlag,
 		},
 	},
 	{

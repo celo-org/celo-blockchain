@@ -46,19 +46,11 @@ var DefaultConfig = Config{
 	WSPort:              DefaultWSPort,
 	WSModules:           []string{"net", "web3"},
 	GraphQLVirtualHosts: []string{"localhost"},
-	Proxy:               false,
 	P2P: p2p.Config{
 		ListenAddr: ":30303",
 		MaxPeers:   175,
 		NAT:        nat.Any(),
 		NetworkId:  1,
-	},
-	ProxyP2P: p2p.Config{
-		ListenAddr:              ":30503",
-		MaxPeers:                1,
-		NetworkId:               1,
-		NoDiscovery:             true,
-		UseInMemoryNodeDatabase: true,
 	},
 }
 

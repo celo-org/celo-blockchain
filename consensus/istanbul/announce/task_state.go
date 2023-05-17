@@ -45,10 +45,7 @@ type announceTaskState struct {
 
 	generateAndGossipQueryEnodeCh chan struct{}
 
-	// Replica validators listen & query for enodes       (query true, announce false)
-	// Primary validators annouce (updateAnnounceVersion) (query true, announce true)
-	// Replicas need to query to populate their validator enode table, but don't want to
-	// update the proxie's validator assignments at the same time as the primary.
+	// Validators annouce (updateAnnounceVersion) (query true, announce true)
 	shouldQuery, shouldAnnounce bool
 	querying, announcing        bool
 }

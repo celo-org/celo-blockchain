@@ -243,7 +243,6 @@ func TestValSetChange(t *testing.T) {
 		defer db.Close()
 
 		config := *istanbul.DefaultConfig
-		config.ReplicaStateDBPath = ""
 		config.Validator = true
 		config.ValidatorEnodeDBPath = ""
 		config.VersionCertificateDBPath = ""
