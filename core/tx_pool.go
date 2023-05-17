@@ -90,10 +90,6 @@ var (
 	// than some meaningful limit a user might use. This is not a consensus error
 	// making the transaction invalid, rather a DOS protection.
 	ErrOversizedData = errors.New("oversized data")
-
-	// ErrTransfersFrozen is returned if a transaction attempts to transfer between
-	// non-whitelisted addresses while transfers are frozen.
-	ErrTransfersFrozen = errors.New("transfers are currently frozen")
 )
 
 var (

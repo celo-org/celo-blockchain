@@ -24,7 +24,6 @@ var (
 	ReserveRegistryId              = makeRegistryId("Reserve")
 	SortedOraclesRegistryId        = makeRegistryId("SortedOracles")
 	StableTokenRegistryId          = makeRegistryId("StableToken")
-	TransferWhitelistRegistryId    = makeRegistryId("TransferWhitelist")
 	ValidatorsRegistryId           = makeRegistryId("Validators")
 )
 
