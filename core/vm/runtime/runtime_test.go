@@ -646,12 +646,12 @@ func TestColdAccountAccessCost(t *testing.T) {
 		{ // EXTCODEHASH(0xff)
 			code: []byte{byte(vm.PUSH1), 0xFF, byte(vm.EXTCODEHASH), byte(vm.POP)},
 			step: 1,
-			want: 900,
+			want: 2600,
 		},
 		{ // BALANCE(0xff)
 			code: []byte{byte(vm.PUSH1), 0xFF, byte(vm.BALANCE), byte(vm.POP)},
 			step: 1,
-			want: 900,
+			want: 2600,
 		},
 		{ // CALL(0xff)
 			code: []byte{
@@ -660,7 +660,7 @@ func TestColdAccountAccessCost(t *testing.T) {
 				byte(vm.PUSH1), 0xff, byte(vm.DUP1), byte(vm.CALL), byte(vm.POP),
 			},
 			step: 7,
-			want: 1155,
+			want: 2855,
 		},
 		{ // CALLCODE(0xff)
 			code: []byte{
@@ -669,7 +669,7 @@ func TestColdAccountAccessCost(t *testing.T) {
 				byte(vm.PUSH1), 0xff, byte(vm.DUP1), byte(vm.CALLCODE), byte(vm.POP),
 			},
 			step: 7,
-			want: 1155,
+			want: 2855,
 		},
 		{ // DELEGATECALL(0xff)
 			code: []byte{
@@ -678,7 +678,7 @@ func TestColdAccountAccessCost(t *testing.T) {
 				byte(vm.PUSH1), 0xff, byte(vm.DUP1), byte(vm.DELEGATECALL), byte(vm.POP),
 			},
 			step: 6,
-			want: 1155,
+			want: 2855,
 		},
 		{ // STATICCALL(0xff)
 			code: []byte{
@@ -687,14 +687,14 @@ func TestColdAccountAccessCost(t *testing.T) {
 				byte(vm.PUSH1), 0xff, byte(vm.DUP1), byte(vm.STATICCALL), byte(vm.POP),
 			},
 			step: 6,
-			want: 1155,
+			want: 2855,
 		},
 		{ // SELFDESTRUCT(0xff)
 			code: []byte{
 				byte(vm.PUSH1), 0xff, byte(vm.SELFDESTRUCT),
 			},
 			step: 1,
-			want: 5900,
+			want: 7600,
 		},
 	} {
 		tracer := vm.NewStructLogger(nil)
@@ -709,7 +709,7 @@ func TestColdAccountAccessCost(t *testing.T) {
 			for ii, op := range tracer.StructLogs() {
 				t.Logf("%d: %v %d", ii, op.OpName(), op.GasCost)
 			}
-			t.Fatalf("test case %d, gas report wrong, step %d, have %d want %d", i, tc.step, have, want)
+			t.Fatalf("tescase %d, gas report wrong, step %d, have %d want %d", i, tc.step, have, want)
 		}
 	}
 }
@@ -791,9 +791,7 @@ func TestRuntimeJSTracer(t *testing.T) {
 				byte(vm.CALL),
 				byte(vm.POP),
 			},
-			// Different gas value from upstream due to (#1712):
-			// Links: https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
-			results: []string{`"1,1,4294966390,6,13"`, `"1,1,4294966390,6,0"`},
+			results: []string{`"1,1,4294964716,6,13"`, `"1,1,4294964716,6,0"`},
 		},
 		{
 			// CALLCODE
@@ -806,9 +804,7 @@ func TestRuntimeJSTracer(t *testing.T) {
 				byte(vm.CALLCODE),
 				byte(vm.POP),
 			},
-			// Different gas value from upstream due to (#1712):
-			// Links: https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
-			results: []string{`"1,1,4294966390,6,13"`, `"1,1,4294966390,6,0"`},
+			results: []string{`"1,1,4294964716,6,13"`, `"1,1,4294964716,6,0"`},
 		},
 		{
 			// STATICCALL
@@ -820,9 +816,7 @@ func TestRuntimeJSTracer(t *testing.T) {
 				byte(vm.STATICCALL),
 				byte(vm.POP),
 			},
-			// Different gas value from upstream due to (#1712):
-			// Links: https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
-			results: []string{`"1,1,4294966393,6,12"`, `"1,1,4294966393,6,0"`},
+			results: []string{`"1,1,4294964719,6,12"`, `"1,1,4294964719,6,0"`},
 		},
 		{
 			// DELEGATECALL
@@ -834,9 +828,7 @@ func TestRuntimeJSTracer(t *testing.T) {
 				byte(vm.DELEGATECALL),
 				byte(vm.POP),
 			},
-			// Different gas value from upstream due to (#1712):
-			// Links: https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
-			results: []string{`"1,1,4294966393,6,12"`, `"1,1,4294966393,6,0"`},
+			results: []string{`"1,1,4294964719,6,12"`, `"1,1,4294964719,6,0"`},
 		},
 		{
 			// CALL self-destructing contract

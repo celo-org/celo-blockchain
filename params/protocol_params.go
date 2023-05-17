@@ -54,17 +54,14 @@ const (
 	SstoreResetGasEIP2200             uint64 = 5000  // Once per SSTORE operation from clean non-zero to something else
 	SstoreClearsScheduleRefundEIP2200 uint64 = 15000 // Once per SSTORE operation for clearing an originally existing storage slot
 
-	// ColdAccountAccessCostEIP2929 (2600 -> 900), ColdSloadCostEIP2929 (2100 -> 800) are modified according to CIP-0048
-	// Links: https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
-	ColdAccountAccessCostEIP2929 = uint64(900) // COLD_ACCOUNT_ACCESS_COST
-	ColdSloadCostEIP2929         = uint64(800) // COLD_SLOAD_COST
-	WarmStorageReadCostEIP2929   = uint64(100) // WARM_STORAGE_READ_COST
+	ColdAccountAccessCostEIP2929 = uint64(2600) // COLD_ACCOUNT_ACCESS_COST
+	ColdSloadCostEIP2929         = uint64(2100) // COLD_SLOAD_COST
+	WarmStorageReadCostEIP2929   = uint64(100)  // WARM_STORAGE_READ_COST
 
 	// In EIP-2200: SstoreResetGas was 5000.
 	// In EIP-2929: SstoreResetGas was changed to '5000 - COLD_SLOAD_COST'.
 	// In EIP-3529: SSTORE_CLEARS_SCHEDULE is defined as SSTORE_RESET_GAS + ACCESS_LIST_STORAGE_KEY_COST
-	// Which becomes: 5000 - 2100 + 1900 = 4800 (ethereum)
-	// Which becomes: 5000 - 800 + 1900 = 6100 (celo)
+	// Which becomes: 5000 - 2100 + 1900 = 4800
 	SstoreClearsScheduleRefundEIP3529 uint64 = SstoreResetGasEIP2200 - ColdSloadCostEIP2929 + TxAccessListStorageKeyGas
 
 	JumpdestGas   uint64 = 1     // Once per JUMPDEST operation.
@@ -122,7 +119,7 @@ const (
 	// ElasticityMultiplier     = 2          // Bounds the maximum gas limit an EIP-1559 block may have.
 	// InitialBaseFee           = 1000000000 // Initial base fee for EIP-1559 blocks.
 
-	MaxCodeSize = 65536 // Maximum bytecode to permit for a contract (2^16)
+	MaxCodeSize = 24576 // Maximum bytecode to permit for a contract
 
 	// Precompiled contract gas prices
 

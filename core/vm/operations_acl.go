@@ -98,8 +98,8 @@ func makeGasSStoreFunc(clearingRefund uint64) gasFunc {
 // gasSLoadEIP2929 calculates dynamic gas for SLOAD according to EIP-2929
 // For SLOAD, if the (address, storage_key) pair (where address is the address of the contract
 // whose storage is being read) is not yet in accessed_storage_keys,
-// charge COLD_SLOAD_COST gas and add the pair to accessed_storage_keys.
-// If the pair is already in accessed_storage_keys, charge WARM_STORAGE_READ_COST gas.
+// charge 2100 gas and add the pair to accessed_storage_keys.
+// If the pair is already in accessed_storage_keys, charge 100 gas.
 func gasSLoadEIP2929(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
 	loc := stack.peek()
 	slot := common.Hash(loc.Bytes32())
@@ -215,7 +215,7 @@ var (
 	gasSStoreEIP2929 = makeGasSStoreFunc(params.SstoreClearsScheduleRefundEIP2200)
 
 	// gasSStoreEIP2539 implements gas cost for SSTORE according to EPI-2539
-	// Replace `SSTORE_CLEARS_SCHEDULE` with `SSTORE_RESET_GAS + ACCESS_LIST_STORAGE_KEY_COST` (6,100)
+	// Replace `SSTORE_CLEARS_SCHEDULE` with `SSTORE_RESET_GAS + ACCESS_LIST_STORAGE_KEY_COST` (4,800)
 	gasSStoreEIP3529 = makeGasSStoreFunc(params.SstoreClearsScheduleRefundEIP3529)
 )
 
