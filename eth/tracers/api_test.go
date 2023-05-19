@@ -618,7 +618,7 @@ func TestCallTraceTransactionPrecompileTransfer(t *testing.T) {
 	// registered as GoldToken in the mock registry
 	t.Parallel()
 	// Initialize test accounts
-	accounts := newAccounts(3)
+	accounts := newAccountsWithoutBytesWithZero(3)
 	goldToken := accounts[0]
 	registryProxyAddr := common.HexToAddress("0xce10")
 	registryImplAddr := common.HexToAddress("0xce11")
@@ -937,6 +937,32 @@ func newAccounts(n int) (accounts Accounts) {
 	for i := 0; i < n; i++ {
 		key, _ := crypto.GenerateKey()
 		addr := crypto.PubkeyToAddress(key.PublicKey)
+		accounts = append(accounts, Account{key: key, addr: addr})
+	}
+	sort.Sort(accounts)
+	return accounts
+}
+
+// newAccountsWithoutBytesWithZero returns accounts which addresses don't have
+// 00-bytes in it. This is useful for tests that require to send addresses in
+// the data/input field, as having or not 00-bytes changes the gasLimit of the
+// operation which ends up creating flaky tests.
+func newAccountsWithoutBytesWithZero(n int) (accounts Accounts) {
+	for i := 0; i < n; i++ {
+		nonZeroAddress := false
+		var key *ecdsa.PrivateKey
+		var addr common.Address
+		for !nonZeroAddress {
+			key, _ = crypto.GenerateKey()
+			addr = crypto.PubkeyToAddress(key.PublicKey)
+			nonZeroAddress = true
+			for _, byt := range addr.Bytes() {
+				if byt == 0 {
+					nonZeroAddress = false
+					break
+				}
+			}
+		}
 		accounts = append(accounts, Account{key: key, addr: addr})
 	}
 	sort.Sort(accounts)
