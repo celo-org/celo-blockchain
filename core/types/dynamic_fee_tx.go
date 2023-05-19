@@ -82,22 +82,18 @@ func (tx *DynamicFeeTx) copy() TxData {
 }
 
 // accessors for innerTx.
-func (tx *DynamicFeeTx) txType() byte                         { return DynamicFeeTxType }
-func (tx *DynamicFeeTx) chainID() *big.Int                    { return tx.ChainID }
-func (tx *DynamicFeeTx) protected() bool                      { return true }
-func (tx *DynamicFeeTx) accessList() AccessList               { return tx.AccessList }
-func (tx *DynamicFeeTx) data() []byte                         { return tx.Data }
-func (tx *DynamicFeeTx) gas() uint64                          { return tx.Gas }
-func (tx *DynamicFeeTx) gasFeeCap() *big.Int                  { return tx.GasFeeCap }
-func (tx *DynamicFeeTx) gasTipCap() *big.Int                  { return tx.GasTipCap }
-func (tx *DynamicFeeTx) gasPrice() *big.Int                   { return tx.GasFeeCap }
-func (tx *DynamicFeeTx) value() *big.Int                      { return tx.Value }
-func (tx *DynamicFeeTx) nonce() uint64                        { return tx.Nonce }
-func (tx *DynamicFeeTx) to() *common.Address                  { return tx.To }
-func (tx *DynamicFeeTx) feeCurrency() *common.Address         { return nil }
-func (tx *DynamicFeeTx) gatewayFeeRecipient() *common.Address { return nil }
-func (tx *DynamicFeeTx) gatewayFee() *big.Int                 { return nil }
-func (tx *DynamicFeeTx) ethCompatible() bool                  { return false }
+func (tx *DynamicFeeTx) txType() byte           { return DynamicFeeTxType }
+func (tx *DynamicFeeTx) chainID() *big.Int      { return tx.ChainID }
+func (tx *DynamicFeeTx) protected() bool        { return true }
+func (tx *DynamicFeeTx) accessList() AccessList { return tx.AccessList }
+func (tx *DynamicFeeTx) data() []byte           { return tx.Data }
+func (tx *DynamicFeeTx) gas() uint64            { return tx.Gas }
+func (tx *DynamicFeeTx) gasFeeCap() *big.Int    { return tx.GasFeeCap }
+func (tx *DynamicFeeTx) gasTipCap() *big.Int    { return tx.GasTipCap }
+func (tx *DynamicFeeTx) gasPrice() *big.Int     { return tx.GasFeeCap }
+func (tx *DynamicFeeTx) value() *big.Int        { return tx.Value }
+func (tx *DynamicFeeTx) nonce() uint64          { return tx.Nonce }
+func (tx *DynamicFeeTx) to() *common.Address    { return tx.To }
 
 func (tx *DynamicFeeTx) rawSignatureValues() (v, r, s *big.Int) {
 	return tx.V, tx.R, tx.S
@@ -106,3 +102,8 @@ func (tx *DynamicFeeTx) rawSignatureValues() (v, r, s *big.Int) {
 func (tx *DynamicFeeTx) setSignatureValues(chainID, v, r, s *big.Int) {
 	tx.ChainID, tx.V, tx.R, tx.S = chainID, v, r, s
 }
+
+func (tx *DynamicFeeTx) feeCurrency() *common.Address         { return nil }
+func (tx *DynamicFeeTx) gatewayFeeRecipient() *common.Address { return nil }
+func (tx *DynamicFeeTx) gatewayFee() *big.Int                 { return nil }
+func (tx *DynamicFeeTx) ethCompatible() bool                  { return false }
