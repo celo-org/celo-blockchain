@@ -80,7 +80,6 @@ var vmBlockCtx = BlockContext{
 	GetHash: func(u uint64) common.Hash {
 		panic("getHash: not implemented")
 	},
-	GetHeaderByNumber: getHeaderByNumber,
 	VerifySeal: func(header *types.Header) bool {
 		return !(header.Number.Cmp(testHeader.Number) > 0)
 	},
@@ -90,6 +89,10 @@ var vmBlockCtx = BlockContext{
 	IsGoldTokenAddress: func(evm *EVM, addr common.Address) (bool, error) {
 		return false, nil
 	},
+
+	EpochSize:         100,
+	GetValidators:     getValidators,
+	GetHeaderByNumber: getHeaderByNumber,
 }
 
 var vmTxCtx = TxContext{
