@@ -182,6 +182,11 @@ jobs:
     - name: Upload coverage to codecov
       if: always()
       uses: codecov/codecov-action@v3
+    - name: Fail if there are failed tests
+      if: steps.unit-tests-summary.outputs.failed > 0
+      run: |
+        echo "There are failed tests"
+        exit 1
 
   race:
     name: Data race detector

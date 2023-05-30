@@ -4,13 +4,13 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/contracts/abis"
-	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 )
 
 type BlockchainParametersMock struct {
 	ContractMock
 
-	MinimumVersion                             params.VersionInfo
+	MinimumVersion                             config.VersionInfo
 	BlockGasLimitValue                         *big.Int
 	LookbackWindow                             *big.Int
 	IntrinsicGasForAlternativeFeeCurrencyValue *big.Int
@@ -18,7 +18,7 @@ type BlockchainParametersMock struct {
 
 func NewBlockchainParametersMock() *BlockchainParametersMock {
 	mock := &BlockchainParametersMock{
-		MinimumVersion:     params.VersionInfo{Major: 1, Minor: 0, Patch: 0},
+		MinimumVersion:     config.VersionInfo{Major: 1, Minor: 0, Patch: 0},
 		BlockGasLimitValue: big.NewInt(20000000),
 		LookbackWindow:     big.NewInt(3),
 		IntrinsicGasForAlternativeFeeCurrencyValue: big.NewInt(10000),
@@ -29,9 +29,6 @@ func NewBlockchainParametersMock() *BlockchainParametersMock {
 	return mock
 }
 
-func (bp *BlockchainParametersMock) GetMinimumClientVersion() (*big.Int, *big.Int, *big.Int) {
-	return big.NewInt(int64(bp.MinimumVersion.Major)), big.NewInt(int64(bp.MinimumVersion.Minor)), big.NewInt(int64(bp.MinimumVersion.Patch))
-}
 func (bp *BlockchainParametersMock) BlockGasLimit() *big.Int {
 	return bp.BlockGasLimitValue
 }

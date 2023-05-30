@@ -34,6 +34,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -208,7 +209,7 @@ func TestTraceCall(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil), signer, accounts[0].key)
 		b.AddTx(tx)
 	}))
 
@@ -338,7 +339,7 @@ func TestOverriddenTraceCall(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil), signer, accounts[0].key)
 		b.AddTx(tx)
 	}))
 	randomAccounts, tracer := newAccounts(3), "callTracer"
@@ -385,7 +386,8 @@ func TestOverriddenTraceCall(t *testing.T) {
 			config: &TraceCallConfig{
 				Tracer: &tracer,
 			},
-			expectErr: core.ErrInsufficientFundsForTransfer,
+			// After espresso, an error is first thrown while checking if fees can be paid.
+			expectErr: core.ErrInsufficientFunds,
 			expect:    nil,
 		},
 		// Successful simple contract call
@@ -428,7 +430,7 @@ func TestOverriddenTraceCall(t *testing.T) {
 				Input:   hexutil.Bytes(common.Hex2Bytes("8381f58a")),
 				Output:  hexutil.Bytes(common.BigToHash(big.NewInt(123)).Bytes()),
 				Gas:     newRPCUint64(24978936),
-				GasUsed: newRPCUint64(383), // TODO ethereum cost 2283, check if this is right
+				GasUsed: newRPCUint64(983), // TODO ethereum cost 2283, check if this is right
 				Value:   (*hexutil.Big)(big.NewInt(0)),
 			},
 		},
@@ -478,7 +480,7 @@ func TestTraceTransaction(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil), signer, accounts[0].key)
 		b.AddTx(tx)
 		target = tx.Hash()
 	}))
@@ -527,7 +529,7 @@ func TestTraceTransactionWithRegistryDeployed(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil), signer, accounts[0].key)
 		b.AddTx(tx)
 		target = tx.Hash()
 	}))
@@ -560,7 +562,7 @@ func TestCallTraceTransactionNativeTransfer(t *testing.T) {
 			Storage: map[common.Hash]common.Hash{
 				// Hashes represent the storage slot for Registry.sol's `registry` mapping
 				// which is stored in the RegistryProxy's storage.
-				// Hashes are computed by taking: keccack(packed(params.GoldTokenRegistryId, 1)),
+				// Hashes are computed by taking: keccack(packed(config.GoldTokenRegistryId, 1)),
 				// where 1 is the storage offset)
 				common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"): common.HexToHash("0xce11"), // Registry Implementation
 				common.HexToHash("0x91646b8507bf2e54d7c3de9155442ba111546b81af1cbdd1f68eeb6926b98d58"): common.HexToHash("0xd023"), // Governance Proxy
@@ -580,7 +582,7 @@ func TestCallTraceTransactionNativeTransfer(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, transferVal, params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, transferVal, params.TxGas, b.MinimumGasPrice(nil), nil), signer, accounts[0].key)
 		b.AddTx(tx)
 		target = tx.Hash()
 	}))
@@ -616,7 +618,7 @@ func TestCallTraceTransactionPrecompileTransfer(t *testing.T) {
 	// registered as GoldToken in the mock registry
 	t.Parallel()
 	// Initialize test accounts
-	accounts := newAccounts(3)
+	accounts := newAccountsWithoutBytesWithZero(3)
 	goldToken := accounts[0]
 	registryProxyAddr := common.HexToAddress("0xce10")
 	registryImplAddr := common.HexToAddress("0xce11")
@@ -673,7 +675,7 @@ func TestCallTraceTransactionPrecompileTransfer(t *testing.T) {
 	gas := params.TxGas * 2
 	api := NewAPI(newTestBackend(t, 1, genesis, func(i int, b *core.BlockGen) {
 		// Transfer via transfer precompile by sending tx from GoldToken addr
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), transferPrecompile, big.NewInt(0), gas, big.NewInt(3), nil, nil, nil, data), signer, goldToken.key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), transferPrecompile, big.NewInt(0), gas, b.MinimumGasPrice(nil), data), signer, goldToken.key)
 		b.AddTx(tx)
 		target = tx.Hash()
 	}))
@@ -710,7 +712,7 @@ func TestCallTraceTransactionPrecompileTransfer(t *testing.T) {
 				To:      registryProxyAddr,
 				Input:   packedGetAddressForGoldToken,
 				Output:  common.LeftPadBytes(goldToken.addr.Bytes(), 32),
-				Gas:     newRPCUint64(params.MaxGasForGetAddressFor),
+				Gas:     newRPCUint64(contracts.MaxGasForGetAddressFor),
 				GasUsed: newRPCUint64(0),
 				Calls: []callTrace{
 					{
@@ -749,7 +751,7 @@ func TestTraceBlock(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil), signer, accounts[0].key)
 		b.AddTx(tx)
 	}))
 
@@ -851,7 +853,7 @@ func TestTraceBlockWithEIP1559Tx(t *testing.T) {
 	// Initialize test accounts
 	accounts := newAccounts(2)
 	genesis := &core.Genesis{
-		Config: params.IstanbulEHFTestChainConfig,
+		Config: params.IstanbulTestChainConfig,
 		Alloc: core.GenesisAlloc{
 			accounts[0].addr: {Balance: big.NewInt(231001)},
 			accounts[1].addr: {Balance: common.Big0},
@@ -877,7 +879,7 @@ func TestTraceBlockWithEIP1559Tx(t *testing.T) {
 		// The account balance is chosen in a way that the second transaction won't be able to execute if the
 		// calculation is wrong.
 
-		bf := core.MockSysContractCallCtx().GetGasPriceMinimum(nil)
+		bf := core.MockSysContractCallCtx(common.Big0).GetGasPriceMinimum(nil)
 		tip := big.NewInt(2)
 		cap := new(big.Int).Set(common.Big1)
 		cap = cap.Add(cap, tip).Add(cap, bf)
@@ -935,6 +937,32 @@ func newAccounts(n int) (accounts Accounts) {
 	for i := 0; i < n; i++ {
 		key, _ := crypto.GenerateKey()
 		addr := crypto.PubkeyToAddress(key.PublicKey)
+		accounts = append(accounts, Account{key: key, addr: addr})
+	}
+	sort.Sort(accounts)
+	return accounts
+}
+
+// newAccountsWithoutBytesWithZero returns accounts which addresses don't have
+// 00-bytes in it. This is useful for tests that require to send addresses in
+// the data/input field, as having or not 00-bytes changes the gasLimit of the
+// operation which ends up creating flaky tests.
+func newAccountsWithoutBytesWithZero(n int) (accounts Accounts) {
+	for i := 0; i < n; i++ {
+		nonZeroAddress := false
+		var key *ecdsa.PrivateKey
+		var addr common.Address
+		for !nonZeroAddress {
+			key, _ = crypto.GenerateKey()
+			addr = crypto.PubkeyToAddress(key.PublicKey)
+			nonZeroAddress = true
+			for _, byt := range addr.Bytes() {
+				if byt == 0 {
+					nonZeroAddress = false
+					break
+				}
+			}
+		}
 		accounts = append(accounts, Account{key: key, addr: addr})
 	}
 	sort.Sort(accounts)

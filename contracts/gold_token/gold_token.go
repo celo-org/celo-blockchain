@@ -6,14 +6,24 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
+	"github.com/celo-org/celo-blockchain/contracts/config"
+	"github.com/celo-org/celo-blockchain/contracts/internal/n"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/log"
+)
+
+const (
+	maxGasForTotalSupply    uint64 = 50 * n.Thousand
+	maxGasForMintGas        uint64 = 5 * n.Million
+	maxGasForIncreaseSupply uint64 = 50 * n.Thousand
 )
 
 var (
-	totalSupplyMethod    = contracts.NewRegisteredContractMethod(params.GoldTokenRegistryId, abis.GoldToken, "totalSupply", params.MaxGasForTotalSupply)
-	increaseSupplyMethod = contracts.NewRegisteredContractMethod(params.GoldTokenRegistryId, abis.GoldToken, "increaseSupply", params.MaxGasForIncreaseSupply)
-	mintMethod           = contracts.NewRegisteredContractMethod(params.GoldTokenRegistryId, abis.GoldToken, "mint", params.MaxGasForMintGas)
+	totalSupplyMethod    = contracts.NewRegisteredContractMethod(config.GoldTokenRegistryId, abis.GoldToken, "totalSupply", maxGasForTotalSupply)
+	increaseSupplyMethod = contracts.NewRegisteredContractMethod(config.GoldTokenRegistryId, abis.GoldToken, "increaseSupply", maxGasForIncreaseSupply)
+	mintMethod           = contracts.NewRegisteredContractMethod(config.GoldTokenRegistryId, abis.GoldToken, "mint", maxGasForMintGas)
 )
 
 func GetTotalSupply(vmRunner vm.EVMRunner) (*big.Int, error) {
@@ -34,4 +44,25 @@ func Mint(vmRunner vm.EVMRunner, beneficiary common.Address, value *big.Int) err
 
 	err := mintMethod.Execute(vmRunner, nil, common.Big0, beneficiary, value)
 	return err
+}
+
+func SetInitialTotalSupplyIfUnset(db ethdb.KeyValueReader, vmRunner vm.EVMRunner) error {
+	totalSupply, err := GetTotalSupply(vmRunner)
+	if err != nil {
+		return err
+	}
+	// totalSupply not yet initialized.
+	if totalSupply.Cmp(common.Big0) == 0 {
+		genesisSupply := rawdb.ReadGenesisCeloSupply(db)
+		if genesisSupply == nil {
+			log.Error("Unable to fetch genesisSupply", "err", err)
+			return err
+		}
+
+		err = IncreaseSupply(vmRunner, genesisSupply)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

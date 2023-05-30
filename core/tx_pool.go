@@ -90,10 +90,6 @@ var (
 	// than some meaningful limit a user might use. This is not a consensus error
 	// making the transaction invalid, rather a DOS protection.
 	ErrOversizedData = errors.New("oversized data")
-
-	// ErrTransfersFrozen is returned if a transaction attempts to transfer between
-	// non-whitelisted addresses while transfers are frozen.
-	ErrTransfersFrozen = errors.New("transfers are currently frozen")
 )
 
 var (
@@ -276,9 +272,10 @@ type TxPool struct {
 	signer      types.Signer
 	mu          sync.RWMutex
 
-	istanbul bool // Fork indicator whether we are in the istanbul stage.
-	donut    bool // Fork indicator for the Donut fork.
-	espresso bool // Fork indicator for the Espresso fork.
+	homestead bool // Fork indicator for the homstead fork
+	istanbul  bool // Fork indicator whether we are in the istanbul stage.
+	donut     bool // Fork indicator for the Donut fork.
+	espresso  bool // Fork indicator for the Espresso fork.
 
 	currentState    *state.StateDB // Current state in the blockchain head
 	currentVMRunner vm.EVMRunner   // Current EVMRunner
@@ -721,7 +718,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	// Ensure the transaction has more gas than the basic tx fee.
-	intrGas, err := IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, tx.FeeCurrency(), pool.ctx().GetIntrinsicGasForAlternativeFeeCurrency(), pool.istanbul)
+	intrGas, err := IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, pool.homestead, pool.istanbul, tx.FeeCurrency(), pool.ctx().GetIntrinsicGasForAlternativeFeeCurrency())
 	if err != nil {
 		log.Debug("validateTx gas less than intrinsic gas", "intrGas", intrGas, "err", err)
 		return err
@@ -1278,7 +1275,7 @@ func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirt
 	// because of another transaction (e.g. higher gas price).
 	if reset != nil {
 		pool.demoteUnexecutables()
-		if reset.newHead != nil && pool.chainconfig.IsEspresso(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
+		if reset.newHead != nil && pool.chainconfig.IsLondon(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
 			pool.priced.SetBaseFee(pool.ctx())
 		} else {
 			// Prevent the price heap from growing indefinitely
@@ -1411,6 +1408,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 
 	// Update all fork indicator by next pending block number.
 	next := new(big.Int).Add(newHead.Number, big.NewInt(1))
+	pool.homestead = pool.chainconfig.IsHomestead(next)
 	pool.istanbul = pool.chainconfig.IsIstanbul(next)
 	pool.donut = pool.chainconfig.IsDonut(next)
 	pool.espresso = pool.chainconfig.IsEspresso(next)

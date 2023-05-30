@@ -87,8 +87,8 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	)
 	if p.bc.Config().IsEspresso(blockNumber) {
 		sysCtx = NewSysContractCallCtx(header, statedb, p.bc)
-		if p.bc.Config().Faker {
-			sysCtx = MockSysContractCallCtx()
+		if p.bc.Config().FakeBaseFee != nil {
+			sysCtx = MockSysContractCallCtx(p.bc.Config().FakeBaseFee)
 		}
 	}
 	blockContext := NewEVMBlockContext(header, p.bc, nil)

@@ -763,6 +763,8 @@ func addEthCompatibilityFields(ctx context.Context, block map[string]interface{}
 	} else {
 		block["baseFeePerGas"] = (*hexutil.Big)(baseFee)
 	}
+
+	block["difficulty"] = "0x0"
 }
 
 // GetUncleByBlockNumberAndIndex returns the uncle block for the given block hash and index. When fullTx is true
@@ -977,6 +979,11 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 		hi  uint64
 		cap uint64
 	)
+	// Use zero address if sender unspecified.
+	if args.From == nil {
+		args.From = new(common.Address)
+	}
+	// Determine the highest gas limit can be used during the estimation.
 	if args.Gas != nil && uint64(*args.Gas) >= params.TxGas {
 		hi = uint64(*args.Gas)
 	} else {
@@ -988,11 +995,6 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 		hi = gasCap
 	}
 	cap = hi
-
-	// Use zero address if sender unspecified.
-	if args.From == nil {
-		args.From = new(common.Address)
-	}
 	// Set gas price to nil (which will lead to it being zero), because the binary search
 	// assumes that if the transaction fails with gas limit A, and B < A, then it would
 	// also fail with gas limit B, which may not be the case if the gas price is non-zero,
@@ -1607,7 +1609,7 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 
 	fields := generateReceiptResponse(receipt, signer, tx, blockHash, blockNumber, index)
 	// Assign the effective gas price paid
-	if !s.b.ChainConfig().IsEspresso(bigblock) {
+	if !s.b.ChainConfig().IsLondon(bigblock) {
 		fields["effectiveGasPrice"] = hexutil.Uint64(tx.GasPrice().Uint64())
 	} else {
 		// var gasPrice *big.Int = new(big.Int)

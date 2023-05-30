@@ -75,15 +75,15 @@ var (
 func init() {
 	testTxPoolConfig = core.DefaultTxPoolConfig
 	testTxPoolConfig.Journal = ""
-	istanbulChainConfig = params.IstanbulEHFTestChainConfig
+	istanbulChainConfig = params.IstanbulTestChainConfig
 	istanbulChainConfig.Istanbul = &params.IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
 	}
 
-	signer := types.LatestSigner(params.IstanbulEHFTestChainConfig)
+	signer := types.LatestSigner(params.IstanbulTestChainConfig)
 	tx1 := types.MustSignNewTx(testBankKey, signer, &types.AccessListTx{
-		ChainID:  params.IstanbulEHFTestChainConfig.ChainID,
+		ChainID:  params.IstanbulTestChainConfig.ChainID,
 		Nonce:    0,
 		To:       &testUserAddress,
 		Value:    big.NewInt(1000),
@@ -91,7 +91,7 @@ func init() {
 		GasPrice: new(big.Int),
 	})
 	pendingTxs = append(pendingTxs, tx1)
-	tx2, _ := types.SignTx(types.NewTransaction(1, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, testBankKey)
+	tx2, _ := types.SignTx(types.NewTransaction(1, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil), signer, testBankKey)
 	newTxs = append(newTxs, tx2)
 
 	rand.Seed(time.Now().UnixNano())
@@ -171,9 +171,9 @@ func (b *testWorkerBackend) newRandomTx(creation bool) *types.Transaction {
 	var tx *types.Transaction
 	gasPrice := big.NewInt(10)
 	if creation {
-		tx, _ = types.SignTx(types.NewContractCreation(b.txPool.Nonce(testBankAddress), big.NewInt(0), testGas, gasPrice, nil, nil, nil, common.FromHex(testCode)), signer, testBankKey)
+		tx, _ = types.SignTx(types.NewContractCreation(b.txPool.Nonce(testBankAddress), big.NewInt(0), testGas, gasPrice, common.FromHex(testCode)), signer, testBankKey)
 	} else {
-		tx, _ = types.SignTx(types.NewTransaction(b.txPool.Nonce(testBankAddress), testUserAddress, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil), signer, testBankKey)
+		tx, _ = types.SignTx(types.NewTransaction(b.txPool.Nonce(testBankAddress), testUserAddress, big.NewInt(1000), params.TxGas, gasPrice, nil), signer, testBankKey)
 	}
 	return tx
 }
@@ -197,7 +197,7 @@ func TestGenerateBlockAndImport(t *testing.T) {
 		chainConfig *params.ChainConfig
 		db          = rawdb.NewMemoryDatabase()
 	)
-	chainConfig = params.IstanbulEHFTestChainConfig
+	chainConfig = params.IstanbulTestChainConfig
 
 	engine = mockEngine.NewFaker()
 

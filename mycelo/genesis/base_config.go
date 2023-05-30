@@ -146,7 +146,6 @@ func BaseConfig() *Config {
 			MaxAttestations:                100,
 			AttestationRequestFeeInDollars: decimal("0.05"), // use decimal rather than fixed, since we use this to multiply by
 		},
-		TransferWhitelist: TransferWhitelistParameters{},
 		GoldToken: GoldTokenParameters{
 			Frozen: false,
 		},

@@ -121,7 +121,7 @@ type callTracerTest struct {
 func TestPrestateTracerCreate2(t *testing.T) {
 	celoMock := testutil.NewCeloMock()
 
-	unsignedTx := types.NewTransaction(1, common.HexToAddress("0x00000000000000000000000000000000deadbeef"), new(big.Int), 5000000, big.NewInt(1), nil, nil, nil, []byte{})
+	unsignedTx := types.NewTransaction(1, common.HexToAddress("0x00000000000000000000000000000000deadbeef"), new(big.Int), 5000000, big.NewInt(1), []byte{})
 
 	privateKeyECDSA, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
 	if err != nil {
@@ -147,12 +147,12 @@ func TestPrestateTracerCreate2(t *testing.T) {
 		GasPrice: big.NewInt(1),
 	}
 	context := vm.BlockContext{
-		CanTransfer:          vmcontext.CanTransfer,
-		Transfer:             vmcontext.TobinTransfer,
-		Coinbase:             common.Address{},
-		BlockNumber:          new(big.Int).SetUint64(8000000),
-		Time:                 new(big.Int).SetUint64(5),
-		GetRegisteredAddress: vmcontext.GetRegisteredAddress,
+		CanTransfer:        vmcontext.CanTransfer,
+		Transfer:           vmcontext.TobinTransfer,
+		Coinbase:           common.Address{},
+		BlockNumber:        new(big.Int).SetUint64(8000000),
+		Time:               new(big.Int).SetUint64(5),
+		IsGoldTokenAddress: vmcontext.IsGoldTokenAddress,
 	}
 	alloc := core.GenesisAlloc{}
 
@@ -205,7 +205,7 @@ func TestPrestateTracerTransfer(t *testing.T) {
 	celoMock := testutil.NewCeloMock()
 
 	toAddr := "0x00000000000000000000000000000000deadbeef"
-	unsignedTx := types.NewTransaction(1, common.HexToAddress(toAddr), new(big.Int), 5000000, big.NewInt(1), nil, nil, nil, []byte{})
+	unsignedTx := types.NewTransaction(1, common.HexToAddress(toAddr), new(big.Int), 5000000, big.NewInt(1), []byte{})
 
 	privateKeyECDSA, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
 	if err != nil {
@@ -222,12 +222,12 @@ func TestPrestateTracerTransfer(t *testing.T) {
 		GasPrice: big.NewInt(1),
 	}
 	context := vm.BlockContext{
-		CanTransfer:          vmcontext.CanTransfer,
-		Transfer:             vmcontext.TobinTransfer,
-		Coinbase:             common.Address{},
-		BlockNumber:          new(big.Int).SetUint64(8000000),
-		Time:                 new(big.Int).SetUint64(5),
-		GetRegisteredAddress: vmcontext.GetRegisteredAddress,
+		CanTransfer:        vmcontext.CanTransfer,
+		Transfer:           vmcontext.TobinTransfer,
+		Coinbase:           common.Address{},
+		BlockNumber:        new(big.Int).SetUint64(8000000),
+		Time:               new(big.Int).SetUint64(5),
+		IsGoldTokenAddress: vmcontext.IsGoldTokenAddress,
 	}
 	alloc := core.GenesisAlloc{}
 	alloc[origin] = core.GenesisAccount{
