@@ -619,8 +619,7 @@ func TestEthersJSCompatibilityDisable(t *testing.T) {
 	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
 	require.NoError(t, err)
 
-	_, ok = result["gasLimit"]
-	assert.False(t, ok, "gasLimit field should not be present on RPC block")
+	// gasLimit can be in the response, depending on whether it is in the block header or not
 	_, ok = result["baseFeePerGas"]
 	assert.False(t, ok, "baseFeePerGas field should not be present on RPC block")
 }
