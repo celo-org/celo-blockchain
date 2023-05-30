@@ -67,6 +67,12 @@ type JumpTable [256]*operation
 // constantinople, istanbul, petersburg, espresso and g-fork instructions.
 func newGforkInstructionSet() JumpTable {
 	instructionSet := newEspressoInstructionSet()
+	instructionSet[GASLIMIT] = &operation{
+		execute:     opGasLimit,
+		constantGas: GasQuickStep,
+		minStack:    minStack(0, 1),
+		maxStack:    maxStack(0, 1),
+	}
 	return instructionSet
 }
 
@@ -76,14 +82,6 @@ func newEspressoInstructionSet() JumpTable {
 	instructionSet := newIstanbulInstructionSet()
 	enable2929(&instructionSet) // Access lists for trie accesses https://eips.ethereum.org/EIPS/eip-2929
 	enable3529(&instructionSet) // EIP-3529: Reduction in refunds https://eips.ethereum.org/EIPS/eip-3529
-
-	// TODO: Move to instruction set for next hardfork
-	instructionSet[GASLIMIT] = &operation{
-		execute:     opGasLimit,
-		constantGas: GasQuickStep,
-		minStack:    minStack(0, 1),
-		maxStack:    maxStack(0, 1),
-	}
 	return instructionSet
 }
 
