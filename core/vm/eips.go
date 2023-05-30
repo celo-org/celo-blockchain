@@ -161,3 +161,9 @@ func enable3529(jt *JumpTable) {
 	jt[SSTORE].dynamicGas = gasSStoreEIP3529
 	jt[SELFDESTRUCT].dynamicGas = gasSelfdestructEIP3529
 }
+
+// Updates gas price of GasSStoreEIP3529
+func enable3529GFork(jt *JumpTable) {
+	jt[SSTORE].dynamicGas = gForkGasSStoreEIP3529
+	jt[SELFDESTRUCT].dynamicGas = gasSelfdestructEIP3529
+}

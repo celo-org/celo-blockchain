@@ -73,6 +73,7 @@ func newGingerbreadInstructionSet() JumpTable {
 		minStack:    minStack(0, 1),
 		maxStack:    maxStack(0, 1),
 	}
+	enable3529GFork(&instructionSet) // EIP-3529: Reduction in refunds https://eips.ethereum.org/EIPS/eip-3529
 	return instructionSet
 }
 
