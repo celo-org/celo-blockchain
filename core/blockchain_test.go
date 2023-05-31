@@ -2916,8 +2916,6 @@ func TestEIP2718Transition(t *testing.T) {
 		}
 	)
 	genesis := gspec.MustCommit(db)
-	// Enable g fork
-	gspec.Config.GForkBlock = big.NewInt(0)
 
 	blocks, _ := GenerateChain(gspec.Config, genesis, engine, db, 1, func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{1})
@@ -2966,7 +2964,7 @@ func TestEIP2718Transition(t *testing.T) {
 // access list transaction, which specifies a single slot access, and then
 // checking that the gas usage of a hot SLOAD and a cold SLOAD are calculated
 // correctly.
-func TestEIP2718TransitionPreGFork(t *testing.T) {
+func TestEIP2718TransitionPreGingerbread(t *testing.T) {
 	var (
 		aa     = common.HexToAddress("0x000000000000000000000000000000000000aaaa")
 		config = params.TestChainConfig.DeepCopy().DisableGingerbread()
@@ -2979,8 +2977,9 @@ func TestEIP2718TransitionPreGFork(t *testing.T) {
 		key, _  = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 		address = crypto.PubkeyToAddress(key.PublicKey)
 		funds   = big.NewInt(1000000000000000)
-		gspec   = &Genesis{
-			Config: params.TestChainConfig,
+
+		gspec = &Genesis{
+			Config: config,
 			Alloc: GenesisAlloc{
 				address: {Balance: funds},
 				// The address 0xAAAA sloads 0x00 and 0x01
@@ -3096,8 +3095,6 @@ func TestEIP1559Transition(t *testing.T) {
 			},
 		}
 	)
-	// Enable g fork
-	gspec.Config.GForkBlock = big.NewInt(0)
 
 	genesis := gspec.MustCommit(db)
 	signer := types.LatestSigner(gspec.Config)
@@ -3214,7 +3211,7 @@ func TestEIP1559Transition(t *testing.T) {
 //  5. The coinbase receives only the partially realized tip when
 //     gasFeeCap - gasTipCap < baseFee.
 //  6. Legacy transaction behave as expected (e.g. gasPrice = gasFeeCap = gasTipCap).
-func TestEIP1559TransitionPreGFork(t *testing.T) {
+func TestEIP1559TransitionPreGingerbread(t *testing.T) {
 	var (
 		aa     = common.HexToAddress("0x000000000000000000000000000000000000aaaa")
 		config = params.TestChainConfig.DeepCopy().DisableGingerbread()
@@ -3230,7 +3227,7 @@ func TestEIP1559TransitionPreGFork(t *testing.T) {
 		addr2   = crypto.PubkeyToAddress(key2.PublicKey)
 		funds   = new(big.Int).Mul(common.Big1, big.NewInt(params.Ether))
 		gspec   = &Genesis{
-			Config: params.TestChainConfig,
+			Config: config,
 			Alloc: GenesisAlloc{
 				addr1: {Balance: funds},
 				addr2: {Balance: funds},
