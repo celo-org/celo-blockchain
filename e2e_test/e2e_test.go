@@ -606,7 +606,7 @@ func TestEthersJSCompatibilityDisable(t *testing.T) {
 	_, ok = result["baseFeePerGas"]
 	assert.True(t, ok, "baseFeePerGas field should be present on RPC block")
 
-	// Turn of compatibility and check fields are not present
+	// Turn off compatibility and check fields are not present
 	ec.RPCEthCompatibility = false
 	network, shutdown, err = test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -619,7 +619,55 @@ func TestEthersJSCompatibilityDisable(t *testing.T) {
 	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
 	require.NoError(t, err)
 
-	// gasLimit can be in the response, depending on whether it is in the block header or not
+	// After GFork, gasLimit should be returned directly from the header, even if
+	// RPCEthCompatibility is off, since it is now part of the header hash.
+	_, ok = result["gasLimit"]
+	assert.True(t, ok, "gasLimit field must be present on RPC block after GFork")
+	_, ok = result["baseFeePerGas"]
+	assert.False(t, ok, "baseFeePerGas field must be present on RPC block")
+}
+
+// This test checks the functionality of the configuration to enable/disable
+// returning the 'gasLimit' and 'baseFeePerGas' fields on RPC blocks before the GFork happened.
+// GFork is relevant because it added the gasLimit to the header.
+func TestEthersJSCompatibilityDisableBeforeGFork(t *testing.T) {
+	ac := test.AccountConfig(1, 1)
+	gc, ec, err := test.BuildConfig(ac)
+	gc.Hardforks.GForkBlock = nil
+	require.NoError(t, err)
+
+	// Check fields present (compatibility set by default)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	result := make(map[string]interface{})
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
+	require.NoError(t, err)
+
+	_, ok := result["gasLimit"]
+	assert.True(t, ok, "gasLimit field should be present on RPC block")
+	_, ok = result["baseFeePerGas"]
+	assert.True(t, ok, "baseFeePerGas field should be present on RPC block")
+
+	// Turn off compatibility and check fields are not present
+	ec.RPCEthCompatibility = false
+	network, shutdown, err = test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	result = make(map[string]interface{})
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
+	require.NoError(t, err)
+
+	_, ok = result["gasLimit"]
+	assert.False(t, ok, "gasLimit field should not be present on RPC block before GFork")
 	_, ok = result["baseFeePerGas"]
 	assert.False(t, ok, "baseFeePerGas field should not be present on RPC block")
 }
