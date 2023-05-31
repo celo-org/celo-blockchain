@@ -148,7 +148,7 @@ var (
 		ChurritoBlock: big.NewInt(0),
 		DonutBlock:    big.NewInt(0),
 		EspressoBlock: big.NewInt(0),
-		GForkBlock:    nil,
+		GForkBlock:    big.NewInt(0),
 
 		Istanbul: &IstanbulConfig{
 			Epoch:          30000,
