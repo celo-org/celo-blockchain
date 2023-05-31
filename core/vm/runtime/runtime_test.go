@@ -647,6 +647,86 @@ func TestColdAccountAccessCost(t *testing.T) {
 		{ // EXTCODEHASH(0xff)
 			code: []byte{byte(vm.PUSH1), 0xFF, byte(vm.EXTCODEHASH), byte(vm.POP)},
 			step: 1,
+			want: 2600,
+		},
+		{ // BALANCE(0xff)
+			code: []byte{byte(vm.PUSH1), 0xFF, byte(vm.BALANCE), byte(vm.POP)},
+			step: 1,
+			want: 2600,
+		},
+		{ // CALL(0xff)
+			code: []byte{
+				byte(vm.PUSH1), 0x0,
+				byte(vm.DUP1), byte(vm.DUP1), byte(vm.DUP1), byte(vm.DUP1),
+				byte(vm.PUSH1), 0xff, byte(vm.DUP1), byte(vm.CALL), byte(vm.POP),
+			},
+			step: 7,
+			want: 2855,
+		},
+		{ // CALLCODE(0xff)
+			code: []byte{
+				byte(vm.PUSH1), 0x0,
+				byte(vm.DUP1), byte(vm.DUP1), byte(vm.DUP1), byte(vm.DUP1),
+				byte(vm.PUSH1), 0xff, byte(vm.DUP1), byte(vm.CALLCODE), byte(vm.POP),
+			},
+			step: 7,
+			want: 2855,
+		},
+		{ // DELEGATECALL(0xff)
+			code: []byte{
+				byte(vm.PUSH1), 0x0,
+				byte(vm.DUP1), byte(vm.DUP1), byte(vm.DUP1),
+				byte(vm.PUSH1), 0xff, byte(vm.DUP1), byte(vm.DELEGATECALL), byte(vm.POP),
+			},
+			step: 6,
+			want: 2855,
+		},
+		{ // STATICCALL(0xff)
+			code: []byte{
+				byte(vm.PUSH1), 0x0,
+				byte(vm.DUP1), byte(vm.DUP1), byte(vm.DUP1),
+				byte(vm.PUSH1), 0xff, byte(vm.DUP1), byte(vm.STATICCALL), byte(vm.POP),
+			},
+			step: 6,
+			want: 2855,
+		},
+		{ // SELFDESTRUCT(0xff)
+			code: []byte{
+				byte(vm.PUSH1), 0xff, byte(vm.SELFDESTRUCT),
+			},
+			step: 1,
+			want: 7600,
+		},
+	} {
+		tracer := vm.NewStructLogger(nil)
+		Execute(tc.code, nil, &Config{
+			EVMConfig: vm.Config{
+				Debug:  true,
+				Tracer: tracer,
+			},
+		})
+		have := tracer.StructLogs()[tc.step].GasCost
+		if want := tc.want; have != want {
+			for ii, op := range tracer.StructLogs() {
+				t.Logf("%d: %v %d", ii, op.OpName(), op.GasCost)
+			}
+			t.Fatalf("test case %d, gas report wrong, step %d, have %d want %d", i, tc.step, have, want)
+		}
+	}
+}
+
+// TestColdAccountAccessCost test that the cold account access cost is reported
+// correctly
+// see: https://github.com/ethereum/go-ethereum/issues/22649
+func TestColdAccountAccessCostPreGFork(t *testing.T) {
+	for i, tc := range []struct {
+		code []byte
+		step int
+		want uint64
+	}{
+		{ // EXTCODEHASH(0xff)
+			code: []byte{byte(vm.PUSH1), 0xFF, byte(vm.EXTCODEHASH), byte(vm.POP)},
+			step: 1,
 			want: 900,
 		},
 		{ // BALANCE(0xff)
@@ -699,11 +779,14 @@ func TestColdAccountAccessCost(t *testing.T) {
 		},
 	} {
 		tracer := vm.NewStructLogger(nil)
+		config := params.TestChainConfig.DeepCopy().DisableGingerbread()
+
 		Execute(tc.code, nil, &Config{
 			EVMConfig: vm.Config{
 				Debug:  true,
 				Tracer: tracer,
 			},
+			ChainConfig: config,
 		})
 		have := tracer.StructLogs()[tc.step].GasCost
 		if want := tc.want; have != want {
@@ -716,6 +799,182 @@ func TestColdAccountAccessCost(t *testing.T) {
 }
 
 func TestRuntimeJSTracer(t *testing.T) {
+	jsTracers := []string{
+		`{enters: 0, exits: 0, enterGas: 0, gasUsed: 0, steps:0,
+	step: function() { this.steps++}, 
+	fault: function() {}, 
+	result: function() { 
+		return [this.enters, this.exits,this.enterGas,this.gasUsed, this.steps].join(",") 
+	}, 
+	enter: function(frame) { 
+		this.enters++; 
+		this.enterGas = frame.getGas();
+	}, 
+	exit: function(res) { 
+		this.exits++; 
+		this.gasUsed = res.getGasUsed();
+	}}`,
+		`{enters: 0, exits: 0, enterGas: 0, gasUsed: 0, steps:0,
+	fault: function() {}, 
+	result: function() { 
+		return [this.enters, this.exits,this.enterGas,this.gasUsed, this.steps].join(",") 
+	}, 
+	enter: function(frame) { 
+		this.enters++; 
+		this.enterGas = frame.getGas();
+	}, 
+	exit: function(res) { 
+		this.exits++; 
+		this.gasUsed = res.getGasUsed();
+	}}`}
+	tests := []struct {
+		code []byte
+		// One result per tracer
+		results []string
+	}{
+		{
+			// CREATE
+			code: []byte{
+				// Store initcode in memory at 0x00 (5 bytes left-padded to 32 bytes)
+				byte(vm.PUSH5),
+				// Init code: PUSH1 0, PUSH1 0, RETURN (3 steps)
+				byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.RETURN),
+				byte(vm.PUSH1), 0,
+				byte(vm.MSTORE),
+				// length, offset, value
+				byte(vm.PUSH1), 5, byte(vm.PUSH1), 27, byte(vm.PUSH1), 0,
+				byte(vm.CREATE),
+				byte(vm.POP),
+			},
+			results: []string{`"1,1,4294935775,6,12"`, `"1,1,4294935775,6,0"`},
+		},
+		{
+			// CREATE2
+			code: []byte{
+				// Store initcode in memory at 0x00 (5 bytes left-padded to 32 bytes)
+				byte(vm.PUSH5),
+				// Init code: PUSH1 0, PUSH1 0, RETURN (3 steps)
+				byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.RETURN),
+				byte(vm.PUSH1), 0,
+				byte(vm.MSTORE),
+				// salt, length, offset, value
+				byte(vm.PUSH1), 1, byte(vm.PUSH1), 5, byte(vm.PUSH1), 27, byte(vm.PUSH1), 0,
+				byte(vm.CREATE2),
+				byte(vm.POP),
+			},
+			results: []string{`"1,1,4294935766,6,13"`, `"1,1,4294935766,6,0"`},
+		},
+		{
+			// CALL
+			code: []byte{
+				// outsize, outoffset, insize, inoffset
+				byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
+				byte(vm.PUSH1), 0, // value
+				byte(vm.PUSH1), 0xab, //address
+				byte(vm.GAS), // gas
+				byte(vm.CALL),
+				byte(vm.POP),
+			},
+			results: []string{`"1,1,4294964716,6,13"`, `"1,1,4294964716,6,0"`},
+		},
+		{
+			// CALLCODE
+			code: []byte{
+				// outsize, outoffset, insize, inoffset
+				byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
+				byte(vm.PUSH1), 0, // value
+				byte(vm.PUSH1), 0xac, //address
+				byte(vm.GAS), // gas
+				byte(vm.CALLCODE),
+				byte(vm.POP),
+			},
+			results: []string{`"1,1,4294964716,6,13"`, `"1,1,4294964716,6,0"`},
+		},
+		{
+			// STATICCALL
+			code: []byte{
+				// outsize, outoffset, insize, inoffset
+				byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
+				byte(vm.PUSH1), 0xad, //address
+				byte(vm.GAS), // gas
+				byte(vm.STATICCALL),
+				byte(vm.POP),
+			},
+			results: []string{`"1,1,4294964719,6,12"`, `"1,1,4294964719,6,0"`},
+		},
+		{
+			// DELEGATECALL
+			code: []byte{
+				// outsize, outoffset, insize, inoffset
+				byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
+				byte(vm.PUSH1), 0xae, //address
+				byte(vm.GAS), // gas
+				byte(vm.DELEGATECALL),
+				byte(vm.POP),
+			},
+			results: []string{`"1,1,4294964719,6,12"`, `"1,1,4294964719,6,0"`},
+		},
+		{
+			// CALL self-destructing contract
+			code: []byte{
+				// outsize, outoffset, insize, inoffset
+				byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0, byte(vm.PUSH1), 0,
+				byte(vm.PUSH1), 0, // value
+				byte(vm.PUSH1), 0xaf, //address
+				byte(vm.GAS), // gas
+				byte(vm.CALL),
+				byte(vm.POP),
+			},
+			results: []string{`"2,2,0,5003,12"`, `"2,2,0,5003,0"`},
+		},
+	}
+	calleeCode := []byte{
+		byte(vm.PUSH1), 0,
+		byte(vm.PUSH1), 0,
+		byte(vm.RETURN),
+	}
+	depressedCode := []byte{
+		byte(vm.PUSH1), 0xaa,
+		byte(vm.SELFDESTRUCT),
+	}
+	main := common.HexToAddress("0xaa")
+	for i, jsTracer := range jsTracers {
+		for j, tc := range tests {
+			statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+			statedb.SetCode(main, tc.code)
+			// Addresses changed from upstream to avoid colliding with the
+			// celo precompiled contracts.
+			statedb.SetCode(common.HexToAddress("0xab"), calleeCode)
+			statedb.SetCode(common.HexToAddress("0xac"), calleeCode)
+			statedb.SetCode(common.HexToAddress("0xad"), calleeCode)
+			statedb.SetCode(common.HexToAddress("0xae"), calleeCode)
+			statedb.SetCode(common.HexToAddress("0xaf"), depressedCode)
+
+			tracer, err := tracers.New(jsTracer, new(tracers.Context))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, _, err = Call(main, nil, &Config{
+				State: statedb,
+				EVMConfig: vm.Config{
+					Debug:  true,
+					Tracer: tracer,
+				}})
+			if err != nil {
+				t.Fatal("didn't expect error", err)
+			}
+			res, err := tracer.GetResult()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if have, want := string(res), tc.results[i]; have != want {
+				t.Errorf("wrong result for tracer %d testcase %d, have \n%v\nwant\n%v\n", i, j, have, want)
+			}
+		}
+	}
+}
+
+func TestRuntimeJSTracerPreGFork(t *testing.T) {
 	jsTracers := []string{
 		`{enters: 0, exits: 0, enterGas: 0, gasUsed: 0, steps:0,
 	step: function() { this.steps++}, 
@@ -879,8 +1138,11 @@ func TestRuntimeJSTracer(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			config := params.TestChainConfig.DeepCopy().DisableGingerbread()
+
 			_, _, err = Call(main, nil, &Config{
-				State: statedb,
+				State:       statedb,
+				ChainConfig: config,
 				EVMConfig: vm.Config{
 					Debug:  true,
 					Tracer: tracer,
