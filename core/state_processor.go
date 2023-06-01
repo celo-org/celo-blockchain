@@ -124,6 +124,15 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, gp *GasPool
 		return nil, ErrUnprotectedTransaction
 	}
 
+	// CIP 57 deprecates full node incentives
+	// Check that neither `GatewayFeeRecipient` nor `GatewayFee` are set, otherwise reject the transaction
+	if config.IsGFork(blockNumber) {
+		gatewayFeeSet := !(msg.GatewayFee() == nil || msg.GatewayFee().Cmp(common.Big0) == 0)
+		if msg.GatewayFeeRecipient() != nil || gatewayFeeSet {
+			return nil, ErrGatewayFeeDeprecated
+		}
+	}
+
 	// Create a new context to be used in the EVM environment
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
