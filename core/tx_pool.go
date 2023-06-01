@@ -276,6 +276,7 @@ type TxPool struct {
 	istanbul  bool // Fork indicator whether we are in the istanbul stage.
 	donut     bool // Fork indicator for the Donut fork.
 	espresso  bool // Fork indicator for the Espresso fork.
+	gfork     bool // Fork indicator for the G fork.
 
 	currentState    *state.StateDB // Current state in the blockchain head
 	currentVMRunner vm.EVMRunner   // Current EVMRunner
@@ -657,6 +658,12 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 	if err := tx.CheckEthCompatibility(); err != nil {
 		return err
+	}
+
+	// CIP 57 deprecates full node incentives
+	gatewayFeeSet := !(tx.GatewayFee() == nil || tx.GatewayFee().Cmp(common.Big0) == 0)
+	if pool.gfork && (tx.GatewayFeeRecipient() != nil || gatewayFeeSet) {
+		return ErrGatewayFeeDeprecated
 	}
 
 	// Accept only legacy transactions until EIP-2718/2930 activates.
@@ -1412,6 +1419,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	pool.istanbul = pool.chainconfig.IsIstanbul(next)
 	pool.donut = pool.chainconfig.IsDonut(next)
 	pool.espresso = pool.chainconfig.IsEspresso(next)
+	pool.gfork = pool.chainconfig.IsGFork(next)
 }
 
 // promoteExecutables moves transactions that have become processable from the

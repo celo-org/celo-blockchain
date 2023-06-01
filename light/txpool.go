@@ -73,6 +73,7 @@ type TxPool struct {
 	istanbul  bool // Fork indicator whether we are in the istanbul stage
 	donut     bool // Fork indicator whether Donut has been activated
 	espresso  bool // Fork indicator whether Espresso has been activated
+	gfork     bool // Fork indicator for the G fork.
 }
 
 // TxRelayBackend provides an interface to the mechanism that forwards transacions
@@ -329,6 +330,7 @@ func (pool *TxPool) setNewHead(head *types.Header) {
 	pool.istanbul = pool.config.IsIstanbul(next)
 	pool.donut = pool.config.IsDonut(next)
 	pool.espresso = pool.config.IsEspresso(next)
+	pool.gfork = pool.config.IsGFork(next)
 }
 
 // Stop stops the light transaction pool
@@ -372,6 +374,12 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	}
 	if err := tx.CheckEthCompatibility(); err != nil {
 		return err
+	}
+
+	// CIP 57 deprecates full node incentives
+	gatewayFeeSet := !(tx.GatewayFee() == nil || tx.GatewayFee().Cmp(common.Big0) == 0)
+	if pool.gfork && (tx.GatewayFeeRecipient() != nil || gatewayFeeSet) {
+		return core.ErrGatewayFeeDeprecated
 	}
 
 	// Validate the transaction sender and it's sig. Throw
