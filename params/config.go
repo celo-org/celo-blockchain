@@ -160,7 +160,7 @@ var (
 		FakeBaseFee:              common.Big0,
 	}
 	IstanbulTestChainConfig = TestChainConfig.
-				deepCopy().
+				DeepCopy().
 				OverrideFakerConfig(false).
 				OverrideChainIdConfig(big.NewInt(1337)).
 				OverrideIstanbulConfig(
@@ -627,7 +627,12 @@ func (c *ChainConfig) OverrideChainIdConfig(chainId *big.Int) *ChainConfig {
 	return c
 }
 
-func (c *ChainConfig) deepCopy() *ChainConfig {
+func (c *ChainConfig) DisableGFork() *ChainConfig {
+	c.GForkBlock = nil
+	return c
+}
+
+func (c *ChainConfig) DeepCopy() *ChainConfig {
 	cpy := &ChainConfig{
 		ChainID:             copyBigIntOrNil(c.ChainID),
 		HomesteadBlock:      copyBigIntOrNil(c.HomesteadBlock),
