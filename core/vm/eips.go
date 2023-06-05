@@ -153,17 +153,22 @@ func enable2929(jt *JumpTable) {
 	jt[SELFDESTRUCT].dynamicGas = gasSelfdestructEIP2929
 }
 
+// enable3529Celo enabled "EIP-3529: Reduction in refunds":
+// - Removes refunds for selfdestructs
+// - Reduces refunds for SSTORE
+// - Reduces max refunds to 20% gas
+// This included Celo specific changes, see
+// https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
+func enable3529Celo(jt *JumpTable) {
+	jt[SSTORE].dynamicGas = gasSStoreEIP3529Celo
+	jt[SELFDESTRUCT].dynamicGas = gasSelfdestructEIP3529
+}
+
 // enable3529 enabled "EIP-3529: Reduction in refunds":
 // - Removes refunds for selfdestructs
 // - Reduces refunds for SSTORE
 // - Reduces max refunds to 20% gas
 func enable3529(jt *JumpTable) {
 	jt[SSTORE].dynamicGas = gasSStoreEIP3529
-	jt[SELFDESTRUCT].dynamicGas = gasSelfdestructEIP3529
-}
-
-// Updates gas price of GasSStoreEIP3529
-func enable3529GFork(jt *JumpTable) {
-	jt[SSTORE].dynamicGas = gForkGasSStoreEIP3529
 	jt[SELFDESTRUCT].dynamicGas = gasSelfdestructEIP3529
 }

@@ -243,8 +243,8 @@ var (
 
 	// gasSStoreEIP2539 implements gas cost for SSTORE according to EPI-2539
 	// Replace `SSTORE_CLEARS_SCHEDULE` with `SSTORE_RESET_GAS + ACCESS_LIST_STORAGE_KEY_COST` (6,100)
-	gasSStoreEIP3529      = makeGasSStoreFunc(params.SstoreClearsScheduleRefundEIP3529)
-	gForkGasSStoreEIP3529 = makeGasSStoreFunc(params.CeloSstoreClearsScheduleRefundEIP3529)
+	gasSStoreEIP3529Celo = makeGasSStoreFunc(params.CeloSstoreClearsScheduleRefundEIP3529)
+	gasSStoreEIP3529     = makeGasSStoreFunc(params.SstoreClearsScheduleRefundEIP3529)
 )
 
 // makeSelfdestructGasFn can create the selfdestruct dynamic gas function for EIP-2929 and EIP-2539
