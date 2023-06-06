@@ -50,6 +50,7 @@ func NewBlockContext(header *types.Header, chain chainContext, txFeeRecipient *c
 		GetHash:     GetHashFn(header, chain),
 		VerifySeal:  VerifySealFn(header, chain),
 		Coinbase:    beneficiary,
+		GasLimit:    header.GasLimit,
 		BlockNumber: new(big.Int).Set(header.Number),
 		Time:        new(big.Int).SetUint64(header.Time),
 

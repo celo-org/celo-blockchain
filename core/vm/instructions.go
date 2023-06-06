@@ -469,6 +469,11 @@ func opNumber(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]b
 	return nil, nil
 }
 
+func opGasLimit(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+	scope.Stack.push(new(uint256.Int).SetUint64(interpreter.evm.Context.GasLimit))
+	return nil, nil
+}
+
 func opPop(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	scope.Stack.pop()
 	return nil, nil

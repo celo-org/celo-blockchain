@@ -56,23 +56,13 @@ describe('ethers.js compatibility tests with state', () => {
 
 describe('ethers.js compatibility tests with no state', () => {
 
-	it('provider.getBlock throws exception (no gasLimit)', async () => {
-		let provider = new ethers.JsonRpcProvider(process.env.npm_config_networkaddr);
-		try {
-			await provider.getBlock(process.env.npm_config_blocknum as string);
-		} catch (e) {
-			return
-		}
-		assert.fail("Expecting exception to be thrown when getting block")
-	});
-
-	it('block has no gasLimit', async () => {
+	it('block has gasLimit', async () => {
 		let provider = new ethers.JsonRpcProvider(process.env.npm_config_networkaddr);
 		const fullBlock = await provider.send(
 			'eth_getBlockByNumber',
 			[ethers.toQuantity(process.env.npm_config_blocknum as string), true]
 		)
-		assert.isFalse(fullBlock.hasOwnProperty('gasLimit'))
+		assert.isTrue(fullBlock.hasOwnProperty('gasLimit'))
 	});
 
 	it('block has no baseFeePerGas', async () => {

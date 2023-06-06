@@ -58,15 +58,18 @@ type Header struct {
 	extraLock  sync.Mutex
 	extraValue *IstanbulExtra
 	extraError error
+
+	GasLimit uint64 `json:"gasLimit" rlp:"optional"`
 }
 
 // field type overrides for gencodec
 type headerMarshaling struct {
-	Number  *hexutil.Big
-	GasUsed hexutil.Uint64
-	Time    hexutil.Uint64
-	Extra   hexutil.Bytes
-	Hash    common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
+	Number   *hexutil.Big
+	GasLimit hexutil.Uint64
+	GasUsed  hexutil.Uint64
+	Time     hexutil.Uint64
+	Extra    hexutil.Bytes
+	Hash     common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
 }
 
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
@@ -289,6 +292,7 @@ func CopyHeader(h *Header) *Header {
 		ReceiptHash: h.ReceiptHash,
 		Bloom:       h.Bloom,
 		Number:      new(big.Int),
+		GasLimit:    h.GasLimit,
 		GasUsed:     h.GasUsed,
 		Time:        h.Time,
 	}
