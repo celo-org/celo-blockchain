@@ -2955,7 +2955,6 @@ func TestEIP2718Transition(t *testing.T) {
 		vm.GasQuickStep*2 + params.WarmStorageReadCostEIP2929 + params.ColdSloadCostEIP2929
 	if block.GasUsed() != expected {
 		t.Fatalf("incorrect amount of gas spent: expected %d, got %d", expected, block.GasUsed())
-
 	}
 }
 
