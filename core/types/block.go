@@ -36,9 +36,10 @@ import (
 
 var (
 	EmptyRootHash       = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
-	emptyUncleHash      = rlpHash([]*Header(nil)) // 1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347
+	EmptyUncleHash      = rlpHash([]*Header(nil)) // 1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347
 	EmptyRandomness     = Randomness{}
 	EmptyEpochSnarkData = EpochSnarkData{}
+	EmptyMixDigest      = common.HexToHash("0000000000000000000000000000000000000000000000000000000000000000")
 )
 
 // A BlockNonce is a 64-bit hash which proves (combined with the
