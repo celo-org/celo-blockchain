@@ -711,7 +711,7 @@ func (s *PublicBlockChainAPI) GetBlockByNumber(ctx context.Context, number rpc.B
 
 		if err == nil {
 			addEthCompatibilityFields(ctx, response, s.b, block)
-			if s.b.RPCEthCompatibility() && number == rpc.PendingBlockNumber {
+			if number == rpc.PendingBlockNumber {
 				// Pending blocks need to nil out a few fields
 				for _, field := range []string{"hash", "nonce", "miner"} {
 					response[field] = nil
