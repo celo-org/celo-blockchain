@@ -568,6 +568,7 @@ func TestEthersJSCompatibility(t *testing.T) {
 	err = network[0].Tracker.AwaitBlock(ctx, num+1)
 	require.NoError(t, err)
 	block := network[0].Tracker.GetProcessedBlock(num)
+	require.NotNil(t, block)
 
 	// Prune state
 	err = pruneStateOfBlock(ctx, network[0], block.Hash())
@@ -601,10 +602,10 @@ func TestEthersJSCompatibilityDisable(t *testing.T) {
 	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
 	require.NoError(t, err)
 
-	_, ok := result["gasLimit"]
-	assert.True(t, ok, "gasLimit field should be present on RPC block")
-	_, ok = result["baseFeePerGas"]
-	assert.True(t, ok, "baseFeePerGas field should be present on RPC block")
+	for _, field := range []string{"gasLimit", "baseFeePerGas", "sha3Uncles", "uncles", "nonce", "mixHash", "difficulty"} {
+		_, ok := result[field]
+		assert.Truef(t, ok, "%s field should be present on RPC block after GFork", field)
+	}
 
 	// Turn off compatibility and check fields are not present
 	ec.RPCEthCompatibility = false
@@ -621,7 +622,7 @@ func TestEthersJSCompatibilityDisable(t *testing.T) {
 
 	// After GFork, gasLimit should be returned directly from the header, even if
 	// RPCEthCompatibility is off, since it is now part of the header hash.
-	_, ok = result["gasLimit"]
+	_, ok := result["gasLimit"]
 	assert.True(t, ok, "gasLimit field must be present on RPC block after GFork")
 	_, ok = result["baseFeePerGas"]
 	assert.False(t, ok, "baseFeePerGas field must be present on RPC block")
@@ -648,10 +649,14 @@ func TestEthersJSCompatibilityDisableBeforeGFork(t *testing.T) {
 	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
 	require.NoError(t, err)
 
-	_, ok := result["gasLimit"]
-	assert.True(t, ok, "gasLimit field should be present on RPC block")
-	_, ok = result["baseFeePerGas"]
-	assert.True(t, ok, "baseFeePerGas field should be present on RPC block")
+	for _, field := range []string{"gasLimit", "baseFeePerGas", "difficulty"} {
+		_, ok := result[field]
+		assert.Truef(t, ok, "%s field should be present on RPC block before GFork", field)
+	}
+	for _, field := range []string{"sha3Uncles", "uncles", "nonce", "mixHash"} {
+		_, ok := result[field]
+		assert.Falsef(t, ok, "%s field should not be present on RPC block before GFork", field)
+	}
 
 	// Turn off compatibility and check fields are not present
 	ec.RPCEthCompatibility = false
@@ -666,8 +671,8 @@ func TestEthersJSCompatibilityDisableBeforeGFork(t *testing.T) {
 	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
 	require.NoError(t, err)
 
-	_, ok = result["gasLimit"]
-	assert.False(t, ok, "gasLimit field should not be present on RPC block before GFork")
-	_, ok = result["baseFeePerGas"]
-	assert.False(t, ok, "baseFeePerGas field should not be present on RPC block")
+	for _, field := range []string{"gasLimit", "baseFeePerGas", "sha3Uncles", "uncles", "nonce", "mixHash", "difficulty"} {
+		_, ok := result[field]
+		assert.Falsef(t, ok, "%s field should not be present on RPC block before GFork", field)
+	}
 }
