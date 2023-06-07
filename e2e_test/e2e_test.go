@@ -568,6 +568,7 @@ func TestEthersJSCompatibility(t *testing.T) {
 	err = network[0].Tracker.AwaitBlock(ctx, num+1)
 	require.NoError(t, err)
 	block := network[0].Tracker.GetProcessedBlock(num)
+	require.NotNil(t, block)
 
 	// Prune state
 	err = pruneStateOfBlock(ctx, network[0], block.Hash())
