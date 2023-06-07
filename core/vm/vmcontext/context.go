@@ -154,19 +154,24 @@ func TobinTransfer(evm *vm.EVM, sender, recipient common.Address, amount *big.In
 		defer func() { evm.SetDebug(true) }()
 	}
 
-	if amount.Cmp(big.NewInt(0)) != 0 {
-		caller := &SharedEVMRunner{evm}
-		tax, taxRecipient, err := reserve.ComputeTobinTax(caller, sender, amount)
-		if err == nil {
-			Transfer(evm.StateDB, sender, recipient, new(big.Int).Sub(amount, tax))
-			Transfer(evm.StateDB, sender, taxRecipient, tax)
-			return
-		} else {
-			log.Error("Failed to get tobin tax", "error", err)
+	// Only deduct tobin tax before the g hardfork
+	if evm.ChainConfig().IsGFork(evm.Context.BlockNumber) {
+		Transfer(evm.StateDB, sender, recipient, amount)
+	} else {
+		if amount.Cmp(big.NewInt(0)) != 0 {
+			caller := &SharedEVMRunner{evm}
+			tax, taxRecipient, err := reserve.ComputeTobinTax(caller, sender, amount)
+			if err == nil {
+				Transfer(evm.StateDB, sender, recipient, new(big.Int).Sub(amount, tax))
+				Transfer(evm.StateDB, sender, taxRecipient, tax)
+				return
+			} else {
+				log.Error("Failed to get tobin tax", "error", err)
+			}
 		}
-	}
 
-	// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
-	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
-	Transfer(evm.StateDB, sender, recipient, amount)
+		// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
+		// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
+		Transfer(evm.StateDB, sender, recipient, amount)
+	}
 }
