@@ -85,9 +85,9 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		baseFee *big.Int
 		sysCtx  *SysContractCallCtx
 	)
-	if p.bc.Config().IsEspresso(blockNumber) {
+	if p.config.IsEspresso(blockNumber) {
 		sysCtx = NewSysContractCallCtx(header, statedb, p.bc)
-		if p.bc.Config().FakeBaseFee != nil {
+		if p.config.FakeBaseFee != nil {
 			sysCtx = MockSysContractCallCtx(p.bc.Config().FakeBaseFee)
 		}
 	}
@@ -95,7 +95,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, cfg)
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
-		if p.bc.chainConfig.IsEspresso(header.Number) {
+		if p.config.IsEspresso(header.Number) {
 			baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
 		}
 		msg, err := tx.AsMessage(types.MakeSigner(p.config, header.Number), baseFee)
