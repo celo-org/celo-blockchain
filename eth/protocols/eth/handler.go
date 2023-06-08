@@ -203,12 +203,15 @@ func handleMessage(backend Backend, peer *Peer) error {
 
 	// Send messages to the consensus engine first. If they are consensus related,
 	// e.g. for IBFT, let the consensus handler handle the message.
-	if consensusHandler, ok := backend.Chain().Engine().(consensus.Handler); ok {
-		pubKey := peer.Node().Pubkey()
-		addr := crypto.PubkeyToAddress(*pubKey)
-		handled, err := consensusHandler.HandleMsg(addr, msg, peer)
-		if handled {
-			return err
+	// Ask here if msg is istanbul msg to prevent double decoding on big msgs
+	if istanbul.IsIstanbulMsg(msg) {
+		if consensusHandler, ok := backend.Chain().Engine().(consensus.Handler); ok {
+			pubKey := peer.Node().Pubkey()
+			addr := crypto.PubkeyToAddress(*pubKey)
+			handled, err := consensusHandler.HandleMsg(addr, msg, peer)
+			if handled {
+				return err
+			}
 		}
 	}
 
