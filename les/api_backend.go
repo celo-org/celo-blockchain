@@ -27,7 +27,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
-	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/bloombits"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -35,6 +34,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/eth/ethconfig"
+	gp "github.com/celo-org/celo-blockchain/eth/gasprice"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/light"
@@ -273,7 +273,7 @@ func (b *LesApiBackend) SuggestPrice(ctx context.Context, currencyAddress *commo
 	if err != nil {
 		return nil, err
 	}
-	return gpm.GetGasPriceSuggestion(vmRunner, currencyAddress)
+	return gp.GetGasPriceSuggestion(vmRunner, currencyAddress, b.CurrentHeader().BaseFee)
 }
 
 func (b *LesApiBackend) GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Context) uint64 {
@@ -319,7 +319,7 @@ func (b *LesApiBackend) SuggestGasTipCap(ctx context.Context, currencyAddress *c
 	if err != nil {
 		return nil, err
 	}
-	return gpm.GetGasTipCapSuggestion(vmRunner, currencyAddress)
+	return gp.GetGasTipCapSuggestion(vmRunner, currencyAddress)
 }
 
 func (b *LesApiBackend) CurrentGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
@@ -327,20 +327,26 @@ func (b *LesApiBackend) CurrentGasPriceMinimum(ctx context.Context, currencyAddr
 	if err != nil {
 		return nil, err
 	}
-	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
+	return gp.GetBaseFeeForCurrency(vmRunner, currencyAddress, b.CurrentHeader().BaseFee)
 }
 
 func (b *LesApiBackend) GasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error) {
+	if header.BaseFee != nil && currencyAddress == nil {
+		return header.BaseFee, nil
+	}
 	state := light.NewState(ctx, header, b.eth.odr)
 	vmRunner := b.eth.blockchain.NewEVMRunner(header, state)
 
-	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
+	return gp.GetBaseFeeForCurrency(vmRunner, currencyAddress, header.BaseFee)
 }
 
 func (b *LesApiBackend) RealGasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error) {
+	if header.BaseFee != nil && currencyAddress == nil {
+		return header.BaseFee, nil
+	}
 	state := light.NewState(ctx, header, b.eth.odr)
 	vmRunner := b.eth.blockchain.NewEVMRunner(header, state)
-	return gpm.GetRealGasPriceMinimum(vmRunner, currencyAddress)
+	return gp.GetRealBaseFeeForCurrency(vmRunner, currencyAddress, header.BaseFee)
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {

@@ -37,11 +37,19 @@ func NewBlockContext(header *types.Header, chain chainContext, txFeeRecipient *c
 	// If we don't have an explicit txFeeRecipient (i.e. not mining), extract from the header
 	// The only call that fills the txFeeRecipient, is the ApplyTransaction from the state processor
 	// All the other calls, assume that will be retrieved from the header
-	var beneficiary common.Address
+	var (
+		beneficiary common.Address
+		baseFee     *big.Int
+	)
+
 	if txFeeRecipient == nil {
 		beneficiary = header.Coinbase
 	} else {
 		beneficiary = *txFeeRecipient
+	}
+
+	if header.BaseFee != nil {
+		baseFee = new(big.Int).Set(header.BaseFee)
 	}
 
 	ctx := vm.BlockContext{
@@ -52,6 +60,7 @@ func NewBlockContext(header *types.Header, chain chainContext, txFeeRecipient *c
 		Coinbase:    beneficiary,
 		BlockNumber: new(big.Int).Set(header.Number),
 		Time:        new(big.Int).SetUint64(header.Time),
+		BaseFee:     baseFee,
 
 		IsGoldTokenAddress: IsGoldTokenAddress,
 	}

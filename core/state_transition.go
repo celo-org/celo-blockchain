@@ -27,10 +27,10 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/contracts/erc20gas"
-	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
+	gpm "github.com/celo-org/celo-blockchain/eth/gasprice"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 	// cmath "github.com/celo-org/celo-blockchain/common/math"
@@ -204,7 +204,7 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRu
 	if evm.ChainConfig().IsEspresso(evm.Context.BlockNumber) {
 		baseFee = sysCtx.GetGasPriceMinimum(msg.FeeCurrency())
 	} else {
-		baseFee, _ = gpm.GetGasPriceMinimum(vmRunner, msg.FeeCurrency())
+		baseFee, _ = gpm.GetBaseFeeForCurrency(vmRunner, msg.FeeCurrency(), nil)
 	}
 
 	return &StateTransition{

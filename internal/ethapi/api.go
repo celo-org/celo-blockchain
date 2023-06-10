@@ -756,12 +756,16 @@ func addEthCompatibilityFields(ctx context.Context, block map[string]interface{}
 		block["gasLimit"] = hexutil.Uint64(gasLimit)
 	}
 
-	// Providing nil as the currency address gets the gas price minimum for the native celo asset.
-	baseFee, err := b.RealGasPriceMinimumForHeader(ctx, nil, header)
-	if err != nil {
-		log.Debug("Not adding baseFeePerGas to RPC response, failed to retrieve gas price minimum", "block", header.Number.Uint64(), "err", err)
+	if header.BaseFee != nil {
+		block["baseFeePerGas"] = (*hexutil.Big)(header.BaseFee)
 	} else {
-		block["baseFeePerGas"] = (*hexutil.Big)(baseFee)
+		// Providing nil as the currency address gets the gas price minimum for the native celo asset.
+		baseFee, err := b.RealGasPriceMinimumForHeader(ctx, nil, header)
+		if err != nil {
+			log.Debug("Not adding baseFeePerGas to RPC response, failed to retrieve gas price minimum", "block", header.Number.Uint64(), "err", err)
+		} else {
+			block["baseFeePerGas"] = (*hexutil.Big)(baseFee)
+		}
 	}
 
 	block["difficulty"] = "0x0"
@@ -892,7 +896,7 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 	}
 
 	// Get a new instance of the EVM.
-	msg, err := args.ToMessage(globalGasCap, common.Big0) // core.ApplyMessageWithoutGasPriceMinimum below will eventually set basefee to 0
+	msg, err := args.ToMessage(globalGasCap, header.BaseFee) // core.ApplyMessageWithoutGasPriceMinimum below will eventually set basefee to 0
 	if err != nil {
 		return nil, err
 	}
@@ -909,7 +913,13 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 
 	// Execute the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
-	result, err := core.ApplyMessageWithoutGasPriceMinimum(evm, msg, gp, b.NewEVMRunner(header, state), sysCtx)
+	vmRunner := b.NewEVMRunner(header, state)
+	var result *core.ExecutionResult
+	if b.ChainConfig().IsGFork(header.Number) {
+		result, err = core.ApplyMessage(evm, msg, gp, vmRunner, sysCtx)
+	} else {
+		result, err = core.ApplyMessageWithoutGasPriceMinimum(evm, msg, gp, vmRunner, sysCtx)
+	}
 	if err := vmError(); err != nil {
 		return nil, err
 	}
@@ -1137,6 +1147,10 @@ func RPCMarshalHeader(head *types.Header) map[string]interface{} {
 		"timestamp":        hexutil.Uint64(head.Time),
 		"transactionsRoot": head.TxHash,
 		"receiptsRoot":     head.ReceiptHash,
+	}
+
+	if head.BaseFee != nil {
+		result["baseFeePerGas"] = (*hexutil.Big)(head.BaseFee)
 	}
 
 	return result
@@ -1562,12 +1576,24 @@ func getGasPriceMinimumFromState(ctx context.Context, b Backend, blockHash commo
 		if err != nil {
 			return nil, err
 		}
+		if b.ChainConfig().IsGFork(header.Number) {
+			if feeCurrency == nil {
+				return header.BaseFee, nil
+			} else {
 
+			}
+		}
 		return getGasPriceMinimumFromStateWithHeader(ctx, b, header)(feeCurrency)
 	}
 }
 
 func getGasPriceMinimumFromStateWithHeader(ctx context.Context, b Backend, header *types.Header) func(feeCurrency *common.Address) (*big.Int, error) {
+	return func(feeCurrency *common.Address) (*big.Int, error) {
+		return b.GasPriceMinimumForHeader(ctx, feeCurrency, header)
+	}
+}
+
+func getRateFromStateWithHeader(ctx context.Context, b Backend, header *types.Header) func(feeCurrency *common.Address) (*big.Int, error) {
 	return func(feeCurrency *common.Address) (*big.Int, error) {
 		return b.GasPriceMinimumForHeader(ctx, feeCurrency, header)
 	}

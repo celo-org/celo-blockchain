@@ -509,9 +509,11 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
 	snapshot = state.Snapshot()
-	_, err = gpm.UpdateGasPriceMinimum(vmRunner, header.GasUsed)
-	if err != nil {
-		state.RevertToSnapshot(snapshot)
+	if !sb.ChainConfig().IsGFork(header.Number) {
+		_, err = gpm.UpdateGasPriceMinimum(vmRunner, header.GasUsed)
+		if err != nil {
+			state.RevertToSnapshot(snapshot)
+		}
 	}
 
 	lastBlockOfEpoch := istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch)

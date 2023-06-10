@@ -67,6 +67,8 @@ type JumpTable [256]*operation
 // constantinople, istanbul, petersburg, espresso and g-fork instructions.
 func newGforkInstructionSet() JumpTable {
 	instructionSet := newEspressoInstructionSet()
+	enable3198(&instructionSet) // Base fee opcode https://eips.ethereum.org/EIPS/eip-3198
+
 	return instructionSet
 }
 

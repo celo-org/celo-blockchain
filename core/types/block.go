@@ -54,6 +54,9 @@ type Header struct {
 	Time        uint64         `json:"timestamp"        gencodec:"required"`
 	Extra       []byte         `json:"extraData"        gencodec:"required"`
 
+	// BaseFee is ignored in legacy headers.
+	BaseFee *big.Int `json:"baseFeePerGas" rlp:"optional"`
+
 	// Used to cache deserialized istanbul extra data
 	extraLock  sync.Mutex
 	extraValue *IstanbulExtra
@@ -66,6 +69,7 @@ type headerMarshaling struct {
 	GasUsed hexutil.Uint64
 	Time    hexutil.Uint64
 	Extra   hexutil.Bytes
+	BaseFee *hexutil.Big
 	Hash    common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
 }
 
@@ -99,6 +103,11 @@ func (h *Header) SanityCheck() error {
 	}
 	if eLen := len(h.Extra); eLen > 100*1024 {
 		return fmt.Errorf("too large block extradata: size %d", eLen)
+	}
+	if h.BaseFee != nil {
+		if bfLen := h.BaseFee.BitLen(); bfLen > 256 {
+			return fmt.Errorf("too large base fee: bitlen %d", bfLen)
+		}
 	}
 	return nil
 }

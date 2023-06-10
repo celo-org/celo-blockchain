@@ -25,6 +25,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/contracts/random"
@@ -99,6 +100,17 @@ func prepareBlock(w *worker) (*blockState, error) {
 		return nil, fmt.Errorf("Failed to get the parent state: %w:", err)
 	}
 	state.StartPrefetcher("miner")
+
+	// Set baseFee as part of the GFork
+	if w.chainConfig.IsGFork(header.Number) {
+		// Needs the baseFee of the last Header
+		parentVmRunner := w.chain.NewEVMRunner(parent.Header(), state)
+		header.BaseFee, err = misc.CalcBaseFee(w.chainConfig, parent.Header(), parentVmRunner)
+		if err != nil {
+			log.Error("Error in calculating the base fee", "error", err, "number", header.Number.Uint64())
+			return nil, err
+		}
+	}
 
 	vmRunner := w.chain.NewEVMRunner(header, state)
 	b := &blockState{
