@@ -115,6 +115,7 @@ type headerMarshaling struct {
 func (h *Header) Hash() common.Hash {
 	// Seal is reserved in extra-data. To prove block is signed by the proposer.
 	if len(h.Extra) >= IstanbulExtraVanity {
+		// This branch is always used during normal Celo operation, but not in all tests.
 		if istanbulHeader := IstanbulFilteredHeader(h, true); istanbulHeader != nil {
 			return rlpHash(istanbulHeader)
 		}
