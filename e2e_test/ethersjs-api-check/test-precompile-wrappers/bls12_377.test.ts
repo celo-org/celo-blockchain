@@ -20,8 +20,8 @@ function split2(n: any) {
 }
 
 function combine(a: any, b: any) {
-  let aa = a._hex.substr(2).padStart(64, "0");
-  let bb = b._hex.substr(2).padStart(64, "0");
+  let aa = ethers.toBeHex(a).substr(2).padStart(64, "0");
+  let bb = ethers.toBeHex(b).substr(2).padStart(64, "0");
   return BigInt("0x" + aa + bb);
 }
 
@@ -30,22 +30,14 @@ describe("BLS12-377", function () {
   this.timeout(60000);
 
   before(async () => {
-    const provider = new ethers.providers.JsonRpcProvider(process.env.npm_config_networkaddr);
-    const signerKey: any = ethers.utils.hexlify(process.env.npm_config_signerkey!)
+    const provider = new ethers.JsonRpcProvider(process.env.npm_config_networkaddr);
+    const signerKey: any = ethers.toBeHex(process.env.npm_config_signerkey!)
     const signer = new ethers.Wallet(signerKey, provider);
 
     const contractJSON = fs.readFileSync("../../compiled-system-contracts/BLS12_377Passthrough.json", 'utf8');
     const TestContractFactory = ethers.ContractFactory.fromSolidity(contractJSON, signer);
     instance = await TestContractFactory.deploy();
   });
-
-  // before(async () => {
-  //   const BLS12_377Passthrough = await ethers.getContractFactory(
-  //     "BLS12_377Passthrough"
-  //   );
-  //   // instance = BLS12_377Passthrough.attach('0x5d432D9AA925210DfbCfd967E884C216853dC017');
-  //   instance = await BLS12_377Passthrough.deploy();
-  // });
 
   it("fpNormal works", async () => {
     let base = BigInt('0x1ae3a4617c510eac63b05c06ca1493b1a22d9f300f5138f1ef3622fba094800170b5d44300000008508c00000000001');

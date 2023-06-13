@@ -9,8 +9,8 @@ describe("CIP20", function () {
   this.timeout(25000);
 
   before(async () => {
-    const provider = new ethers.providers.JsonRpcProvider(process.env.npm_config_networkaddr);
-    const signerKey: any = ethers.utils.hexlify(process.env.npm_config_signerkey!)
+    const provider = new ethers.JsonRpcProvider(process.env.npm_config_networkaddr);
+    const signerKey: any = ethers.toBeHex(process.env.npm_config_signerkey!)
     const signer = new ethers.Wallet(signerKey, provider);
 
     const contractJSON = fs.readFileSync("../../compiled-system-contracts/CIP20Test.json", 'utf8');

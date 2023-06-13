@@ -20,8 +20,8 @@ function split2(n: any) {
 }
 
 function combine(a: any, b: any) {
-  let aa = a._hex.substr(2).padStart(64, "0");
-  let bb = b._hex.substr(2).padStart(64, "0");
+  let aa = ethers.toBeHex(a).substr(2).padStart(64, "0");
+  let bb = ethers.toBeHex(b).substr(2).padStart(64, "0");
   return BigInt("0x" + aa + bb);
 }
 
@@ -30,8 +30,8 @@ describe("BLS12-381", function () {
   this.timeout(60000);
 
   before(async () => {
-    const provider = new ethers.providers.JsonRpcProvider(process.env.npm_config_networkaddr);
-    const signerKey: any = ethers.utils.hexlify(process.env.npm_config_signerkey!)
+    const provider = new ethers.JsonRpcProvider(process.env.npm_config_networkaddr);
+    const signerKey: any = ethers.toBeHex(process.env.npm_config_signerkey!)
     const signer = new ethers.Wallet(signerKey, provider);
 
     const contractJSON = fs.readFileSync("../../compiled-system-contracts/BLS12_381Passthrough.json", 'utf8');
