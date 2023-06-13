@@ -278,7 +278,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		Coinbase:   g.Coinbase,
 		Root:       root,
 	}
-	if g.Config != nil && g.Config.IsGFork(common.Big0) {
+	if g.Config != nil && g.Config.IsGingerbread(common.Big0) {
 		head.Nonce = types.EncodeNonce(0)
 		head.GasLimit = params.GenesisGasLimit
 		head.Difficulty = common.Big0

@@ -87,7 +87,7 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 	}
 	// After london, default to 1559 unless gasPrice is set
 	currentBlockNumber := b.CurrentHeader().Number
-	isGFork := b.ChainConfig().IsGFork(currentBlockNumber)
+	isGingerbread := b.ChainConfig().IsGingerbread(currentBlockNumber)
 
 	// If user specifies both maxPriorityfee and maxFee, then we do not
 	// need to consult the chain for defaults. It's definitely a London tx.
@@ -151,7 +151,7 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 	if args.To == nil && len(args.data()) == 0 {
 		return errors.New(`contract creation without any data provided`)
 	}
-	if args.GatewayFeeRecipient == nil && !args.EthCompatible && !isGFork {
+	if args.GatewayFeeRecipient == nil && !args.EthCompatible && !isGingerbread {
 		recipient := b.GatewayFeeRecipient()
 		if (recipient != common.Address{}) {
 			args.GatewayFeeRecipient = &recipient
@@ -183,7 +183,7 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 		args.Gas = &estimated
 		log.Trace("Estimate gas usage automatically", "gas", args.Gas)
 	}
-	if args.GatewayFeeRecipient != nil && args.GatewayFee == nil && !isGFork {
+	if args.GatewayFeeRecipient != nil && args.GatewayFee == nil && !isGingerbread {
 		args.GatewayFee = (*hexutil.Big)(b.GatewayFee())
 	}
 	if args.ChainID == nil {

@@ -604,7 +604,7 @@ func TestEthersJSCompatibilityDisableAfterGingerbread(t *testing.T) {
 
 	for _, field := range []string{"gasLimit", "baseFeePerGas", "sha3Uncles", "uncles", "nonce", "mixHash", "difficulty"} {
 		_, ok := result[field]
-		assert.Truef(t, ok, "%s field should be present on RPC block after GFork", field)
+		assert.Truef(t, ok, "%s field should be present on RPC block after Gingerbread", field)
 	}
 	require.Equal(t, result["sha3Uncles"], "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347")
 
@@ -621,21 +621,21 @@ func TestEthersJSCompatibilityDisableAfterGingerbread(t *testing.T) {
 	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
 	require.NoError(t, err)
 
-	// After GFork, gasLimit should be returned directly from the header, even if
+	// After Gingerbread, gasLimit should be returned directly from the header, even if
 	// RPCEthCompatibility is off, since it is now part of the header hash.
 	_, ok := result["gasLimit"]
-	assert.True(t, ok, "gasLimit field must be present on RPC block after GFork")
+	assert.True(t, ok, "gasLimit field must be present on RPC block after Gingerbread")
 	_, ok = result["baseFeePerGas"]
 	assert.False(t, ok, "baseFeePerGas field must be present on RPC block")
 }
 
 // This test checks the functionality of the configuration to enable/disable
-// returning the 'gasLimit' and 'baseFeePerGas' fields on RPC blocks before the GFork happened.
-// GFork is relevant because it added the gasLimit to the header.
-func TestEthersJSCompatibilityDisableBeforeGFork(t *testing.T) {
+// returning the 'gasLimit' and 'baseFeePerGas' fields on RPC blocks before the Gingerbread happened.
+// Gingerbread is relevant because it added the gasLimit to the header.
+func TestEthersJSCompatibilityDisableBeforeGingerbread(t *testing.T) {
 	ac := test.AccountConfig(1, 1)
 	gc, ec, err := test.BuildConfig(ac)
-	gc.Hardforks.GForkBlock = nil
+	gc.Hardforks.GingerbreadBlock = nil
 	require.NoError(t, err)
 
 	// Check fields present (compatibility set by default)
@@ -652,11 +652,11 @@ func TestEthersJSCompatibilityDisableBeforeGFork(t *testing.T) {
 
 	for _, field := range []string{"gasLimit", "baseFeePerGas", "difficulty"} {
 		_, ok := result[field]
-		assert.Truef(t, ok, "%s field should be present on RPC block before GFork", field)
+		assert.Truef(t, ok, "%s field should be present on RPC block before Gingerbread", field)
 	}
 	for _, field := range []string{"sha3Uncles", "uncles", "nonce", "mixHash"} {
 		_, ok := result[field]
-		assert.Falsef(t, ok, "%s field should not be present on RPC block before GFork", field)
+		assert.Falsef(t, ok, "%s field should not be present on RPC block before Gingerbread", field)
 	}
 
 	// Turn off compatibility and check fields are not present
@@ -674,6 +674,6 @@ func TestEthersJSCompatibilityDisableBeforeGFork(t *testing.T) {
 
 	for _, field := range []string{"gasLimit", "baseFeePerGas", "sha3Uncles", "uncles", "nonce", "mixHash", "difficulty"} {
 		_, ok := result[field]
-		assert.Falsef(t, ok, "%s field should not be present on RPC block before GFork", field)
+		assert.Falsef(t, ok, "%s field should not be present on RPC block before Gingerbread", field)
 	}
 }
