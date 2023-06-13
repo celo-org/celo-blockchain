@@ -123,6 +123,13 @@ func prepareBlock(w *worker) (*blockState, error) {
 		sysCtx:         core.NewSysContractCallCtx(header, state.Copy(), w.chain),
 	}
 	b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
+	if w.chainConfig.IsGFork(header.Number) {
+		header.GasLimit = b.gasLimit
+		header.Difficulty = big.NewInt(0)
+		header.Nonce = types.EncodeNonce(0)
+		header.UncleHash = types.EmptyUncleHash
+		header.MixDigest = types.EmptyMixDigest
+	}
 
 	// Play our part in generating the random beacon.
 	if w.isRunning() && random.IsRunning(vmRunner) {

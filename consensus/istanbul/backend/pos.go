@@ -119,8 +119,14 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 		return err
 	}
 
-	if err := sb.distributeCommunityRewards(vmRunner, communityReward); err != nil {
-		return err
+	if sb.ChainConfig().IsGFork(header.Number) {
+		if err := sb.distributeCommunityRewards(vmRunner, communityReward); err != nil {
+			return err
+		}
+	} else {
+		if err := sb.distributeCommunityRewardsWithReserveFallback(vmRunner, communityReward); err != nil {
+			return err
+		}
 	}
 
 	if err := sb.distributeVoterRewards(vmRunner, valSet, totalVoterRewards, uptimes); err != nil {
@@ -174,6 +180,18 @@ func (sb *Backend) distributeValidatorRewards(vmRunner vm.EVMRunner, valSet []is
 }
 
 func (sb *Backend) distributeCommunityRewards(vmRunner vm.EVMRunner, communityReward *big.Int) error {
+	governanceAddress, err := contracts.GetRegisteredAddress(vmRunner, config.GovernanceRegistryId)
+	if err != nil {
+		return err
+	}
+	if governanceAddress != common.ZeroAddress {
+		// TODO: How to split eco fund here
+		return gold_token.Mint(vmRunner, governanceAddress, communityReward)
+	}
+	return nil
+}
+
+func (sb *Backend) distributeCommunityRewardsWithReserveFallback(vmRunner vm.EVMRunner, communityReward *big.Int) error {
 	governanceAddress, err := contracts.GetRegisteredAddress(vmRunner, config.GovernanceRegistryId)
 	if err != nil {
 		return err

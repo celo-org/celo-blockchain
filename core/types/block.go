@@ -18,6 +18,7 @@
 package types
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -35,9 +36,38 @@ import (
 
 var (
 	EmptyRootHash       = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+	EmptyUncleHash      = rlpHash([]*Header(nil)) // 1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347
 	EmptyRandomness     = Randomness{}
 	EmptyEpochSnarkData = EpochSnarkData{}
+	EmptyMixDigest      = common.HexToHash("0000000000000000000000000000000000000000000000000000000000000000")
 )
+
+// A BlockNonce is a 64-bit hash which proves (combined with the
+// mix-hash) that a sufficient amount of computation has been carried
+// out on a block.
+type BlockNonce [8]byte
+
+// EncodeNonce converts the given integer to a block nonce.
+func EncodeNonce(i uint64) BlockNonce {
+	var n BlockNonce
+	binary.BigEndian.PutUint64(n[:], i)
+	return n
+}
+
+// Uint64 returns the integer value of a block nonce.
+func (n BlockNonce) Uint64() uint64 {
+	return binary.BigEndian.Uint64(n[:])
+}
+
+// MarshalText encodes n as a hex string with 0x prefix.
+func (n BlockNonce) MarshalText() ([]byte, error) {
+	return hexutil.Bytes(n[:]).MarshalText()
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (n *BlockNonce) UnmarshalText(input []byte) error {
+	return hexutil.UnmarshalFixedText("BlockNonce", input, n[:])
+}
 
 //go:generate gencodec -type Header -field-override headerMarshaling -out gen_header_json.go
 
@@ -54,23 +84,32 @@ type Header struct {
 	Time        uint64         `json:"timestamp"        gencodec:"required"`
 	Extra       []byte         `json:"extraData"        gencodec:"required"`
 
-	// BaseFee is ignored in legacy headers.
-	BaseFee *big.Int `json:"baseFeePerGas" rlp:"optional"`
-
 	// Used to cache deserialized istanbul extra data
 	extraLock  sync.Mutex
 	extraValue *IstanbulExtra
 	extraError error
+
+	GasLimit uint64 `json:"gasLimit" rlp:"optional"`
+	// Proof-of-work fields for Eth compatibility
+	Difficulty *big.Int    `json:"difficulty" rlp:"optional"`
+	Nonce      BlockNonce  `json:"nonce"      rlp:"optional"`
+	UncleHash  common.Hash `json:"sha3Uncles" rlp:"optional"`
+	MixDigest  common.Hash `json:"mixHash"    rlp:"optional"`
+
+	// BaseFee is ignored in legacy headers.
+	BaseFee *big.Int `json:"baseFeePerGas" rlp:"optional"`
 }
 
 // field type overrides for gencodec
 type headerMarshaling struct {
-	Number  *hexutil.Big
-	GasUsed hexutil.Uint64
-	Time    hexutil.Uint64
-	Extra   hexutil.Bytes
-	BaseFee *hexutil.Big
-	Hash    common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
+	Number     *hexutil.Big
+	GasLimit   hexutil.Uint64
+	GasUsed    hexutil.Uint64
+	Time       hexutil.Uint64
+	Extra      hexutil.Bytes
+	Hash       common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
+	Difficulty *hexutil.Big
+	BaseFee    *hexutil.Big
 }
 
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
@@ -292,14 +331,19 @@ func NewBlockWithHeader(header *Header) *Block {
 func CopyHeader(h *Header) *Header {
 	cpy := Header{
 		ParentHash:  h.ParentHash,
+		UncleHash:   h.UncleHash,
 		Coinbase:    h.Coinbase,
 		Root:        h.Root,
 		TxHash:      h.TxHash,
 		ReceiptHash: h.ReceiptHash,
 		Bloom:       h.Bloom,
+		Difficulty:  h.Difficulty,
 		Number:      new(big.Int),
+		GasLimit:    h.GasLimit,
 		GasUsed:     h.GasUsed,
 		Time:        h.Time,
+		MixDigest:   h.MixDigest,
+		Nonce:       h.Nonce,
 	}
 
 	if h.Number != nil {
@@ -350,17 +394,23 @@ func (b *Block) Transaction(hash common.Hash) *Transaction {
 }
 
 func (b *Block) Number() *big.Int          { return new(big.Int).Set(b.header.Number) }
+func (b *Block) GasLimit() uint64          { return b.header.GasLimit }
 func (b *Block) GasUsed() uint64           { return b.header.GasUsed }
+func (b *Block) Difficulty() *big.Int      { return new(big.Int).Set(b.header.Difficulty) }
 func (b *Block) Time() uint64              { return b.header.Time }
 func (b *Block) TotalDifficulty() *big.Int { return new(big.Int).Add(b.header.Number, big.NewInt(1)) }
-func (b *Block) NumberU64() uint64         { return b.header.Number.Uint64() }
-func (b *Block) Bloom() Bloom              { return b.header.Bloom }
-func (b *Block) Coinbase() common.Address  { return b.header.Coinbase }
-func (b *Block) Root() common.Hash         { return b.header.Root }
-func (b *Block) ParentHash() common.Hash   { return b.header.ParentHash }
-func (b *Block) TxHash() common.Hash       { return b.header.TxHash }
-func (b *Block) ReceiptHash() common.Hash  { return b.header.ReceiptHash }
-func (b *Block) Extra() []byte             { return common.CopyBytes(b.header.Extra) }
+
+func (b *Block) NumberU64() uint64        { return b.header.Number.Uint64() }
+func (b *Block) MixDigest() common.Hash   { return b.header.MixDigest }
+func (b *Block) Nonce() uint64            { return binary.BigEndian.Uint64(b.header.Nonce[:]) }
+func (b *Block) Bloom() Bloom             { return b.header.Bloom }
+func (b *Block) Coinbase() common.Address { return b.header.Coinbase }
+func (b *Block) Root() common.Hash        { return b.header.Root }
+func (b *Block) ParentHash() common.Hash  { return b.header.ParentHash }
+func (b *Block) TxHash() common.Hash      { return b.header.TxHash }
+func (b *Block) ReceiptHash() common.Hash { return b.header.ReceiptHash }
+func (b *Block) UncleHash() common.Hash   { return b.header.UncleHash }
+func (b *Block) Extra() []byte            { return common.CopyBytes(b.header.Extra) }
 
 func (b *Block) Header() *Header        { return CopyHeader(b.header) }
 func (b *Block) MutableHeader() *Header { return b.header }

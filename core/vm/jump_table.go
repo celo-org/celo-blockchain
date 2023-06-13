@@ -68,7 +68,12 @@ type JumpTable [256]*operation
 func newGforkInstructionSet() JumpTable {
 	instructionSet := newEspressoInstructionSet()
 	enable3198(&instructionSet) // Base fee opcode https://eips.ethereum.org/EIPS/eip-3198
-
+	instructionSet[GASLIMIT] = &operation{
+		execute:     opGasLimit,
+		constantGas: GasQuickStep,
+		minStack:    minStack(0, 1),
+		maxStack:    maxStack(0, 1),
+	}
 	return instructionSet
 }
 

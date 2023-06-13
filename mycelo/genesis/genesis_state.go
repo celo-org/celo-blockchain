@@ -326,7 +326,6 @@ func (ctx *deployContext) deployGovernance() error {
 			ctx.genesisConfig.Governance.MinDeposit,
 			newBigInt(ctx.genesisConfig.Governance.QueueExpiry),
 			newBigInt(ctx.genesisConfig.Governance.DequeueFrequency),
-			newBigInt(ctx.genesisConfig.Governance.ApprovalStageDuration),
 			newBigInt(ctx.genesisConfig.Governance.ReferendumStageDuration),
 			newBigInt(ctx.genesisConfig.Governance.ExecutionStageDuration),
 			ctx.genesisConfig.Governance.ParticipationBaseline.BigInt(),
