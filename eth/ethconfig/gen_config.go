@@ -62,7 +62,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		RPCEthCompatibility     bool
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
-		OverrideEHardfork       *big.Int                       `toml:",omitempty"`
+		OverrideGingerbread     *big.Int                       `toml:",omitempty"`
 		MinSyncPeers            int                            `toml:",omitempty"`
 	}
 	var enc Config
@@ -111,7 +111,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.RPCEthCompatibility = c.RPCEthCompatibility
 	enc.Checkpoint = c.Checkpoint
 	enc.CheckpointOracle = c.CheckpointOracle
-	enc.OverrideEHardfork = c.OverrideEHardfork
+	enc.OverrideGingerbread = c.OverrideGingerbread
 	enc.MinSyncPeers = c.MinSyncPeers
 	return &enc, nil
 }
@@ -164,7 +164,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		RPCEthCompatibility     *bool
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
-		OverrideEHardfork       *big.Int                       `toml:",omitempty"`
+		OverrideGingerbread     *big.Int                       `toml:",omitempty"`
 		MinSyncPeers            *int                           `toml:",omitempty"`
 	}
 	var dec Config
@@ -306,8 +306,8 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.CheckpointOracle != nil {
 		c.CheckpointOracle = dec.CheckpointOracle
 	}
-	if dec.OverrideEHardfork != nil {
-		c.OverrideEHardfork = dec.OverrideEHardfork
+	if dec.OverrideGingerbread != nil {
+		c.OverrideGingerbread = dec.OverrideGingerbread
 	}
 	if dec.MinSyncPeers != nil {
 		c.MinSyncPeers = *dec.MinSyncPeers
