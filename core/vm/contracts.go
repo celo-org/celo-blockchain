@@ -66,7 +66,7 @@ var PrecompiledContractsByzantium = map[common.Address]CeloPrecompiledContract{
 	// Celo Precompiled Contracts
 	celoPrecompileAddress(2):  &transfer{},
 	celoPrecompileAddress(3):  &fractionMulExp{},
-	celoPrecompileAddress(4):  &proofOfPossession{},
+	celoPrecompileAddress(4):  &wrap{&proofOfPossession{}},
 	celoPrecompileAddress(5):  &getValidator{},
 	celoPrecompileAddress(6):  &numberValidators{},
 	celoPrecompileAddress(7):  &epochSize{},
@@ -92,7 +92,7 @@ var PrecompiledContractsIstanbul = map[common.Address]CeloPrecompiledContract{
 	// Celo Precompiled Contracts
 	celoPrecompileAddress(2):  &transfer{},
 	celoPrecompileAddress(3):  &fractionMulExp{},
-	celoPrecompileAddress(4):  &proofOfPossession{},
+	celoPrecompileAddress(4):  &wrap{&proofOfPossession{}},
 	celoPrecompileAddress(5):  &getValidator{},
 	celoPrecompileAddress(6):  &numberValidators{},
 	celoPrecompileAddress(7):  &epochSize{},
@@ -118,7 +118,7 @@ var PrecompiledContractsDonut = map[common.Address]CeloPrecompiledContract{
 	// Celo Precompiled Contracts
 	celoPrecompileAddress(2):  &transfer{},
 	celoPrecompileAddress(3):  &fractionMulExp{},
-	celoPrecompileAddress(4):  &proofOfPossession{},
+	celoPrecompileAddress(4):  &wrap{&proofOfPossession{}},
 	celoPrecompileAddress(5):  &getValidator{},
 	celoPrecompileAddress(6):  &numberValidators{},
 	celoPrecompileAddress(7):  &epochSize{},
@@ -164,7 +164,7 @@ var PrecompiledContractsE = map[common.Address]CeloPrecompiledContract{
 	// Celo Precompiled Contracts
 	celoPrecompileAddress(2):  &transfer{},
 	celoPrecompileAddress(3):  &fractionMulExp{},
-	celoPrecompileAddress(4):  &proofOfPossession{},
+	celoPrecompileAddress(4):  &wrap{&proofOfPossession{}},
 	celoPrecompileAddress(5):  &getValidator{},
 	celoPrecompileAddress(6):  &numberValidators{},
 	celoPrecompileAddress(7):  &epochSize{},
