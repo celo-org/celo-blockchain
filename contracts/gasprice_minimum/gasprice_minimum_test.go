@@ -11,31 +11,6 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
 )
 
-func TestGetGasPriceSuggestion(t *testing.T) {
-	celoAddress := common.HexToAddress("0x076")
-	gpmAddress := common.HexToAddress("0x090")
-
-	t.Run("should return gas price minimum multiplied by 5", func(t *testing.T) {
-		g := NewGomegaWithT(t)
-
-		runner := testutil.NewMockEVMRunner()
-		registry := testutil.NewRegistryMock()
-		runner.RegisterContract(config.RegistrySmartContractAddress, registry)
-		registry.AddContract(config.GoldTokenRegistryId, celoAddress)
-
-		contract := testutil.NewSingleMethodContract(config.GasPriceMinimumRegistryId, "getGasPriceMinimum",
-			func(currency common.Address) *big.Int { return big.NewInt(777777) },
-		)
-		runner.RegisterContract(gpmAddress, contract)
-		registry.AddContract(config.GasPriceMinimumRegistryId, gpmAddress)
-
-		suggestedGpm, err := GetGasPriceSuggestion(runner, nil)
-		g.Expect(err).NotTo(HaveOccurred())
-
-		g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(777777 * 5)))
-
-	})
-}
 func TestGetGasPriceMinimum(t *testing.T) {
 	cusdAddress := common.HexToAddress("0x077")
 	celoAddress := common.HexToAddress("0x076")
