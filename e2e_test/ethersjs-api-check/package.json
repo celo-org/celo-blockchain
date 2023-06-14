@@ -18,7 +18,7 @@
     "typescript": "^5.0.4"
   },
   "dependencies": {
-    "ethers": "^6.3.0",
+    "ethers": "^6.6.0",
     "ts-node": "^10.9.1"
   }
 }
