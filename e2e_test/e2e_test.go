@@ -585,7 +585,7 @@ func TestEthersJSCompatibility(t *testing.T) {
 
 // This test checks the functionality of the configuration to enable/disable
 // returning the 'gasLimit' and 'baseFeePerGas' fields on RPC blocks.
-func TestEthersJSCompatibilityDisable(t *testing.T) {
+func TestEthersJSCompatibilityDisableAfterGingerbread(t *testing.T) {
 	ac := test.AccountConfig(1, 1)
 	gc, ec, err := test.BuildConfig(ac)
 	require.NoError(t, err)
@@ -606,6 +606,7 @@ func TestEthersJSCompatibilityDisable(t *testing.T) {
 		_, ok := result[field]
 		assert.Truef(t, ok, "%s field should be present on RPC block after GFork", field)
 	}
+	require.Equal(t, result["sha3Uncles"], "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347")
 
 	// Turn off compatibility and check fields are not present
 	ec.RPCEthCompatibility = false
