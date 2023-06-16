@@ -341,7 +341,57 @@ func TestInvalidTransactions(t *testing.T) {
 		t.Error("expected", ErrIntrinsicGas, "got", err)
 	}
 
-	// TODO(joshua): Convert this to testAddGatewayFee
+	// Adding a gateway fee should result in deprecation error.
+	tx = lesTransaction(0, 100, big.NewInt(50), key)
+	if err := pool.AddRemote(tx); err != ErrGatewayFeeDeprecated {
+		t.Error("expected", ErrGatewayFeeDeprecated, "got", err)
+	}
+
+	// Should still return a deprecation error.
+	pool.currentState.AddBalance(from, tx.GatewayFee())
+	if err := pool.AddRemote(tx); err != ErrGatewayFeeDeprecated {
+		t.Error("expected", ErrGatewayFeeDeprecated, "got", err)
+	}
+
+	testSetNonce(pool, from, 1)
+	testAddBalance(pool, from, big.NewInt(0xffffffffffffff))
+
+	tx = transaction(0, 100000, key)
+	if err := pool.AddRemote(tx); !errors.Is(err, ErrNonceTooLow) {
+		t.Error("expected", ErrNonceTooLow)
+	}
+
+	tx = transaction(1, 100000, key)
+	pool.gasPrice = big.NewInt(1000)
+	if err := pool.AddRemote(tx); err != ErrUnderpriced {
+		t.Error("expected", ErrUnderpriced, "got", err)
+	}
+	if err := pool.AddLocal(tx); err != nil {
+		t.Error("expected", nil, "got", err)
+	}
+}
+
+func TestInvalidTransactionsPreGFork(t *testing.T) {
+	t.Parallel()
+
+	pool, key := setupTxPool()
+	defer pool.Stop()
+	pool.gfork = false
+
+	tx := transaction(0, 100, key)
+	from, _ := deriveSender(tx)
+
+	testAddBalance(pool, from, big.NewInt(1))
+	if err := pool.AddRemote(tx); !errors.Is(err, ErrInsufficientFunds) {
+		t.Error("expected", ErrInsufficientFunds)
+	}
+
+	balance := new(big.Int).Add(tx.Value(), new(big.Int).Mul(new(big.Int).SetUint64(tx.Gas()), tx.GasPrice()))
+	testAddBalance(pool, from, balance)
+	if err := pool.AddRemote(tx); !errors.Is(err, ErrIntrinsicGas) {
+		t.Error("expected", ErrIntrinsicGas, "got", err)
+	}
+
 	// Adding a gateway fee should result in insufficient funds again.
 	tx = lesTransaction(0, 100, big.NewInt(50), key)
 	if err := pool.AddRemote(tx); err != ErrInsufficientFunds {

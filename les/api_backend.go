@@ -390,6 +390,9 @@ func (b *LesApiBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 }
 
 func (b *LesApiBackend) GatewayFeeRecipient() common.Address {
+	if b.ChainConfig().IsGFork(b.CurrentHeader().Number) {
+		return common.Address{}
+	}
 	return b.eth.GetRandomPeerEtherbase()
 }
 
