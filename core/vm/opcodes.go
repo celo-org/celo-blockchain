@@ -99,6 +99,7 @@ const (
 	COINBASE
 	TIMESTAMP
 	NUMBER
+	GASLIMIT    OpCode = 0x45
 	CHAINID     OpCode = 0x46
 	SELFBALANCE OpCode = 0x47
 	BASEFEE     OpCode = 0x48

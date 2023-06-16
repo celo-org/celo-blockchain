@@ -179,7 +179,7 @@ func (b *benchmarkTxSend) init(h *serverHandler, count int) error {
 		data := make([]byte, txSizeCostLimit)
 		// #nosec (not important)
 		rand.Read(data)
-		tx, err := types.SignTx(types.NewTransaction(0, addr, new(big.Int), 0, new(big.Int), nil, nil, nil, data), signer, key)
+		tx, err := types.SignTx(types.NewTransaction(0, addr, new(big.Int), 0, new(big.Int), data), signer, key)
 		if err != nil {
 			panic(err)
 		}

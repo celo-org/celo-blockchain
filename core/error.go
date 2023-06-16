@@ -64,32 +64,12 @@ var (
 	// is higher than the balance of the user's account.
 	ErrInsufficientFunds = errors.New("insufficient funds for gas * price + value + gatewayFee")
 
-	// ErrGasPriceDoesNotExceedMinimum is returned if the gas price specified doesn't meet the
-	// minimum specified by the GasPriceMinimum contract.
-	ErrGasPriceDoesNotExceedMinimum = errors.New("gasprice is less than gas price minimum")
-
-	// ErrGasPriceDoesNotExceedMinimumFloor is returned if the gas price specified doesn't meet the
-	// minimum floor specified by the GasPriceMinimum contract.
-	ErrGasPriceDoesNotExceedMinimumFloor = errors.New("gasprice is less than gas price minimum floor")
-
-	// ErrNonWhitelistedFeeCurrency is returned if the currency specified to use for the fees
-	// isn't one of the currencies whitelisted for that purpose.
-	ErrNonWhitelistedFeeCurrency = errors.New("non-whitelisted fee currency address")
-
 	// ErrGasUintOverflow is returned when calculating gas usage.
 	ErrGasUintOverflow = errors.New("gas uint64 overflow")
 
 	// ErrIntrinsicGas is returned if the transaction is specified to use less gas
 	// than required to start the invocation.
 	ErrIntrinsicGas = errors.New("intrinsic gas too low")
-
-	// ErrEthCompatibleTransactionsNotSupported is returned if the transaction omits the 3 Celo-only
-	// fields (FeeCurrency & co.) but support for this kind of transaction is not enabled.
-	ErrEthCompatibleTransactionsNotSupported = errors.New("support for eth-compatible transactions is not enabled")
-
-	// ErrUnprotectedTransaction is returned if replay protection is required (post-Donut) but the transaction doesn't
-	// use it.
-	ErrUnprotectedTransaction = errors.New("replay protection is required")
 
 	// ErrTxTypeNotSupported is returned if a transaction is not supported in the
 	// current network configuration.
@@ -113,4 +93,28 @@ var (
 
 	// ErrSenderNoEOA is returned if the sender of a transaction is a contract.
 	ErrSenderNoEOA = errors.New("sender not an eoa")
+
+	// ErrGasPriceDoesNotExceedMinimum is returned if the gas price specified doesn't meet the
+	// minimum specified by the GasPriceMinimum contract.
+	ErrGasPriceDoesNotExceedMinimum = errors.New("gasprice is less than gas price minimum")
+
+	// ErrGasPriceDoesNotExceedMinimumFloor is returned if the gas price specified doesn't meet the
+	// minimum floor specified by the GasPriceMinimum contract.
+	ErrGasPriceDoesNotExceedMinimumFloor = errors.New("gasprice is less than gas price minimum floor")
+
+	// ErrNonWhitelistedFeeCurrency is returned if the currency specified to use for the fees
+	// isn't one of the currencies whitelisted for that purpose.
+	ErrNonWhitelistedFeeCurrency = errors.New("non-whitelisted fee currency address")
+
+	// ErrEthCompatibleTransactionsNotSupported is returned if the transaction omits the 3 Celo-only
+	// fields (FeeCurrency & co.) but support for this kind of transaction is not enabled.
+	ErrEthCompatibleTransactionsNotSupported = errors.New("support for eth-compatible transactions is not enabled")
+
+	// ErrUnprotectedTransaction is returned if replay protection is required (post-Donut) but the transaction doesn't
+	// use it.
+	ErrUnprotectedTransaction = errors.New("replay protection is required")
+
+	// ErrGatewayFeeDeprecated is returned when a transaction containing a gateway fee is encountered after the
+	// G hardfork
+	ErrGatewayFeeDeprecated = errors.New("gateway fee is deprecated")
 )

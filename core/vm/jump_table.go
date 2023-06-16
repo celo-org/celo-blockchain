@@ -67,6 +67,12 @@ type JumpTable [256]*operation
 // constantinople, istanbul, petersburg, espresso and g-fork instructions.
 func newGforkInstructionSet() JumpTable {
 	instructionSet := newEspressoInstructionSet()
+	instructionSet[GASLIMIT] = &operation{
+		execute:     opGasLimit,
+		constantGas: GasQuickStep,
+		minStack:    minStack(0, 1),
+		maxStack:    maxStack(0, 1),
+	}
 	return instructionSet
 }
 

@@ -88,7 +88,7 @@ func Transition(ctx *cli.Context) error {
 	log.Root().SetHandler(glogger)
 
 	// TODO this command is broken: vmContext and vmRunner can not be created as required
-	log.Crit("Command does not work as expected. Requires Bug Fixing")
+	// log.Crit("Command does not work as expected. Requires Bug Fixing")
 
 	var (
 		err     error
@@ -255,7 +255,7 @@ func Transition(ctx *cli.Context) error {
 		return NewError(ErrorJson, fmt.Errorf("failed signing transactions: %v", err))
 	}
 	// Sanity check, to not `panic` in state_transition
-	if chainConfig.IsEspresso(big.NewInt(int64(prestate.Env.Number))) {
+	if chainConfig.IsLondon(big.NewInt(int64(prestate.Env.Number))) {
 		if prestate.Env.BaseFee == nil {
 			return NewError(ErrorVMConfig, errors.New("EIP-1559 config but missing 'currentBaseFee' in env section"))
 		}

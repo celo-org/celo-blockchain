@@ -207,7 +207,7 @@ func TestTraceCall(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil), signer, accounts[0].key)
 		b.AddTx(tx)
 	}))
 
@@ -336,7 +336,7 @@ func TestTraceTransaction(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil), signer, accounts[0].key)
 		b.AddTx(tx)
 		target = tx.Hash()
 	}))
@@ -385,7 +385,7 @@ func TestTraceTransactionWithRegistryDeployed(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil), signer, accounts[0].key)
 		b.AddTx(tx)
 		target = tx.Hash()
 	}))
@@ -419,7 +419,7 @@ func TestTraceBlock(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil), signer, accounts[0].key)
 		b.AddTx(tx)
 	}))
 
@@ -495,7 +495,7 @@ func TestTracingWithOverrides(t *testing.T) {
 		//    value: 1000 wei
 		//    fee:   0 wei
 		tx, _ := types.SignTx(
-			types.NewTransaction(
+			types.NewCeloTransaction(
 				uint64(i),
 				accounts[1].addr,
 				big.NewInt(1000),
@@ -547,7 +547,7 @@ func TestTracingWithOverrides(t *testing.T) {
 				Value: (*hexutil.Big)(big.NewInt(1000)),
 			},
 			config:    &TraceCallConfig{},
-			expectErr: core.ErrInsufficientFundsForTransfer,
+			expectErr: core.ErrInsufficientFunds,
 		},
 		// Successful simple contract call
 		//
@@ -581,7 +581,7 @@ func TestTracingWithOverrides(t *testing.T) {
 					},
 				},
 			},
-			want: `{"gas":21447,"failed":false,"returnValue":"000000000000000000000000000000000000000000000000000000000000007b"}`,
+			want: `{"gas":23347,"failed":false,"returnValue":"000000000000000000000000000000000000000000000000000000000000007b"}`,
 		},
 	}
 	for i, tc := range testSuite {
@@ -621,7 +621,7 @@ func TestTraceBlockWithEIP1559Tx(t *testing.T) {
 	// Initialize test accounts
 	accounts := newAccounts(2)
 	genesis := &core.Genesis{
-		Config: params.IstanbulEHFTestChainConfig,
+		Config: params.IstanbulTestChainConfig,
 		Alloc: core.GenesisAlloc{
 			accounts[0].addr: {Balance: big.NewInt(231001)},
 			accounts[1].addr: {Balance: common.Big0},
@@ -647,7 +647,7 @@ func TestTraceBlockWithEIP1559Tx(t *testing.T) {
 		// The account balance is chosen in a way that the second transaction won't be able to execute if the
 		// calculation is wrong.
 
-		bf := core.MockSysContractCallCtx().GetGasPriceMinimum(nil)
+		bf := core.MockSysContractCallCtx(common.Big0).GetGasPriceMinimum(nil)
 		tip := big.NewInt(2)
 		cap := new(big.Int).Set(common.Big1)
 		cap = cap.Add(cap, tip).Add(cap, bf)
@@ -705,6 +705,32 @@ func newAccounts(n int) (accounts Accounts) {
 	for i := 0; i < n; i++ {
 		key, _ := crypto.GenerateKey()
 		addr := crypto.PubkeyToAddress(key.PublicKey)
+		accounts = append(accounts, Account{key: key, addr: addr})
+	}
+	sort.Sort(accounts)
+	return accounts
+}
+
+// newAccountsWithoutBytesWithZero returns accounts which addresses don't have
+// 00-bytes in it. This is useful for tests that require to send addresses in
+// the data/input field, as having or not 00-bytes changes the gasLimit of the
+// operation which ends up creating flaky tests.
+func newAccountsWithoutBytesWithZero(n int) (accounts Accounts) {
+	for i := 0; i < n; i++ {
+		nonZeroAddress := false
+		var key *ecdsa.PrivateKey
+		var addr common.Address
+		for !nonZeroAddress {
+			key, _ = crypto.GenerateKey()
+			addr = crypto.PubkeyToAddress(key.PublicKey)
+			nonZeroAddress = true
+			for _, byt := range addr.Bytes() {
+				if byt == 0 {
+					nonZeroAddress = false
+					break
+				}
+			}
+		}
 		accounts = append(accounts, Account{key: key, addr: addr})
 	}
 	sort.Sort(accounts)

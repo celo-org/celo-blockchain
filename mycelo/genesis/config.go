@@ -45,7 +45,6 @@ type Config struct {
 	Blockchain                 BlockchainParameters
 	Random                     RandomParameters
 	Attestations               AttestationsParameters
-	TransferWhitelist          TransferWhitelistParameters
 	ReserveSpenderMultiSig     MultiSigParameters
 	GovernanceApproverMultiSig MultiSigParameters
 	DoubleSigningSlasher       DoubleSigningSlasherParameters
@@ -188,7 +187,6 @@ type GovernanceParameters struct {
 	MinDeposit              *big.Int     `json:"minDeposit"`
 	QueueExpiry             uint64       `json:"queueExpiry"`
 	DequeueFrequency        uint64       `json:"dequeueFrequency"`
-	ApprovalStageDuration   uint64       `json:"approvalStageDuration"`
 	ReferendumStageDuration uint64       `json:"referendumStageDuration"`
 	ExecutionStageDuration  uint64       `json:"executionStageDuration"`
 	ParticipationBaseline   *fixed.Fixed `json:"participationBaseline"`
@@ -236,12 +234,6 @@ type EpochRewardsParameters struct {
 
 type EpochRewardsParametersMarshaling struct {
 	MaxValidatorEpochPayment *bigintstr.BigIntStr `json:"maxValidatorEpochPayment"`
-}
-
-// TransferWhitelistParameters are the initial configuration parameters for TransferWhitelist
-type TransferWhitelistParameters struct {
-	Addresses   []common.Address `json:"addresses"`
-	RegistryIDs []common.Hash    `json:"registryIds"`
 }
 
 // GoldTokenParameters are the initial configuration parameters for GoldToken

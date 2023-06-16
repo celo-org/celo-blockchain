@@ -308,8 +308,11 @@ func testHeader(t *testing.T, chain []*types.Block, client *rpc.Client) {
 			if got != nil && got.Number != nil && got.Number.Sign() == 0 {
 				got.Number = big.NewInt(0) // hack to make DeepEqual work
 			}
+			if got != nil && got.Difficulty != nil && got.Difficulty.Sign() == 0 {
+				got.Difficulty = big.NewInt(0) // hack to make DeepEqual work
+			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Fatalf("HeaderByNumber(%v)\n   = %v\nwant %v", tt.block, got, tt.want)
+				t.Fatalf("HeaderByNumber(%v)\n   = %+v\nwant %+v", tt.block, got, tt.want)
 			}
 		})
 	}
@@ -396,7 +399,7 @@ func testGetBlock(t *testing.T, client *rpc.Client) {
 	// Get current block number
 	blockNumber, err := ec.BlockNumber(context.Background())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("BlockNumber: %v", err)
 	}
 	if blockNumber != 1 {
 		t.Fatalf("BlockNumber returned wrong number: %d", blockNumber)
@@ -404,7 +407,7 @@ func testGetBlock(t *testing.T, client *rpc.Client) {
 	// Get current block by number
 	block, err := ec.BlockByNumber(context.Background(), new(big.Int).SetUint64(blockNumber))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("BlockByNumber: %v", err)
 	}
 	if block.NumberU64() != blockNumber {
 		t.Fatalf("BlockByNumber returned wrong block: want %d got %d", blockNumber, block.NumberU64())
@@ -412,7 +415,7 @@ func testGetBlock(t *testing.T, client *rpc.Client) {
 	// Get current block by hash
 	blockH, err := ec.BlockByHash(context.Background(), block.Hash())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("BlockByHash: %v", err)
 	}
 	if block.Hash() != blockH.Hash() {
 		t.Fatalf("BlockByHash returned wrong block: want %v got %v", block.Hash().Hex(), blockH.Hash().Hex())
@@ -420,7 +423,7 @@ func testGetBlock(t *testing.T, client *rpc.Client) {
 	// Get header by number
 	header, err := ec.HeaderByNumber(context.Background(), new(big.Int).SetUint64(blockNumber))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("HeaderByNumber: %v", err)
 	}
 	if block.Header().Hash() != header.Hash() {
 		t.Fatalf("HeaderByNumber returned wrong header: want %v got %v", block.Header().Hash().Hex(), header.Hash().Hex())
@@ -428,7 +431,7 @@ func testGetBlock(t *testing.T, client *rpc.Client) {
 	// Get header by hash
 	headerH, err := ec.HeaderByHash(context.Background(), block.Hash())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("HeaderByHash: %v", err)
 	}
 	if block.Header().Hash() != headerH.Hash() {
 		t.Fatalf("HeaderByHash returned wrong header: want %v got %v", block.Header().Hash().Hex(), headerH.Hash().Hex())
@@ -575,7 +578,7 @@ func sendTransaction(ec *Client) error {
 		return err
 	}
 	// Create transaction
-	tx := types.NewTransaction(0, common.Address{1}, big.NewInt(1), 22000, nil, nil, nil, nil, nil)
+	tx := types.NewTransaction(0, common.Address{1}, big.NewInt(1), 22000, nil, nil)
 	signer := types.LatestSignerForChainID(chainID)
 	signature, err := crypto.Sign(signer.Hash(tx).Bytes(), testKey)
 	if err != nil {

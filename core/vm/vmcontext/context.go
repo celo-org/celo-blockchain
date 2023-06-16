@@ -7,6 +7,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/contracts/reserve"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -49,10 +50,11 @@ func NewBlockContext(header *types.Header, chain chainContext, txFeeRecipient *c
 		GetHash:     GetHashFn(header, chain),
 		VerifySeal:  VerifySealFn(header, chain),
 		Coinbase:    beneficiary,
+		GasLimit:    header.GasLimit,
 		BlockNumber: new(big.Int).Set(header.Number),
 		Time:        new(big.Int).SetUint64(header.Time),
 
-		GetRegisteredAddress: GetRegisteredAddress,
+		IsGoldTokenAddress: IsGoldTokenAddress,
 	}
 
 	if chain != nil {
@@ -66,9 +68,13 @@ func NewBlockContext(header *types.Header, chain chainContext, txFeeRecipient *c
 	return ctx
 }
 
-func GetRegisteredAddress(evm *vm.EVM, registryId common.Hash) (common.Address, error) {
+func IsGoldTokenAddress(evm *vm.EVM, addr common.Address) (bool, error) {
 	caller := &SharedEVMRunner{evm}
-	return contracts.GetRegisteredAddress(caller, registryId)
+	goldTokenAddr, err := contracts.GetRegisteredAddress(caller, config.GoldTokenRegistryId)
+	if err != nil {
+		return false, err
+	}
+	return goldTokenAddr == addr, nil
 }
 
 // GetHashFn returns a GetHashFunc which retrieves header hashes by number
@@ -148,19 +154,24 @@ func TobinTransfer(evm *vm.EVM, sender, recipient common.Address, amount *big.In
 		defer func() { evm.SetDebug(true) }()
 	}
 
-	if amount.Cmp(big.NewInt(0)) != 0 {
-		caller := &SharedEVMRunner{evm}
-		tax, taxRecipient, err := reserve.ComputeTobinTax(caller, sender, amount)
-		if err == nil {
-			Transfer(evm.StateDB, sender, recipient, new(big.Int).Sub(amount, tax))
-			Transfer(evm.StateDB, sender, taxRecipient, tax)
-			return
-		} else {
-			log.Error("Failed to get tobin tax", "error", err)
+	// Only deduct tobin tax before the g hardfork
+	if evm.ChainConfig().IsGFork(evm.Context.BlockNumber) {
+		Transfer(evm.StateDB, sender, recipient, amount)
+	} else {
+		if amount.Cmp(big.NewInt(0)) != 0 {
+			caller := &SharedEVMRunner{evm}
+			tax, taxRecipient, err := reserve.ComputeTobinTax(caller, sender, amount)
+			if err == nil {
+				Transfer(evm.StateDB, sender, recipient, new(big.Int).Sub(amount, tax))
+				Transfer(evm.StateDB, sender, taxRecipient, tax)
+				return
+			} else {
+				log.Error("Failed to get tobin tax", "error", err)
+			}
 		}
-	}
 
-	// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
-	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
-	Transfer(evm.StateDB, sender, recipient, amount)
+		// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
+		// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
+		Transfer(evm.StateDB, sender, recipient, amount)
+	}
 }

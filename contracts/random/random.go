@@ -7,24 +7,32 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
+	"github.com/celo-org/celo-blockchain/contracts/config"
+	"github.com/celo-org/celo-blockchain/contracts/internal/n"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/params"
+)
+
+const (
+	maxGasForCommitments       uint64 = 2 * n.Million
+	maxGasForComputeCommitment uint64 = 2 * n.Million
+	maxGasForBlockRandomness   uint64 = 2 * n.Million
+	maxGasForRevealAndCommit   uint64 = 2 * n.Million
 )
 
 var (
-	revealAndCommitMethod    = contracts.NewRegisteredContractMethod(params.RandomRegistryId, abis.Random, "revealAndCommit", params.MaxGasForRevealAndCommit)
-	commitmentsMethod        = contracts.NewRegisteredContractMethod(params.RandomRegistryId, abis.Random, "commitments", params.MaxGasForCommitments)
-	computeCommitmentMethod  = contracts.NewRegisteredContractMethod(params.RandomRegistryId, abis.Random, "computeCommitment", params.MaxGasForComputeCommitment)
-	randomMethod             = contracts.NewRegisteredContractMethod(params.RandomRegistryId, abis.Random, "random", params.MaxGasForBlockRandomness)
-	getBlockRandomnessMethod = contracts.NewRegisteredContractMethod(params.RandomRegistryId, abis.Random, "getBlockRandomness", params.MaxGasForBlockRandomness)
+	revealAndCommitMethod    = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "revealAndCommit", maxGasForRevealAndCommit)
+	commitmentsMethod        = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "commitments", maxGasForCommitments)
+	computeCommitmentMethod  = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "computeCommitment", maxGasForComputeCommitment)
+	randomMethod             = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "random", maxGasForBlockRandomness)
+	getBlockRandomnessMethod = contracts.NewRegisteredContractMethod(config.RandomRegistryId, abis.Random, "getBlockRandomness", maxGasForBlockRandomness)
 )
 
 func IsRunning(vmRunner vm.EVMRunner) bool {
-	randomAddress, err := contracts.GetRegisteredAddress(vmRunner, params.RandomRegistryId)
+	randomAddress, err := contracts.GetRegisteredAddress(vmRunner, config.RandomRegistryId)
 
 	if err == contracts.ErrSmartContractNotDeployed || err == contracts.ErrRegistryContractNotDeployed {
-		log.Debug("Registry address lookup failed", "err", err, "contract", hexutil.Encode(params.RandomRegistryId[:]))
+		log.Debug("Registry address lookup failed", "err", err, "contract", hexutil.Encode(config.RandomRegistryId[:]))
 	} else if err != nil {
 		log.Error(err.Error())
 	}

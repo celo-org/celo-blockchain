@@ -27,6 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -40,7 +41,6 @@ import (
 //go:generate gencodec -type GenesisAccount -field-override genesisAccountMarshaling -out gen_genesis_account.go
 
 var (
-	DBGenesisSupplyKey = []byte("genesis-supply-genesis")
 	errGenesisNoConfig = errors.New("genesis has no chain configuration")
 )
 
@@ -158,7 +158,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	if (stored == common.Hash{}) {
 		if genesis == nil {
 			log.Info("Writing default main-net genesis block")
-			genesis = MainnetGenesisBlock()
+			genesis = DefaultGenesisBlock()
 		} else {
 			log.Info("Writing custom genesis block")
 		}
@@ -174,7 +174,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	s, err := state.New(header.Root, state.NewDatabaseWithConfig(db, nil), nil)
 	if err != nil {
 		if genesis == nil {
-			genesis = MainnetGenesisBlock()
+			genesis = DefaultGenesisBlock()
 		}
 		// Ensure the stored genesis matches with the given one.
 		hash := genesis.ToBlock(nil).Hash()
@@ -196,7 +196,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	}
 
 	// Check if Registry sits in genesis
-	if s.GetCodeSize(params.RegistrySmartContractAddress) == 0 {
+	if s.GetCodeSize(config.RegistrySmartContractAddress) == 0 {
 		return params.MainnetChainConfig, common.Hash{}, errors.New("no Registry Smart Contract deployed in genesis")
 	}
 
@@ -295,7 +295,7 @@ func (g *Genesis) StoreGenesisSupply(db ethdb.Database) error {
 	for _, account := range g.Alloc {
 		genesisSupply.Add(genesisSupply, account.Balance)
 	}
-	return db.Put(DBGenesisSupplyKey, genesisSupply.Bytes())
+	return rawdb.WriteGenesisCeloSupply(db, genesisSupply)
 }
 
 // Commit writes the block and state of a genesis specification to the database.
@@ -344,8 +344,8 @@ func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big
 	return g.MustCommit(db)
 }
 
-// MainnetGenesisBlock returns the Celo main net genesis block.
-func MainnetGenesisBlock() *Genesis {
+// DefaultGenesisBlock returns the Celo main net genesis block.
+func DefaultGenesisBlock() *Genesis {
 	mainnetAlloc := &GenesisAlloc{}
 	mainnetAlloc.UnmarshalJSON([]byte(mainnetAllocJSON))
 	return &Genesis{
@@ -382,7 +382,7 @@ func DefaultAlfajoresGenesisBlock() *Genesis {
 // DeveloperGenesisBlock returns the 'geth --dev' genesis block.
 func DeveloperGenesisBlock(period uint64) *Genesis {
 	// Override the default period to the user requested one
-	config := *params.DeveloperChainConfig
+	config := *params.IstanbulTestChainConfig
 	config.Istanbul.BlockPeriod = period
 	devAlloc := &GenesisAlloc{}
 	devAlloc.UnmarshalJSON([]byte(devAllocJSON))
