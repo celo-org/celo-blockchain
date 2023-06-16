@@ -641,12 +641,26 @@ func (ctx *deployContext) deploySortedOracles() error {
 
 func (ctx *deployContext) deployGasPriceMinimum() error {
 	return ctx.deployCoreContract("GasPriceMinimum", func(contract *contract.EVMBackend) error {
-		return contract.SimpleCall("initialize",
+		err := contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
 			ctx.genesisConfig.GasPriceMinimum.MinimumFloor,
 			ctx.genesisConfig.GasPriceMinimum.TargetDensity.BigInt(),
 			ctx.genesisConfig.GasPriceMinimum.AdjustmentSpeed.BigInt(),
+			ctx.genesisConfig.GasPriceMinimum.BaseFeeOpCodeActivationBlock,
 		)
+		// err := contract.SimpleCall("setAdjustmentSpeed",
+		// 	ctx.genesisConfig.GasPriceMinimum.AdjustmentSpeed.BigInt(),
+		// )
+		// function setAdjustmentSpeed(uint256 _adjustmentSpeed)
+
+		// function setTargetDensity(uint256 _targetDensity)
+
+		// function setGasPriceMinimumFloor(uint256 _gasPriceMinimumFloor)
+
+		// function setBaseFeeOpCodeActivationBlock(uint256 _baseFeeOpCodeActivationBlock)
+
+		ctx.logger.Error("Gas Price minimum debug", "Error", err)
+		return err
 	})
 }
 

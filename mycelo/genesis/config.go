@@ -264,13 +264,15 @@ type SortedOraclesParameters struct {
 
 // GasPriceMinimumParameters are the initial configuration parameters for GasPriceMinimum
 type GasPriceMinimumParameters struct {
-	MinimumFloor    *big.Int     `json:"minimumFloor"`
-	TargetDensity   *fixed.Fixed `json:"targetDensity"`
-	AdjustmentSpeed *fixed.Fixed `json:"adjustmentSpeed"`
+	MinimumFloor                 *big.Int     `json:"minimumFloor"`
+	TargetDensity                *fixed.Fixed `json:"targetDensity"`
+	AdjustmentSpeed              *fixed.Fixed `json:"adjustmentSpeed"`
+	BaseFeeOpCodeActivationBlock *big.Int     `json:"baseFeeOpCodeActivationBlock"`
 }
 
 type GasPriceMinimumParametersMarshaling struct {
-	MinimumFloor *bigintstr.BigIntStr `json:"minimumFloor"`
+	MinimumFloor                 *bigintstr.BigIntStr `json:"minimumFloor"`
+	BaseFeeOpCodeActivationBlock *bigintstr.BigIntStr `json:"baseFeeOpCodeActivationBlock"`
 }
 
 // GrandaMentoParameters are the initial configuration parameters for GrandaMento

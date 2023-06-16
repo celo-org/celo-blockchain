@@ -1596,13 +1596,6 @@ func getGasPriceMinimumFromState(ctx context.Context, b Backend, blockHash commo
 		if err != nil {
 			return nil, err
 		}
-		if b.ChainConfig().IsGFork(header.Number) {
-			if feeCurrency == nil {
-				return header.BaseFee, nil
-			} else {
-
-			}
-		}
 		return getGasPriceMinimumFromStateWithHeader(ctx, b, header)(feeCurrency)
 	}
 }

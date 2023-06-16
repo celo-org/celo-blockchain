@@ -10,7 +10,7 @@ import (
 
 // BaseConfig creates base parameters for celo
 // Callers must complete missing pieces
-func BaseConfig() *Config {
+func BaseConfig(gForkBlock *big.Int) *Config {
 	bigInt := big.NewInt
 	bigIntStr := common.MustBigInt
 	fixed := fixed.MustNew
@@ -21,9 +21,10 @@ func BaseConfig() *Config {
 			ReportExpirySeconds: 5 * Minute,
 		},
 		GasPriceMinimum: GasPriceMinimumParameters{
-			MinimumFloor:    bigInt(100000000),
-			AdjustmentSpeed: fixed("0.5"),
-			TargetDensity:   fixed("0.5"),
+			MinimumFloor:                 bigInt(100000000),
+			AdjustmentSpeed:              fixed("0.5"),
+			TargetDensity:                fixed("0.5"),
+			BaseFeeOpCodeActivationBlock: gForkBlock,
 		},
 		Reserve: ReserveParameters{
 			TobinTaxStalenessThreshold: 3153600000,
