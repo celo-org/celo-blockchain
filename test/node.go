@@ -345,7 +345,6 @@ func BuildConfig(accounts *env.AccountsConfig) (*genesis.Config, *ethconfig.Conf
 		accounts.AdminAccount().Address,
 		params.IstanbulConfig{},
 	)
-	gc.Hardforks.EspressoBlock = common.Big0
 
 	genesis.FundAccounts(gc, accounts.DeveloperAccounts())
 
@@ -502,7 +501,7 @@ func BuildSignedTransaction(
 		return nil, fmt.Errorf("failed to estimate gas needed: %v", err)
 	}
 	// Create the transaction and sign it
-	rawTx := types.NewTransactionEthCompatible(nonce, recipient, value, gasLimit, gasPrice, data)
+	rawTx := types.NewTransaction(nonce, recipient, value, gasLimit, gasPrice, data)
 	signed, err := types.SignTx(rawTx, signer, senderKey)
 	if err != nil {
 		return nil, err

@@ -6,8 +6,8 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
-	"github.com/celo-org/celo-blockchain/params"
 	. "github.com/onsi/gomega"
 )
 
@@ -26,7 +26,7 @@ func TestCalculateTargetEpochRewards(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
-			params.EpochRewardsRegistryId,
+			config.EpochRewardsRegistryId,
 			"calculateTargetEpochRewards",
 			func() (*big.Int, *big.Int, *big.Int, *big.Int) {
 				return big.NewInt(5), big.NewInt(4), big.NewInt(3), big.NewInt(10)
@@ -50,7 +50,7 @@ func TestIsReserveLow(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
-			params.EpochRewardsRegistryId,
+			config.EpochRewardsRegistryId,
 			"isReserveLow",
 			func() bool { return true },
 		)
@@ -70,7 +70,7 @@ func TestGetCarbonOffsettingPartnerAddress(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		runner := testutil.NewSingleMethodRunner(
-			params.EpochRewardsRegistryId,
+			config.EpochRewardsRegistryId,
 			"carbonOffsettingPartner",
 			func() common.Address { return common.HexToAddress("0x00045") },
 		)

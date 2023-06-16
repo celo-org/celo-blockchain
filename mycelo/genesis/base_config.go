@@ -146,7 +146,6 @@ func BaseConfig() *Config {
 			MaxAttestations:                100,
 			AttestationRequestFeeInDollars: decimal("0.05"), // use decimal rather than fixed, since we use this to multiply by
 		},
-		TransferWhitelist: TransferWhitelistParameters{},
 		GoldToken: GoldTokenParameters{
 			Frozen: false,
 		},
@@ -170,7 +169,6 @@ func BaseConfig() *Config {
 			MinDeposit:              bigIntStr("100000000000000000000"), // 100 cGLD
 			QueueExpiry:             4 * Week,
 			DequeueFrequency:        30 * Minute,
-			ApprovalStageDuration:   30 * Minute,
 			ReferendumStageDuration: Hour,
 			ExecutionStageDuration:  Day,
 			ParticipationBaseline:   fixed("0.005"),

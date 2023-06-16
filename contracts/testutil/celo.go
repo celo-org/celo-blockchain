@@ -2,7 +2,7 @@ package testutil
 
 import (
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 )
 
 type CeloMock struct {
@@ -18,9 +18,9 @@ func NewCeloMock() CeloMock {
 		BlockchainParameters: NewBlockchainParametersMock(),
 	}
 
-	celo.Runner.RegisterContract(params.RegistrySmartContractAddress, celo.Registry)
+	celo.Runner.RegisterContract(config.RegistrySmartContractAddress, celo.Registry)
 
-	celo.Registry.AddContract(params.BlockchainParametersRegistryId, common.HexToAddress("0x01"))
+	celo.Registry.AddContract(config.BlockchainParametersRegistryId, common.HexToAddress("0x01"))
 	celo.Runner.RegisterContract(common.HexToAddress("0x01"), celo.BlockchainParameters)
 
 	return celo

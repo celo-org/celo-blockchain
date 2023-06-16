@@ -627,13 +627,13 @@ func testTransactionStatus(t *testing.T, protocol int) {
 	// tx0, _ := types.SignTx(types.NewTransaction(0, userAddr1, big.NewInt(10000), params.TxGas, nil, nil), signer, bankKey)
 	// test(tx0, true, light.TxStatus{Status: core.TxStatusUnknown, Error: core.ErrUnderpriced.Error()})
 
-	tx1, _ := types.SignTx(types.NewTransaction(0, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, nil, nil, nil), signer, bankKey)
+	tx1, _ := types.SignTx(types.NewTransaction(0, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil), signer, bankKey)
 	test(tx1, false, light.TxStatus{Status: core.TxStatusUnknown}) // query before sending, should be unknown
 	test(tx1, true, light.TxStatus{Status: core.TxStatusPending})  // send valid processable tx, should return pending
 	test(tx1, true, light.TxStatus{Status: core.TxStatusPending})  // adding it again should not return an error
 
-	tx2, _ := types.SignTx(types.NewTransaction(1, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, nil, nil, nil), signer, bankKey)
-	tx3, _ := types.SignTx(types.NewTransaction(2, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, nil, nil, nil), signer, bankKey)
+	tx2, _ := types.SignTx(types.NewTransaction(1, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil), signer, bankKey)
+	tx3, _ := types.SignTx(types.NewTransaction(2, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil), signer, bankKey)
 	// send transactions in the wrong order, tx3 should be queued
 	test(tx3, true, light.TxStatus{Status: core.TxStatusQueued})
 	test(tx2, true, light.TxStatus{Status: core.TxStatusPending})
@@ -787,27 +787,27 @@ func testTransactionGatewayFeeRequirement(t *testing.T, protocol int) {
 		status light.TxStatus
 	}{{
 		desc:   "no recipient or fee value attached",
-		tx:     types.NewTransaction(0, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, nil, nil, nil),
+		tx:     types.NewTransaction(0, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil),
 		status: light.TxStatus{Status: core.TxStatusUnknown, Error: "gateway fee recipient must be 0x2aD937cB878D8bEEfC84F3d0545750c2ff78CD0e, got <nil>"},
 	}, {
 		desc:   "wrong recipient",
-		tx:     types.NewTransaction(1, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &wrongAddress, nil, nil),
+		tx:     types.NewCeloTransaction(1, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &wrongAddress, nil, nil),
 		status: light.TxStatus{Status: core.TxStatusUnknown, Error: "gateway fee recipient must be 0x2aD937cB878D8bEEfC84F3d0545750c2ff78CD0e, got 0x1762042962b8759E17d2B5Ac6c5565273df506fD"},
 	}, {
 		desc:   "no fee value attached",
-		tx:     types.NewTransaction(2, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &server.handler.etherbase, nil, nil),
+		tx:     types.NewCeloTransaction(2, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &server.handler.etherbase, nil, nil),
 		status: light.TxStatus{Status: core.TxStatusUnknown, Error: "gateway fee value must be at least 25000, got 0"},
 	}, {
 		desc:   "fee value too value",
-		tx:     types.NewTransaction(3, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &server.handler.etherbase, new(big.Int).Sub(server.handler.gatewayFee, big.NewInt(1)), nil),
+		tx:     types.NewCeloTransaction(3, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &server.handler.etherbase, new(big.Int).Sub(server.handler.gatewayFee, big.NewInt(1)), nil),
 		status: light.TxStatus{Status: core.TxStatusUnknown, Error: "gateway fee value must be at least 25000, got 24999"},
 	}, {
 		desc:   "fee value exactly enough",
-		tx:     types.NewTransaction(4, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &server.handler.etherbase, server.handler.gatewayFee, nil),
+		tx:     types.NewCeloTransaction(4, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &server.handler.etherbase, server.handler.gatewayFee, nil),
 		status: light.TxStatus{Status: core.TxStatusQueued},
 	}, {
 		desc:   "fee value more than enough",
-		tx:     types.NewTransaction(5, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &server.handler.etherbase, new(big.Int).Add(server.handler.gatewayFee, big.NewInt(1)), nil),
+		tx:     types.NewCeloTransaction(5, userAddr1, big.NewInt(10000), params.TxGas, big.NewInt(100000000000), nil, &server.handler.etherbase, new(big.Int).Add(server.handler.gatewayFee, big.NewInt(1)), nil),
 		status: light.TxStatus{Status: core.TxStatusQueued},
 	}}
 

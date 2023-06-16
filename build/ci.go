@@ -81,7 +81,6 @@ var (
 		executablePath("evm"),
 		executablePath("geth"),
 		executablePath("rlpdump"),
-		executablePath("clef"),
 		executablePath("blspopchecker"),
 	}
 
@@ -106,10 +105,6 @@ var (
 		{
 			BinaryName:  "rlpdump",
 			Description: "Developer utility tool that prints RLP structures.",
-		},
-		{
-			BinaryName:  "clef",
-			Description: "Ethereum account management tool.",
 		},
 		{
 			BinaryName:  "blspopchecker",
@@ -1352,7 +1347,6 @@ func xgoAllToolsArchiveFiles(target string, dir string) []string {
 		executableXgoPath("evm", target, dir),
 		executableXgoPath("geth", target, dir),
 		executableXgoPath("rlpdump", target, dir),
-		executableXgoPath("clef", target, dir),
 		executableXgoPath("blspopchecker", target, dir),
 	}
 }

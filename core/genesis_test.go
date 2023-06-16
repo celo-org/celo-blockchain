@@ -23,6 +23,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/ethdb"
@@ -30,8 +31,8 @@ import (
 	"github.com/davecgh/go-spew/spew"
 )
 
-func TestMainnetGenesisBlock(t *testing.T) {
-	block := MainnetGenesisBlock().ToBlock(nil)
+func TestGenesisBlocks(t *testing.T) {
+	block := DefaultGenesisBlock().ToBlock(nil)
 	if block.Hash() != params.MainnetGenesisHash {
 		t.Errorf("wrong mainnet genesis hash, got %v, want %v", block.Hash().Hex(), params.MainnetGenesisHash.Hex())
 	}
@@ -82,7 +83,7 @@ func TestSetupGenesis(t *testing.T) {
 		{
 			name: "mainnet block in DB, genesis == nil",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
-				MainnetGenesisBlock().MustCommit(db)
+				DefaultGenesisBlock().MustCommit(db)
 				return SetupGenesisBlock(db, nil)
 			},
 			wantHash:   params.MainnetGenesisHash,
@@ -198,7 +199,7 @@ func TestRegistryInGenesis(t *testing.T) {
 		},
 		{
 			name:    "mainnet",
-			genesis: MainnetGenesisBlock,
+			genesis: DefaultGenesisBlock,
 		},
 		{
 			name: "emptyAlloc",
@@ -213,7 +214,7 @@ func TestRegistryInGenesis(t *testing.T) {
 		test.genesis().MustCommit(db)
 		chain, _ := NewBlockChain(db, nil, params.IstanbulTestChainConfig, mockEngine.NewFaker(), vm.Config{}, nil, nil)
 		state, _ := chain.State()
-		codeSize := state.GetCodeSize(params.RegistrySmartContractAddress)
+		codeSize := state.GetCodeSize(config.RegistrySmartContractAddress)
 		if test.name == "emptyAlloc" {
 			if codeSize != 0 {
 				t.Errorf("%s: Registry code size is %d, want 0", test.name, codeSize)
@@ -240,7 +241,7 @@ func TestGenesisHashes(t *testing.T) {
 			hash:    params.BaklavaGenesisHash,
 		},
 		{
-			genesis: MainnetGenesisBlock(),
+			genesis: DefaultGenesisBlock(),
 			hash:    params.MainnetGenesisHash,
 		},
 	}

@@ -24,18 +24,16 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/contracts/election"
 	"github.com/celo-org/celo-blockchain/contracts/epoch_rewards"
 	"github.com/celo-org/celo-blockchain/contracts/freezer"
 	"github.com/celo-org/celo-blockchain/contracts/gold_token"
 	"github.com/celo-org/celo-blockchain/contracts/validators"
-	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/params"
 )
 
 func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB) error {
@@ -45,7 +43,7 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 
 	vmRunner := sb.chain.NewEVMRunner(header, state)
 	// Check if reward distribution has been frozen and return early without error if it is.
-	if frozen, err := freezer.IsFrozen(vmRunner, params.EpochRewardsRegistryId); err != nil {
+	if frozen, err := freezer.IsFrozen(vmRunner, config.EpochRewardsRegistryId); err != nil {
 		logger.Warn("Failed to determine if epoch rewards are frozen", "err", err)
 	} else if frozen {
 		logger.Debug("Epoch rewards are frozen, skipping distribution")
@@ -53,11 +51,11 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 	}
 
 	// Get necessary Addresses First
-	reserveAddress, err := contracts.GetRegisteredAddress(vmRunner, params.ReserveRegistryId)
+	reserveAddress, err := contracts.GetRegisteredAddress(vmRunner, config.ReserveRegistryId)
 	if err != nil {
 		return err
 	}
-	stableTokenAddress, err := contracts.GetRegisteredAddress(vmRunner, params.StableTokenRegistryId)
+	stableTokenAddress, err := contracts.GetRegisteredAddress(vmRunner, config.StableTokenRegistryId)
 	if err != nil {
 		return err
 	}
@@ -121,8 +119,14 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 		return err
 	}
 
-	if err := sb.distributeCommunityRewards(vmRunner, communityReward); err != nil {
-		return err
+	if sb.ChainConfig().IsGFork(header.Number) {
+		if err := sb.distributeCommunityRewards(vmRunner, communityReward); err != nil {
+			return err
+		}
+	} else {
+		if err := sb.distributeCommunityRewardsWithReserveFallback(vmRunner, communityReward); err != nil {
+			return err
+		}
 	}
 
 	if err := sb.distributeVoterRewards(vmRunner, valSet, totalVoterRewards, uptimes); err != nil {
@@ -176,11 +180,23 @@ func (sb *Backend) distributeValidatorRewards(vmRunner vm.EVMRunner, valSet []is
 }
 
 func (sb *Backend) distributeCommunityRewards(vmRunner vm.EVMRunner, communityReward *big.Int) error {
-	governanceAddress, err := contracts.GetRegisteredAddress(vmRunner, params.GovernanceRegistryId)
+	governanceAddress, err := contracts.GetRegisteredAddress(vmRunner, config.GovernanceRegistryId)
 	if err != nil {
 		return err
 	}
-	reserveAddress, err := contracts.GetRegisteredAddress(vmRunner, params.ReserveRegistryId)
+	if governanceAddress != common.ZeroAddress {
+		// TODO: How to split eco fund here
+		return gold_token.Mint(vmRunner, governanceAddress, communityReward)
+	}
+	return nil
+}
+
+func (sb *Backend) distributeCommunityRewardsWithReserveFallback(vmRunner vm.EVMRunner, communityReward *big.Int) error {
+	governanceAddress, err := contracts.GetRegisteredAddress(vmRunner, config.GovernanceRegistryId)
+	if err != nil {
+		return err
+	}
+	reserveAddress, err := contracts.GetRegisteredAddress(vmRunner, config.ReserveRegistryId)
 	if err != nil {
 		return err
 	}
@@ -200,7 +216,7 @@ func (sb *Backend) distributeCommunityRewards(vmRunner vm.EVMRunner, communityRe
 
 func (sb *Backend) distributeVoterRewards(vmRunner vm.EVMRunner, valSet []istanbul.Validator, maxTotalRewards *big.Int, uptimes []*big.Int) error {
 
-	lockedGoldAddress, err := contracts.GetRegisteredAddress(vmRunner, params.LockedGoldRegistryId)
+	lockedGoldAddress, err := contracts.GetRegisteredAddress(vmRunner, config.LockedGoldRegistryId)
 	if err != nil {
 		return err
 	} else if lockedGoldAddress == common.ZeroAddress {
@@ -230,27 +246,4 @@ func (sb *Backend) distributeVoterRewards(vmRunner vm.EVMRunner, valSet []istanb
 	}
 
 	return gold_token.Mint(vmRunner, lockedGoldAddress, electionRewards)
-}
-
-func (sb *Backend) setInitialGoldTokenTotalSupplyIfUnset(vmRunner vm.EVMRunner) error {
-	totalSupply, err := gold_token.GetTotalSupply(vmRunner)
-	if err != nil {
-		return err
-	}
-	// totalSupply not yet initialized.
-	if totalSupply.Cmp(common.Big0) == 0 {
-		data, err := sb.db.Get(core.DBGenesisSupplyKey)
-		if err != nil {
-			log.Error("Unable to fetch genesisSupply from db", "err", err)
-			return err
-		}
-		genesisSupply := new(big.Int)
-		genesisSupply.SetBytes(data)
-
-		err = gold_token.IncreaseSupply(vmRunner, genesisSupply)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }

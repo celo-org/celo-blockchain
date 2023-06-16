@@ -86,12 +86,14 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 		return errors.New("both gasPrice and (maxFeePerGas or maxPriorityFeePerGas) specified")
 	}
 	// After london, default to 1559 unless gasPrice is set
-	head := b.CurrentHeader()
+	currentBlockNumber := b.CurrentHeader().Number
+	isGFork := b.ChainConfig().IsGFork(currentBlockNumber)
+
 	// If user specifies both maxPriorityfee and maxFee, then we do not
 	// need to consult the chain for defaults. It's definitely a London tx.
 	if args.MaxPriorityFeePerGas == nil || args.MaxFeePerGas == nil {
 		// In this clause, user left some fields unspecified.
-		if b.ChainConfig().IsEspresso(head.Number) {
+		if b.ChainConfig().IsEspresso(currentBlockNumber) {
 			if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
 				if args.MaxPriorityFeePerGas == nil {
 					tip, err := b.SuggestGasTipCap(ctx, args.FeeCurrency)
@@ -149,7 +151,7 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 	if args.To == nil && len(args.data()) == 0 {
 		return errors.New(`contract creation without any data provided`)
 	}
-	if args.GatewayFeeRecipient == nil && !args.EthCompatible {
+	if args.GatewayFeeRecipient == nil && !args.EthCompatible && !isGFork {
 		recipient := b.GatewayFeeRecipient()
 		if (recipient != common.Address{}) {
 			args.GatewayFeeRecipient = &recipient
@@ -181,7 +183,7 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 		args.Gas = &estimated
 		log.Trace("Estimate gas usage automatically", "gas", args.Gas)
 	}
-	if args.GatewayFeeRecipient != nil && args.GatewayFee == nil {
+	if args.GatewayFeeRecipient != nil && args.GatewayFee == nil && !isGFork {
 		args.GatewayFee = (*hexutil.Big)(b.GatewayFee())
 	}
 	if args.ChainID == nil {

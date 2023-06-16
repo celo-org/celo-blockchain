@@ -261,7 +261,7 @@ func bigHeader(validators int) *types.Header {
 func bigTxs(gasLimit int, gasPerByte int) []*types.Transaction {
 	curr := common.BytesToAddress(getF(20))
 	gateFeeRec := common.BytesToAddress(getF(20))
-	tx := types.NewTransaction(999, common.BytesToAddress(getF(20)),
+	tx := types.NewCeloTransaction(999, common.BytesToAddress(getF(20)),
 		big.NewInt(329274), 2942729, big.NewInt(294279),
 		&curr,
 		&gateFeeRec, big.NewInt(32027), getF(gasLimit/gasPerByte))

@@ -31,6 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/contracts/gold_token"
 	"github.com/celo-org/celo-blockchain/core"
 	ethCore "github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -501,7 +502,7 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 
 	snapshot := state.Snapshot()
 	vmRunner := sb.chain.NewEVMRunner(header, state)
-	err := sb.setInitialGoldTokenTotalSupplyIfUnset(vmRunner)
+	err := gold_token.SetInitialTotalSupplyIfUnset(sb.db, vmRunner)
 	if err != nil {
 		state.RevertToSnapshot(snapshot)
 	}

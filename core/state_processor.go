@@ -85,17 +85,17 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		baseFee *big.Int
 		sysCtx  *SysContractCallCtx
 	)
-	if p.bc.Config().IsEspresso(blockNumber) {
+	if p.config.IsEspresso(blockNumber) {
 		sysCtx = NewSysContractCallCtx(header, statedb, p.bc)
-		if p.bc.Config().Faker {
-			sysCtx = MockSysContractCallCtx()
+		if p.config.FakeBaseFee != nil {
+			sysCtx = MockSysContractCallCtx(p.bc.Config().FakeBaseFee)
 		}
 	}
 	blockContext := NewEVMBlockContext(header, p.bc, nil)
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, cfg)
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
-		if p.bc.chainConfig.IsEspresso(header.Number) {
+		if p.config.IsEspresso(header.Number) {
 			baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
 		}
 		msg, err := tx.AsMessage(types.MakeSigner(p.config, header.Number), baseFee)
@@ -122,6 +122,15 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 func applyTransaction(msg types.Message, config *params.ChainConfig, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*types.Receipt, error) {
 	if config.IsDonut(blockNumber) && !config.IsEspresso(blockNumber) && !tx.Protected() {
 		return nil, ErrUnprotectedTransaction
+	}
+
+	// CIP 57 deprecates full node incentives
+	// Check that neither `GatewayFeeRecipient` nor `GatewayFee` are set, otherwise reject the transaction
+	if config.IsGFork(blockNumber) {
+		gatewayFeeSet := !(msg.GatewayFee() == nil || msg.GatewayFee().Cmp(common.Big0) == 0)
+		if msg.GatewayFeeRecipient() != nil || gatewayFeeSet {
+			return nil, ErrGatewayFeeDeprecated
+		}
 	}
 
 	// Create a new context to be used in the EVM environment

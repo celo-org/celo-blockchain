@@ -367,7 +367,7 @@ func (b *EthAPIBackend) GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Con
 	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
 	if err != nil {
 		log.Warn("Cannot create evmCaller to get intrinsic gas for alternative fee currency", "err", err)
-		return params.IntrinsicGasForAlternativeFeeCurrency
+		return blockchain_parameters.DefaultIntrinsicGasForAlternativeFeeCurrency
 	}
 	return blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
 }

@@ -6,8 +6,8 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
-	"github.com/celo-org/celo-blockchain/params"
 	. "github.com/onsi/gomega"
 )
 
@@ -26,7 +26,7 @@ func TestIsRunning(t *testing.T) {
 		g := NewGomegaWithT(t)
 		vmrunner := testutil.NewMockEVMRunner()
 		registry := testutil.NewRegistryMock()
-		vmrunner.RegisterContract(params.RegistrySmartContractAddress, registry)
+		vmrunner.RegisterContract(config.RegistrySmartContractAddress, registry)
 		g.Expect(IsRunning(vmrunner)).To(BeFalse())
 
 	})
@@ -34,8 +34,8 @@ func TestIsRunning(t *testing.T) {
 		g := NewGomegaWithT(t)
 		vmrunner := testutil.NewMockEVMRunner()
 		registry := testutil.NewRegistryMock()
-		vmrunner.RegisterContract(params.RegistrySmartContractAddress, registry)
-		registry.AddContract(params.RandomRegistryId, common.HexToAddress("0x033"))
+		vmrunner.RegisterContract(config.RegistrySmartContractAddress, registry)
+		registry.AddContract(config.RandomRegistryId, common.HexToAddress("0x033"))
 		g.Expect(IsRunning(vmrunner)).To(BeTrue())
 
 	})
@@ -50,7 +50,7 @@ func TestGetLastCommitment(t *testing.T) {
 
 	t.Run("should retrieve last commitment", func(t *testing.T) {
 		g := NewGomegaWithT(t)
-		vmrunner := testutil.NewSingleMethodRunner(params.RandomRegistryId, "commitments", func(validator common.Address) common.Hash {
+		vmrunner := testutil.NewSingleMethodRunner(config.RandomRegistryId, "commitments", func(validator common.Address) common.Hash {
 			g.Expect(validator).To(Equal(validatorAddress))
 			return someCommitment
 		})
@@ -70,7 +70,7 @@ func TestComputeCommitment(t *testing.T) {
 
 	t.Run("should compute commitment", func(t *testing.T) {
 		g := NewGomegaWithT(t)
-		vmrunner := testutil.NewSingleMethodRunner(params.RandomRegistryId, "computeCommitment", func(randomness common.Hash) common.Hash {
+		vmrunner := testutil.NewSingleMethodRunner(config.RandomRegistryId, "computeCommitment", func(randomness common.Hash) common.Hash {
 			g.Expect(randomness).To(Equal(someRandomness))
 			return someCommitment
 		})
@@ -90,7 +90,7 @@ func TestRevealAndCommit(t *testing.T) {
 			someProposer   = common.HexToAddress("0x99")
 		)
 
-		vmrunner := testutil.NewSingleMethodRunner(params.RandomRegistryId, "revealAndCommit", func(randomness common.Hash, commitment common.Hash, proposer common.Address) error {
+		vmrunner := testutil.NewSingleMethodRunner(config.RandomRegistryId, "revealAndCommit", func(randomness common.Hash, commitment common.Hash, proposer common.Address) error {
 			g.Expect(randomness).To(Equal(someRandomness))
 			g.Expect(commitment).To(Equal(someCommitment))
 			g.Expect(proposer).To(Equal(someProposer))
@@ -109,7 +109,7 @@ func TestRandom(t *testing.T) {
 
 	t.Run("should retrieve current randomness", func(t *testing.T) {
 		g := NewGomegaWithT(t)
-		vmrunner := testutil.NewSingleMethodRunner(params.RandomRegistryId, "random", func() common.Hash {
+		vmrunner := testutil.NewSingleMethodRunner(config.RandomRegistryId, "random", func() common.Hash {
 			return someRandomness
 		})
 
@@ -128,7 +128,7 @@ func TestBlockRandomness(t *testing.T) {
 
 	t.Run("should retrieve randomness for block", func(t *testing.T) {
 		g := NewGomegaWithT(t)
-		vmrunner := testutil.NewSingleMethodRunner(params.RandomRegistryId, "getBlockRandomness", func(block *big.Int) common.Hash {
+		vmrunner := testutil.NewSingleMethodRunner(config.RandomRegistryId, "getBlockRandomness", func(block *big.Int) common.Hash {
 			g.Expect(block.Uint64()).To(Equal(blockNumber))
 			return someRandomness
 		})
