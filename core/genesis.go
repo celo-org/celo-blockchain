@@ -278,6 +278,13 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		Coinbase:   g.Coinbase,
 		Root:       root,
 	}
+	if g.Config != nil && g.Config.IsGFork(common.Big0) {
+		head.Nonce = types.EncodeNonce(0)
+		head.GasLimit = params.GenesisGasLimit
+		head.Difficulty = common.Big0
+		head.MixDigest = types.EmptyMixDigest
+		head.UncleHash = types.EmptyUncleHash
+	}
 
 	statedb.Commit(false)
 	statedb.Database().TrieDB().Commit(root, true, nil)
