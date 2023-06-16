@@ -134,7 +134,7 @@ func Transaction(ctx *cli.Context) error {
 		}
 
 		if gas, err := core.IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil,
-			nil, 0, chainConfig.IsIstanbul(new(big.Int))); err != nil {
+			chainConfig.IsHomestead(new(big.Int)), chainConfig.IsIstanbul(new(big.Int)), nil, 0); err != nil {
 			r.Error = err
 		} else if tx.Gas() < gas {
 			r.Error = fmt.Errorf("%w: have %d, want %d", core.ErrIntrinsicGas, tx.Gas(), gas)

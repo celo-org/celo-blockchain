@@ -748,6 +748,15 @@ func (m Message) Fee() *big.Int {
 	return gasFee.Add(gasFee, m.gatewayFee)
 }
 
+// copyAddressPtr copies an address.
+func copyAddressPtr(a *common.Address) *common.Address {
+	if a == nil {
+		return nil
+	}
+	cpy := *a
+	return &cpy
+}
+
 func (m Message) EthCompatible() bool                  { return m.ethCompatible }
 func (m Message) FeeCurrency() *common.Address         { return m.feeCurrency }
 func (m Message) GatewayFeeRecipient() *common.Address { return m.gatewayFeeRecipient }
