@@ -371,7 +371,7 @@ func TestInvalidTransactions(t *testing.T) {
 	}
 }
 
-func TestInvalidTransactionsPreGFork(t *testing.T) {
+func TestInvalidTransactionsPreGingerbread(t *testing.T) {
 	t.Parallel()
 
 	pool, key := setupTxPool()

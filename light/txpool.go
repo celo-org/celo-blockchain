@@ -73,7 +73,7 @@ type TxPool struct {
 	istanbul    bool // Fork indicator whether we are in the istanbul stage
 	donut       bool // Fork indicator whether Donut has been activated
 	espresso    bool // Fork indicator whether Espresso has been activated
-	gingerbread bool // Fork indicator for the G fork.
+	gingerbread bool // Fork indicator whether Gingerbread has been activated
 }
 
 // TxRelayBackend provides an interface to the mechanism that forwards transacions

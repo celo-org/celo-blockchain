@@ -272,11 +272,11 @@ type TxPool struct {
 	signer      types.Signer
 	mu          sync.RWMutex
 
-	homestead   bool // Fork indicator for the homstead fork
+	homestead   bool // Fork indicator for the homestead fork
 	istanbul    bool // Fork indicator whether we are in the istanbul stage.
 	donut       bool // Fork indicator for the Donut fork.
 	espresso    bool // Fork indicator for the Espresso fork.
-	gingerbread bool // Fork indicator for the G fork.
+	gingerbread bool // Fork indicator for the Gingerbread fork.
 
 	currentState    *state.StateDB // Current state in the blockchain head
 	currentVMRunner vm.EVMRunner   // Current EVMRunner

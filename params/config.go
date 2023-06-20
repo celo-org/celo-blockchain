@@ -627,7 +627,7 @@ func (c *ChainConfig) OverrideChainIdConfig(chainId *big.Int) *ChainConfig {
 	return c
 }
 
-func (c *ChainConfig) DisableGFork() *ChainConfig {
+func (c *ChainConfig) DisableGingerbread() *ChainConfig {
 	c.GingerbreadBlock = nil
 	return c
 }
