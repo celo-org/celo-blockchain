@@ -175,7 +175,7 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 	for i, step := range deploySteps {
 		logger.Info("Running deploy step", "number", i)
 		if err := step(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("Failed deployment step %d: %w", i, err)
 		}
 	}
 
@@ -261,7 +261,7 @@ func (ctx *deployContext) deployProxiedContract(name string, initialize func(con
 
 	logger.Info("Initialize Contract")
 	if err := initialize(ctx.contract(name)); err != nil {
-		return err
+		return fmt.Errorf("initialize: %w", err)
 	}
 
 	return nil
