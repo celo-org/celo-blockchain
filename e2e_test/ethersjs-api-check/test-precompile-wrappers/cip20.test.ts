@@ -16,6 +16,7 @@ describe("CIP20", function () {
     const contractJSON = fs.readFileSync("../../compiled-system-contracts/CIP20Test.json", 'utf8');
     const CIP20TestFactory = ethers.ContractFactory.fromSolidity(contractJSON, signer);
     cip20 = await CIP20TestFactory.deploy();
+    await new Promise(f => setTimeout(f, 100));
   });
 
   it("should run hashes", async () => {

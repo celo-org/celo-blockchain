@@ -37,6 +37,7 @@ describe("BLS12-377", function () {
     const contractJSON = fs.readFileSync("../../compiled-system-contracts/BLS12_377Passthrough.json", 'utf8');
     const TestContractFactory = ethers.ContractFactory.fromSolidity(contractJSON, signer);
     instance = await TestContractFactory.deploy();
+    await new Promise(f => setTimeout(f, 100));
   });
 
   it("fpNormal works", async () => {
