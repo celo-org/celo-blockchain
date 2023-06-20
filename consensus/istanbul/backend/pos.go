@@ -119,7 +119,7 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 		return err
 	}
 
-	if sb.ChainConfig().IsGFork(header.Number) {
+	if sb.ChainConfig().IsGingerbread(header.Number) {
 		if err := sb.distributeCommunityRewards(vmRunner, communityReward); err != nil {
 			return err
 		}

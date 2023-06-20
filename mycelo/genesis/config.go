@@ -81,10 +81,10 @@ func (cfg *Config) ChainConfig() *params.ChainConfig {
 		PetersburgBlock:     common.Big0,
 		IstanbulBlock:       common.Big0,
 
-		ChurritoBlock: cfg.Hardforks.ChurritoBlock,
-		DonutBlock:    cfg.Hardforks.DonutBlock,
-		EspressoBlock: cfg.Hardforks.EspressoBlock,
-		GForkBlock:    cfg.Hardforks.GForkBlock,
+		ChurritoBlock:    cfg.Hardforks.ChurritoBlock,
+		DonutBlock:       cfg.Hardforks.DonutBlock,
+		EspressoBlock:    cfg.Hardforks.EspressoBlock,
+		GingerbreadBlock: cfg.Hardforks.GingerbreadBlock,
 
 		Istanbul: &params.IstanbulConfig{
 			Epoch:          cfg.Istanbul.Epoch,
@@ -98,10 +98,10 @@ func (cfg *Config) ChainConfig() *params.ChainConfig {
 
 // HardforkConfig contains celo hardforks activation blocks
 type HardforkConfig struct {
-	ChurritoBlock *big.Int `json:"churritoBlock"`
-	DonutBlock    *big.Int `json:"donutBlock"`
-	EspressoBlock *big.Int `json:"espressoBlock"`
-	GForkBlock    *big.Int `json:"gForkBlock"`
+	ChurritoBlock    *big.Int `json:"churritoBlock"`
+	DonutBlock       *big.Int `json:"donutBlock"`
+	EspressoBlock    *big.Int `json:"espressoBlock"`
+	GingerbreadBlock *big.Int `json:"gingerbreadBlock"`
 }
 
 // MultiSigParameters are the initial configuration parameters for a MultiSig contract

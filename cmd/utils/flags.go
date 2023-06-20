@@ -237,9 +237,9 @@ var (
 	}
 
 	// Hard fork activation overrides
-	OverrideEHardforkFlag = cli.Uint64Flag{
-		Name:  "override.espresso",
-		Usage: "Manually specify the espresso fork block, overriding the bundled setting",
+	OverrideGingerbreadFlag = cli.Uint64Flag{
+		Name:  "override.gingerbread",
+		Usage: "Manually specify the gingerbread fork block, overriding the bundled setting",
 	}
 
 	BloomFilterSizeFlag = cli.Uint64Flag{
