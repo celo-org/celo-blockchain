@@ -42,6 +42,18 @@ const (
 	Bls12377G2MulGas          uint64 = 55000 // Price for BLS12-377 elliptic curve G2 point scalar multiplication
 	Bls12377PairingBaseGas    uint64 = 65000 // Base gas price for BLS12-377 elliptic curve pairing check
 	Bls12377PairingPerPairGas uint64 = 55000 // Per-point pair gas price for BLS12-377 elliptic curve pairing check
+
+	// ColdAccountAccessCostEIP2929 (2600 -> 900), ColdSloadCostEIP2929 (2100 -> 800) are modified according to CIP-0048
+	// Links: https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
+	CeloColdAccountAccessCostEIP2929 = uint64(900) // COLD_ACCOUNT_ACCESS_COST
+	CeloColdSloadCostEIP2929         = uint64(800) // COLD_SLOAD_COST
+
+	// In EIP-2200: SstoreResetGas was 5000.
+	// In EIP-2929: SstoreResetGas was changed to '5000 - COLD_SLOAD_COST'.
+	// In EIP-3529: SSTORE_CLEARS_SCHEDULE is defined as SSTORE_RESET_GAS + ACCESS_LIST_STORAGE_KEY_COST
+	// Which becomes: 5000 - 2100 + 1900 = 4800 (ethereum)
+	// Which becomes: 5000 - 800 + 1900 = 6100 (celo)
+	CeloSstoreClearsScheduleRefundEIP3529 uint64 = SstoreResetGasEIP2200 - CeloColdSloadCostEIP2929 + TxAccessListStorageKeyGas
 )
 
 // Gas discount table for BLS12-377 G1 and G2 multi exponentiation operations

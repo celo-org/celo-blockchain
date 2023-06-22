@@ -256,7 +256,7 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Database, clock mclock.Clock) (*serverHandler, *backends.SimulatedBackend, func()) {
 	var (
 		gspec = core.Genesis{
-			Config: params.IstanbulTestChainConfig.DeepCopy().DisableGFork(),
+			Config: params.IstanbulTestChainConfig.DeepCopy().DisableGingerbread(),
 			Alloc:  core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
 		}
 		oracle *checkpointoracle.CheckpointOracle

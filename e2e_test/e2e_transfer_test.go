@@ -212,7 +212,7 @@ func TestTransferCELO(t *testing.T) {
 // - Receiver account has transfer value added.
 // - Governance account has base fee added.
 // - validator account has tip fee added.
-func TestTransferCELOPreGFork(t *testing.T) {
+func TestTransferCELOPreGingerbread(t *testing.T) {
 	ac := test.AccountConfig(1, 3)
 	gc, ec, err := test.BuildConfig(ac)
 	gc.Hardforks.GingerbreadBlock = nil
