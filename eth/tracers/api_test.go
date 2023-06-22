@@ -321,166 +321,9 @@ func TestTraceCall(t *testing.T) {
 	}
 }
 
-func TestTraceTransaction(t *testing.T) {
+func TestOverriddenTraceCall(t *testing.T) {
 	t.Parallel()
 
-	// Initialize test accounts
-	accounts := newAccounts(2)
-	genesis := &core.Genesis{Alloc: core.GenesisAlloc{
-		accounts[0].addr: {Balance: big.NewInt(params.Ether)},
-		accounts[1].addr: {Balance: big.NewInt(params.Ether)},
-	}}
-	target := common.Hash{}
-	signer := types.HomesteadSigner{}
-	api := NewAPI(newTestBackend(t, 1, genesis, func(i int, b *core.BlockGen) {
-		// Transfer from account[0] to account[1]
-		//    value: 1000 wei
-		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil), signer, accounts[0].key)
-		b.AddTx(tx)
-		target = tx.Hash()
-	}))
-	result, err := api.TraceTransaction(context.Background(), target, nil)
-	if err != nil {
-		t.Errorf("Failed to trace transaction %v", err)
-	}
-	if !reflect.DeepEqual(result, &ethapi.ExecutionResult{
-		Gas:         params.TxGas,
-		Failed:      false,
-		ReturnValue: "",
-		StructLogs:  []ethapi.StructLogRes{},
-	}) {
-		t.Error("Transaction tracing result is different")
-	}
-}
-
-// Regression test for debug get/set logic in the EVM & Interpreter.
-// Include registry to ensure that Celo-specific EVM Call's within
-// Tobin Tax and fee distribution logic are triggered.
-func TestTraceTransactionWithRegistryDeployed(t *testing.T) {
-	t.Parallel()
-
-	// Initialize test accounts
-	accounts := newAccounts(2)
-	genesis := &core.Genesis{Alloc: core.GenesisAlloc{
-		accounts[0].addr: {Balance: big.NewInt(params.Ether)},
-		accounts[1].addr: {Balance: big.NewInt(params.Ether)},
-		common.HexToAddress("0xce10"): { // Registry Proxy
-			Code: testutil.RegistryProxyOpcodes,
-			Storage: map[common.Hash]common.Hash{
-				common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"): common.HexToHash("0xce11"), // Registry Implementation
-				common.HexToHash("0x91646b8507bf2e54d7c3de9155442ba111546b81af1cbdd1f68eeb6926b98d58"): common.HexToHash("0xd023"), // Governance Proxy
-			},
-			Balance: big.NewInt(0),
-		},
-		common.HexToAddress("0xce11"): { // Registry Implementation
-			Code:    testutil.RegistryOpcodes,
-			Balance: big.NewInt(0),
-		},
-	}}
-
-	target := common.Hash{}
-	signer := types.HomesteadSigner{}
-	api := NewAPI(newTestBackend(t, 1, genesis, func(i int, b *core.BlockGen) {
-		// Transfer from account[0] to account[1]
-		//    value: 1000 wei
-		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil), signer, accounts[0].key)
-		b.AddTx(tx)
-		target = tx.Hash()
-	}))
-	result, err := api.TraceTransaction(context.Background(), target, nil)
-	if err != nil {
-		t.Errorf("Failed to trace transaction %v", err)
-	}
-	if !reflect.DeepEqual(result, &ethapi.ExecutionResult{
-		Gas:         params.TxGas,
-		Failed:      false,
-		ReturnValue: "",
-		StructLogs:  []ethapi.StructLogRes{},
-	}) {
-		t.Error("Transaction tracing result is different")
-	}
-}
-
-func TestTraceBlock(t *testing.T) {
-	t.Parallel()
-
-	// Initialize test accounts
-	accounts := newAccounts(3)
-	genesis := &core.Genesis{Alloc: core.GenesisAlloc{
-		accounts[0].addr: {Balance: big.NewInt(params.Ether)},
-		accounts[1].addr: {Balance: big.NewInt(params.Ether)},
-		accounts[2].addr: {Balance: big.NewInt(params.Ether)},
-	}}
-	genBlocks := 10
-	signer := types.HomesteadSigner{}
-	api := NewAPI(newTestBackend(t, genBlocks, genesis, func(i int, b *core.BlockGen) {
-		// Transfer from account[0] to account[1]
-		//    value: 1000 wei
-		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil), signer, accounts[0].key)
-		b.AddTx(tx)
-	}))
-
-	var testSuite = []struct {
-		blockNumber rpc.BlockNumber
-		config      *TraceConfig
-		want        string
-		expectErr   error
-	}{
-		// Trace genesis block, expect error
-		{
-			blockNumber: rpc.BlockNumber(0),
-			expectErr:   errors.New("genesis is not traceable"),
-		},
-		// Trace head block
-		{
-			blockNumber: rpc.BlockNumber(genBlocks),
-			want:        `[{"result":{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}}]`,
-		},
-		// Trace non-existent block
-		{
-			blockNumber: rpc.BlockNumber(genBlocks + 1),
-			expectErr:   fmt.Errorf("block #%d not found", genBlocks+1),
-		},
-		// Trace latest block
-		{
-			blockNumber: rpc.LatestBlockNumber,
-			want:        `[{"result":{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}}]`,
-		},
-		// Trace pending block
-		{
-			blockNumber: rpc.PendingBlockNumber,
-			want:        `[{"result":{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}}]`,
-		},
-	}
-	for i, tc := range testSuite {
-		result, err := api.TraceBlockByNumber(context.Background(), tc.blockNumber, tc.config)
-		if tc.expectErr != nil {
-			if err == nil {
-				t.Errorf("test %d, want error %v", i, tc.expectErr)
-				continue
-			}
-			if !reflect.DeepEqual(err, tc.expectErr) {
-				t.Errorf("test %d: error mismatch, want %v, get %v", i, tc.expectErr, err)
-			}
-			continue
-		}
-		if err != nil {
-			t.Errorf("test %d, want no error, have %v", i, err)
-			continue
-		}
-		have, _ := json.Marshal(result)
-		want := tc.want
-		if string(have) != want {
-			t.Errorf("test %d, result mismatch, have\n%v\n, want\n%v\n", i, string(have), want)
-		}
-	}
-}
-
-func TestTracingWithOverrides(t *testing.T) {
-	t.Parallel()
 	// Initialize test accounts
 	accounts := newAccounts(3)
 	genesis := &core.Genesis{Alloc: core.GenesisAlloc{
@@ -613,6 +456,114 @@ func TestTracingWithOverrides(t *testing.T) {
 		}
 	}
 }
+func TestTraceTransaction(t *testing.T) {
+	t.Parallel()
+
+	// Initialize test accounts
+	accounts := newAccounts(2)
+	genesis := &core.Genesis{Alloc: core.GenesisAlloc{
+		accounts[0].addr: {Balance: big.NewInt(params.Ether)},
+		accounts[1].addr: {Balance: big.NewInt(params.Ether)},
+	}}
+	target := common.Hash{}
+	signer := types.HomesteadSigner{}
+	api := NewAPI(newTestBackend(t, 1, genesis, func(i int, b *core.BlockGen) {
+		// Transfer from account[0] to account[1]
+		//    value: 1000 wei
+		//    fee:   0 wei
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil), signer, accounts[0].key)
+		b.AddTx(tx)
+		target = tx.Hash()
+	}))
+	result, err := api.TraceTransaction(context.Background(), target, nil)
+	if err != nil {
+		t.Errorf("Failed to trace transaction %v", err)
+	}
+	if !reflect.DeepEqual(result, &ethapi.ExecutionResult{
+		Gas:         params.TxGas,
+		Failed:      false,
+		ReturnValue: "",
+		StructLogs:  []ethapi.StructLogRes{},
+	}) {
+		t.Error("Transaction tracing result is different")
+	}
+}
+
+func TestTraceBlock(t *testing.T) {
+	t.Parallel()
+
+	// Initialize test accounts
+	accounts := newAccounts(3)
+	genesis := &core.Genesis{Alloc: core.GenesisAlloc{
+		accounts[0].addr: {Balance: big.NewInt(params.Ether)},
+		accounts[1].addr: {Balance: big.NewInt(params.Ether)},
+		accounts[2].addr: {Balance: big.NewInt(params.Ether)},
+	}}
+	genBlocks := 10
+	signer := types.HomesteadSigner{}
+	api := NewAPI(newTestBackend(t, genBlocks, genesis, func(i int, b *core.BlockGen) {
+		// Transfer from account[0] to account[1]
+		//    value: 1000 wei
+		//    fee:   0 wei
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil), signer, accounts[0].key)
+		b.AddTx(tx)
+	}))
+
+	var testSuite = []struct {
+		blockNumber rpc.BlockNumber
+		config      *TraceConfig
+		want        string
+		expectErr   error
+	}{
+		// Trace genesis block, expect error
+		{
+			blockNumber: rpc.BlockNumber(0),
+			expectErr:   errors.New("genesis is not traceable"),
+		},
+		// Trace head block
+		{
+			blockNumber: rpc.BlockNumber(genBlocks),
+			want:        `[{"result":{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}}]`,
+		},
+		// Trace non-existent block
+		{
+			blockNumber: rpc.BlockNumber(genBlocks + 1),
+			expectErr:   fmt.Errorf("block #%d not found", genBlocks+1),
+		},
+		// Trace latest block
+		{
+			blockNumber: rpc.LatestBlockNumber,
+			want:        `[{"result":{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}}]`,
+		},
+		// Trace pending block
+		{
+			blockNumber: rpc.PendingBlockNumber,
+			want:        `[{"result":{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}}]`,
+		},
+	}
+	for i, tc := range testSuite {
+		result, err := api.TraceBlockByNumber(context.Background(), tc.blockNumber, tc.config)
+		if tc.expectErr != nil {
+			if err == nil {
+				t.Errorf("test %d, want error %v", i, tc.expectErr)
+				continue
+			}
+			if !reflect.DeepEqual(err, tc.expectErr) {
+				t.Errorf("test %d: error mismatch, want %v, get %v", i, tc.expectErr, err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("test %d, want no error, have %v", i, err)
+			continue
+		}
+		have, _ := json.Marshal(result)
+		want := tc.want
+		if string(have) != want {
+			t.Errorf("test %d, result mismatch, have\n%v\n, want\n%v\n", i, string(have), want)
+		}
+	}
+}
 
 // Regression test for https://github.com/celo-org/celo-blockchain/issues/2002
 // The tracer module didn't correctly calculate gas prices when EIP1559 style
@@ -687,6 +638,55 @@ func TestTraceBlockWithEIP1559Tx(t *testing.T) {
 	_, err := api.TraceBlockByNumber(context.Background(), rpc.LatestBlockNumber, nil)
 	if err != nil {
 		t.Errorf("Expect no error, get %v", err)
+	}
+}
+
+// Regression test for debug get/set logic in the EVM & Interpreter.
+// Include registry to ensure that Celo-specific EVM Call's within
+// Tobin Tax and fee distribution logic are triggered.
+func TestTraceTransactionWithRegistryDeployed(t *testing.T) {
+	t.Parallel()
+
+	// Initialize test accounts
+	accounts := newAccounts(2)
+	genesis := &core.Genesis{Alloc: core.GenesisAlloc{
+		accounts[0].addr: {Balance: big.NewInt(params.Ether)},
+		accounts[1].addr: {Balance: big.NewInt(params.Ether)},
+		common.HexToAddress("0xce10"): { // Registry Proxy
+			Code: testutil.RegistryProxyOpcodes,
+			Storage: map[common.Hash]common.Hash{
+				common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"): common.HexToHash("0xce11"), // Registry Implementation
+				common.HexToHash("0x91646b8507bf2e54d7c3de9155442ba111546b81af1cbdd1f68eeb6926b98d58"): common.HexToHash("0xd023"), // Governance Proxy
+			},
+			Balance: big.NewInt(0),
+		},
+		common.HexToAddress("0xce11"): { // Registry Implementation
+			Code:    testutil.RegistryOpcodes,
+			Balance: big.NewInt(0),
+		},
+	}}
+
+	target := common.Hash{}
+	signer := types.HomesteadSigner{}
+	api := NewAPI(newTestBackend(t, 1, genesis, func(i int, b *core.BlockGen) {
+		// Transfer from account[0] to account[1]
+		//    value: 1000 wei
+		//    fee:   0 wei
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.MinimumGasPrice(nil), nil), signer, accounts[0].key)
+		b.AddTx(tx)
+		target = tx.Hash()
+	}))
+	result, err := api.TraceTransaction(context.Background(), target, nil)
+	if err != nil {
+		t.Errorf("Failed to trace transaction %v", err)
+	}
+	if !reflect.DeepEqual(result, &ethapi.ExecutionResult{
+		Gas:         params.TxGas,
+		Failed:      false,
+		ReturnValue: "",
+		StructLogs:  []ethapi.StructLogRes{},
+	}) {
+		t.Error("Transaction tracing result is different")
 	}
 }
 
