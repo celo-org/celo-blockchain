@@ -321,141 +321,6 @@ func TestTraceCall(t *testing.T) {
 	}
 }
 
-func TestOverriddenTraceCall(t *testing.T) {
-	t.Parallel()
-
-	// Initialize test accounts
-	accounts := newAccounts(3)
-	genesis := &core.Genesis{Alloc: core.GenesisAlloc{
-		accounts[0].addr: {Balance: big.NewInt(params.Ether)},
-		accounts[1].addr: {Balance: big.NewInt(params.Ether)},
-		accounts[2].addr: {Balance: big.NewInt(params.Ether)},
-	}}
-	genBlocks := 10
-	signer := types.HomesteadSigner{}
-	api := NewAPI(newTestBackend(t, genBlocks, genesis, func(i int, b *core.BlockGen) {
-		// Transfer from account[0] to account[1]
-		//    value: 1000 wei
-		//    fee:   0 wei
-		tx, _ := types.SignTx(
-			types.NewCeloTransaction(
-				uint64(i),
-				accounts[1].addr,
-				big.NewInt(1000),
-				params.TxGas,
-				common.Big0,
-				nil,
-				nil,
-				nil,
-				nil),
-			signer,
-			accounts[0].key,
-		)
-		b.AddTx(tx)
-	}))
-	randomAccounts := newAccounts(3)
-	type res struct {
-		Gas         int
-		Failed      bool
-		returnValue string
-	}
-	var testSuite = []struct {
-		blockNumber rpc.BlockNumber
-		call        ethapi.TransactionArgs
-		config      *TraceCallConfig
-		expectErr   error
-		want        string
-	}{
-		// Call which can only succeed if state is state overridden
-		{
-			blockNumber: rpc.PendingBlockNumber,
-			call: ethapi.TransactionArgs{
-				From:  &randomAccounts[0].addr,
-				To:    &randomAccounts[1].addr,
-				Value: (*hexutil.Big)(big.NewInt(1000)),
-			},
-			config: &TraceCallConfig{
-				StateOverrides: &ethapi.StateOverride{
-					randomAccounts[0].addr: ethapi.OverrideAccount{Balance: newRPCBalance(new(big.Int).Mul(big.NewInt(1), big.NewInt(params.Ether)))},
-				},
-			},
-			want: `{"gas":21000,"failed":false,"returnValue":""}`,
-		},
-		// Invalid call without state overriding
-		{
-			blockNumber: rpc.PendingBlockNumber,
-			call: ethapi.TransactionArgs{
-				From:  &randomAccounts[0].addr,
-				To:    &randomAccounts[1].addr,
-				Value: (*hexutil.Big)(big.NewInt(1000)),
-			},
-			config:    &TraceCallConfig{},
-			expectErr: core.ErrInsufficientFunds,
-		},
-		// Successful simple contract call
-		//
-		// // SPDX-License-Identifier: GPL-3.0
-		//
-		//  pragma solidity >=0.7.0 <0.8.0;
-		//
-		//  /**
-		//   * @title Storage
-		//   * @dev Store & retrieve value in a variable
-		//   */
-		//  contract Storage {
-		//      uint256 public number;
-		//      constructor() {
-		//          number = block.number;
-		//      }
-		//  }
-		{
-			blockNumber: rpc.PendingBlockNumber,
-			call: ethapi.TransactionArgs{
-				From: &randomAccounts[0].addr,
-				To:   &randomAccounts[2].addr,
-				Data: newRPCBytes(common.Hex2Bytes("8381f58a")), // call number()
-			},
-			config: &TraceCallConfig{
-				//Tracer: &tracer,
-				StateOverrides: &ethapi.StateOverride{
-					randomAccounts[2].addr: ethapi.OverrideAccount{
-						Code:      newRPCBytes(common.Hex2Bytes("6080604052348015600f57600080fd5b506004361060285760003560e01c80638381f58a14602d575b600080fd5b60336049565b6040518082815260200191505060405180910390f35b6000548156fea2646970667358221220eab35ffa6ab2adfe380772a48b8ba78e82a1b820a18fcb6f59aa4efb20a5f60064736f6c63430007040033")),
-						StateDiff: newStates([]common.Hash{{}}, []common.Hash{common.BigToHash(big.NewInt(123))}),
-					},
-				},
-			},
-			want: `{"gas":23347,"failed":false,"returnValue":"000000000000000000000000000000000000000000000000000000000000007b"}`,
-		},
-	}
-	for i, tc := range testSuite {
-		result, err := api.TraceCall(context.Background(), tc.call, rpc.BlockNumberOrHash{BlockNumber: &tc.blockNumber}, tc.config)
-		if tc.expectErr != nil {
-			if err == nil {
-				t.Errorf("test %d: want error %v, have nothing", i, tc.expectErr)
-				continue
-			}
-			if !errors.Is(err, tc.expectErr) {
-				t.Errorf("test %d: error mismatch, want %v, have %v", i, tc.expectErr, err)
-			}
-			continue
-		}
-		if err != nil {
-			t.Errorf("test %d: want no error, have %v", i, err)
-			continue
-		}
-		// Turn result into res-struct
-		var (
-			have res
-			want res
-		)
-		resBytes, _ := json.Marshal(result)
-		json.Unmarshal(resBytes, &have)
-		json.Unmarshal([]byte(tc.want), &want)
-		if !reflect.DeepEqual(have, want) {
-			t.Errorf("test %d, result mismatch, have\n%v\n, want\n%v\n", i, string(resBytes), want)
-		}
-	}
-}
 func TestTraceTransaction(t *testing.T) {
 	t.Parallel()
 
@@ -561,6 +426,128 @@ func TestTraceBlock(t *testing.T) {
 		want := tc.want
 		if string(have) != want {
 			t.Errorf("test %d, result mismatch, have\n%v\n, want\n%v\n", i, string(have), want)
+		}
+	}
+}
+
+func TestTracingWithOverrides(t *testing.T) {
+	t.Parallel()
+	// Initialize test accounts
+	accounts := newAccounts(3)
+	genesis := &core.Genesis{Alloc: core.GenesisAlloc{
+		accounts[0].addr: {Balance: big.NewInt(params.Ether)},
+		accounts[1].addr: {Balance: big.NewInt(params.Ether)},
+		accounts[2].addr: {Balance: big.NewInt(params.Ether)},
+	}}
+	genBlocks := 10
+	signer := types.HomesteadSigner{}
+	api := NewAPI(newTestBackend(t, genBlocks, genesis, func(i int, b *core.BlockGen) {
+		// Transfer from account[0] to account[1]
+		//    value: 1000 wei
+		//    fee:   0 wei
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, common.Big0, nil), signer, accounts[0].key)
+		b.AddTx(tx)
+	}))
+	randomAccounts := newAccounts(3)
+	type res struct {
+		Gas         int
+		Failed      bool
+		returnValue string
+	}
+	var testSuite = []struct {
+		blockNumber rpc.BlockNumber
+		call        ethapi.TransactionArgs
+		config      *TraceCallConfig
+		expectErr   error
+		want        string
+	}{
+		// Call which can only succeed if state is state overridden
+		{
+			blockNumber: rpc.PendingBlockNumber,
+			call: ethapi.TransactionArgs{
+				From:  &randomAccounts[0].addr,
+				To:    &randomAccounts[1].addr,
+				Value: (*hexutil.Big)(big.NewInt(1000)),
+			},
+			config: &TraceCallConfig{
+				StateOverrides: &ethapi.StateOverride{
+					randomAccounts[0].addr: ethapi.OverrideAccount{Balance: newRPCBalance(new(big.Int).Mul(big.NewInt(1), big.NewInt(params.Ether)))},
+				},
+			},
+			want: `{"gas":21000,"failed":false,"returnValue":""}`,
+		},
+		// Invalid call without state overriding
+		{
+			blockNumber: rpc.PendingBlockNumber,
+			call: ethapi.TransactionArgs{
+				From:  &randomAccounts[0].addr,
+				To:    &randomAccounts[1].addr,
+				Value: (*hexutil.Big)(big.NewInt(1000)),
+			},
+			config:    &TraceCallConfig{},
+			expectErr: core.ErrInsufficientFunds,
+		},
+		// Successful simple contract call
+		//
+		// // SPDX-License-Identifier: GPL-3.0
+		//
+		//  pragma solidity >=0.7.0 <0.8.0;
+		//
+		//  /**
+		//   * @title Storage
+		//   * @dev Store & retrieve value in a variable
+		//   */
+		//  contract Storage {
+		//      uint256 public number;
+		//      constructor() {
+		//          number = block.number;
+		//      }
+		//  }
+		{
+			blockNumber: rpc.PendingBlockNumber,
+			call: ethapi.TransactionArgs{
+				From: &randomAccounts[0].addr,
+				To:   &randomAccounts[2].addr,
+				Data: newRPCBytes(common.Hex2Bytes("8381f58a")), // call number()
+			},
+			config: &TraceCallConfig{
+				//Tracer: &tracer,
+				StateOverrides: &ethapi.StateOverride{
+					randomAccounts[2].addr: ethapi.OverrideAccount{
+						Code:      newRPCBytes(common.Hex2Bytes("6080604052348015600f57600080fd5b506004361060285760003560e01c80638381f58a14602d575b600080fd5b60336049565b6040518082815260200191505060405180910390f35b6000548156fea2646970667358221220eab35ffa6ab2adfe380772a48b8ba78e82a1b820a18fcb6f59aa4efb20a5f60064736f6c63430007040033")),
+						StateDiff: newStates([]common.Hash{{}}, []common.Hash{common.BigToHash(big.NewInt(123))}),
+					},
+				},
+			},
+			want: `{"gas":23347,"failed":false,"returnValue":"000000000000000000000000000000000000000000000000000000000000007b"}`,
+		},
+	}
+	for i, tc := range testSuite {
+		result, err := api.TraceCall(context.Background(), tc.call, rpc.BlockNumberOrHash{BlockNumber: &tc.blockNumber}, tc.config)
+		if tc.expectErr != nil {
+			if err == nil {
+				t.Errorf("test %d: want error %v, have nothing", i, tc.expectErr)
+				continue
+			}
+			if !errors.Is(err, tc.expectErr) {
+				t.Errorf("test %d: error mismatch, want %v, have %v", i, tc.expectErr, err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("test %d: want no error, have %v", i, err)
+			continue
+		}
+		// Turn result into res-struct
+		var (
+			have res
+			want res
+		)
+		resBytes, _ := json.Marshal(result)
+		json.Unmarshal(resBytes, &have)
+		json.Unmarshal([]byte(tc.want), &want)
+		if !reflect.DeepEqual(have, want) {
+			t.Errorf("test %d, result mismatch, have\n%v\n, want\n%v\n", i, string(resBytes), want)
 		}
 	}
 }
