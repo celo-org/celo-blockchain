@@ -57,15 +57,15 @@ var (
 	constantinopleInstructionSet   = newConstantinopleInstructionSet()
 	istanbulInstructionSet         = newIstanbulInstructionSet()
 	espressoInstructionSet         = newEspressoInstructionSet()
-	gforkInstructionSet            = newGforkInstructionSet()
+	gingerbreadInstructionSet      = newGingerbreadInstructionSet()
 )
 
 // JumpTable contains the EVM opcodes supported at a given fork.
 type JumpTable [256]*operation
 
-// newGforkInstructionSet returns the frontier, homestead, byzantium,
-// constantinople, istanbul, petersburg, espresso and g-fork instructions.
-func newGforkInstructionSet() JumpTable {
+// newGingerbreadInstructionSet returns the frontier, homestead, byzantium,
+// constantinople, istanbul, petersburg, espresso and gingerbread instructions.
+func newGingerbreadInstructionSet() JumpTable {
 	instructionSet := newEspressoInstructionSet()
 	instructionSet[GASLIMIT] = &operation{
 		execute:     opGasLimit,

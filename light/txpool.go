@@ -69,11 +69,11 @@ type TxPool struct {
 	mined        map[common.Hash][]*types.Transaction // mined transactions by block hash
 	clearIdx     uint64                               // earliest block nr that can contain mined tx info
 
-	homestead bool // Fork indicator whether homestead has been activated
-	istanbul  bool // Fork indicator whether we are in the istanbul stage
-	donut     bool // Fork indicator whether Donut has been activated
-	espresso  bool // Fork indicator whether Espresso has been activated
-	gfork     bool // Fork indicator for the G fork.
+	homestead   bool // Fork indicator whether homestead has been activated
+	istanbul    bool // Fork indicator whether we are in the istanbul stage
+	donut       bool // Fork indicator whether Donut has been activated
+	espresso    bool // Fork indicator whether Espresso has been activated
+	gingerbread bool // Fork indicator for the G fork.
 }
 
 // TxRelayBackend provides an interface to the mechanism that forwards transacions
@@ -330,7 +330,7 @@ func (pool *TxPool) setNewHead(head *types.Header) {
 	pool.istanbul = pool.config.IsIstanbul(next)
 	pool.donut = pool.config.IsDonut(next)
 	pool.espresso = pool.config.IsEspresso(next)
-	pool.gfork = pool.config.IsGFork(next)
+	pool.gingerbread = pool.config.IsGingerbread(next)
 }
 
 // Stop stops the light transaction pool
@@ -378,7 +378,7 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 
 	// CIP 57 deprecates full node incentives
 	gatewayFeeSet := !(tx.GatewayFee() == nil || tx.GatewayFee().Cmp(common.Big0) == 0)
-	if pool.gfork && (tx.GatewayFeeRecipient() != nil || gatewayFeeSet) {
+	if pool.gingerbread && (tx.GatewayFeeRecipient() != nil || gatewayFeeSet) {
 		return core.ErrGatewayFeeDeprecated
 	}
 

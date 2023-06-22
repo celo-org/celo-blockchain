@@ -376,7 +376,7 @@ func TestInvalidTransactionsPreGFork(t *testing.T) {
 
 	pool, key := setupTxPool()
 	defer pool.Stop()
-	pool.gfork = false
+	pool.gingerbread = false
 
 	tx := transaction(0, 100, key)
 	from, _ := deriveSender(tx)
@@ -944,7 +944,7 @@ func TestTransactionGapFilling(t *testing.T) {
 // (a) to set pool.donut = false at its start (so we can add unprotected transactions)
 // (b) different functions to generate protected vs unprotected transactions, since we will
 //     need to update transaction() and the others to use replay protection
-func TestPoolReAcceptingUnprotectedTxsFromEFork(t *testing.T) {
+func TestPoolReAcceptingUnprotectedTxsFromEspresso(t *testing.T) {
 	t.Parallel()
 
 	pool, key := setupTxPool()
@@ -993,8 +993,8 @@ func TestPoolReAcceptingUnprotectedTxsFromEFork(t *testing.T) {
 		t.Fatalf("after donut, queued transactions mismatched: have %d, want %d", queued, 3)
 	}
 
-	// In E fork
-	// flag it as E hard fork
+	// In Espresso
+	// flag it as Espresso fork
 	pool.espresso = true
 	pool.AddRemotesSync([]*types.Transaction{
 		transaction(3, 100000, key),

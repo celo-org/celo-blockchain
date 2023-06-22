@@ -145,11 +145,11 @@ func BenchmarkPrecompiledEd25519Verify(b *testing.B) { benchJson("ed25519Verify"
 // Tests sample inputs for fractionMulExp
 // NOTE: This currently only verifies that inputs of invalid length are rejected
 func TestPrecompiledFractionMulExp(t *testing.T) {
-	// Post GFork behaviour
-	mockEVM.chainRules.IsGFork = true
+	// Post Gingerbread behaviour
+	mockEVM.chainRules.IsGingerbread = true
 	testJson("fractionMulExp", "fc", t)
-	// Pre GFork behaviour
-	mockEVM.chainRules.IsGFork = false
+	// Pre Gingerbread behaviour
+	mockEVM.chainRules.IsGingerbread = false
 	testJson("fractionMulExpOld", "fc", t)
 }
 

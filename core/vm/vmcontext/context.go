@@ -154,8 +154,8 @@ func TobinTransfer(evm *vm.EVM, sender, recipient common.Address, amount *big.In
 		defer func() { evm.SetDebug(true) }()
 	}
 
-	// Only deduct tobin tax before the g hardfork
-	if evm.ChainConfig().IsGFork(evm.Context.BlockNumber) {
+	// Only deduct tobin tax before gingerbread fork
+	if evm.ChainConfig().IsGingerbread(evm.Context.BlockNumber) {
 		Transfer(evm.StateDB, sender, recipient, amount)
 	} else {
 		if amount.Cmp(big.NewInt(0)) != 0 {

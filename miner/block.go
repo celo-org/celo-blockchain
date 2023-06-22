@@ -111,7 +111,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 		sysCtx:         core.NewSysContractCallCtx(header, state.Copy(), w.chain),
 	}
 	b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
-	if w.chainConfig.IsGFork(header.Number) {
+	if w.chainConfig.IsGingerbread(header.Number) {
 		header.GasLimit = b.gasLimit
 		header.Difficulty = big.NewInt(0)
 		header.Nonce = types.EncodeNonce(0)

@@ -170,7 +170,7 @@ var Forks = map[string]*params.ChainConfig{
 		DonutBlock:          big.NewInt(0),
 		EspressoBlock:       big.NewInt(5),
 	},
-	"GFork": {
+	"Gingerbread": {
 		ChainID:             big.NewInt(1),
 		HomesteadBlock:      big.NewInt(0),
 		EIP150Block:         big.NewInt(0),
@@ -183,7 +183,7 @@ var Forks = map[string]*params.ChainConfig{
 		ChurritoBlock:       big.NewInt(0),
 		DonutBlock:          big.NewInt(0),
 		EspressoBlock:       big.NewInt(0),
-		GForkBlock:          big.NewInt(0),
+		GingerbreadBlock:    big.NewInt(0),
 	},
 }
 
