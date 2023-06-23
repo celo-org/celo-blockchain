@@ -83,7 +83,7 @@ func (c *transfer) Run(input []byte, ctx *celoPrecompileContext) ([]byte, error)
 	//   to:    32 bytes representing the address of the recipient
 	//   value: 32 bytes, a 256 bit integer representing the amount of Celo Gold to transfer
 	// 3 arguments x 32 bytes each = 96 bytes total input
-	if (ctx.IsGFork && len(input) != 96) || len(input) < 96 {
+	if (ctx.IsGingerbread && len(input) != 96) || len(input) < 96 {
 		return nil, ErrInputLength
 	}
 
@@ -163,7 +163,7 @@ func (c *fractionMulExp) Run(input []byte, ctx *celoPrecompileContext) ([]byte, 
 	//   decimals:     32 bytes, 256 bit integer, places of precision
 	//
 	// 6 args x 32 bytes each = 192 bytes total input length
-	if (ctx.IsGFork && len(input) != 192) || len(input) < 192 {
+	if (ctx.IsGingerbread && len(input) != 192) || len(input) < 192 {
 		return nil, ErrInputLength
 	}
 
@@ -310,7 +310,7 @@ func (c *getValidator) Run(input []byte, ctx *celoPrecompileContext) ([]byte, er
 	// input is comprised of two arguments:
 	//   index: 32 byte integer representing the index of the validator to get
 	//   blockNumber: 32 byte integer representing the block number to access
-	if (ctx.IsGFork && len(input) != 64) || len(input) < 64 {
+	if (ctx.IsGingerbread && len(input) != 64) || len(input) < 64 {
 		return nil, ErrInputLength
 	}
 

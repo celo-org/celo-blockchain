@@ -743,17 +743,17 @@ func (s *PublicBlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Ha
 // rpc response that ethers.js depends upon.
 // See https://github.com/celo-org/celo-blockchain/issues/1945
 func addEthCompatibilityFields(ctx context.Context, response map[string]interface{}, b Backend, block *types.Block) {
-	isGFork := b.ChainConfig().IsGFork(block.Number())
+	isGingerbread := b.ChainConfig().IsGingerbread(block.Number())
 	if !b.RPCEthCompatibility() {
-		if !isGFork {
+		if !isGingerbread {
 			delete(response, "gasLimit")
 		}
 		return
 	}
 
 	header := block.Header()
-	if !isGFork {
-		// Before GFork, the header did not include the gasLimit, so we have to manually add it for eth-compatible RPC responses.
+	if !isGingerbread {
+		// Before Gingerbread, the header did not include the gasLimit, so we have to manually add it for eth-compatible RPC responses.
 		hash := header.Hash()
 		numhash := rpc.BlockNumberOrHash{
 			BlockHash: &hash,
@@ -1150,7 +1150,7 @@ func RPCMarshalHeader(head *types.Header) map[string]interface{} {
 		"receiptsRoot":     head.ReceiptHash,
 	}
 	// Former proof-of-work fields, now constants, see https://eips.ethereum.org/EIPS/eip-3675#block-structure
-	// Set after GFork
+	// Set after Gingerbread
 	if head.Difficulty != nil {
 		result["difficulty"] = (*hexutil.Big)(head.Difficulty)
 		result["nonce"] = head.Nonce
