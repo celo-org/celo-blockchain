@@ -89,8 +89,8 @@ func TestTraceSendCeloViaGoldToken(t *testing.T) {
 
 	require.NoError(t, err)
 	// Check top level gas values
-	require.Equal(t, "0x45d6", result["gasUsed"])
-	require.Equal(t, "0x4653", result["gas"])
+	require.Equal(t, "0x45fe", result["gasUsed"])
+	require.Equal(t, "0x467c", result["gas"])
 }
 
 // This test verifies correct behavior in a network of size one, in the case that
