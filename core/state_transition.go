@@ -388,6 +388,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	homestead := st.evm.ChainConfig().IsHomestead(st.evm.Context.BlockNumber)
 	istanbul := st.evm.ChainConfig().IsIstanbul(st.evm.Context.BlockNumber)
 	espresso := st.evm.ChainConfig().IsEspresso(st.evm.Context.BlockNumber)
+	gingerbread := st.evm.ChainConfig().IsGingerbread(st.evm.Context.BlockNumber)
 	contractCreation := msg.To() == nil
 
 	gasForAlternativeCurrency := st.gasForAlternativeCurrency(msg.FeeCurrency(), espresso)
@@ -437,7 +438,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// }
 	// st.state.AddBalance(st.evm.Context.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip))
 
-	if err = st.distributeTxFees(espresso); err != nil {
+	if err = st.distributeTxFees(espresso, gingerbread); err != nil {
 		return nil, err
 	}
 
@@ -473,7 +474,7 @@ func (st *StateTransition) gasUsed() uint64 {
 }
 
 // distributeTxFees calculates the amounts and recipients of transaction fees and credits the accounts.
-func (st *StateTransition) distributeTxFees(espresso bool) error {
+func (st *StateTransition) distributeTxFees(espresso bool, gingerbread bool) error {
 	if !espresso {
 		// Before EIP-3529: refunds were capped to gasUsed / 2
 		st.refundGas(params.RefundQuotient)
@@ -499,7 +500,7 @@ func (st *StateTransition) distributeTxFees(espresso bool) error {
 		gatewayFeeRecipient = &common.ZeroAddress
 	}
 
-	feeHandlerAddress, err := st.getFeeHandlerAddress()
+	feeHandlerAddress, err := st.getFeeHandlerAddress(gingerbread)
 	if err != nil {
 		return err
 	}
@@ -533,15 +534,20 @@ func (st *StateTransition) distributeTxFees(espresso bool) error {
 	return nil
 }
 
-func (st *StateTransition) getFeeHandlerAddress() (common.Address, error) {
+func (st *StateTransition) getFeeHandlerAddress(gingerbread bool) (common.Address, error) {
 	// Run only primary evm.Call() with tracer
 	if st.evm.GetDebug() {
 		st.evm.SetDebug(false)
 		defer func() { st.evm.SetDebug(true) }()
 	}
 	caller := &vmcontext.SharedEVMRunner{EVM: st.evm}
-	// TODO: pre gfork governance
-	feeHandlerAddress, err := contracts.GetRegisteredAddress(caller, config.FeeHandlerId)
+	var contractId [32]byte
+	if gingerbread {
+		contractId = config.FeeHandlerId
+	} else {
+		contractId = config.GovernanceRegistryId
+	}
+	feeHandlerAddress, err := contracts.GetRegisteredAddress(caller, contractId)
 	if err != nil {
 		if err != contracts.ErrSmartContractNotDeployed && err != contracts.ErrRegistryContractNotDeployed {
 			return common.ZeroAddress, err
