@@ -199,10 +199,12 @@ func BaseConfig() *Config {
 			},
 		},
 		FeeHandler: FeeHandlerParameters{
-			Tokens:          []common.Address{},
-			NewLimits:       []*big.Int{},
-			NewMaxSlippages: []*big.Int{},
-			NewRouters:      []common.Address{},
+			NewFeeBeneficiary: common.Address{},
+			NewBurnFraction:   fixed("0.2"),
+			Tokens:            []common.Address{},
+			Handlers:          []common.Address{},
+			NewLimits:         []*big.Int{},
+			NewMaxSlippages:   []*big.Int{},
 		},
 	}
 }
