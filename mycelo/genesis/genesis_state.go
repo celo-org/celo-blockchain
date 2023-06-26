@@ -478,6 +478,8 @@ func (ctx *deployContext) deployFeeHandler() error {
 	return ctx.deployCoreContract("FeeHandler", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
+			ctx.genesisConfig.FeeHandler.NewFeeBeneficiary,
+			ctx.genesisConfig.FeeHandler.NewBurnFraction.BigInt(),
 			ctx.genesisConfig.FeeHandler.Tokens,
 			ctx.genesisConfig.FeeHandler.NewLimits,
 			ctx.genesisConfig.FeeHandler.NewMaxSlippages,
