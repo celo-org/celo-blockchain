@@ -278,7 +278,7 @@ func makeHeader(chain consensus.ChainHeaderReader, parent *types.Block, state *s
 	}
 	// Properly set the extra data field
 	header.Extra = CreateEmptyIstanbulExtra(header.Extra)
-	if chain.Config().IsGFork(header.Number) {
+	if chain.Config().IsGingerbread(header.Number) {
 		if chain.Config().FakeBaseFee != nil {
 			header.BaseFee = chain.Config().FakeBaseFee
 		} else {

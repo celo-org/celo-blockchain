@@ -10,7 +10,7 @@ import (
 
 // BaseConfig creates base parameters for celo
 // Callers must complete missing pieces
-func BaseConfig(gForkBlock *big.Int) *Config {
+func BaseConfig(gingerbreadBlock *big.Int) *Config {
 	bigInt := big.NewInt
 	bigIntStr := common.MustBigInt
 	fixed := fixed.MustNew
@@ -24,7 +24,7 @@ func BaseConfig(gForkBlock *big.Int) *Config {
 			MinimumFloor:                 bigInt(100000000),
 			AdjustmentSpeed:              fixed("0.5"),
 			TargetDensity:                fixed("0.5"),
-			BaseFeeOpCodeActivationBlock: gForkBlock,
+			BaseFeeOpCodeActivationBlock: gingerbreadBlock,
 		},
 		Reserve: ReserveParameters{
 			TobinTaxStalenessThreshold: 3153600000,

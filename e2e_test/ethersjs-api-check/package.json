@@ -4,7 +4,8 @@
   "description": "runs ethers.js against an api to check compatibility",
   "main": "index.js",
   "scripts": {
-    "test": "mocha -r ts-node/register test/*.ts"
+    "test": "mocha -r ts-node/register test/*.ts",
+    "test-precompile-wrappers": "mocha -r ts-node/register test-precompile-wrappers/*.ts"
   },
   "author": "",
   "license": "ISC",
@@ -17,7 +18,7 @@
     "typescript": "^5.0.4"
   },
   "dependencies": {
-    "ethers": "^6.3.0",
+    "ethers": "^6.6.0",
     "ts-node": "^10.9.1"
   }
 }

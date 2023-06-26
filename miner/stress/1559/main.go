@@ -42,7 +42,7 @@ import (
 )
 
 var (
-	gForkBlock = big.NewInt(30) // Predefined gFork fork block for activating eip 1559 (with the baseFee in the header).
+	gingerbreadBlock = big.NewInt(30) // Predefined Gingerbread block for activating eip 1559 (with the baseFee in the header).
 )
 
 func main() {
@@ -184,7 +184,7 @@ func makeGenesis(faucets []*ecdsa.PrivateKey) *core.Genesis {
 	genesis := core.DefaultBaklavaGenesisBlock()
 
 	genesis.Config = params.BaklavaChainConfig
-	genesis.Config.GForkBlock = gForkBlock
+	genesis.Config.GingerbreadBlock = gingerbreadBlock
 
 	genesis.Config.ChainID = big.NewInt(18)
 	genesis.Config.EIP150Hash = common.Hash{}
@@ -195,10 +195,10 @@ func makeGenesis(faucets []*ecdsa.PrivateKey) *core.Genesis {
 			Balance: new(big.Int).Exp(big.NewInt(2), big.NewInt(128), nil),
 		}
 	}
-	if gForkBlock.Sign() == 0 {
+	if gingerbreadBlock.Sign() == 0 {
 		log.Info("Enabled the eip 1559 by default")
 	} else {
-		log.Info("Registered the gFork fork", "number", gForkBlock)
+		log.Info("Registered the Gingerbread fork", "number", gingerbreadBlock)
 	}
 	return genesis
 }

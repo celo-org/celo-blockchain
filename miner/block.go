@@ -101,13 +101,6 @@ func prepareBlock(w *worker) (*blockState, error) {
 	}
 	state.StartPrefetcher("miner")
 
-	// Set baseFee as part of the GFork
-	if w.chainConfig.IsGFork(header.Number) {
-		// Needs the baseFee of the last Header
-		parentVmRunner := w.chain.NewEVMRunner(parent.Header(), state)
-		header.BaseFee = misc.CalcBaseFee(w.chainConfig, parent.Header(), parentVmRunner)
-	}
-
 	vmRunner := w.chain.NewEVMRunner(header, state)
 	b := &blockState{
 		signer:         types.LatestSigner(w.chainConfig),
@@ -119,12 +112,15 @@ func prepareBlock(w *worker) (*blockState, error) {
 		sysCtx:         core.NewSysContractCallCtx(header, state.Copy(), w.chain),
 	}
 	b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
-	if w.chainConfig.IsGFork(header.Number) {
+	if w.chainConfig.IsGingerbread(header.Number) {
 		header.GasLimit = b.gasLimit
 		header.Difficulty = big.NewInt(0)
 		header.Nonce = types.EncodeNonce(0)
 		header.UncleHash = types.EmptyUncleHash
 		header.MixDigest = types.EmptyMixDigest
+		// Needs the baseFee of the last Header
+		parentVmRunner := w.chain.NewEVMRunner(parent.Header(), state)
+		header.BaseFee = misc.CalcBaseFee(w.chainConfig, parent.Header(), parentVmRunner)
 	}
 
 	// Play our part in generating the random beacon.

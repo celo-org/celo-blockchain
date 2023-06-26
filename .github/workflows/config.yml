@@ -28,7 +28,7 @@ jobs:
     runs-on: [self-hosted, blockchain, 8-cpu]
     env:
       NODE_VERSION: 12
-      PYTHON_VERSION: '2.7'
+      PYTHON_VERSION: '3.9'
       CONTRACTS_BUILD_PATH: packages/protocol/build/contracts
 
     steps:
@@ -330,6 +330,7 @@ jobs:
   e2e-benchmarks:
     name: End-to-end benchmarks
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
 
     needs:
     - go-modules
@@ -364,6 +365,7 @@ jobs:
   end-to-end-blockchain-parameters-test:
     name: End-to-end blockchain parameters test
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
       NODE_VERSION: 12
 
@@ -410,6 +412,7 @@ jobs:
   end-to-end-governance-test:
     name: End-to-end governance test
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
       NODE_VERSION: 12
 
@@ -457,6 +460,7 @@ jobs:
   end-to-end-sync-test:
     name: End-to-end sync test
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
       NODE_VERSION: 12
 
@@ -503,6 +507,7 @@ jobs:
   end-to-end-slashing-test:
     name: End-to-end slashing test
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
       NODE_VERSION: 12
 
@@ -549,6 +554,7 @@ jobs:
   end-to-end-transfers-test:
     name: End-to-end transfers test
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
       NODE_VERSION: 12
 
@@ -595,6 +601,7 @@ jobs:
   end-to-end-validator-order-test:
     name: End-to-end validator order test
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
       NODE_VERSION: 12
 
@@ -641,6 +648,7 @@ jobs:
   end-to-end-cip35-eth-compatibility-test:
     name: End-to-end CIP35-eth compatibility test
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
       NODE_VERSION: 12
 
@@ -687,6 +695,7 @@ jobs:
   end-to-end-replica-test:
     name: End-to-end replica test
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
       NODE_VERSION: 12
 

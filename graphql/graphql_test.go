@@ -176,7 +176,7 @@ func TestGraphQLTransactionSerialization(t *testing.T) {
 	}{
 		{
 			body: `{"query":"{ transaction(hash: \"0x22f565cfeb33d5e6f81c8923ef0633a49fef0848a089a6d8564b655d5605fb13\") { gas gasUsed gasPrice maxFeePerGas maxPriorityFeePerGas effectiveGasPrice index from { address } to { address } value inputData block { transactionCount baseFeePerGas } status type }}"}`,
-			want: `{"data":{"transaction":{"gas":"0xc350","gasUsed":22604,"gasPrice":"0xa","maxFeePerGas":"0x7530","maxPriorityFeePerGas":"0xa","effectiveGasPrice":"0xa","index":2,"from":{"address":"0x71562b71999873db5b286df957af199ec94617f7"},"to":{"address":"0x0000000000000000000000000000000000000dad"},"value":"0x32","inputData":"0x","block":{"transactionCount":3,"baseFeePerGas":"0x0"},"status":1,"type":2}}}`,
+			want: `{"data":{"transaction":{"gas":"0xc350","gasUsed":25204,"gasPrice":"0xa","maxFeePerGas":"0x7530","maxPriorityFeePerGas":"0xa","effectiveGasPrice":"0xa","index":2,"from":{"address":"0x71562b71999873db5b286df957af199ec94617f7"},"to":{"address":"0x0000000000000000000000000000000000000dad"},"value":"0x32","inputData":"0x","block":{"transactionCount":3,"baseFeePerGas":"0x0"},"status":1,"type":2}}}`,
 			code: 200,
 		},
 	} {

@@ -20,16 +20,16 @@ var genesisMsgHash = common.HexToHash("ecc833a7747eaa8327335e8e0c6b6d8aa3a38d006
 
 // CreateCommonGenesisConfig generates a config starting point which templates can then customize further
 func CreateCommonGenesisConfig(chainID *big.Int, adminAccountAddress common.Address, istanbulConfig params.IstanbulConfig) *Config {
-	gForkBlock := common.Big2
-	genesisConfig := BaseConfig(gForkBlock)
+	gingerbreadBlock := common.Big2
+	genesisConfig := BaseConfig(gingerbreadBlock)
 	genesisConfig.ChainID = chainID
 	genesisConfig.GenesisTimestamp = uint64(time.Now().Unix())
 	genesisConfig.Istanbul = istanbulConfig
 	genesisConfig.Hardforks = HardforkConfig{
-		ChurritoBlock: common.Big0,
-		DonutBlock:    common.Big0,
-		EspressoBlock: common.Big0,
-		GForkBlock:    gForkBlock,
+		ChurritoBlock:    common.Big0,
+		DonutBlock:       common.Big0,
+		EspressoBlock:    common.Big0,
+		GingerbreadBlock: gingerbreadBlock,
 	}
 
 	// Make admin account manager of Governance & Reserve

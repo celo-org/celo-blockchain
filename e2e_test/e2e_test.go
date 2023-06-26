@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -16,11 +17,17 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/eth/tracers"
 	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/mycelo/env"
+	"github.com/celo-org/celo-blockchain/mycelo/genesis"
 	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/rpc"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	// Force-load native and js packages, to trigger registration
+	_ "github.com/celo-org/celo-blockchain/eth/tracers/js"
+	_ "github.com/celo-org/celo-blockchain/eth/tracers/native"
 )
 
 func init() {
@@ -87,8 +94,83 @@ func TestTraceSendCeloViaGoldToken(t *testing.T) {
 
 	require.NoError(t, err)
 	// Check top level gas values
-	require.Equal(t, result["gasUsed"], "0x3a1e")
-	require.Equal(t, result["gas"], "0x3a9b")
+	require.Equal(t, "0x45d6", result["gasUsed"])
+	require.Equal(t, "0x4653", result["gas"])
+	// TODO add more specific trace-checking as part of
+	// this issue: https://github.com/celo-org/celo-blockchain/issues/2078
+}
+
+// Moved from API tests because registering the callTracer (necessary after the
+// go native tracer refactor) causes a circular import.
+// Use the callTracer to trace a native CELO transfer.
+func TestCallTraceTransactionNativeTransfer(t *testing.T) {
+	ac := test.AccountConfig(1, 2)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, network[0])
+	require.NoError(t, err)
+
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+	c, err := rpc.DialContext(ctx, network[0].WSEndpoint())
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	tracerStr := "callTracer"
+	err = c.CallContext(ctx, &result, "debug_traceTransaction", tx.Hash().String(), tracers.TraceConfig{Tracer: &tracerStr})
+	require.NoError(t, err)
+	res_json, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("failed to marshal result: %v", err)
+	}
+	expectedTraceStr := fmt.Sprintf(`{"from":"0x%x","gas":"0x0","gasUsed":"0x0","input":"0x","output":"0x","to":"0x%x","type":"CALL","value":"0x1"}`, accounts[0].Address, accounts[1].Address)
+	require.JSONEq(t, expectedTraceStr, string(res_json))
+}
+
+// Moved from API tests because registering the prestateTracer (necessary after the
+// go native tracer refactor) causes a circular import.
+// Use the prestateTracer to trace a native CELO transfer.
+func TestPrestateTransactionNativeTransfer(t *testing.T) {
+	ac := test.AccountConfig(1, 2)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, network[0])
+	require.NoError(t, err)
+
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+	c, err := rpc.DialContext(ctx, network[0].WSEndpoint())
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	tracerStr := "prestateTracer"
+	err = c.CallContext(ctx, &result, "debug_traceTransaction", tx.Hash().String(), tracers.TraceConfig{Tracer: &tracerStr})
+	require.NoError(t, err)
+
+	toAddrLowercase := strings.ToLower(accounts[1].Address.String())
+	if _, has := result[toAddrLowercase]; !has {
+		t.Fatalf("Expected %s in result", toAddrLowercase)
+	}
 }
 
 // This test verifies correct behavior in a network of size one, in the case that
@@ -533,19 +615,13 @@ func pruneStateOfBlock(ctx context.Context, node *test.Node, blockHash common.Ha
 	return nil
 }
 
-func TestEthersJSCompatibility(t *testing.T) {
+func runMochaTest(t *testing.T, add_args func(*env.AccountsConfig, *genesis.Config, test.Network) []string) {
 	ac := test.AccountConfig(1, 1)
 	gc, ec, err := test.BuildConfig(ac)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
 	defer shutdown()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
-	defer cancel()
-
-	num, err := network[0].WsClient.BlockNumber(ctx)
-	require.NoError(t, err)
 
 	// Execute typescript tests to check ethers.js compatibility.
 	//
@@ -558,34 +634,42 @@ func TestEthersJSCompatibility(t *testing.T) {
 	// The tests don't seem to work on CI with IPV6 addresses so we convert to IPV4 here
 	addr := strings.Replace(network[0].Node.HTTPEndpoint(), "[::]", "127.0.0.1", 1)
 
-	cmd := exec.Command("npm", "run", "test", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "ethers.js compatibility tests with state")
+	common_args := []string{"run", "--networkaddr=" + addr}
+	custom_args := add_args(ac, gc, network)
+
+	cmd := exec.Command("npm", append(common_args, custom_args...)...)
+
 	cmd.Dir = "./ethersjs-api-check/"
 	println("executing mocha test with", cmd.String())
 	output, err := cmd.CombinedOutput()
 	println(string(output))
 	require.NoError(t, err)
+}
 
-	err = network[0].Tracker.AwaitBlock(ctx, num+1)
-	require.NoError(t, err)
-	block := network[0].Tracker.GetProcessedBlock(num)
-	require.NotNil(t, block)
+func TestPrecompileWrappers(t *testing.T) {
+	add_args := func(ac *env.AccountsConfig, gc *genesis.Config, network test.Network) []string {
+		accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+		privateKeyHex := fmt.Sprintf("0x%064x", accounts[0].Key.D)
+		return []string{"test-precompile-wrappers", "--signerkey=" + privateKeyHex}
+	}
+	runMochaTest(t, add_args)
+}
 
-	// Prune state
-	err = pruneStateOfBlock(ctx, network[0], block.Hash())
-	require.NoError(t, err)
+func TestEthersJSCompatibility(t *testing.T) {
+	add_args := func(ac *env.AccountsConfig, gc *genesis.Config, network test.Network) []string {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+		defer cancel()
 
-	// Execute typescript tests to check what happens with a pruned block.
-	cmd = exec.Command("npm", "run", "test", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "ethers.js compatibility tests with no state")
-	cmd.Dir = "./ethersjs-api-check/"
-	println("executing mocha test with", cmd.String())
-	output, err = cmd.CombinedOutput()
-	println(string(output))
-	require.NoError(t, err)
+		num, err := network[0].WsClient.BlockNumber(ctx)
+		require.NoError(t, err)
+		return []string{"test", "--blocknum=" + hexutil.Uint64(num).String(), "--", "--grep", "ethers.js compatibility tests with state"}
+	}
+	runMochaTest(t, add_args)
 }
 
 // This test checks the functionality of the configuration to enable/disable
 // returning the 'gasLimit' and 'baseFeePerGas' fields on RPC blocks.
-func TestEthersJSCompatibilityDisable(t *testing.T) {
+func TestEthersJSCompatibilityDisableAfterGingerbread(t *testing.T) {
 	ac := test.AccountConfig(1, 1)
 	gc, ec, err := test.BuildConfig(ac)
 	require.NoError(t, err)
@@ -604,8 +688,9 @@ func TestEthersJSCompatibilityDisable(t *testing.T) {
 
 	for _, field := range []string{"gasLimit", "baseFeePerGas", "sha3Uncles", "uncles", "nonce", "mixHash", "difficulty"} {
 		_, ok := result[field]
-		assert.Truef(t, ok, "%s field should be present on RPC block after GFork", field)
+		assert.Truef(t, ok, "%s field should be present on RPC block after Gingerbread", field)
 	}
+	require.Equal(t, result["sha3Uncles"], "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347")
 
 	// Turn off compatibility and check fields are not present
 	ec.RPCEthCompatibility = false
@@ -620,21 +705,21 @@ func TestEthersJSCompatibilityDisable(t *testing.T) {
 	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
 	require.NoError(t, err)
 
-	// After GFork, gasLimit should be returned directly from the header, even if
+	// After Gingerbread, gasLimit should be returned directly from the header, even if
 	// RPCEthCompatibility is off, since it is now part of the header hash.
 	_, ok := result["gasLimit"]
-	assert.True(t, ok, "gasLimit field must be present on RPC block after GFork")
+	assert.True(t, ok, "gasLimit field must be present on RPC block after Gingerbread")
 	_, ok = result["baseFeePerGas"]
 	assert.False(t, ok, "baseFeePerGas field must be present on RPC block")
 }
 
 // This test checks the functionality of the configuration to enable/disable
-// returning the 'gasLimit' and 'baseFeePerGas' fields on RPC blocks before the GFork happened.
-// GFork is relevant because it added the gasLimit to the header.
-func TestEthersJSCompatibilityDisableBeforeGFork(t *testing.T) {
+// returning the 'gasLimit' and 'baseFeePerGas' fields on RPC blocks before the Gingerbread happened.
+// Gingerbread is relevant because it added the gasLimit to the header.
+func TestEthersJSCompatibilityDisableBeforeGingerbread(t *testing.T) {
 	ac := test.AccountConfig(1, 1)
 	gc, ec, err := test.BuildConfig(ac)
-	gc.Hardforks.GForkBlock = nil
+	gc.Hardforks.GingerbreadBlock = nil
 	require.NoError(t, err)
 
 	// Check fields present (compatibility set by default)
@@ -651,11 +736,11 @@ func TestEthersJSCompatibilityDisableBeforeGFork(t *testing.T) {
 
 	for _, field := range []string{"gasLimit", "baseFeePerGas", "difficulty"} {
 		_, ok := result[field]
-		assert.Truef(t, ok, "%s field should be present on RPC block before GFork", field)
+		assert.Truef(t, ok, "%s field should be present on RPC block before Gingerbread", field)
 	}
 	for _, field := range []string{"sha3Uncles", "uncles", "nonce", "mixHash"} {
 		_, ok := result[field]
-		assert.Falsef(t, ok, "%s field should not be present on RPC block before GFork", field)
+		assert.Falsef(t, ok, "%s field should not be present on RPC block before Gingerbread", field)
 	}
 
 	// Turn off compatibility and check fields are not present
@@ -673,6 +758,6 @@ func TestEthersJSCompatibilityDisableBeforeGFork(t *testing.T) {
 
 	for _, field := range []string{"gasLimit", "baseFeePerGas", "sha3Uncles", "uncles", "nonce", "mixHash", "difficulty"} {
 		_, ok := result[field]
-		assert.Falsef(t, ok, "%s field should not be present on RPC block before GFork", field)
+		assert.Falsef(t, ok, "%s field should not be present on RPC block before Gingerbread", field)
 	}
 }

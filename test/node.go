@@ -345,7 +345,6 @@ func BuildConfig(accounts *env.AccountsConfig) (*genesis.Config, *ethconfig.Conf
 		accounts.AdminAccount().Address,
 		params.IstanbulConfig{},
 	)
-	gc.Hardforks.EspressoBlock = common.Big0
 
 	genesis.FundAccounts(gc, accounts.DeveloperAccounts())
 

@@ -31,7 +31,7 @@ var (
 )
 
 func GetBaseFeeForCurrency(vmRunner vm.EVMRunner, currencyAddress *common.Address, baseFee *big.Int) (*big.Int, error) {
-	// GFork
+	// Gingerbread Fork
 	if baseFee != nil {
 		if currencyAddress == nil {
 			return baseFee, nil
@@ -52,7 +52,7 @@ func GetBaseFeeForCurrency(vmRunner vm.EVMRunner, currencyAddress *common.Addres
 // a problem retrieving the gas price minimum it will return the error and a
 // nil gas price minimum.
 func GetRealBaseFeeForCurrency(vmRunner vm.EVMRunner, currencyAddress *common.Address, baseFee *big.Int) (*big.Int, error) {
-	// GFork
+	// Gingerbread Fork
 	if baseFee != nil {
 		if currencyAddress == nil {
 			return baseFee, nil

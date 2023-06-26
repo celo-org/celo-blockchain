@@ -65,6 +65,25 @@ func ActivateableEips() []string {
 // - Define SELFBALANCE, with cost GasFastStep (5)
 func enable1884(jt *JumpTable) {
 	// Gas cost changes
+	jt[SLOAD].constantGas = params.SloadGasEIP1884
+	jt[BALANCE].constantGas = params.BalanceGasEIP1884
+	jt[EXTCODEHASH].constantGas = params.ExtcodeHashGasEIP1884
+
+	// New opcode
+	jt[SELFBALANCE] = &operation{
+		execute:     opSelfBalance,
+		constantGas: GasFastStep,
+		minStack:    minStack(0, 1),
+		maxStack:    maxStack(0, 1),
+	}
+}
+
+// enable1884Celo applies EIP-1884 to the given jump table:
+// - Define SELFBALANCE, with cost GasFastStep (5)
+//
+// This includes Celo specific disabling of gas cost changes
+func enable1884Celo(jt *JumpTable) {
+	// Gas cost changes
 	// Celo does not include these gas changes at genesis.
 	// It is planned to apply them at a later date.
 	// jt[SLOAD].constantGas = params.SloadGasEIP1884
@@ -107,6 +126,12 @@ func opChainID(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 
 // enable2200 applies EIP-2200 (Rebalance net-metered SSTORE)
 func enable2200(jt *JumpTable) {
+	jt[SLOAD].constantGas = params.SloadGasEIP2200
+	jt[SSTORE].dynamicGas = gasSStoreEIP2200
+}
+
+// enable2200Celo applies EIP-2200 (Rebalance net-metered SSTORE)
+func enable2200Celo(jt *JumpTable) {
 	// This change to SLOAD was added upstream after the Istanbul fork, to make the EIP-2200
 	// implementation correct even apart from EIP-1884 (go-ethereum PR #20646).  But since
 	// for Celo we didn't adopt the EIP-1884 gas cost changes (see above in enable1884()),
@@ -151,6 +176,17 @@ func enable2929(jt *JumpTable) {
 	// factor here
 	jt[SELFDESTRUCT].constantGas = params.SelfdestructGasEIP150
 	jt[SELFDESTRUCT].dynamicGas = gasSelfdestructEIP2929
+}
+
+// enable3529Celo enabled "EIP-3529: Reduction in refunds":
+// - Removes refunds for selfdestructs
+// - Reduces refunds for SSTORE
+// - Reduces max refunds to 20% gas
+// This included Celo specific changes, see
+// https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
+func enable3529Celo(jt *JumpTable) {
+	jt[SSTORE].dynamicGas = gasSStoreEIP3529Celo
+	jt[SELFDESTRUCT].dynamicGas = gasSelfdestructEIP3529
 }
 
 // enable3529 enabled "EIP-3529: Reduction in refunds":

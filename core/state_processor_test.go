@@ -51,7 +51,7 @@ func TestStateProcessorErrors(t *testing.T) {
 			ChurritoBlock:       big.NewInt(0),
 			DonutBlock:          big.NewInt(0),
 			EspressoBlock:       big.NewInt(0),
-			GForkBlock:          big.NewInt(0),
+			GingerbreadBlock:    big.NewInt(0),
 			Faker:               true,
 			FakeBaseFee:         common.Big3,
 		}
@@ -325,7 +325,7 @@ func GenerateBadBlock(parent *types.Block, engine consensus.Engine, txs types.Tr
 		Extra:      CreateEmptyIstanbulExtra(nil),
 	}
 	header.Extra = CreateEmptyIstanbulExtra(header.Extra)
-	if config.IsGFork(header.Number) {
+	if config.IsGingerbread(header.Number) {
 		if config.FakeBaseFee != nil {
 			header.BaseFee = config.FakeBaseFee
 		} else {

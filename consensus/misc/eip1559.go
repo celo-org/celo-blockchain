@@ -59,8 +59,8 @@ import (
 func CalcBaseFee(config *params.ChainConfig, parent *types.Header, vmRunner vm.EVMRunner) *big.Int {
 	var newBaseFee *big.Int
 	var err error
-	// If the current block is the first GFork block, return the gasPriceMinimum on the state.
-	if !config.IsGFork(parent.Number) {
+	// If the current block is the first Gingerbread block, return the gasPriceMinimum on the state.
+	if !config.IsGingerbread(parent.Number) {
 		newBaseFee, err = gpm.GetRealGasPriceMinimum(vmRunner, nil)
 		if err != nil {
 			log.Warn("CalcBaseFee error, contract call getPriceMinimumMethod", "error", err, "header.Number", parent.Number.Uint64()+1)
