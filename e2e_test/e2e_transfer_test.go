@@ -316,7 +316,7 @@ func TestTransferCELOPreGingerbread(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			watcher := test.NewBalanceWatcher(client, []common.Address{sender.Address, recipient.Address, gateWayFeeRecipient.Address, node.Address, feeHandlerAddress})
+			watcher := test.NewBalanceWatcher(client, []common.Address{sender.Address, recipient.Address, gateWayFeeRecipient.Address, node.Address})
 			blockNum, err := client.BlockNumber(ctx)
 			require.NoError(t, err)
 			signer := types.MakeSigner(devAccounts[0].ChainConfig, new(big.Int).SetUint64(blockNum))
