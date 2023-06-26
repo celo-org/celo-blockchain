@@ -77,6 +77,7 @@ type Decoder interface {
 //     NewStream(r, limit).Decode(val)
 func Decode(r io.Reader, val interface{}) error {
 	stream := streamPool.Get().(*Stream)
+	fmt.Printf("Stream size is %d, stack size %d\n", stream.size, len(stream.stack))
 	defer streamPool.Put(stream)
 
 	stream.Reset(r, 0)
