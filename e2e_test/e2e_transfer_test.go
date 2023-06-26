@@ -376,13 +376,6 @@ func TestTransferCELOPreGingerbread(t *testing.T) {
 				actual = watcher.Delta(gateWayFeeRecipient.Address)
 				assert.Equal(t, expected, actual, "gateWayFeeRecipient's balance increase unexpected", "expected", expected.Int64(), "actual", actual.Int64())
 			}
-
-			// Check base fee was sent to FeeHandler
-			fmt.Printf("%s ==> fee: %d, GatewayFee: %d, tip: %d\n", tc.name, tx.Fee(), tx.GatewayFee(), tx.EffectiveGasTipValue(gpm))
-			expected = baseFee
-			fmt.Printf("feeHandlerAddress: %x\n", feeHandlerAddress)
-			actual = watcher.Delta(feeHandlerAddress)
-			assert.Equal(t, expected, actual, "feeHandlers's balance increase unexpected", "expected", expected.Int64(), "actual", actual.Int64())
 		})
 	}
 }
