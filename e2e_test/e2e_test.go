@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -23,6 +24,10 @@ import (
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	// Force-load native and js packages, to trigger registration
+	_ "github.com/celo-org/celo-blockchain/eth/tracers/js"
+	_ "github.com/celo-org/celo-blockchain/eth/tracers/native"
 )
 
 func init() {
@@ -91,6 +96,81 @@ func TestTraceSendCeloViaGoldToken(t *testing.T) {
 	// Check top level gas values
 	require.Equal(t, "0x45d6", result["gasUsed"])
 	require.Equal(t, "0x4653", result["gas"])
+	// TODO add more specific trace-checking as part of
+	// this issue: https://github.com/celo-org/celo-blockchain/issues/2078
+}
+
+// Moved from API tests because registering the callTracer (necessary after the
+// go native tracer refactor) causes a circular import.
+// Use the callTracer to trace a native CELO transfer.
+func TestCallTraceTransactionNativeTransfer(t *testing.T) {
+	ac := test.AccountConfig(1, 2)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, network[0])
+	require.NoError(t, err)
+
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+	c, err := rpc.DialContext(ctx, network[0].WSEndpoint())
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	tracerStr := "callTracer"
+	err = c.CallContext(ctx, &result, "debug_traceTransaction", tx.Hash().String(), tracers.TraceConfig{Tracer: &tracerStr})
+	require.NoError(t, err)
+	res_json, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("failed to marshal result: %v", err)
+	}
+	expectedTraceStr := fmt.Sprintf(`{"from":"0x%x","gas":"0x0","gasUsed":"0x0","input":"0x","output":"0x","to":"0x%x","type":"CALL","value":"0x1"}`, accounts[0].Address, accounts[1].Address)
+	require.JSONEq(t, expectedTraceStr, string(res_json))
+}
+
+// Moved from API tests because registering the prestateTracer (necessary after the
+// go native tracer refactor) causes a circular import.
+// Use the prestateTracer to trace a native CELO transfer.
+func TestPrestateTransactionNativeTransfer(t *testing.T) {
+	ac := test.AccountConfig(1, 2)
+	gc, ec, err := test.BuildConfig(ac)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, network[0])
+	require.NoError(t, err)
+
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+	c, err := rpc.DialContext(ctx, network[0].WSEndpoint())
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	tracerStr := "prestateTracer"
+	err = c.CallContext(ctx, &result, "debug_traceTransaction", tx.Hash().String(), tracers.TraceConfig{Tracer: &tracerStr})
+	require.NoError(t, err)
+
+	toAddrLowercase := strings.ToLower(accounts[1].Address.String())
+	if _, has := result[toAddrLowercase]; !has {
+		t.Fatalf("Expected %s in result", toAddrLowercase)
+	}
 }
 
 // This test verifies correct behavior in a network of size one, in the case that

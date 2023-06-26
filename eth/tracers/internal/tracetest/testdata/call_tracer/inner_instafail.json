@@ -38,6 +38,7 @@
       "constantinopleBlock": 4230000,
       "petersburgBlock": 4939394,
       "istanbulBlock": 6485846,
+      "donutBlock": 0,
       "muirGlacierBlock": 7117117,
       "ethash": {}
     }

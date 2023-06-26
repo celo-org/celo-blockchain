@@ -41,6 +41,11 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/node"
+
+	// Force-load the tracer engines to trigger registration
+	_ "github.com/celo-org/celo-blockchain/eth/tracers/js"
+	_ "github.com/celo-org/celo-blockchain/eth/tracers/native"
+
 	"gopkg.in/urfave/cli.v1"
 )
 
