@@ -314,16 +314,6 @@ func TestTransferCELOPreGingerbread(t *testing.T) {
 		},
 	}
 
-	// Get feeHandlerAddress
-	var backend *eth.EthAPIBackend = network[0].Eth.APIBackend
-	var lastestBlockNum rpc.BlockNumber = (rpc.BlockNumber)(backend.CurrentBlock().Header().Number.Int64())
-	state, header, err := backend.StateAndHeaderByNumber(ctx, lastestBlockNum)
-	require.NoError(t, err)
-	caller := backend.NewEVMRunner(header, state)
-	feeHandlerAddress, err := contracts.GetRegisteredAddress(caller, config.FeeHandlerId)
-	require.NoError(t, err)
-	require.NotEqual(t, common.ZeroAddress, feeHandlerAddress, "feeHandlerAddress must not be zero address.")
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			watcher := test.NewBalanceWatcher(client, []common.Address{sender.Address, recipient.Address, gateWayFeeRecipient.Address, node.Address, feeHandlerAddress})
