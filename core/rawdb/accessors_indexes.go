@@ -18,6 +18,7 @@ package rawdb
 
 import (
 	"bytes"
+	"fmt"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -104,6 +105,7 @@ func ReadTransaction(db ethdb.Reader, hash common.Hash) (*types.Transaction, com
 	if blockHash == (common.Hash{}) {
 		return nil, common.Hash{}, 0, 0
 	}
+	fmt.Printf("Reading transaction %s (block %s)\n", hash, blockHash)
 	body := ReadBody(db, blockHash, *blockNumber)
 	if body == nil {
 		log.Error("Transaction referenced missing", "number", *blockNumber, "hash", blockHash)

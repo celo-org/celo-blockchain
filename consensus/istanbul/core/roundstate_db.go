@@ -19,18 +19,24 @@ package core
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"math/big"
 	"os"
+	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/task"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/syndtr/goleveldb/leveldb"
 	lvlerrors "github.com/syndtr/goleveldb/leveldb/errors"
+	// "github.com/syndtr/goleveldb/leveldb/filter"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/storage"
 	"github.com/syndtr/goleveldb/leveldb/util"
@@ -42,6 +48,22 @@ const (
 	lastViewKey  = "lastView" // Last View that we know of
 	rsKey        = "rs"       // Database Key Pefix for RoundState
 	rcvdKey      = "rcvd"     // Database Key Prefix for rcvd messages from the RoundState (split saving)
+
+	// degradationWarnInterval specifies how often warning should be printed if the
+	// leveldb database cannot keep up with requested writes.
+	degradationWarnInterval = time.Minute
+
+	// minCache is the minimum amount of memory in megabytes to allocate to leveldb
+	// read and write caching, split half and half.
+	minCache = 16
+
+	// minHandles is the minimum number of files handles to allocate to the open
+	// database files.
+	minHandles = 16
+
+	// metricsGatheringInterval specifies the interval to retrieve leveldb database
+	// compaction, io and pause stats to report to the user.
+	metricsGatheringInterval = 3 * time.Second
 )
 
 type RoundStateDB interface {
@@ -66,7 +88,30 @@ type roundStateDBImpl struct {
 	db                   *leveldb.DB
 	stopGarbageCollector task.StopFn
 	opts                 RoundStateDBOptions
-	logger               log.Logger
+
+	compTimeMeter      metrics.Meter // Meter for measuring the total time spent in database compaction
+	compReadMeter      metrics.Meter // Meter for measuring the data read during compaction
+	compWriteMeter     metrics.Meter // Meter for measuring the data written during compaction
+	writeDelayNMeter   metrics.Meter // Meter for measuring the write delay number due to database compaction
+	writeDelayMeter    metrics.Meter // Meter for measuring the write delay duration due to database compaction
+	diskSizeGauge      metrics.Gauge // Gauge for tracking the size of all the levels in the database
+	diskReadMeter      metrics.Meter // Meter for measuring the effective amount of data read
+	diskWriteMeter     metrics.Meter // Meter for measuring the effective amount of data written
+	memCompGauge       metrics.Gauge // Gauge for tracking the number of memory compaction
+	level0CompGauge    metrics.Gauge // Gauge for tracking the number of table compaction in level0
+	nonlevel0CompGauge metrics.Gauge // Gauge for tracking the number of table compaction in non0 level
+	seekCompGauge      metrics.Gauge // Gauge for tracking the number of table compaction caused by read opt
+	rsRLPMeter         metrics.Meter
+	rsRLPEncTimer      metrics.Timer
+	rsDbSaveTimer      metrics.Timer
+	rcvdRLPMeter       metrics.Meter
+	rcvdRLPEncTimer    metrics.Timer
+	rcvdDbSaveTimer    metrics.Timer
+
+	quitLock sync.Mutex      // Mutex protecting the quit channel access
+	quitChan chan chan error // Quit channel to stop the metrics collection before closing the database
+
+	logger log.Logger
 }
 
 var defaultRoundStateDBOptions = RoundStateDBOptions{
@@ -113,6 +158,29 @@ func newRoundStateDB(path string, opts *RoundStateDBOptions) (RoundStateDB, erro
 		logger: logger,
 	}
 
+    namespace := "consensus/istanbul/roundstate/db/"
+	rsdb.compTimeMeter = metrics.NewRegisteredMeter(namespace+"compact/time", nil)
+	rsdb.compReadMeter = metrics.NewRegisteredMeter(namespace+"compact/input", nil)
+	rsdb.compWriteMeter = metrics.NewRegisteredMeter(namespace+"compact/output", nil)
+	rsdb.diskSizeGauge = metrics.NewRegisteredGauge(namespace+"disk/size", nil)
+	rsdb.diskReadMeter = metrics.NewRegisteredMeter(namespace+"disk/read", nil)
+	rsdb.diskWriteMeter = metrics.NewRegisteredMeter(namespace+"disk/write", nil)
+	rsdb.writeDelayMeter = metrics.NewRegisteredMeter(namespace+"compact/writedelay/duration", nil)
+	rsdb.writeDelayNMeter = metrics.NewRegisteredMeter(namespace+"compact/writedelay/counter", nil)
+	rsdb.memCompGauge = metrics.NewRegisteredGauge(namespace+"compact/memory", nil)
+	rsdb.level0CompGauge = metrics.NewRegisteredGauge(namespace+"compact/level0", nil)
+	rsdb.nonlevel0CompGauge = metrics.NewRegisteredGauge(namespace+"compact/nonlevel0", nil)
+	rsdb.seekCompGauge = metrics.NewRegisteredGauge(namespace+"compact/seek", nil)
+    rsdb.rsRLPMeter = metrics.NewRegisteredMeter(namespace+"rs/rlp/encoding/size", nil)
+    rsdb.rsRLPEncTimer = metrics.NewRegisteredTimer(namespace+"rs/rlp/encoding/duration", nil)
+    rsdb.rsDbSaveTimer = metrics.NewRegisteredTimer(namespace+"rs/db/save/time", nil)
+    rsdb.rcvdRLPMeter = metrics.NewRegisteredMeter(namespace+"rcvd/rlp/encoding/size", nil)
+    rsdb.rcvdRLPEncTimer = metrics.NewRegisteredTimer(namespace+"rcvd/rlp/encoding/duration", nil)
+    rsdb.rcvdDbSaveTimer = metrics.NewRegisteredTimer(namespace+"rcvd/db/save/time", nil)
+
+	// Start up the metrics gathering and return
+	go rsdb.meter(metricsGatheringInterval)
+
 	if rsdb.opts.withGarbageCollector {
 		rsdb.stopGarbageCollector = task.RunTaskRepeateadly(rsdb.garbageCollectEntries, task.NewDefaultTicker(rsdb.opts.garbageCollectorPeriod))
 	}
@@ -132,7 +200,18 @@ func newMemoryDB() (*leveldb.DB, error) {
 // newPersistentNodeDB creates/opens a leveldb backed persistent node database,
 // also flushing its contents in case of a version mismatch.
 func newPersistentDB(path string) (*leveldb.DB, error) {
-	opts := &opt.Options{OpenFilesCacheCapacity: 5}
+	opts := &opt.Options{
+        BlockSize: 128 * opt.KiB,
+        BlockCacheCapacity: 256 * opt.MiB,
+        // DisableSeekCompaction: true,
+        OpenFilesCacheCapacity: 5, //120,
+        WriteBuffer: 128 * opt.MiB,
+        // Filter: filter.NewBloomFilter(10),
+        CompactionTableSize: 10 * opt.MiB,
+        // CompactionTotalSize: 100 * opt.MiB,
+        // CompactionTotalSizeMultiplier: 50,
+        // CompactionL0Trigger: 16,
+    }
 	db, err := leveldb.OpenFile(path, opts)
 	if _, iscorrupted := err.(*lvlerrors.ErrCorrupted); iscorrupted {
 		db, err = leveldb.RecoverFile(path, nil)
@@ -260,17 +339,26 @@ func (rsdb *roundStateDBImpl) UpdateLastRcvd(rs RoundState) error {
 	if err != nil {
 		return err
 	}
+    // Encode and measure time
+	before := time.Now()
 	entryBytes, err := rlp.EncodeToBytes(&rRLP)
+    rsdb.rcvdRLPEncTimer.UpdateSince(before)
+
 	if err != nil {
 		logger.Error("Failed to save rcvd messages from roundState", "reason", "rlp encoding", "err", err)
 		return err
 	}
+
+    rsdb.rcvdRLPMeter.Mark(int64(len(entryBytes)))
+
+    before = time.Now()
 	batch := new(leveldb.Batch)
 	batch.Put(rcvdViewKey, entryBytes)
 	err = rsdb.db.Write(batch, nil)
 	if err != nil {
 		logger.Error("Failed to save rcvd messages from roundState", "reason", "levelDB write", "err", err, "func")
 	}
+    rsdb.rcvdDbSaveTimer.UpdateSince(before)
 
 	return err
 }
@@ -283,12 +371,20 @@ func (rsdb *roundStateDBImpl) UpdateLastRoundState(rs RoundState) error {
 	logger := rsdb.logger.New("func", "UpdateLastRoundState")
 	viewKey := view2Key(rs.View())
 
+    fmt.Printf("Updating last round state [%v]\n", viewKey)
+    fmt.Printf("Round state view %v\n", rs.View())
+    before := time.Now()
 	entryBytes, err := rlp.EncodeToBytes(rs)
+    rsdb.rsRLPEncTimer.UpdateSince(before)
+
 	if err != nil {
 		logger.Error("Failed to save roundState", "reason", "rlp encoding", "err", err)
 		return err
 	}
 
+    rsdb.rsRLPMeter.Mark(int64(len(entryBytes)))
+
+    before = time.Now()
 	batch := new(leveldb.Batch)
 	batch.Put([]byte(lastViewKey), viewKey)
 	batch.Put(viewKey, entryBytes)
@@ -297,12 +393,14 @@ func (rsdb *roundStateDBImpl) UpdateLastRoundState(rs RoundState) error {
 	if err != nil {
 		logger.Error("Failed to save roundState", "reason", "levelDB write", "err", err, "func")
 	}
+    rsdb.rsDbSaveTimer.UpdateSince(before)
 
 	return err
 }
 
 func (rsdb *roundStateDBImpl) GetLastView() (*istanbul.View, error) {
 	rawEntry, err := rsdb.db.Get([]byte(lastViewKey), nil)
+    fmt.Printf("Getting last view %v\n", rawEntry)
 	if err != nil {
 		return nil, err
 	}
@@ -312,6 +410,8 @@ func (rsdb *roundStateDBImpl) GetLastView() (*istanbul.View, error) {
 
 func (rsdb *roundStateDBImpl) GetOldestValidView() (*istanbul.View, error) {
 	lastView, err := rsdb.GetLastView()
+    fmt.Printf("In oldest valid view, last view is %v\n", lastView)
+
 	// If nothing stored all views are valid
 	if err == leveldb.ErrNotFound {
 		return &istanbul.View{Sequence: common.Big0, Round: common.Big0}, nil
@@ -370,6 +470,21 @@ func merged(rs *roundStateImpl, r *rcvd) *roundStateImpl {
 }
 
 func (rsdb *roundStateDBImpl) Close() error {
+	// Close stops the metrics collection, flushes any pending data to disk and closes
+	// all io accesses to the underlying key-value store.
+
+	rsdb.quitLock.Lock()
+	defer rsdb.quitLock.Unlock()
+
+	if rsdb.quitChan != nil {
+		errc := make(chan error)
+		rsdb.quitChan <- errc
+		if err := <-errc; err != nil {
+			rsdb.logger.Error("Metrics collection failed", "err", err)
+		}
+		rsdb.quitChan = nil
+	}
+
 	if rsdb.opts.withGarbageCollector {
 		rsdb.stopGarbageCollector()
 	}
@@ -380,6 +495,7 @@ func (rsdb *roundStateDBImpl) garbageCollectEntries() {
 	logger := rsdb.logger.New("func", "garbageCollectEntries")
 
 	oldestValidView, err := rsdb.GetOldestValidView()
+    fmt.Printf("Oldest valid view was %v\n", oldestValidView)
 	if err != nil {
 		logger.Error("Aborting RoundStateDB GarbageCollect: Failed to fetch oldestValidView", "err", err)
 		return
@@ -396,17 +512,28 @@ func (rsdb *roundStateDBImpl) garbageCollectEntries() {
 }
 
 func (rsdb *roundStateDBImpl) deleteEntriesOlderThan(lastView *istanbul.View) (int, error) {
+    fmt.Printf("Last view %v\n", lastView)
+    fmt.Printf("Common big0 %v\n", common.Big0)
+
 	fromViewKey := view2Key(&istanbul.View{Sequence: common.Big0, Round: common.Big0})
 	toViewKey := view2Key(lastView)
 
+    fmt.Printf("From view key: %v, to view key: %v\n", fromViewKey, toViewKey)
+
 	count, err := rsdb.deleteIteratorEntries(&util.Range{Start: fromViewKey, Limit: toViewKey})
+
+    fmt.Printf("Deleted entries %d\n", count)
+
 	if err != nil {
 		return count, err
 	}
 
 	fromRcvdKey := rcvdView2Key(&istanbul.View{Sequence: common.Big0, Round: common.Big0})
 	toRcvdKey := rcvdView2Key(lastView)
+
+    fmt.Printf("From rcvd key: %v, to rcvd key: %v\n", fromRcvdKey, toRcvdKey)
 	rcvdCount, err := rsdb.deleteIteratorEntries(&util.Range{Start: fromRcvdKey, Limit: toRcvdKey})
+    fmt.Printf("Rcvd count %d\n", rcvdCount)
 	if err != nil {
 		return count + rcvdCount, err
 	}
@@ -417,8 +544,11 @@ func (rsdb *roundStateDBImpl) deleteIteratorEntries(rang *util.Range) (int, erro
 	iter := rsdb.db.NewIterator(rang, nil)
 	defer iter.Release()
 	counter := 0
+    fmt.Printf("In delete iterator\n")
+    fmt.Printf("Range is %v\n", rang)
 	for iter.Next() {
 		rawKey := iter.Key()
+        fmt.Printf("Deleting key %s\n", rawKey)
 		err := rsdb.db.Delete(rawKey, nil)
 		if err != nil {
 			return counter, err
@@ -426,6 +556,209 @@ func (rsdb *roundStateDBImpl) deleteIteratorEntries(rang *util.Range) (int, erro
 		counter++
 	}
 	return counter, nil
+}
+
+// meter periodically retrieves internal leveldb counters and reports them to
+// the metrics subsystem.
+//
+// This is how a LevelDB stats table looks like (currently):
+//   Compactions
+//    Level |   Tables   |    Size(MB)   |    Time(sec)  |    Read(MB)   |   Write(MB)
+//   -------+------------+---------------+---------------+---------------+---------------
+//      0   |          0 |       0.00000 |       1.27969 |       0.00000 |      12.31098
+//      1   |         85 |     109.27913 |      28.09293 |     213.92493 |     214.26294
+//      2   |        523 |    1000.37159 |       7.26059 |      66.86342 |      66.77884
+//      3   |        570 |    1113.18458 |       0.00000 |       0.00000 |       0.00000
+//
+// This is how the write delay look like (currently):
+// DelayN:5 Delay:406.604657ms Paused: false
+//
+// This is how the iostats look like (currently):
+// Read(MB):3895.04860 Write(MB):3654.64712
+func (rsdb *roundStateDBImpl) meter(refresh time.Duration) {
+	// Create the counters to store current and previous compaction values
+	compactions := make([][]float64, 2)
+	for i := 0; i < 2; i++ {
+		compactions[i] = make([]float64, 4)
+	}
+	// Create storage for iostats.
+	var iostats [2]float64
+
+	// Create storage and warning log tracer for write delay.
+	var (
+		delaystats      [2]int64
+		lastWritePaused time.Time
+	)
+
+	var (
+		errc chan error
+		merr error
+	)
+
+	timer := time.NewTimer(refresh)
+	defer timer.Stop()
+
+	// Iterate ad infinitum and collect the stats
+	for i := 1; errc == nil && merr == nil; i++ {
+		// Retrieve the database stats
+		stats, err := rsdb.db.GetProperty("leveldb.stats")
+		if err != nil {
+			rsdb.logger.Error("Failed to read database stats", "err", err)
+			merr = err
+			continue
+		}
+		// Find the compaction table, skip the header
+		lines := strings.Split(stats, "\n")
+		for len(lines) > 0 && strings.TrimSpace(lines[0]) != "Compactions" {
+			lines = lines[1:]
+		}
+		if len(lines) <= 3 {
+			rsdb.logger.Error("Compaction leveldbTable not found")
+			merr = lvlerrors.New("compaction leveldbTable not found")
+			continue
+		}
+		lines = lines[3:]
+
+		// Iterate over all the leveldbTable rows, and accumulate the entries
+		for j := 0; j < len(compactions[i%2]); j++ {
+			compactions[i%2][j] = 0
+		}
+		for _, line := range lines {
+			parts := strings.Split(line, "|")
+			if len(parts) != 6 {
+				break
+			}
+			for idx, counter := range parts[2:] {
+				value, err := strconv.ParseFloat(strings.TrimSpace(counter), 64)
+				if err != nil {
+					rsdb.logger.Error("Compaction entry parsing failed", "err", err)
+					merr = err
+					continue
+				}
+				compactions[i%2][idx] += value
+			}
+		}
+		// Update all the requested meters
+		if rsdb.diskSizeGauge != nil {
+			rsdb.diskSizeGauge.Update(int64(compactions[i%2][0] * 1024 * 1024))
+		}
+		if rsdb.compTimeMeter != nil {
+			rsdb.compTimeMeter.Mark(int64((compactions[i%2][1] - compactions[(i-1)%2][1]) * 1000 * 1000 * 1000))
+		}
+		if rsdb.compReadMeter != nil {
+			rsdb.compReadMeter.Mark(int64((compactions[i%2][2] - compactions[(i-1)%2][2]) * 1024 * 1024))
+		}
+		if rsdb.compWriteMeter != nil {
+			rsdb.compWriteMeter.Mark(int64((compactions[i%2][3] - compactions[(i-1)%2][3]) * 1024 * 1024))
+		}
+		// Retrieve the write delay statistic
+		writedelay, err := rsdb.db.GetProperty("leveldb.writedelay")
+		if err != nil {
+			rsdb.logger.Error("Failed to read database write delay statistic", "err", err)
+			merr = err
+			continue
+		}
+		var (
+			delayN        int64
+			delayDuration string
+			duration      time.Duration
+			paused        bool
+		)
+		if n, err := fmt.Sscanf(writedelay, "DelayN:%d Delay:%s Paused:%t", &delayN, &delayDuration, &paused); n != 3 || err != nil {
+			rsdb.logger.Error("Write delay statistic not found")
+			merr = err
+			continue
+		}
+		duration, err = time.ParseDuration(delayDuration)
+		if err != nil {
+			rsdb.logger.Error("Failed to parse delay duration", "err", err)
+			merr = err
+			continue
+		}
+		if rsdb.writeDelayNMeter != nil {
+			rsdb.writeDelayNMeter.Mark(delayN - delaystats[0])
+		}
+		if rsdb.writeDelayMeter != nil {
+			rsdb.writeDelayMeter.Mark(duration.Nanoseconds() - delaystats[1])
+		}
+		// If a warning that db is performing compaction has been displayed, any subsequent
+		// warnings will be withheld for one minute not to overwhelm the user.
+		if paused && delayN-delaystats[0] == 0 && duration.Nanoseconds()-delaystats[1] == 0 &&
+			time.Now().After(lastWritePaused.Add(degradationWarnInterval)) {
+				rsdb.logger.Warn("Database compacting, degraded performance")
+			lastWritePaused = time.Now()
+		}
+		delaystats[0], delaystats[1] = delayN, duration.Nanoseconds()
+
+		// Retrieve the database iostats.
+		ioStats, err := rsdb.db.GetProperty("leveldb.iostats")
+		if err != nil {
+			rsdb.logger.Error("Failed to read database iostats", "err", err)
+			merr = err
+			continue
+		}
+		var nRead, nWrite float64
+		parts := strings.Split(ioStats, " ")
+		if len(parts) < 2 {
+			rsdb.logger.Error("Bad syntax of ioStats", "ioStats", ioStats)
+			merr = fmt.Errorf("bad syntax of ioStats %s", ioStats)
+			continue
+		}
+		if n, err := fmt.Sscanf(parts[0], "Read(MB):%f", &nRead); n != 1 || err != nil {
+			rsdb.logger.Error("Bad syntax of read entry", "entry", parts[0])
+			merr = err
+			continue
+		}
+		if n, err := fmt.Sscanf(parts[1], "Write(MB):%f", &nWrite); n != 1 || err != nil {
+			rsdb.logger.Error("Bad syntax of write entry", "entry", parts[1])
+			merr = err
+			continue
+		}
+		if rsdb.diskReadMeter != nil {
+			rsdb.diskReadMeter.Mark(int64((nRead - iostats[0]) * 1024 * 1024))
+		}
+		if rsdb.diskWriteMeter != nil {
+			rsdb.diskWriteMeter.Mark(int64((nWrite - iostats[1]) * 1024 * 1024))
+		}
+		iostats[0], iostats[1] = nRead, nWrite
+
+		compCount, err := rsdb.db.GetProperty("leveldb.compcount")
+		if err != nil {
+			rsdb.logger.Error("Failed to read database iostats", "err", err)
+			merr = err
+			continue
+		}
+
+		var (
+			memComp       uint32
+			level0Comp    uint32
+			nonLevel0Comp uint32
+			seekComp      uint32
+		)
+		if n, err := fmt.Sscanf(compCount, "MemComp:%d Level0Comp:%d NonLevel0Comp:%d SeekComp:%d", &memComp, &level0Comp, &nonLevel0Comp, &seekComp); n != 4 || err != nil {
+			rsdb.logger.Error("Compaction count statistic not found")
+			merr = err
+			continue
+		}
+		rsdb.memCompGauge.Update(int64(memComp))
+		rsdb.level0CompGauge.Update(int64(level0Comp))
+		rsdb.nonlevel0CompGauge.Update(int64(nonLevel0Comp))
+		rsdb.seekCompGauge.Update(int64(seekComp))
+
+		// Sleep a bit, then repeat the stats collection
+		select {
+		case errc = <-rsdb.quitChan:
+			// Quit requesting, stop hammering the database
+		case <-timer.C:
+			timer.Reset(refresh)
+			// Timeout, gather a new set of stats
+		}
+	}
+
+	if errc == nil {
+		errc = <-rsdb.quitChan
+	}
+	errc <- merr
 }
 
 // view2Key will encode a view in binary format
@@ -439,6 +772,7 @@ func view2Key(view *istanbul.View) []byte {
 // so that the binary format maintains the sort order for the view,
 // using the rcvdKey prefix
 func rcvdView2Key(view *istanbul.View) []byte {
+    fmt.Printf("Encoding the thing %s, %v\n", rcvdKey, view)
 	return prefixView2Key(rcvdKey, view)
 }
 
@@ -451,11 +785,19 @@ func prefixView2Key(prefix string, view *istanbul.View) []byte {
 	// And we want to sort by (seq, round); since seq had higher precedence than round
 	buff := make([]byte, len(prefix)+16)
 
+    fmt.Printf("Actually inside the prefixview %s, %v\n", prefix, view)
+
 	copy(buff, prefix)
+
+    fmt.Printf("Current buff %v\n", buff)
+
 	// TODO (mcortesi) Support Seq/Round bigger than 64bits
 	binary.BigEndian.PutUint64(buff[len(prefix):], view.Sequence.Uint64())
 	binary.BigEndian.PutUint64(buff[len(prefix)+8:], view.Round.Uint64())
 
+    fmt.Printf("Buff after %v\n", buff)
+    fmt.Printf("View sequence %v, %v\n", view.Sequence, view.Sequence.Uint64())
+    fmt.Printf("Round %v, %v\n", view.Round, view.Round.Uint64())
 	return buff
 }
 
