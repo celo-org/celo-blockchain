@@ -285,10 +285,12 @@ type GrandaMentoParameters struct {
 
 // FeeHandlerParameters are the initial configuration parameters for FeeHandler
 type FeeHandlerParameters struct {
-	Tokens          []common.Address `json:"tokens"`
-	NewLimits       []*big.Int       `json:"newLimits"`
-	NewMaxSlippages []*big.Int       `json:"newMaxSlippages"`
-	NewRouters      []common.Address `json:"newRouters"`
+	NewFeeBeneficiary common.Address   `json:"newFeeBeneficiary"`
+	NewBurnFraction   *fixed.Fixed     `json:"newBurnFraction"`
+	Tokens            []common.Address `json:"tokens"`
+	Handlers          []common.Address `json:"handlers"`
+	NewLimits         []*big.Int       `json:"newLimits"`
+	NewMaxSlippages   []*big.Int       `json:"newMaxSlippages"`
 }
 
 //go:generate gencodec -type StableTokenExchangeLimit -field-override StableTokenExchangeLimitsMarshaling -out gen_stable_token_exchange_limit_json.go
