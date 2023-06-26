@@ -60,13 +60,13 @@ type RoundStateDB interface {
 type noopRSDB struct{}
 
 func (n *noopRSDB) GetLastView() (*istanbul.View, error) {
-	return nil, nil
+	return nil, leveldb.ErrNotFound
 }
 func (n *noopRSDB) GetOldestValidView() (*istanbul.View, error) {
-	return nil, nil
+	return nil, leveldb.ErrNotFound
 }
 func (n *noopRSDB) GetRoundStateFor(view *istanbul.View) (RoundState, error) {
-	return &roundStateImpl{}, nil
+	return nil, leveldb.ErrNotFound
 }
 func (n *noopRSDB) UpdateLastRoundState(rs RoundState) error {
 	return nil
