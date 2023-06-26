@@ -481,6 +481,7 @@ func (ctx *deployContext) deployFeeHandler() error {
 			ctx.genesisConfig.FeeHandler.NewFeeBeneficiary,
 			ctx.genesisConfig.FeeHandler.NewBurnFraction.BigInt(),
 			ctx.genesisConfig.FeeHandler.Tokens,
+			ctx.genesisConfig.FeeHandler.Handlers,
 			ctx.genesisConfig.FeeHandler.NewLimits,
 			ctx.genesisConfig.FeeHandler.NewMaxSlippages,
 			ctx.genesisConfig.FeeHandler.NewRouters,
