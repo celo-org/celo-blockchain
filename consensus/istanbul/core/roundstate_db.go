@@ -55,6 +55,29 @@ type RoundStateDB interface {
 	Close() error
 }
 
+// Experiment
+
+type noopRSDB struct{}
+
+func (n *noopRSDB) GetLastView() (*istanbul.View, error) {
+	return nil, nil
+}
+func (n *noopRSDB) GetOldestValidView() (*istanbul.View, error) {
+	return nil, nil
+}
+func (n *noopRSDB) GetRoundStateFor(view *istanbul.View) (RoundState, error) {
+	return &roundStateImpl{}, nil
+}
+func (n *noopRSDB) UpdateLastRoundState(rs RoundState) error {
+	return nil
+}
+func (n *noopRSDB) UpdateLastRcvd(rs RoundState) error {
+	return nil
+}
+func (n *noopRSDB) Close() error {
+	return nil
+}
+
 // RoundStateDBOptions are the options for a RoundStateDB instance
 type RoundStateDBOptions struct {
 	withGarbageCollector   bool
@@ -91,33 +114,35 @@ func coerceOptions(opts *RoundStateDBOptions) RoundStateDBOptions {
 }
 
 func newRoundStateDB(path string, opts *RoundStateDBOptions) (RoundStateDB, error) {
-	logger := log.New("func", "newRoundStateDB", "type", "roundStateDB", "rsdb_path", path)
+	return &noopRSDB{}, nil
 
-	logger.Info("Open roundstate db")
-	var db *leveldb.DB
-	var err error
-	if path == "" {
-		db, err = newMemoryDB()
-	} else {
-		db, err = newPersistentDB(path)
-	}
+	// logger := log.New("func", "newRoundStateDB", "type", "roundStateDB", "rsdb_path", path)
 
-	if err != nil {
-		logger.Error("Failed to open roundstate db", "err", err)
-		return nil, err
-	}
+	// logger.Info("Open roundstate db")
+	// var db *leveldb.DB
+	// var err error
+	// if path == "" {
+	// 	db, err = newMemoryDB()
+	// } else {
+	// 	db, err = newPersistentDB(path)
+	// }
 
-	rsdb := &roundStateDBImpl{
-		db:     db,
-		opts:   coerceOptions(opts),
-		logger: logger,
-	}
+	// if err != nil {
+	// 	logger.Error("Failed to open roundstate db", "err", err)
+	// 	return nil, err
+	// }
 
-	if rsdb.opts.withGarbageCollector {
-		rsdb.stopGarbageCollector = task.RunTaskRepeateadly(rsdb.garbageCollectEntries, task.NewDefaultTicker(rsdb.opts.garbageCollectorPeriod))
-	}
+	// rsdb := &roundStateDBImpl{
+	// 	db:     db,
+	// 	opts:   coerceOptions(opts),
+	// 	logger: logger,
+	// }
 
-	return rsdb, nil
+	// if rsdb.opts.withGarbageCollector {
+	// 	rsdb.stopGarbageCollector = task.RunTaskRepeateadly(rsdb.garbageCollectEntries, task.NewDefaultTicker(rsdb.opts.garbageCollectorPeriod))
+	// }
+
+	// return rsdb, nil
 }
 
 // newMemoryDB creates a new in-memory node database without a persistent backend.
