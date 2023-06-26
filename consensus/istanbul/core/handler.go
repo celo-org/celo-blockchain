@@ -17,6 +17,7 @@
 package core
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -27,6 +28,7 @@ import (
 
 // Start implements core.Engine.Start
 func (c *core) Start() error {
+	fmt.Printf("Roundstate db path %s\n", c.config.RoundStateDBPath)
 	rsdb, err := newRoundStateDB(c.config.RoundStateDBPath, nil)
 	if err != nil {
 		log.Crit("Failed to open RoundStateDB", "err", err)
