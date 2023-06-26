@@ -19,60 +19,109 @@ package misc
 import (
 	"math/big"
 
-	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/math"
 	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-// CalcBaseFee calculates the basefee of the header.
-func CalcBaseFee(config *params.ChainConfig, parent *types.Header, vmRunner vm.EVMRunner) (*big.Int, error) {
+// // VerifyEip1559Header verifies some header attributes which were changed in EIP-1559,
+// // - gas limit check
+// // - basefee check
+// func VerifyEip1559Header(config *params.ChainConfig, parent, header *types.Header) error {
+// 	// Verify that the gas limit remains within allowed bounds
+// 	parentGasLimit := parent.GasLimit
+// 	if !config.IsLondon(parent.Number) {
+// 		parentGasLimit = parent.GasLimit * params.ElasticityMultiplier
+// 	}
+// 	if err := VerifyGaslimit(parentGasLimit, header.GasLimit); err != nil {
+// 		return err
+// 	}
+// 	// Verify the header is not malformed
+// 	if header.BaseFee == nil {
+// 		return fmt.Errorf("header is missing baseFee")
+// 	}
+// 	// Verify the baseFee is correct based on the parent header.
+// 	expectedBaseFee := CalcBaseFee(config, parent)
+// 	if header.BaseFee.Cmp(expectedBaseFee) != 0 {
+// 		return fmt.Errorf("invalid baseFee: have %s, want %s, parentBaseFee %s, parentGasUsed %d",
+// 			expectedBaseFee, header.BaseFee, parent.BaseFee, parent.GasUsed)
+// 	}
+// 	return nil
+// }
+
+// CalcBaseFee calculates the basefee for the header.
+// If the gasPriceMinimum contract fails to retrieve the new gas price minimum, it uses the
+// ethereum's default baseFee calculation
+func CalcBaseFee(config *params.ChainConfig, parent *types.Header, vmRunner vm.EVMRunner) *big.Int {
+	var newBaseFee *big.Int
+	var err error
 	// If the current block is the first GFork block, return the gasPriceMinimum on the state.
 	if !config.IsGFork(parent.Number) {
-		return gpm.GetRealGasPriceMinimum(vmRunner, nil)
+		newBaseFee, err = gpm.GetRealGasPriceMinimum(vmRunner, nil)
+		if err != nil {
+			log.Warn("CalcBaseFee error, contract call getPriceMinimumMethod", "error", err, "header.Number", parent.Number.Uint64()+1)
+			// Will return the initialBaseFee param, but this way, the parameters will be isolated to the
+			// ethereum functions
+			newBaseFee = calcBaseFeeEthereum(config, parent)
+		}
+		return newBaseFee
 	}
 
-	// If an error occurs, the default block gas limit will be returned and a log statement will be produced by GetBlockGasLimitOrDefault
-	gasLimit, err := blockchain_parameters.GetBlockGasLimit(vmRunner)
+	// // If an error occurs, the default block gas limit will be returned and a log statement will be produced by GetBlockGasLimitOrDefault
+	// gasLimit, err := blockchain_parameters.GetBlockGasLimit(vmRunner)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	newBaseFee, err = gpm.GetUpdatedGasPriceMinimum(vmRunner, parent.GasUsed, parent.GasLimit)
 	if err != nil {
-		return nil, err
+		log.Warn("CalcBaseFee error, contract call UpdatedGasPriceMinimum", "error", err, "header.Number", parent.Number.Uint64()+1)
+		newBaseFee = calcBaseFeeEthereum(config, parent)
+	}
+	return newBaseFee
+}
+
+// CalcBaseFee calculates the basefee of the header.
+func calcBaseFeeEthereum(config *params.ChainConfig, parent *types.Header) *big.Int {
+	// If the current block is the first EIP-1559 block, return the InitialBaseFee.
+	if !config.IsLondon(parent.Number) {
+		return new(big.Int).SetUint64(params.InitialBaseFee)
 	}
 
-	newBaseFee, err := gpm.GetUpdatedGasPriceMinimum(vmRunner, parent.GasUsed, gasLimit)
-	if err != nil {
-		return nil, err
+	var (
+		parentGasTarget          = parent.GasLimit / params.ElasticityMultiplier
+		parentGasTargetBig       = new(big.Int).SetUint64(parentGasTarget)
+		baseFeeChangeDenominator = new(big.Int).SetUint64(params.BaseFeeChangeDenominator)
+	)
+	// If the parent gasUsed is the same as the target, the baseFee remains unchanged.
+	if parent.GasUsed == parentGasTarget {
+		return new(big.Int).Set(parent.BaseFee)
 	}
-	return newBaseFee, nil
+	if parent.GasUsed > parentGasTarget {
+		// If the parent block used more gas than its target, the baseFee should increase.
+		gasUsedDelta := new(big.Int).SetUint64(parent.GasUsed - parentGasTarget)
+		x := new(big.Int).Mul(parent.BaseFee, gasUsedDelta)
+		y := x.Div(x, parentGasTargetBig)
+		baseFeeDelta := math.BigMax(
+			x.Div(y, baseFeeChangeDenominator),
+			common.Big1,
+		)
 
-	// blockDensity := new(big.Int).Div(new(big.Int).SetUint64(parent.GasUsed), new(big.Int).SetUint64(gasLimit))
+		return x.Add(parent.BaseFee, baseFeeDelta)
+	} else {
+		// Otherwise if the parent block used less gas than its target, the baseFee should decrease.
+		gasUsedDelta := new(big.Int).SetUint64(parentGasTarget - parent.GasUsed)
+		x := new(big.Int).Mul(parent.BaseFee, gasUsedDelta)
+		y := x.Div(x, parentGasTargetBig)
+		baseFeeDelta := x.Div(y, baseFeeChangeDenominator)
 
-	// targetDensity, err := gpm.GetTargetDensity(vmRunner)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// adjustmentSpeed, err := gpm.GetAdjustmentSpeed(vmRunner)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// baseFeeFloor, err := gpm.GetGasPriceMinimumFloor(vmRunner)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// var adjustment *big.Int
-	// if blockDensity.Cmp(targetDensity) > 0 {
-	// 	densityDelta := new(big.Int).Sub(blockDensity, targetDensity)
-	// 	adjustment = new(big.Int).Add(common.Big1, new(big.Int).Mul(adjustmentSpeed, densityDelta))
-	// } else {
-	// 	densityDelta := new(big.Int).Sub(targetDensity, blockDensity)
-	// 	adjustment = new(big.Int).Sub(common.Big1, new(big.Int).Mul(adjustmentSpeed, densityDelta))
-	// }
-
-	// newGasPriceMinimum := new(big.Int).Add(new(big.Int).Mul(parent.BaseFee, adjustment), common.Big1)
-
-	// if newGasPriceMinimum.Cmp(baseFeeFloor) >= 0 {
-	// 	return newGasPriceMinimum, nil
-	// }
-	// return baseFeeFloor, nil
+		return math.BigMax(
+			x.Sub(parent.BaseFee, baseFeeDelta),
+			common.Big0,
+		)
+	}
 }

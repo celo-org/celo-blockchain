@@ -906,7 +906,7 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 	}
 
 	// Get a new instance of the EVM.
-	msg, err := args.ToMessage(globalGasCap, header.BaseFee) // core.ApplyMessageWithoutGasPriceMinimum below will eventually set basefee to 0
+	msg, err := args.ToMessage(globalGasCap, header.BaseFee)
 	if err != nil {
 		return nil, err
 	}
@@ -924,12 +924,7 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 	// Execute the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
 	vmRunner := b.NewEVMRunner(header, state)
-	var result *core.ExecutionResult
-	if b.ChainConfig().IsGFork(header.Number) {
-		result, err = core.ApplyMessage(evm, msg, gp, vmRunner, sysCtx)
-	} else {
-		result, err = core.ApplyMessageWithoutGasPriceMinimum(evm, msg, gp, vmRunner, sysCtx)
-	}
+	result, err := core.ApplyMessage(evm, msg, gp, vmRunner, sysCtx)
 	if err := vmError(); err != nil {
 		return nil, err
 	}
@@ -1333,6 +1328,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 			} else {
 				log.Warn("error retrieving baseFee for tx", "hash", tx.Hash().Hex(), "error", err)
 				// error != nil for DynamicFees implies that there is no state to retrieve the baseFee for that block
+				// (after the GFork, only the alternative currencies with no state)
 				result.GasPrice = nil
 			}
 		} else {

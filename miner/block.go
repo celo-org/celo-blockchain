@@ -105,11 +105,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 	if w.chainConfig.IsGFork(header.Number) {
 		// Needs the baseFee of the last Header
 		parentVmRunner := w.chain.NewEVMRunner(parent.Header(), state)
-		header.BaseFee, err = misc.CalcBaseFee(w.chainConfig, parent.Header(), parentVmRunner)
-		if err != nil {
-			log.Error("Error in calculating the base fee", "error", err, "number", header.Number.Uint64())
-			return nil, err
-		}
+		header.BaseFee = misc.CalcBaseFee(w.chainConfig, parent.Header(), parentVmRunner)
 	}
 
 	vmRunner := w.chain.NewEVMRunner(header, state)

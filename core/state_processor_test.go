@@ -325,7 +325,13 @@ func GenerateBadBlock(parent *types.Block, engine consensus.Engine, txs types.Tr
 		Extra:      CreateEmptyIstanbulExtra(nil),
 	}
 	header.Extra = CreateEmptyIstanbulExtra(header.Extra)
-
+	if config.IsGFork(header.Number) {
+		if config.FakeBaseFee != nil {
+			header.BaseFee = config.FakeBaseFee
+		} else {
+			header.BaseFee = common.Big0
+		}
+	}
 	var receipts []*types.Receipt
 	// The post-state result doesn't need to be correct (this is a bad block), but we do need something there
 	// Preferably something unique. So let's use a combo of blocknum + txhash
