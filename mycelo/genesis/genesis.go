@@ -20,7 +20,7 @@ var genesisMsgHash = common.HexToHash("ecc833a7747eaa8327335e8e0c6b6d8aa3a38d006
 
 // CreateCommonGenesisConfig generates a config starting point which templates can then customize further
 func CreateCommonGenesisConfig(chainID *big.Int, adminAccountAddress common.Address, istanbulConfig params.IstanbulConfig) *Config {
-	gingerbreadBlock := common.Big2
+	gingerbreadBlock := newBigInt(2)
 	genesisConfig := BaseConfig(gingerbreadBlock)
 	genesisConfig.ChainID = chainID
 	genesisConfig.GenesisTimestamp = uint64(time.Now().Unix())

@@ -28,31 +28,6 @@ import (
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-// // VerifyEip1559Header verifies some header attributes which were changed in EIP-1559,
-// // - gas limit check
-// // - basefee check
-// func VerifyEip1559Header(config *params.ChainConfig, parent, header *types.Header) error {
-// 	// Verify that the gas limit remains within allowed bounds
-// 	parentGasLimit := parent.GasLimit
-// 	if !config.IsLondon(parent.Number) {
-// 		parentGasLimit = parent.GasLimit * params.ElasticityMultiplier
-// 	}
-// 	if err := VerifyGaslimit(parentGasLimit, header.GasLimit); err != nil {
-// 		return err
-// 	}
-// 	// Verify the header is not malformed
-// 	if header.BaseFee == nil {
-// 		return fmt.Errorf("header is missing baseFee")
-// 	}
-// 	// Verify the baseFee is correct based on the parent header.
-// 	expectedBaseFee := CalcBaseFee(config, parent)
-// 	if header.BaseFee.Cmp(expectedBaseFee) != 0 {
-// 		return fmt.Errorf("invalid baseFee: have %s, want %s, parentBaseFee %s, parentGasUsed %d",
-// 			expectedBaseFee, header.BaseFee, parent.BaseFee, parent.GasUsed)
-// 	}
-// 	return nil
-// }
-
 // CalcBaseFee calculates the basefee for the header.
 // If the gasPriceMinimum contract fails to retrieve the new gas price minimum, it uses the
 // ethereum's default baseFee calculation
@@ -60,7 +35,8 @@ func CalcBaseFee(config *params.ChainConfig, parent *types.Header, vmRunner vm.E
 	var newBaseFee *big.Int
 	var err error
 	// If the current block is the first Gingerbread block, return the gasPriceMinimum on the state.
-	if !config.IsGingerbread(parent.Number) {
+	// If the parent is the genesis, the header won't have a gasLimit
+	if !config.IsGingerbread(parent.Number) || parent.Number.Uint64() == 0 {
 		newBaseFee, err = gpm.GetRealGasPriceMinimum(vmRunner, nil)
 		if err != nil {
 			log.Warn("CalcBaseFee error, contract call getPriceMinimumMethod", "error", err, "header.Number", parent.Number.Uint64()+1)
@@ -88,10 +64,10 @@ func CalcBaseFee(config *params.ChainConfig, parent *types.Header, vmRunner vm.E
 // CalcBaseFee calculates the basefee of the header.
 func calcBaseFeeEthereum(config *params.ChainConfig, parent *types.Header) *big.Int {
 	// If the current block is the first EIP-1559 block, return the InitialBaseFee.
-	if !config.IsLondon(parent.Number) {
+	// If the parent is the genesis, the header won't have a gasLimit (celo)
+	if !config.IsGingerbread(parent.Number) || parent.Number.Uint64() == 0 {
 		return new(big.Int).SetUint64(params.InitialBaseFee)
 	}
-
 	var (
 		parentGasTarget          = parent.GasLimit / params.ElasticityMultiplier
 		parentGasTargetBig       = new(big.Int).SetUint64(parentGasTarget)

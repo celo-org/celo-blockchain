@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math/big"
-	"os"
 	"testing"
 	"time"
 
@@ -16,7 +15,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/ethclient"
 	"github.com/celo-org/celo-blockchain/internal/ethapi"
-	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +30,7 @@ const (
 // - Governance account has base fee added.
 // - validator account has tip fee added.
 func TestTransferCELO(t *testing.T) {
-	log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 	// fmt.Println(tt.dump())
 	ac := test.AccountConfig(1, 3)
 	gc, ec, err := test.BuildConfig(ac)

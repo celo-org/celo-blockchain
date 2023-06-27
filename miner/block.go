@@ -109,7 +109,6 @@ func prepareBlock(w *worker) (*blockState, error) {
 		gasLimit:       blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner),
 		header:         header,
 		txFeeRecipient: txFeeRecipient,
-		sysCtx:         core.NewSysContractCallCtx(header, state.Copy(), w.chain),
 	}
 	b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
 	if w.chainConfig.IsGingerbread(header.Number) {
@@ -119,9 +118,10 @@ func prepareBlock(w *worker) (*blockState, error) {
 		header.UncleHash = types.EmptyUncleHash
 		header.MixDigest = types.EmptyMixDigest
 		// Needs the baseFee of the last Header
-		parentVmRunner := w.chain.NewEVMRunner(parent.Header(), state)
+		parentVmRunner := w.chain.NewEVMRunner(parent.Header(), state.Copy())
 		header.BaseFee = misc.CalcBaseFee(w.chainConfig, parent.Header(), parentVmRunner)
 	}
+	b.sysCtx = core.NewSysContractCallCtx(header, state.Copy(), w.chain)
 
 	// Play our part in generating the random beacon.
 	if w.isRunning() && random.IsRunning(vmRunner) {

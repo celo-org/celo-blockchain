@@ -36,15 +36,17 @@ var (
 )
 
 const (
-	maxGasForGetGasPriceMinimum    uint64 = 2 * n.Million
-	maxGasForUpdateGasPriceMinimum uint64 = 2 * n.Million
+	maxGasForGetGasPriceMinimum        uint64 = 2 * n.Million
+	maxGasForGasPriceMinimumFloor      uint64 = 2 * n.Million
+	maxGasForUpdateGasPriceMinimum     uint64 = 2 * n.Million
+	maxGasForGetUpdatedGasPriceMinimum uint64 = 2 * n.Million
 )
 
 var (
 	getGasPriceMinimumMethod        = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "getGasPriceMinimum", maxGasForGetGasPriceMinimum)
-	getGasPriceMinimumFloorMethod   = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "gasPriceMinimumFloor", maxGasForGetGasPriceMinimum)
+	getGasPriceMinimumFloorMethod   = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "gasPriceMinimumFloor", maxGasForGasPriceMinimumFloor)
 	updateGasPriceMinimumMethod     = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "updateGasPriceMinimum", maxGasForUpdateGasPriceMinimum)
-	getUpdatedGasPriceMinimumMethod = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "getUpdatedGasPriceMinimum", maxGasForGetGasPriceMinimum)
+	getUpdatedGasPriceMinimumMethod = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "getUpdatedGasPriceMinimum", maxGasForGetUpdatedGasPriceMinimum)
 )
 
 func GetGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*big.Int, error) {
