@@ -272,12 +272,6 @@ func (p *peerCommons) handshake(td *big.Int, head common.Hash, headNum uint64, g
 	send = send.add("headNum", headNum)
 	send = send.add("genesisHash", genesis)
 
-	// If the protocol version is beyond les4, then pass the forkID
-	// as well. Check http://eips.ethereum.org/EIPS/eip-2124 for more
-	// spec detail.
-	if p.version >= lpv5 {
-		send = send.add("forkID", forkID)
-	}
 	// Add client-specified or server-specified fields
 	if sendCallback != nil {
 		sendCallback(&send)
@@ -310,16 +304,6 @@ func (p *peerCommons) handshake(td *big.Int, head common.Hash, headNum uint64, g
 	}
 	if int(rVersion) != p.version {
 		return errResp(ErrProtocolVersionMismatch, "%d (!= %d)", rVersion, p.version)
-	}
-	// Check forkID if the protocol version is beyond the les4
-	if p.version >= lpv5 {
-		var forkID forkid.ID
-		if err := recv.get("forkID", &forkID); err != nil {
-			return err
-		}
-		if err := forkFilter(forkID); err != nil {
-			return errResp(ErrForkIDRejected, "%v", err)
-		}
 	}
 	if recvCallback != nil {
 		return recvCallback(recv)
@@ -715,18 +699,12 @@ func (p *serverPeer) Handshake(genesis common.Hash, forkid forkid.ID, forkFilter
 		if recv.get("txRelay", nil) != nil {
 			p.onlyAnnounce = true
 		}
-		if p.version >= lpv5 {
-			var recentTx uint
-			if err := recv.get("recentTxLookup", &recentTx); err != nil {
-				return err
-			}
-			p.txHistory = uint64(recentTx)
-		} else {
-			// The weak assumption is held here that legacy les server(les2,3)
-			// has unlimited transaction history. The les serving in these legacy
-			// versions is disabled if the transaction is unindexed.
-			p.txHistory = txIndexUnlimited
-		}
+
+		// The weak assumption is held here that legacy les server(les2,3)
+		// has unlimited transaction history. The les serving in these legacy
+		// versions is disabled if the transaction is unindexed.
+		p.txHistory = txIndexUnlimited
+
 		if p.onlyAnnounce && !p.trusted {
 			return errResp(ErrUselessPeer, "peer cannot serve requests")
 		}
@@ -1139,7 +1117,7 @@ func (p *clientPeer) Handshake(td *big.Int, head common.Hash, headNum uint64, ge
 	if server.config.UltraLightOnlyAnnounce {
 		recentTx = txIndexDisabled
 	}
-	if recentTx != txIndexUnlimited && p.version < lpv5 {
+	if recentTx != txIndexUnlimited {
 		return errors.New("Cannot serve old clients without a complete tx index")
 	}
 	// Note: clientPeer.headInfo should contain the last head announced to the client by us.
@@ -1160,9 +1138,6 @@ func (p *clientPeer) Handshake(td *big.Int, head common.Hash, headNum uint64, ge
 			}
 			*lists = (*lists).add("serveRecentState", stateRecent)
 			*lists = (*lists).add("txRelay", nil)
-		}
-		if p.version >= lpv5 {
-			*lists = (*lists).add("recentTxLookup", recentTx)
 		}
 		*lists = (*lists).add("flowControl/BL", server.defParams.BufLimit)
 		*lists = (*lists).add("flowControl/MRR", server.defParams.MinRecharge)

@@ -498,15 +498,6 @@ func handleGetHelperTrieProofs(msg Decoder) (serveRequestFn, uint64, uint64, err
 			if auxTrie == nil {
 				return nil
 			}
-			// TODO(rjl493456442) short circuit if the proving is failed.
-			// The original client side code has a dirty hack to retrieve
-			// the headers with no valid proof. Keep the compatibility for
-			// legacy les protocol and drop this hack when the les2/3 are
-			// not supported.
-			err := auxTrie.Prove(request.Key, request.FromLevel, nodes)
-			if p.version >= lpv5 && err != nil {
-				return nil
-			}
 			if request.Type == htCanonical && request.AuxReq == htAuxHeader && len(request.Key) == 8 {
 				header := bc.GetHeaderByNumber(binary.BigEndian.Uint64(request.Key))
 				data, err := rlp.EncodeToBytes(header)
