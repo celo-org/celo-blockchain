@@ -130,7 +130,7 @@ func handleGetBlockBodies67(backend Backend, msg Decoder, peer *Peer) error {
 	if err := msg.Decode(&query); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
-	response, err := answerGetBlockBodiesQuery(backend, query.GetBlockBodiesPacket, peer)
+	response, err := AnswerGetBlockBodiesQuery(backend, query.GetBlockBodiesPacket, peer)
 	if err != nil {
 		return err
 	}
@@ -142,28 +142,44 @@ func handleGetBlockBodies67(backend Backend, msg Decoder, peer *Peer) error {
 // directly, as there is body data (i.e. `Randomness` and `EpochSnarkData`) which is not represented in the
 // header. That means that that the block fetcher cannot find the corresponding header for given blockdata
 // without executing the block contents. This is avoided by passing the block hash with the body data.
-func answerGetBlockBodiesQuery(backend Backend, query GetBlockBodiesPacket, peer *Peer) ([]rlp.RawValue, error) {
+func AnswerGetBlockBodiesQuery(backend Backend, query GetBlockBodiesPacket, peer *Peer) ([]rlp.RawValue, error) {
 	// Gather blocks until the fetch or network limits is reached
 	var (
 		bytes                int
 		bodiesAndBlockHashes []rlp.RawValue
 	)
+
 	for lookups, hash := range query {
 		if bytes >= softResponseLimit || len(bodiesAndBlockHashes) >= maxBodiesServe ||
 			lookups >= 2*maxBodiesServe {
 			break
 		}
 		// Retrieve the requested block body, stopping if enough was found
-		if body := backend.Chain().GetBody(hash); body != nil {
-			bh := &blockBodyWithBlockHash{BlockHash: hash, BlockBody: body}
-			bhRLPbytes, err := rlp.EncodeToBytes(bh)
-			if err != nil {
-				return nil, err
-			}
-			bhRLP := rlp.RawValue(bhRLPbytes)
-			bodiesAndBlockHashes = append(bodiesAndBlockHashes, bhRLP)
-			bytes += len(bhRLP)
+		// if body := backend.Chain().GetBody(hash); body != nil {
+		// 	bh := &blockBodyWithBlockHash{BlockHash: hash, BlockBody: body}
+		// 	bhRLPbytes, err := rlp.EncodeToBytes(bh)
+		// 	if err != nil {
+		// 		return nil, err
+		// 	}
+		// 	bhRLP := rlp.RawValue(bhRLPbytes)
+
+		// 	// fmt.Printf("Body with hash 1: %v\n", bhRLP)
+		// 	bodiesAndBlockHashes = append(bodiesAndBlockHashes, bhRLP)
+		// 	bytes += len(bhRLP)
+		// }
+
+		if data := backend.Chain().GetBodyRLP(hash); len(data) != 0 {
+			buf := append([]byte{248, 107, 160}, hash.Bytes()...,)
+			buf = append(buf, []byte(data)...)
+
+			bodiesAndBlockHashes = append(bodiesAndBlockHashes, rlp.RawValue(buf))
+			bytes += len(buf)
 		}
+
+		// if data := backend.Chain().GetBodyRLP(hash); len(data) != 0 {
+		// 	bodiesAndBlockHashes = append(bodiesAndBlockHashes, data)
+		// 	bytes += len(data)
+		// }
 	}
 	return bodiesAndBlockHashes, nil
 }
