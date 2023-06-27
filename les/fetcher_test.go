@@ -75,12 +75,6 @@ func TestSequentialAnnouncementsLes3(t *testing.T) {
 func TestSequentialAnnouncementsUltraLes3(t *testing.T) {
 	testSequentialAnnouncements(t, downloader.LightestSync, lpv3)
 }
-func TestSequentialAnnouncementsLes4(t *testing.T) {
-	testSequentialAnnouncements(t, downloader.LightSync, lpv4)
-}
-func TestSequentialAnnouncementsUltraLes4(t *testing.T) {
-	testSequentialAnnouncements(t, downloader.LightestSync, lpv4)
-}
 func TestSequentialAnnouncementsLes5(t *testing.T) {
 	testSequentialAnnouncements(t, downloader.LightSync, lpv5)
 }
@@ -137,13 +131,6 @@ func TestGappedAnnouncementsLes3(t *testing.T) {
 func TestGappedAnnouncementsUltraLes3(t *testing.T) {
 	t.Skip("added in the les refactor, check if necessary for LightestSync")
 	testGappedAnnouncements(t, downloader.LightestSync, lpv3)
-}
-func TestGappedAnnouncementsLes4(t *testing.T) {
-	testGappedAnnouncements(t, downloader.LightSync, lpv4)
-}
-func TestGappedAnnouncementsUltraLes4(t *testing.T) {
-	t.Skip("added in the les refactor, check if necessary for LightestSync")
-	testGappedAnnouncements(t, downloader.LightestSync, lpv4)
 }
 func TestGappedAnnouncementsLes5(t *testing.T) {
 	testGappedAnnouncements(t, downloader.LightSync, lpv5)
@@ -214,15 +201,6 @@ func TestTrustedAnnouncementsLes3(t *testing.T) {
 func TestTrustedAnnouncementsUltraLes3(t *testing.T) {
 	t.Skip("added in the les refactor, check if necessary for LightestSync")
 	testTrustedAnnouncement(t, downloader.LightestSync, lpv3)
-}
-
-func TestTrustedAnnouncementsLes4(t *testing.T) {
-	testTrustedAnnouncement(t, downloader.LightSync, lpv4)
-}
-
-func TestTrustedAnnouncementsUltraLes4(t *testing.T) {
-	t.Skip("added in the les refactor, check if necessary for LightestSync")
-	testTrustedAnnouncement(t, downloader.LightestSync, lpv4)
 }
 
 func TestTrustedAnnouncementsLes5(t *testing.T) {
@@ -309,7 +287,6 @@ func testTrustedAnnouncement(t *testing.T, syncMode downloader.SyncMode, protoco
 
 func TestInvalidAnnouncesLES2(t *testing.T) { testInvalidAnnounces(t, downloader.LightSync, lpv2) }
 func TestInvalidAnnouncesLES3(t *testing.T) { testInvalidAnnounces(t, downloader.LightSync, lpv3) }
-func TestInvalidAnnouncesLES4(t *testing.T) { testInvalidAnnounces(t, downloader.LightSync, lpv4) }
 func TestInvalidAnnouncesLES5(t *testing.T) { testInvalidAnnounces(t, downloader.LightSync, lpv5) }
 
 func testInvalidAnnounces(t *testing.T, syncMode downloader.SyncMode, protocol int) {
