@@ -368,7 +368,7 @@ jobs:
     runs-on: [self-hosted, blockchain, 8-cpu]
     timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -415,7 +415,7 @@ jobs:
     runs-on: [self-hosted, blockchain, 8-cpu]
     timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -463,7 +463,7 @@ jobs:
     runs-on: [self-hosted, blockchain, 8-cpu]
     timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -510,7 +510,7 @@ jobs:
     runs-on: [self-hosted, blockchain, 8-cpu]
     timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -557,7 +557,7 @@ jobs:
     runs-on: [self-hosted, blockchain, 8-cpu]
     timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -604,7 +604,7 @@ jobs:
     runs-on: [self-hosted, blockchain, 8-cpu]
     timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -651,7 +651,7 @@ jobs:
     runs-on: [self-hosted, blockchain, 8-cpu]
     timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -698,7 +698,7 @@ jobs:
     runs-on: [self-hosted, blockchain, 8-cpu]
     timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
