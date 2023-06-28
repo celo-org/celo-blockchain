@@ -1,7 +1,6 @@
 package contract
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
@@ -28,11 +27,7 @@ func AbiFor(name string) *abi.ABI {
 
 // DeployCoreContract deploys one of celo's core contracts
 func DeployCoreContract(cfg *runtime.Config, contractName string, code []byte, params ...interface{}) (*EVMBackend, error) {
-	backend, err := DeployEVMBackend(AbiFor(contractName), cfg, code, params...)
-	if err != nil {
-		return backend, fmt.Errorf("Could not deploy '%s': %w", contractName, err)
-	}
-	return backend, err
+	return DeployEVMBackend(AbiFor(contractName), cfg, code, params...)
 }
 
 // CoreContract returns a contractBackend for a core contract

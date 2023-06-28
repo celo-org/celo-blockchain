@@ -198,13 +198,5 @@ func BaseConfig() *Config {
 				},
 			},
 		},
-		FeeHandler: FeeHandlerParameters{
-			NewFeeBeneficiary: common.Address{},
-			NewBurnFraction:   fixed("0.2"),
-			Tokens:            []common.Address{},
-			Handlers:          []common.Address{},
-			NewLimits:         []*big.Int{},
-			NewMaxSlippages:   []*big.Int{},
-		},
 	}
 }
