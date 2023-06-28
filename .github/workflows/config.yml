@@ -10,13 +10,13 @@ on:
       - master
 
 concurrency: 
-  group: ${{ github.head_ref }}
+  group: ${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 env:
   # Increment these to force cache rebuilding
   SYSTEM_CONTRACTS_CACHE_VERSION: 3
-  CHECKOUT_MONOREPO_CACHE_VERSION: 5
+  CHECKOUT_MONOREPO_CACHE_VERSION: 6
   GO_VERSION: '1.17.5'
   # Location where compiled system contracts are stored under the root of this
   # repo.
@@ -77,6 +77,7 @@ jobs:
         yarn build
         cd packages/protocol
         yarn run build:sol
+        cp build/contracts-mento/* build/contracts/  # Include mento contracts
     - name: Upload built system contracts
       if: always()
       uses: actions/upload-artifact@v3
