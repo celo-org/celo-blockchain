@@ -27,7 +27,7 @@ jobs:
     name: Build celo-monorepo
     runs-on: [self-hosted, blockchain, 8-cpu]
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
       PYTHON_VERSION: '3.9'
       CONTRACTS_BUILD_PATH: packages/protocol/build/contracts
 
