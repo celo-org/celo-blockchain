@@ -943,7 +943,8 @@ func TestTransactionGapFilling(t *testing.T) {
 // When we change TestChangeConfig to enable Donut this test will need:
 // (a) to set pool.donut = false at its start (so we can add unprotected transactions)
 // (b) different functions to generate protected vs unprotected transactions, since we will
-//     need to update transaction() and the others to use replay protection
+//
+//	need to update transaction() and the others to use replay protection
 func TestPoolReAcceptingUnprotectedTxsFromEspresso(t *testing.T) {
 	t.Parallel()
 

@@ -215,24 +215,27 @@ func (w *ledgerDriver) SignPersonalMessage(path accounts.DerivationPath, message
 	return w.ledgerSignData(path, message)
 }
 
-/* TODO: add functionality to the Ledger's Celo app
+/*
+	TODO: add functionality to the Ledger's Celo app
+
 // SignTypedMessage implements usbwallet.driver, sending the message to the Ledger and
 // waiting for the user to sign or deny the transaction.
 //
 // Note: this was introduced in the ledger 1.5.0 firmware
-func (w *ledgerDriver) SignTypedMessage(path accounts.DerivationPath, domainHash []byte, messageHash []byte) ([]byte, error) {
-	// If the Ethereum app doesn't run, abort
-	if w.offline() {
-		return nil, accounts.ErrWalletClosed
+
+	func (w *ledgerDriver) SignTypedMessage(path accounts.DerivationPath, domainHash []byte, messageHash []byte) ([]byte, error) {
+		// If the Ethereum app doesn't run, abort
+		if w.offline() {
+			return nil, accounts.ErrWalletClosed
+		}
+		// Ensure the wallet is capable of signing the given transaction
+		if w.version[0] < 1 && w.version[1] < 5 {
+			//lint:ignore ST1005 brand name displayed on the console
+			return nil, fmt.Errorf("Ledger version >= 1.5.0 required for EIP-712 signing (found version v%d.%d.%d)", w.version[0], w.version[1], w.version[2])
+		}
+		// All infos gathered and metadata checks out, request signing
+		return w.ledgerSignTypedMessage(path, domainHash, messageHash)
 	}
-	// Ensure the wallet is capable of signing the given transaction
-	if w.version[0] < 1 && w.version[1] < 5 {
-		//lint:ignore ST1005 brand name displayed on the console
-		return nil, fmt.Errorf("Ledger version >= 1.5.0 required for EIP-712 signing (found version v%d.%d.%d)", w.version[0], w.version[1], w.version[2])
-	}
-	// All infos gathered and metadata checks out, request signing
-	return w.ledgerSignTypedMessage(path, domainHash, messageHash)
-}
 */
 func (w *ledgerDriver) SignTypedMessage(path accounts.DerivationPath, domainHash []byte, messageHash []byte) ([]byte, error) {
 	return nil, accounts.ErrNotSupported
@@ -243,18 +246,18 @@ func (w *ledgerDriver) SignTypedMessage(path accounts.DerivationPath, domainHash
 //
 // The version retrieval protocol is defined as follows:
 //
-//   CLA | INS | P1 | P2 | Lc | Le
-//   ----+-----+----+----+----+---
-//    E0 | 06  | 00 | 00 | 00 | 04
+//	CLA | INS | P1 | P2 | Lc | Le
+//	----+-----+----+----+----+---
+//	 E0 | 06  | 00 | 00 | 00 | 04
 //
 // With no input data, and the output data being:
 //
-//   Description                                        | Length
-//   ---------------------------------------------------+--------
-//   Flags 01: arbitrary data signature enabled by user | 1 byte
-//   Application major version                          | 1 byte
-//   Application minor version                          | 1 byte
-//   Application patch version                          | 1 byte
+//	Description                                        | Length
+//	---------------------------------------------------+--------
+//	Flags 01: arbitrary data signature enabled by user | 1 byte
+//	Application major version                          | 1 byte
+//	Application minor version                          | 1 byte
+//	Application patch version                          | 1 byte
 func (w *ledgerDriver) ledgerVersion() ([3]byte, error) {
 	// Send the request and wait for the response
 	reply, err := w.ledgerExchange(ledgerOpGetConfiguration, 0, 0, nil)
@@ -275,32 +278,32 @@ func (w *ledgerDriver) ledgerVersion() ([3]byte, error) {
 //
 // The address derivation protocol is defined as follows:
 //
-//   CLA | INS | P1 | P2 | Lc  | Le
-//   ----+-----+----+----+-----+---
-//    E0 | 02  | 00 return address
-//               01 display address and confirm before returning
-//                  | 00: do not return the chain code
-//                  | 01: return the chain code
-//                       | var | 00
+//	CLA | INS | P1 | P2 | Lc  | Le
+//	----+-----+----+----+-----+---
+//	 E0 | 02  | 00 return address
+//	            01 display address and confirm before returning
+//	               | 00: do not return the chain code
+//	               | 01: return the chain code
+//	                    | var | 00
 //
 // Where the input data is:
 //
-//   Description                                      | Length
-//   -------------------------------------------------+--------
-//   Number of BIP 32 derivations to perform (max 10) | 1 byte
-//   First derivation index (big endian)              | 4 bytes
-//   ...                                              | 4 bytes
-//   Last derivation index (big endian)               | 4 bytes
+//	Description                                      | Length
+//	-------------------------------------------------+--------
+//	Number of BIP 32 derivations to perform (max 10) | 1 byte
+//	First derivation index (big endian)              | 4 bytes
+//	...                                              | 4 bytes
+//	Last derivation index (big endian)               | 4 bytes
 //
 // And the output data is:
 //
-//   Description             | Length
-//   ------------------------+-------------------
-//   Public Key length       | 1 byte
-//   Uncompressed Public Key | arbitrary
-//   Celo address length     | 1 byte
-//   Celo address            | 40 bytes hex ascii
-//   Chain code if requested | 32 bytes
+//	Description             | Length
+//	------------------------+-------------------
+//	Public Key length       | 1 byte
+//	Uncompressed Public Key | arbitrary
+//	Celo address length     | 1 byte
+//	Celo address            | 40 bytes hex ascii
+//	Chain code if requested | 32 bytes
 func (w *ledgerDriver) ledgerDerive(derivationPath []uint32, showOnWallet bool) (common.Address, error) {
 	// Flatten the derivation path into the Ledger request
 	path := make([]byte, 1+4*len(derivationPath))
@@ -342,35 +345,35 @@ func (w *ledgerDriver) ledgerDerive(derivationPath []uint32, showOnWallet bool) 
 //
 // The transaction signing protocol is defined as follows:
 //
-//   CLA | INS | P1 | P2 | Lc  | Le
-//   ----+-----+----+----+-----+---
-//    E0 | 04  | 00: first transaction data block
-//               80: subsequent transaction data block
-//                  | 00 | variable | variable
+//	CLA | INS | P1 | P2 | Lc  | Le
+//	----+-----+----+----+-----+---
+//	 E0 | 04  | 00: first transaction data block
+//	            80: subsequent transaction data block
+//	               | 00 | variable | variable
 //
 // Where the input for the first transaction block (first 255 bytes) is:
 //
-//   Description                                      | Length
-//   -------------------------------------------------+----------
-//   Number of BIP 32 derivations to perform (max 10) | 1 byte
-//   First derivation index (big endian)              | 4 bytes
-//   ...                                              | 4 bytes
-//   Last derivation index (big endian)               | 4 bytes
-//   RLP transaction chunk                            | arbitrary
+//	Description                                      | Length
+//	-------------------------------------------------+----------
+//	Number of BIP 32 derivations to perform (max 10) | 1 byte
+//	First derivation index (big endian)              | 4 bytes
+//	...                                              | 4 bytes
+//	Last derivation index (big endian)               | 4 bytes
+//	RLP transaction chunk                            | arbitrary
 //
 // And the input for subsequent transaction blocks (first 255 bytes) are:
 //
-//   Description           | Length
-//   ----------------------+----------
-//   RLP transaction chunk | arbitrary
+//	Description           | Length
+//	----------------------+----------
+//	RLP transaction chunk | arbitrary
 //
 // And the output data is:
 //
-//   Description | Length
-//   ------------+---------
-//   signature V | 1 byte
-//   signature R | 32 bytes
-//   signature S | 32 bytes
+//	Description | Length
+//	------------+---------
+//	signature V | 1 byte
+//	signature R | 32 bytes
+//	signature S | 32 bytes
 func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction, chainID *big.Int) (common.Address, *types.Transaction, error) {
 	// Flatten the derivation path into the Ledger request
 	path := make([]byte, 1+4*len(derivationPath))
@@ -460,22 +463,22 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 //
 // The data protocol is defined as follows:
 //
-//   CLA | INS | P1 | P2 | Lc  | Le
-//   ----+-----+----+----+-----+---
-//    E0 | 04  | 00: first data block
-//               80: subsequent data block
-//                  | 00 | variable | variable
+//	CLA | INS | P1 | P2 | Lc  | Le
+//	----+-----+----+----+-----+---
+//	 E0 | 04  | 00: first data block
+//	            80: subsequent data block
+//	               | 00 | variable | variable
 //
 // Where the input for the data block is:
 //
-//   Description                                      | Length
-//   -------------------------------------------------+----------
-//   Ticker length                                    | 1 byte
-//   Ticker                                           | abitrary (< 10 bytes)
-//   Address                                          | 20 bytes
-//   Decimals                                         | 4 bytes
-//   ChainID                                          | 4 bytes
-//   Signature                                        | arbitrary
+//	Description                                      | Length
+//	-------------------------------------------------+----------
+//	Ticker length                                    | 1 byte
+//	Ticker                                           | abitrary (< 10 bytes)
+//	Address                                          | 20 bytes
+//	Decimals                                         | 4 bytes
+//	ChainID                                          | 4 bytes
+//	Signature                                        | arbitrary
 //
 // And the output data is nothing.
 func (w *ledgerDriver) ledgerProvideERC20(contractAddress common.Address, chainID *big.Int) error {
@@ -497,35 +500,35 @@ func (w *ledgerDriver) ledgerProvideERC20(contractAddress common.Address, chainI
 //
 // The message signing protocol is defined as follows:
 //
-//   CLA | INS | P1 | P2 | Lc  | Le
-//   ----+-----+----+----+-----+---
-//    E0 | 08  | 00: first message data block
-//               80: subsequent message data block
-//                  | 00 | variable | variable
+//	CLA | INS | P1 | P2 | Lc  | Le
+//	----+-----+----+----+-----+---
+//	 E0 | 08  | 00: first message data block
+//	            80: subsequent message data block
+//	               | 00 | variable | variable
 //
 // Where the input for the first message block (first 255 bytes) is:
 //
-//   Description                                      | Length
-//   -------------------------------------------------+----------
-//   Number of BIP 32 derivations to perform (max 10) | 1 byte
-//   First derivation index (big endian)              | 4 bytes
-//   ...                                              | 4 bytes
-//   Last derivation index (big endian)               | 4 bytes
-//   data chunk                                       | arbitrary
+//	Description                                      | Length
+//	-------------------------------------------------+----------
+//	Number of BIP 32 derivations to perform (max 10) | 1 byte
+//	First derivation index (big endian)              | 4 bytes
+//	...                                              | 4 bytes
+//	Last derivation index (big endian)               | 4 bytes
+//	data chunk                                       | arbitrary
 //
 // And the input for subsequent message blocks (first 255 bytes) are:
 //
-//   Description           | Length
-//   ----------------------+----------
-//   data chunk | arbitrary
+//	Description           | Length
+//	----------------------+----------
+//	data chunk | arbitrary
 //
 // And the output data is:
 //
-//   Description | Length
-//   ------------+---------
-//   signature V | 1 byte
-//   signature R | 32 bytes
-//   signature S | 32 bytes
+//	Description | Length
+//	------------+---------
+//	signature V | 1 byte
+//	signature R | 32 bytes
+//	signature S | 32 bytes
 func (w *ledgerDriver) ledgerSignData(derivationPath []uint32, data []byte) (common.Address, []byte, []byte, error) {
 	hashMessage := sha256.Sum256(data)
 	w.log.Info("Signing message on Ledger with hash", "message", hex.EncodeToString(data), "hash", hex.EncodeToString(hashMessage[:]))
@@ -652,12 +655,12 @@ func (w *ledgerDriver) ledgerSignTypedMessage(derivationPath []uint32, domainHas
 //
 // The common transport header is defined as follows:
 //
-//  Description                           | Length
-//  --------------------------------------+----------
-//  Communication channel ID (big endian) | 2 bytes
-//  Command tag                           | 1 byte
-//  Packet sequence index (big endian)    | 2 bytes
-//  Payload                               | arbitrary
+//	Description                           | Length
+//	--------------------------------------+----------
+//	Communication channel ID (big endian) | 2 bytes
+//	Command tag                           | 1 byte
+//	Packet sequence index (big endian)    | 2 bytes
+//	Payload                               | arbitrary
 //
 // The Communication channel ID allows commands multiplexing over the same
 // physical link. It is not used for the time being, and should be set to 0101
@@ -671,15 +674,15 @@ func (w *ledgerDriver) ledgerSignTypedMessage(derivationPath []uint32, domainHas
 //
 // APDU Command payloads are encoded as follows:
 //
-//  Description              | Length
-//  -----------------------------------
-//  APDU length (big endian) | 2 bytes
-//  APDU CLA                 | 1 byte
-//  APDU INS                 | 1 byte
-//  APDU P1                  | 1 byte
-//  APDU P2                  | 1 byte
-//  APDU length              | 1 byte
-//  Optional APDU data       | arbitrary
+//	Description              | Length
+//	-----------------------------------
+//	APDU length (big endian) | 2 bytes
+//	APDU CLA                 | 1 byte
+//	APDU INS                 | 1 byte
+//	APDU P1                  | 1 byte
+//	APDU P2                  | 1 byte
+//	APDU length              | 1 byte
+//	Optional APDU data       | arbitrary
 func (w *ledgerDriver) ledgerExchange(opcode ledgerOpcode, p1 ledgerParam1, p2 ledgerParam2, data []byte) ([]byte, error) {
 	// Construct the message payload, possibly split into multiple chunks
 	apdu := make([]byte, 2, 7+len(data))

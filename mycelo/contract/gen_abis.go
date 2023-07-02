@@ -2119,7 +2119,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// Attestations ABI
+  ]`) // Attestations ABI
 	abis["Attestations"] = mustParseABI(`[
     {
       "inputs": [
@@ -3454,7 +3454,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// BlockchainParameters ABI
+  ]`) // BlockchainParameters ABI
 	abis["BlockchainParameters"] = mustParseABI(`[
     {
       "inputs": [
@@ -4107,7 +4107,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// DoubleSigningSlasher ABI
+  ]`) // DoubleSigningSlasher ABI
 	abis["DoubleSigningSlasher"] = mustParseABI(`[
     {
       "inputs": [
@@ -4853,7 +4853,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// DowntimeSlasher ABI
+  ]`) // DowntimeSlasher ABI
 	abis["DowntimeSlasher"] = mustParseABI(`[
     {
       "inputs": [
@@ -5835,7 +5835,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// Election ABI
+  ]`) // Election ABI
 	abis["Election"] = mustParseABI(`[
     {
       "inputs": [
@@ -7620,7 +7620,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// EpochRewards ABI
+  ]`) // EpochRewards ABI
 	abis["EpochRewards"] = mustParseABI(`[
     {
       "inputs": [
@@ -8765,7 +8765,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// Escrow ABI
+  ]`) // Escrow ABI
 	abis["Escrow"] = mustParseABI(`[
     {
       "inputs": [
@@ -9553,7 +9553,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// Exchange ABI
+  ]`) // Exchange ABI
 	abis["Exchange"] = mustParseABI(`[
     {
       "inputs": [
@@ -10273,7 +10273,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// ExchangeBRL ABI
+  ]`) // ExchangeBRL ABI
 	abis["ExchangeBRL"] = mustParseABI(`[
     {
       "inputs": [
@@ -10993,7 +10993,7 @@ func init() {
       "stateMutability": "pure",
       "type": "function"
     }
-  ]`)// ExchangeEUR ABI
+  ]`) // ExchangeEUR ABI
 	abis["ExchangeEUR"] = mustParseABI(`[
     {
       "inputs": [
@@ -11713,7 +11713,7 @@ func init() {
       "stateMutability": "pure",
       "type": "function"
     }
-  ]`)// FederatedAttestations ABI
+  ]`) // FederatedAttestations ABI
 	abis["FederatedAttestations"] = mustParseABI(`[
     {
       "inputs": [
@@ -12419,7 +12419,7 @@ func init() {
       "stateMutability": "pure",
       "type": "function"
     }
-  ]`)// FeeCurrencyWhitelist ABI
+  ]`) // FeeCurrencyWhitelist ABI
 	abis["FeeCurrencyWhitelist"] = mustParseABI(`[
     {
       "inputs": [
@@ -12693,7 +12693,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// Freezer ABI
+  ]`) // Freezer ABI
 	abis["Freezer"] = mustParseABI(`[
     {
       "inputs": [
@@ -12855,7 +12855,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// GasPriceMinimum ABI
+  ]`) // GasPriceMinimum ABI
 	abis["GasPriceMinimum"] = mustParseABI(`[
     {
       "inputs": [
@@ -13290,7 +13290,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// GoldToken ABI
+  ]`) // GoldToken ABI
 	abis["GoldToken"] = mustParseABI(`[
     {
       "inputs": [
@@ -13857,7 +13857,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// Governance ABI
+  ]`) // Governance ABI
 	abis["Governance"] = mustParseABI(`[
     {
       "inputs": [
@@ -16419,7 +16419,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// GovernanceApproverMultiSig ABI
+  ]`) // GovernanceApproverMultiSig ABI
 	abis["GovernanceApproverMultiSig"] = mustParseABI(`[
     {
       "inputs": [
@@ -17079,7 +17079,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// GovernanceSlasher ABI
+  ]`) // GovernanceSlasher ABI
 	abis["GovernanceSlasher"] = mustParseABI(`[
     {
       "inputs": [
@@ -17354,7 +17354,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// GrandaMento ABI
+  ]`) // GrandaMento ABI
 	abis["GrandaMento"] = mustParseABI(`[
     {
       "inputs": [
@@ -18154,7 +18154,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// LockedGold ABI
+  ]`) // LockedGold ABI
 	abis["LockedGold"] = mustParseABI(`[
     {
       "inputs": [
@@ -18932,7 +18932,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// OdisPayments ABI
+  ]`) // OdisPayments ABI
 	abis["OdisPayments"] = mustParseABI(`[
     {
       "inputs": [
@@ -19148,7 +19148,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// Proxy ABI
+  ]`) // Proxy ABI
 	abis["Proxy"] = mustParseABI(`[
     {
       "inputs": [],
@@ -19267,7 +19267,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// Random ABI
+  ]`) // Random ABI
 	abis["Random"] = mustParseABI(`[
     {
       "inputs": [
@@ -19896,7 +19896,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// Registry ABI
+  ]`) // Registry ABI
 	abis["Registry"] = mustParseABI(`[
     {
       "inputs": [
@@ -20183,7 +20183,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// Reserve ABI
+  ]`) // Reserve ABI
 	abis["Reserve"] = mustParseABI(`[
     {
       "inputs": [
@@ -21449,7 +21449,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// ReserveSpenderMultiSig ABI
+  ]`) // ReserveSpenderMultiSig ABI
 	abis["ReserveSpenderMultiSig"] = mustParseABI(`[
     {
       "inputs": [
@@ -22109,7 +22109,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// SortedOracles ABI
+  ]`) // SortedOracles ABI
 	abis["SortedOracles"] = mustParseABI(`[
     {
       "inputs": [
@@ -22832,7 +22832,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// StableToken ABI
+  ]`) // StableToken ABI
 	abis["StableToken"] = mustParseABI(`[
     {
       "inputs": [
@@ -24002,7 +24002,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// StableTokenBRL ABI
+  ]`) // StableTokenBRL ABI
 	abis["StableTokenBRL"] = mustParseABI(`[
     {
       "inputs": [
@@ -25172,7 +25172,7 @@ func init() {
       "stateMutability": "pure",
       "type": "function"
     }
-  ]`)// StableTokenEUR ABI
+  ]`) // StableTokenEUR ABI
 	abis["StableTokenEUR"] = mustParseABI(`[
     {
       "inputs": [
@@ -26342,7 +26342,7 @@ func init() {
       "stateMutability": "pure",
       "type": "function"
     }
-  ]`)// Validators ABI
+  ]`) // Validators ABI
 	abis["Validators"] = mustParseABI(`[
     {
       "inputs": [
