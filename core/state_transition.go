@@ -50,10 +50,8 @@ The state transitioning model does all the necessary work to work out a valid ne
 3) Create a new state object if the recipient is \0*32
 4) Value transfer
 == If contract creation ==
-
-	4a) Attempt to run transaction data
-	4b) If valid, use result as code for the new state object
-
+  4a) Attempt to run transaction data
+  4b) If valid, use result as code for the new state object
 == end ==
 5) Run Script section
 6) Derive new state root
@@ -295,7 +293,6 @@ func (st *StateTransition) payFees(espresso bool) error {
 // For native token(CELO) as feeCurrency:
 //   - Pre-Espresso: it ensures balance >= GasPrice * gas + gatewayFee (1)
 //   - Post-Espresso: it ensures balance >= GasFeeCap * gas + value + gatewayFee (2)
-//
 // For non-native tokens(cUSD, cEUR, ...) as feeCurrency:
 //   - Pre-Espresso: it ensures balance > GasPrice * gas + gatewayFee (3)
 //   - Post-Espresso: it ensures balance >= GasFeeCap * gas + gatewayFee (4)
@@ -425,13 +422,13 @@ func (st *StateTransition) preCheck() error {
 // TransitionDb will transition the state by applying the current message and
 // returning the evm execution result with following fields.
 //
-//   - used gas:
-//     total gas used (including gas being refunded)
-//   - returndata:
-//     the returned data from evm
-//   - concrete execution error:
-//     various **EVM** error which aborts the execution,
-//     e.g. ErrOutOfGas, ErrExecutionReverted
+// - used gas:
+//      total gas used (including gas being refunded)
+// - returndata:
+//      the returned data from evm
+// - concrete execution error:
+//      various **EVM** error which aborts the execution,
+//      e.g. ErrOutOfGas, ErrExecutionReverted
 //
 // However if any consensus issue encountered, return the error directly with
 // nil evm execution result.

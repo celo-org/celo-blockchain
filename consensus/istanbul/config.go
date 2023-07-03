@@ -102,7 +102,7 @@ var DefaultConfig = &Config{
 	LoadTestCSVFile:                                "", // disable by default
 }
 
-// ApplyParamsChainConfigToConfig applies the istanbul config values from params.chainConfig to the istanbul.Config config
+//ApplyParamsChainConfigToConfig applies the istanbul config values from params.chainConfig to the istanbul.Config config
 func ApplyParamsChainConfigToConfig(chainConfig *params.ChainConfig, config *Config) error {
 	if chainConfig.Istanbul.Epoch != 0 {
 		if chainConfig.Istanbul.Epoch < MinEpochSize {

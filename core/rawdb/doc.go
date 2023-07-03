@@ -33,5 +33,6 @@ modified the items added to the freezer must be considered final (I.E, no
 chance of a re-org) currently that is ensured by only freezing blocks at least
 90000 behind the head block. This 90000 threshold is referred to as the
 'FullImmutabilityThreshold'.
+
 */
 package rawdb

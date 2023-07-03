@@ -388,9 +388,8 @@ func (vet *ValidatorEnodeDB) UpdateQueryEnodeStats(valEnodeEntries []*istanbul.A
 // upsert will update or insert a validator enode entry given that the existing entry
 // is older (determined by the version) than the new one
 // TODO - In addition to modifying the val_enode_db, this function also will disconnect
-//
-//	and/or connect the corresponding validator connenctions.  The validator connections
-//	should be managed be a separate thread (see https://github.com/celo-org/celo-blockchain/issues/607)
+//        and/or connect the corresponding validator connenctions.  The validator connections
+//        should be managed be a separate thread (see https://github.com/celo-org/celo-blockchain/issues/607)
 func (vet *ValidatorEnodeDB) upsert(valEnodeEntries []*istanbul.AddressEntry,
 	onNewEntry func(batch *leveldb.Batch, entry db.GenericEntry) error,
 	onUpdatedEntry func(batch *leveldb.Batch, existingEntry db.GenericEntry, newEntry db.GenericEntry) error) error {

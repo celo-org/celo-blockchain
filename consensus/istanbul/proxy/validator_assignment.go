@@ -30,8 +30,7 @@ import (
 // If a validator is assigned to a nil proxy, then that means that it's
 // not assigned yet.
 // WARNING:  None of this object's functions are threadsafe, so it's
-//
-//	the user's responsibility to ensure that.
+//           the user's responsibility to ensure that.
 type valAssignments struct {
 	valToProxy  map[common.Address]*enode.ID             // map of validator address -> proxy assignment ID
 	proxyToVals map[enode.ID]map[common.Address]struct{} // map of proxy ID to set of validator addresses
@@ -127,8 +126,7 @@ func (h hasher) Sum64(data []byte) uint64 {
 // Validator <-> proxy pairings are recalculated every time a proxy or validator
 // is added/removed
 // WARNING:  None of this object's functions are threadsafe, so it's
-//
-//	the user's responsibility to ensure that.
+//           the user's responsibility to ensure that.
 type consistentHashingPolicy struct {
 	c      *consistent.Consistent // used for consistent hashing
 	logger log.Logger

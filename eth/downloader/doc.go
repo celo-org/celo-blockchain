@@ -3,7 +3,7 @@ Package downloader handles downloading data from other nodes for sync. Sync
 refers to the process of catching up with other nodes, once caught up nodes
 use a different process to maintain their syncronisation.
 
-# There are a few different modes for syncing
+There are a few different modes for syncing
 
 Full: Get all the blocks and apply them all to build the chain state
 
@@ -41,7 +41,7 @@ Lightest: Like light but downloads only one header per epoch, which on mainnet
 means one header out of every 17280 headers. This is particularly fast only
 takes 20 seconds or so to get synced.
 
-# Sync process detail
+Sync process detail
 
 Syncing is initiated with one peer (see eth.loop), the peer selected to sync
 with is the one with the highest total difficulty of all peers (see
@@ -107,23 +107,24 @@ fetchReceipts
 
 And one to process the headers. (processHeaders)
 
-	If fast sync {
-		start a routine to process the fast sync content (processFastSyncContent)
-	}
-
+If fast sync {
+	start a routine to process the fast sync content (processFastSyncContent)
+}
 If full syncing {
 
-		start a routine to process the full sync content (processFullSyncContent)
-	}
+	start a routine to process the full sync content (processFullSyncContent)
+}
+
 
 These goroutines form a pipeline where the downloaded data flows as follows.
 
-								   -> fetchBodies -> processFullSyncContent
-	                              /               \
+							   -> fetchBodies -> processFullSyncContent
+                              /               \
+fetchHeaders -> processHeaders                 \
+                              \                 \
+							   -> fetchReceipts --> processFastSyncContent
 
-	fetchHeaders -> processHeaders                 \
-	                              \                 \
-								   -> fetchReceipts --> processFastSyncContent
+
 
 fetchHeaders
 
@@ -135,14 +136,14 @@ the chain of the main peer they are syncing against. Whether fetching skeleton
 headers or not requests for headers are done in batches of up to 192
 (MaxHeaderFetch) headers.
 
-	If lightest sync {
-		fetch just epoch headers till current epoch then fetch all subsequent headers. (no skeleton)
-	} else {
+If lightest sync {
+	fetch just epoch headers till current epoch then fetch all subsequent headers. (no skeleton)
+} else {
+	fetch  headers using the skeleton approach, until no more skeleton headers
+	are returned then switch to requesting all subsequent headers from the
+	peer.
+}
 
-		fetch  headers using the skeleton approach, until no more skeleton headers
-		are returned then switch to requesting all subsequent headers from the
-		peer.
-	}
 
 Wait for headers to be received.
 
@@ -158,13 +159,12 @@ processHeaders
 
 Waits to receive headers from fetchHeaders inserts the received headers into the header chain.
 
-	If full sync {
-		request blocks for inserted headers. (fetchBodies)
-	}
-
-	If fast sync {
-		request blocks and receipts for inserted headers. (fetchBodies & fetchReceipts)
-	}
+If full sync {
+	request blocks for inserted headers. (fetchBodies)
+}
+If fast sync {
+	request blocks and receipts for inserted headers. (fetchBodies & fetchReceipts)
+}
 
 processFastSyncContent
 
@@ -179,18 +179,18 @@ Results before the pivot are inserted with BlockChain.InsertReceiptChain (which
 inserts receipts, because in fast sync most blocks are not processed) and those
 after the pivot
 
-	If the pivot has completed syncing {
-		Inserts the results after the pivot with, BlockChain.InsertChain and exits.
-	} else {
+If the pivot has completed syncing {
+	Inserts the results after the pivot with, BlockChain.InsertChain and exits.
+} else {
+	Start the process again prepending the results after the pivot point to the
+	newly fetched results. (Note that if the pivot point is subsequently
+	updated those results will be processed as fast sync results and inserted
+	via BlockChain.InsertReceiptChain, but there seems to be a problem with our
+	current implementation that means that the pivot would have to get 2 days
+	old before it would be updated, so actually it looks like the list of
+	result s will grow a lot during this time could be an OOM consideration)
+}
 
-		Start the process again prepending the results after the pivot point to the
-		newly fetched results. (Note that if the pivot point is subsequently
-		updated those results will be processed as fast sync results and inserted
-		via BlockChain.InsertReceiptChain, but there seems to be a problem with our
-		current implementation that means that the pivot would have to get 2 days
-		old before it would be updated, so actually it looks like the list of
-		result s will grow a lot during this time could be an OOM consideration)
-	}
 
 fetchBodies
 

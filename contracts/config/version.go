@@ -10,9 +10,10 @@ type VersionInfo struct {
 
 // Cmp compares x and y and returns:
 //
-//	-1 if x <  y
-//	 0 if x == y
-//	+1 if x >  y
+//   -1 if x <  y
+//    0 if x == y
+//   +1 if x >  y
+//
 func cmp(x uint64, y uint64) int {
 	if x < y {
 		return -1
