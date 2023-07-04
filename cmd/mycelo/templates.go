@@ -97,7 +97,8 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	// 10 billion gas limit, set super high on purpose
 	genesisConfig.Blockchain.BlockGasLimit = 1000000000
 
-	// Add balances to developer accounts
+	// Add balances to validator and developer accounts
+	genesis.FundAccounts(genesisConfig, env.Accounts().ValidatorAccounts())
 	genesis.FundAccounts(genesisConfig, env.Accounts().DeveloperAccounts())
 
 	genesisConfig.StableToken.InflationFactorUpdatePeriod = 1 * genesis.Year
