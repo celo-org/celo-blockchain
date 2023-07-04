@@ -53,7 +53,11 @@ func (w *BalanceWatcher) Current(address common.Address) *big.Int {
 
 // Delta returns difference between current and initial balance of given address for given token.
 func (w *BalanceWatcher) Delta(address common.Address) *big.Int {
-	return new(big.Int).Sub(w.current[address], w.initial[address]) // TODO: support stable coin
+	init_val, ok := w.initial[address]
+	if !ok {
+		panic("Delta called on address not supplied during watcher creation!")
+	}
+	return new(big.Int).Sub(w.current[address], init_val) // TODO: support stable coin
 }
 
 // Update updates current balances in the BalanceWatcher
