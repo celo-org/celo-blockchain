@@ -151,7 +151,6 @@ func BaseConfig(gingerbreadBlock *big.Int) *Config {
 			Frozen: false,
 		},
 		Blockchain: BlockchainParameters{
-			Version:                 Version{1, 0, 0},
 			GasForNonGoldCurrencies: 50000,
 			BlockGasLimit:           13000000,
 		},

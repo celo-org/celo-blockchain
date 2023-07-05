@@ -354,9 +354,6 @@ func (ctx *deployContext) deployRegistry() error {
 func (ctx *deployContext) deployBlockchainParameters() error {
 	return ctx.deployCoreContract("BlockchainParameters", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			big.NewInt(ctx.genesisConfig.Blockchain.Version.Major),
-			big.NewInt(ctx.genesisConfig.Blockchain.Version.Minor),
-			big.NewInt(ctx.genesisConfig.Blockchain.Version.Patch),
 			newBigInt(ctx.genesisConfig.Blockchain.GasForNonGoldCurrencies),
 			newBigInt(ctx.genesisConfig.Blockchain.BlockGasLimit),
 			newBigInt(ctx.genesisConfig.Istanbul.LookbackWindow),

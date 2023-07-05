@@ -137,18 +137,10 @@ type ElectionParametersMarshaling struct {
 	MaxVotesPerAccount *bigintstr.BigIntStr `json:"maxVotesPerAccount"`
 }
 
-// Version represents an artifact version number
-type Version struct {
-	Major int64 `json:"major"`
-	Minor int64 `json:"minor"`
-	Patch int64 `json:"patch"`
-}
-
 // BlockchainParameters are the initial configuration parameters for Blockchain
 type BlockchainParameters struct {
-	Version                 Version `json:"version"`
-	GasForNonGoldCurrencies uint64  `json:"gasForNonGoldCurrencies"`
-	BlockGasLimit           uint64  `json:"blockGasLimit"`
+	GasForNonGoldCurrencies uint64 `json:"gasForNonGoldCurrencies"`
+	BlockGasLimit           uint64 `json:"blockGasLimit"`
 }
 
 //go:generate gencodec -type DoubleSigningSlasherParameters -field-override DoubleSigningSlasherParametersMarshaling -out gen_double_signing_slasher_parameters_json.go
