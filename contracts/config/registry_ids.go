@@ -25,6 +25,7 @@ var (
 	SortedOraclesRegistryId        = makeRegistryId("SortedOracles")
 	StableTokenRegistryId          = makeRegistryId("StableToken")
 	ValidatorsRegistryId           = makeRegistryId("Validators")
+	FeeHandlerId                   = makeRegistryId("FeeHandler")
 )
 
 func makeRegistryId(contractName string) [32]byte {

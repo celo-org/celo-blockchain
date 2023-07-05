@@ -168,6 +168,9 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 
 		// i:28, migr:28 Elect Validators
 		ctx.electValidators,
+
+		// i:29, migr:29 FeeHandler
+		ctx.deployFeeHandler,
 	}
 
 	logger := ctx.logger.New()
@@ -469,6 +472,20 @@ func (ctx *deployContext) deployGrandaMento() error {
 		}
 	}
 	return nil
+}
+
+func (ctx *deployContext) deployFeeHandler() error {
+	return ctx.deployCoreContract("FeeHandler", func(contract *contract.EVMBackend) error {
+		return contract.SimpleCall("initialize",
+			env.MustProxyAddressFor("Registry"),
+			ctx.genesisConfig.FeeHandler.NewFeeBeneficiary,
+			ctx.genesisConfig.FeeHandler.NewBurnFraction.BigInt(),
+			ctx.genesisConfig.FeeHandler.Tokens,
+			ctx.genesisConfig.FeeHandler.Handlers,
+			ctx.genesisConfig.FeeHandler.NewLimits,
+			ctx.genesisConfig.FeeHandler.NewMaxSlippages,
+		)
+	})
 }
 
 func (ctx *deployContext) deployFederatedAttestations() error {

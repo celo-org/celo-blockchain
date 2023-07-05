@@ -558,13 +558,19 @@ func (st *StateTransition) distributeTxFees() error {
 	}
 
 	caller := &vmcontext.SharedEVMRunner{EVM: st.evm}
-	governanceAddress, err := contracts.GetRegisteredAddress(caller, config.GovernanceRegistryId)
+	var contractId [32]byte
+	if st.evm.ChainConfig().IsGingerbread(st.evm.Context.BlockNumber) {
+		contractId = config.FeeHandlerId
+	} else {
+		contractId = config.GovernanceRegistryId
+	}
+	feeHandlerAddress, err := contracts.GetRegisteredAddress(caller, contractId)
 	if err != nil {
 		if err != contracts.ErrSmartContractNotDeployed && err != contracts.ErrRegistryContractNotDeployed {
 			return err
 		}
-		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
-		governanceAddress = common.ZeroAddress
+		log.Trace("Cannot credit gas fee to FeeHandler: refunding fee to sender", "error", err, "fee", baseTxFee)
+		feeHandlerAddress = common.ZeroAddress
 		refund.Add(refund, baseTxFee)
 		baseTxFee = new(big.Int)
 	}
@@ -572,19 +578,19 @@ func (st *StateTransition) distributeTxFees() error {
 	log.Trace("distributeTxFees", "from", from, "refund", refund, "feeCurrency", st.msg.FeeCurrency(),
 		"gatewayFeeRecipient", *gatewayFeeRecipient, "gatewayFee", st.msg.GatewayFee(),
 		"coinbaseFeeRecipient", st.evm.Context.Coinbase, "coinbaseFee", tipTxFee,
-		"comunityFundRecipient", governanceAddress, "communityFundFee", baseTxFee)
+		"feeHandler", feeHandlerAddress, "communityFundFee", baseTxFee)
 	if feeCurrency == nil {
 		if gatewayFeeRecipient != &common.ZeroAddress {
 			st.state.AddBalance(*gatewayFeeRecipient, st.msg.GatewayFee())
 		}
-		if governanceAddress != common.ZeroAddress {
-			st.state.AddBalance(governanceAddress, baseTxFee)
+		if feeHandlerAddress != common.ZeroAddress {
+			st.state.AddBalance(feeHandlerAddress, baseTxFee)
 		}
 		st.state.AddBalance(st.evm.Context.Coinbase, tipTxFee)
 		st.state.AddBalance(from, refund)
 	} else {
-		if err = erc20gas.CreditFees(st.evm, from, st.evm.Context.Coinbase, gatewayFeeRecipient, governanceAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
-			log.Error("Error crediting", "from", from, "coinbase", st.evm.Context.Coinbase, "gateway", gatewayFeeRecipient, "fund", governanceAddress)
+		if err = erc20gas.CreditFees(st.evm, from, st.evm.Context.Coinbase, gatewayFeeRecipient, feeHandlerAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
+			log.Error("Error crediting", "from", from, "coinbase", st.evm.Context.Coinbase, "gateway", gatewayFeeRecipient, "feeHandler", feeHandlerAddress)
 			return err
 		}
 

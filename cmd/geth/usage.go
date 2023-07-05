@@ -231,6 +231,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.LegacyGraphQLListenAddrFlag,
 			utils.LegacyGraphQLPortFlag,
 			utils.LightGatewayFeeFlag,
+			utils.DisableRPCETHCompatibility,
 		},
 	},
 	{

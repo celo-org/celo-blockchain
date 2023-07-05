@@ -46,7 +46,7 @@ func CreditFees(
 	from common.Address,
 	feeRecipient common.Address,
 	gatewayFeeRecipient *common.Address,
-	communityFund common.Address,
+	feeHandler common.Address,
 	refund *big.Int,
 	tipTxFee *big.Int,
 	gatewayFee *big.Int,
@@ -54,7 +54,7 @@ func CreditFees(
 	feeCurrency *common.Address) error {
 	// Function is "creditGasFees(address,address,address,address,uint256,uint256,uint256,uint256)"
 	functionSelector := hexutil.MustDecode("0x6a30b253")
-	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(from), common.AddressToAbi(feeRecipient), common.AddressToAbi(*gatewayFeeRecipient), common.AddressToAbi(communityFund), common.AmountToAbi(refund), common.AmountToAbi(tipTxFee), common.AmountToAbi(gatewayFee), common.AmountToAbi(baseTxFee)})
+	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(from), common.AddressToAbi(feeRecipient), common.AddressToAbi(*gatewayFeeRecipient), common.AddressToAbi(feeHandler), common.AmountToAbi(refund), common.AmountToAbi(tipTxFee), common.AmountToAbi(gatewayFee), common.AmountToAbi(baseTxFee)})
 
 	// Run only primary evm.Call() with tracer
 	if evm.GetDebug() {
