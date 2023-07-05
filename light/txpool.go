@@ -326,7 +326,6 @@ func (pool *TxPool) setNewHead(head *types.Header) {
 
 	// Update fork indicator by next pending block number
 	next := new(big.Int).Add(head.Number, big.NewInt(1))
-	pool.homestead = pool.config.IsHomestead(next)
 	pool.istanbul = pool.config.IsIstanbul(next)
 	pool.donut = pool.config.IsDonut(next)
 	pool.espresso = pool.config.IsEspresso(next)
@@ -413,7 +412,7 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
 	}
 	// Should supply enough intrinsic gas
-	gas, err := core.IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, pool.homestead, pool.istanbul, tx.FeeCurrency(), gasForAlternativeCurrency)
+	gas, err := core.IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, tx.FeeCurrency(), gasForAlternativeCurrency, pool.istanbul)
 	if err != nil {
 		return err
 	}

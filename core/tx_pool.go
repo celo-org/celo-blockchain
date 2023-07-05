@@ -725,7 +725,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	// Ensure the transaction has more gas than the basic tx fee.
-	intrGas, err := IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, pool.homestead, pool.istanbul, tx.FeeCurrency(), pool.ctx().GetIntrinsicGasForAlternativeFeeCurrency())
+	intrGas, err := IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, tx.FeeCurrency(), pool.ctx().GetIntrinsicGasForAlternativeFeeCurrency(), pool.istanbul)
 	if err != nil {
 		log.Debug("validateTx gas less than intrinsic gas", "intrGas", intrGas, "err", err)
 		return err
@@ -1415,7 +1415,6 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 
 	// Update all fork indicator by next pending block number.
 	next := new(big.Int).Add(newHead.Number, big.NewInt(1))
-	pool.homestead = pool.chainconfig.IsHomestead(next)
 	pool.istanbul = pool.chainconfig.IsIstanbul(next)
 	pool.donut = pool.chainconfig.IsDonut(next)
 	pool.espresso = pool.chainconfig.IsEspresso(next)

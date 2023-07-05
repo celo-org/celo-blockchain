@@ -11,10 +11,14 @@ import (
 	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/ethclient"
 	"github.com/celo-org/celo-blockchain/internal/ethapi"
+	"github.com/celo-org/celo-blockchain/rpc"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -135,9 +139,19 @@ func TestTransferCELO(t *testing.T) {
 		},
 	}
 
+	// Get feeHandlerAddress
+	var backend *eth.EthAPIBackend = network[0].Eth.APIBackend
+	var lastestBlockNum rpc.BlockNumber = (rpc.BlockNumber)(backend.CurrentBlock().Header().Number.Int64())
+	state, header, err := backend.StateAndHeaderByNumber(ctx, lastestBlockNum)
+	require.NoError(t, err)
+	caller := backend.NewEVMRunner(header, state)
+	feeHandlerAddress, err := contracts.GetRegisteredAddress(caller, config.FeeHandlerId)
+	require.NoError(t, err)
+	require.NotEqual(t, common.ZeroAddress, feeHandlerAddress, "feeHandlerAddress must not be zero address.")
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			watcher := test.NewBalanceWatcher(client, []common.Address{sender.Address, recipient.Address, gateWayFeeRecipient.Address, node.Address})
+			watcher := test.NewBalanceWatcher(client, []common.Address{sender.Address, recipient.Address, gateWayFeeRecipient.Address, node.Address, feeHandlerAddress})
 			blockNum, err := client.BlockNumber(ctx)
 			require.NoError(t, err)
 			signer := types.MakeSigner(devAccounts[0].ChainConfig, new(big.Int).SetUint64(blockNum))
@@ -205,6 +219,13 @@ func TestTransferCELO(t *testing.T) {
 				actual = watcher.Delta(gateWayFeeRecipient.Address)
 				assert.Equal(t, expected, actual, "gateWayFeeRecipient's balance increase unexpected", "expected", expected.Int64(), "actual", actual.Int64())
 			}
+
+			// Check base fee was sent to FeeHandler
+			fmt.Printf("%s ==> fee: %d, GatewayFee: %d, tip: %d\n", tc.name, tx.Fee(), tx.GatewayFee(), tx.EffectiveGasTipValue(gpm))
+			expected = baseFee
+			fmt.Printf("feeHandlerAddress: %x\n", feeHandlerAddress)
+			actual = watcher.Delta(feeHandlerAddress)
+			assert.Equal(t, expected, actual, "feeHandlers's balance increase unexpected", "expected", expected.Int64(), "actual", actual.Int64())
 		})
 	}
 }
