@@ -384,7 +384,10 @@ func createConversionFunctions(sysCtx *core.SysContractCallCtx, chain *core.Bloc
 	}
 	toCeloFn := func(amount *big.Int, feeCurrency *common.Address) *big.Int {
 		curr, _ := currencyManager.GetCurrency(feeCurrency)
-		return curr.ToCELO(amount)
+		if curr != nil {
+			return curr.ToCELO(amount)
+		}
+		return nil
 	}
 
 	return baseFeeFn, toCeloFn
