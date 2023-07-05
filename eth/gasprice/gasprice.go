@@ -31,41 +31,39 @@ var (
 )
 
 func GetBaseFeeForCurrency(vmRunner vm.EVMRunner, currencyAddress *common.Address, baseFee *big.Int) (*big.Int, error) {
-	// Gingerbread Fork
-	if baseFee != nil {
-		if currencyAddress == nil {
-			return baseFee, nil
-		} else {
-			exchangeRate, err := cm.GetExchangeRate(vmRunner, currencyAddress)
-			if err != nil {
-				// Assign zero if the exchangeRate fails to mimic the same behaviour as Espresso
-				return big.NewInt(0), err
-			}
-			return exchangeRate.FromBase(baseFee), nil
-		}
+	if baseFee == nil {
+		return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
 	}
-
-	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
+	// Gingerbread Fork
+	if currencyAddress == nil {
+		return baseFee, nil
+	} else {
+		exchangeRate, err := cm.GetExchangeRate(vmRunner, currencyAddress)
+		if err != nil {
+			// Assign zero if the exchangeRate fails to mimic the same behaviour as Espresso
+			return big.NewInt(0), err
+		}
+		return exchangeRate.FromBase(baseFee), nil
+	}
 }
 
 // GetRealBaseFeeForCurrency is similar to GetBaseFeeForCurrency but if there is
 // a problem retrieving the gas price minimum it will return the error and a
 // nil gas price minimum.
 func GetRealBaseFeeForCurrency(vmRunner vm.EVMRunner, currencyAddress *common.Address, baseFee *big.Int) (*big.Int, error) {
-	// Gingerbread Fork
-	if baseFee != nil {
-		if currencyAddress == nil {
-			return baseFee, nil
-		} else {
-			exchangeRate, err := cm.GetExchangeRate(vmRunner, currencyAddress)
-			if err != nil {
-				return nil, err
-			}
-			return exchangeRate.FromBase(baseFee), nil
-		}
+	if baseFee == nil {
+		return gpm.GetRealGasPriceMinimum(vmRunner, currencyAddress)
 	}
-
-	return gpm.GetRealGasPriceMinimum(vmRunner, currencyAddress)
+	// Gingerbread Fork
+	if currencyAddress == nil {
+		return baseFee, nil
+	} else {
+		exchangeRate, err := cm.GetExchangeRate(vmRunner, currencyAddress)
+		if err != nil {
+			return nil, err
+		}
+		return exchangeRate.FromBase(baseFee), nil
+	}
 }
 
 // GetGasPriceSuggestion suggests a gas price the suggestionMultiplier times higher than the GPM in the appropriate currency.
