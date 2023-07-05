@@ -324,7 +324,6 @@ func GenerateBadBlock(parent *types.Block, engine consensus.Engine, txs types.Tr
 		Time:       parent.Time() + 10,
 		Extra:      CreateEmptyIstanbulExtra(nil),
 	}
-	header.Extra = CreateEmptyIstanbulExtra(header.Extra)
 	if config.IsGingerbread(header.Number) {
 		if config.FakeBaseFee != nil {
 			header.BaseFee = config.FakeBaseFee

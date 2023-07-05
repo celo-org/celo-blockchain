@@ -47,12 +47,6 @@ func CalcBaseFee(config *params.ChainConfig, parent *types.Header, vmRunner vm.E
 		return newBaseFee
 	}
 
-	// // If an error occurs, the default block gas limit will be returned and a log statement will be produced by GetBlockGasLimitOrDefault
-	// gasLimit, err := blockchain_parameters.GetBlockGasLimit(vmRunner)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	newBaseFee, err = gpm.GetUpdatedGasPriceMinimum(vmRunner, parent.GasUsed, parent.GasLimit)
 	if err != nil {
 		log.Warn("CalcBaseFee error, contract call UpdatedGasPriceMinimum", "error", err, "header.Number", parent.Number.Uint64()+1)

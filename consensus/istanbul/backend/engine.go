@@ -507,9 +507,9 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 		state.RevertToSnapshot(snapshot)
 	}
 
-	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
-	snapshot = state.Snapshot()
 	if !sb.ChainConfig().IsGingerbread(header.Number) {
+		// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
+		snapshot = state.Snapshot()
 		_, err = gpm.UpdateGasPriceMinimum(vmRunner, header.GasUsed)
 		if err != nil {
 			state.RevertToSnapshot(snapshot)
