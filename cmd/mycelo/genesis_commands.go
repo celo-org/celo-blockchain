@@ -99,7 +99,7 @@ var createGenesisFromConfigCommand = cli.Command{
 func readBuildPath(ctx *cli.Context) (string, error) {
 	buildpath := ctx.String(buildpathFlag.Name)
 	if buildpath == "" {
-		buildpath = path.Join(os.Getenv("CELO_MONOREPO"), "packages/protocol/build/contracts")
+		buildpath = path.Join(os.Getenv("CELO_MONOREPO"), "packages/protocol/build")
 		if fileutils.FileExists(buildpath) {
 			log.Info("Missing --buildpath flag, using CELO_MONOREPO derived path", "buildpath", buildpath)
 		} else {

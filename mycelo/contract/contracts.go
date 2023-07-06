@@ -13,10 +13,10 @@ import (
 )
 
 type TruffleReader interface {
-	ReadBytecodeFor(name string) ([]byte, error)
-	ReadDeployedBytecodeFor(name string) ([]byte, error)
-	MustReadBytecodeFor(name string) []byte
-	MustReadDeployedBytecodeFor(name string) []byte
+	ReadBytecodeFor(subpath, name string) ([]byte, error)
+	ReadDeployedBytecodeFor(subpath, name string) ([]byte, error)
+	MustReadBytecodeFor(subpath, name string) []byte
+	MustReadDeployedBytecodeFor(subpath, name string) []byte
 }
 
 type truffleReader struct {
@@ -38,36 +38,36 @@ func NewTruffleReader(buildPath string) TruffleReader {
 
 }
 
-func (tr *truffleReader) jsonFileFor(name string) string {
-	return path.Join(tr.buildPath, name+".json")
+func (tr *truffleReader) jsonFileFor(subpath, name string) string {
+	return path.Join(tr.buildPath, subpath, name+".json")
 }
 
-func (tr *truffleReader) ReadDeployedBytecodeFor(name string) ([]byte, error) {
-	c, err := readContractBuildFile(tr.jsonFileFor(name), tr.libraries)
+func (tr *truffleReader) ReadDeployedBytecodeFor(subpath, name string) ([]byte, error) {
+	c, err := readContractBuildFile(tr.jsonFileFor(subpath, name), tr.libraries)
 	if err != nil {
 		return nil, err
 	}
 	return c.deployedBytecode, nil
 }
 
-func (tr *truffleReader) ReadBytecodeFor(name string) ([]byte, error) {
-	c, err := readContractBuildFile(tr.jsonFileFor(name), tr.libraries)
+func (tr *truffleReader) ReadBytecodeFor(subpath, name string) ([]byte, error) {
+	c, err := readContractBuildFile(tr.jsonFileFor(subpath, name), tr.libraries)
 	if err != nil {
 		return nil, err
 	}
 	return c.bytecode, nil
 }
 
-func (tr *truffleReader) MustReadBytecodeFor(name string) []byte {
-	ret, err := tr.ReadBytecodeFor(name)
+func (tr *truffleReader) MustReadBytecodeFor(subpath, name string) []byte {
+	ret, err := tr.ReadBytecodeFor(subpath, name)
 	if err != nil {
 		panic(err)
 	}
 	return ret
 }
 
-func (tr *truffleReader) MustReadDeployedBytecodeFor(name string) []byte {
-	ret, err := tr.ReadDeployedBytecodeFor(name)
+func (tr *truffleReader) MustReadDeployedBytecodeFor(subpath, name string) []byte {
+	ret, err := tr.ReadDeployedBytecodeFor(subpath, name)
 	if err != nil {
 		panic(err)
 	}

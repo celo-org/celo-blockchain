@@ -67,9 +67,15 @@ func (a *Account) SendCelo(ctx context.Context, recipient common.Address, value 
 	return tx, nil
 }
 
-// SendCelo submits a value transfer transaction via the provided Node to send
+// SendCeloWithDynamicFee submits a value transfer transaction via the provided Node to send
 // celo to the recipient. The submitted transaction is returned.
 func (a *Account) SendCeloWithDynamicFee(ctx context.Context, recipient common.Address, value int64, gasFeeCap *big.Int, gasTipCap *big.Int, node *Node) (*types.Transaction, error) {
+	return a.SendValueWithDynamicFee(ctx, recipient, value, nil, gasFeeCap, gasTipCap, node)
+}
+
+// SendValueWithDynamicFee submits a value transfer transaction via the provided Node to send
+// celo to the recipient. The submitted transaction is returned.
+func (a *Account) SendValueWithDynamicFee(ctx context.Context, recipient common.Address, value int64, feeCurrency *common.Address, gasFeeCap, gasTipCap *big.Int, node *Node) (*types.Transaction, error) {
 	var err error
 	// Lazy set nonce
 	if a.Nonce == nil {
@@ -92,6 +98,7 @@ func (a *Account) SendCeloWithDynamicFee(ctx context.Context, recipient common.A
 		recipient,
 		*a.Nonce,
 		big.NewInt(value),
+		feeCurrency,
 		gasFeeCap,
 		gasTipCap,
 		signer)

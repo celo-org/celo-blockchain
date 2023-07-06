@@ -11,10 +11,15 @@ import (
 // BaseConfig creates base parameters for celo
 // Callers must complete missing pieces
 func BaseConfig(gingerbreadBlock *big.Int) *Config {
+	baseFeeOpCodeActivationBlock := gingerbreadBlock
 	bigInt := big.NewInt
 	bigIntStr := common.MustBigInt
 	fixed := fixed.MustNew
 	decimal := decimal.RequireFromString
+
+	if baseFeeOpCodeActivationBlock == nil {
+		baseFeeOpCodeActivationBlock = big.NewInt(0) // deactivated
+	}
 
 	return &Config{
 		SortedOracles: SortedOraclesParameters{
@@ -24,7 +29,7 @@ func BaseConfig(gingerbreadBlock *big.Int) *Config {
 			MinimumFloor:                 bigInt(100000000),
 			AdjustmentSpeed:              fixed("0.5"),
 			TargetDensity:                fixed("0.5"),
-			BaseFeeOpCodeActivationBlock: gingerbreadBlock,
+			BaseFeeOpCodeActivationBlock: baseFeeOpCodeActivationBlock,
 		},
 		Reserve: ReserveParameters{
 			TobinTaxStalenessThreshold: 3153600000,

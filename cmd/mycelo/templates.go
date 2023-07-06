@@ -56,7 +56,7 @@ func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, er
 		LookbackWindow: 3,
 		BlockPeriod:    1,
 		RequestTimeout: 3000,
-	})
+	}, true)
 
 	// Add balances to developer accounts
 	genesis.FundAccounts(genesisConfig, env.Accounts().DeveloperAccounts())
@@ -92,7 +92,7 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 		LookbackWindow: 3,
 		BlockPeriod:    5,
 		RequestTimeout: 3000,
-	})
+	}, true)
 
 	// 10 billion gas limit, set super high on purpose
 	genesisConfig.Blockchain.BlockGasLimit = 1000000000
@@ -137,7 +137,7 @@ func (e monorepoEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 		LookbackWindow: 3,
 		BlockPeriod:    1,
 		RequestTimeout: 3000,
-	})
+	}, true)
 	// To match the 'testing' config in monorepo
 	genesisConfig.EpochRewards.TargetVotingYieldInitial = fixed.MustNew("0.00016")
 	genesisConfig.EpochRewards.TargetVotingYieldMax = fixed.MustNew("0.0005")

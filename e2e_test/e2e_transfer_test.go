@@ -37,7 +37,7 @@ func TestTransferCELO(t *testing.T) {
 	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 	// fmt.Println(tt.dump())
 	ac := test.AccountConfig(1, 3)
-	gc, ec, err := test.BuildConfig(ac)
+	gc, ec, err := test.BuildConfig(ac, true)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -237,8 +237,7 @@ func TestTransferCELO(t *testing.T) {
 // - validator account has tip fee added.
 func TestTransferCELOPreGingerbread(t *testing.T) {
 	ac := test.AccountConfig(1, 3)
-	gc, ec, err := test.BuildConfig(ac)
-	gc.Hardforks.GingerbreadBlock = nil
+	gc, ec, err := test.BuildConfig(ac, false)
 
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
