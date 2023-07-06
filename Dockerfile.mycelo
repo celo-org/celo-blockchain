@@ -1,0 +1,40 @@
+# Build Geth in a stock Go builder container
+FROM golang:1.20-alpine as builder
+
+RUN apk add --no-cache make gcc musl-dev linux-headers git
+
+ADD . /go-ethereum
+RUN cd /go-ethereum && make all-musl
+
+FROM node:18-bullseye-slim as monorepo
+RUN apt-get update && apt install -y git
+ADD ./monorepo_commit /monorepo_commit
+RUN git clone https://github.com/celo-org/celo-monorepo /celo-monorepo && \
+    cd /celo-monorepo && \
+    git checkout $(cat /monorepo_commit) 
+RUN apt-get update && \
+    apt-get install -y lsb-release && \
+    apt-get install -y curl build-essential python2 pkg-config libsecret-1-dev libudev-dev libusb-dev libusb-1.0-0
+RUN cd /celo-monorepo && \
+    yarn install --network-timeout 100000 --frozen-lockfile && \
+    yarn cache clean && \
+    yarn build
+
+# Pull all binaries into a second stage deploy alpine container
+FROM alpine:latest
+ARG COMMIT_SHA
+
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /go-ethereum/build/bin/* /usr/local/bin/
+COPY --from=monorepo /celo-monorepo/packages/protocol/build/contracts /contracts/contracts/
+COPY --from=monorepo /celo-monorepo/packages/protocol/build/contracts-mento /contracts/contracts-mento/
+RUN echo $COMMIT_SHA > /version.txt
+
+# Add some metadata labels to help programatic image consumption
+ARG COMMIT=""
+ARG VERSION=""
+ARG BUILDNUM=""
+ENTRYPOINT ["/usr/local/bin/mycelo"]
+ARG ["--help"]
+
+LABEL commit="$COMMIT" version="$VERSION" buildnum="$BUILDNUM"
