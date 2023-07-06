@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - jcortejoso/debug-restore-basefee
 
   pull_request:
     branches:
@@ -545,6 +546,11 @@ jobs:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
         cache-dependency-path: celo-monorepo/yarn.lock
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      timeout-minutes: 30
+      with:
+        limit-access-to-actor: false
     - name: Run e2e test
       run: |
         export E2E_TESTS_FORCE_USE_MYCELO=true
