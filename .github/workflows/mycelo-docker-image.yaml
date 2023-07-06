@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   prepare-system-contracts:
-    name: Build celo-monorepo
+    name: Build mycelo image
     runs-on: [self-hosted, blockchain, 8-cpu]
     steps:
       - name: Checkout celo-blockchain repo
@@ -32,5 +32,6 @@ jobs:
           file: ./Dockerfile.mycelo
           push: false
           tags: mycelo:latest
+          load: true
       - name: Check docker images
         run: docker images
