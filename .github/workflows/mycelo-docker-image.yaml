@@ -1,4 +1,4 @@
-name: celo-blockchain
+name: Build mycelo image
 
 on:
   push:
@@ -21,6 +21,10 @@ jobs:
     steps:
       - name: Checkout celo-blockchain repo
         uses: actions/checkout@v3
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
       - name: Build mycelo image
         uses: docker/build-push-action@v4
         with:
