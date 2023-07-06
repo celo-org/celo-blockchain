@@ -285,6 +285,10 @@ func makeHeader(chain consensus.ChainHeaderReader, parent *types.Block, state *s
 			header.BaseFee = common.Big0
 		}
 		header.GasLimit = params.DefaultGasLimit
+		header.Difficulty = big.NewInt(0)
+		header.Nonce = types.EncodeNonce(0)
+		header.UncleHash = types.EmptyUncleHash
+		header.MixDigest = types.EmptyMixDigest
 	}
 	return header
 }
