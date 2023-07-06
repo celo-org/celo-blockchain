@@ -127,8 +127,18 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 		env.Accounts().Mnemonic = ctx.String("mnemonic")
 	}
 
+	var gingerbreadBlock *big.Int
+	if ctx.IsSet("forks.gingerbread") {
+		gingerbreadBlockNumber := ctx.Int64("forks.gingerbread")
+		if gingerbreadBlockNumber < 0 {
+			gingerbreadBlock = nil
+		} else {
+			gingerbreadBlock = big.NewInt(gingerbreadBlockNumber)
+		}
+	}
+
 	// Genesis config
-	genesisConfig, err := template.createGenesisConfig(env)
+	genesisConfig, err := template.createGenesisConfig(env, gingerbreadBlock != nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -171,14 +181,7 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 		}
 	}
 
-	if ctx.IsSet("forks.gingerbread") {
-		gingerbreadBlockNumber := ctx.Int64("forks.gingerbread")
-		if gingerbreadBlockNumber < 0 {
-			genesisConfig.Hardforks.GingerbreadBlock = nil
-		} else {
-			genesisConfig.Hardforks.GingerbreadBlock = big.NewInt(gingerbreadBlockNumber)
-		}
-	}
+	genesisConfig.Hardforks.GingerbreadBlock = gingerbreadBlock
 
 	return env, genesisConfig, nil
 }
