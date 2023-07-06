@@ -139,6 +139,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.GraphQLCORSDomainFlag,
 			utils.GraphQLVirtualHostsFlag,
 			utils.RPCGlobalGasInflationRateFlag,
+			utils.RPCGlobalGasPriceMultiplierFlag,
 			utils.RPCGlobalGasCapFlag,
 			utils.RPCGlobalTxFeeCapFlag,
 			utils.JSpathFlag,

@@ -59,12 +59,13 @@ var (
 	}
 
 	BaseEthConfig = &eth.Config{
-		SyncMode:            downloader.FullSync,
-		MinSyncPeers:        1,
-		DatabaseCache:       256,
-		DatabaseHandles:     256,
-		TxPool:              core.DefaultTxPoolConfig,
-		RPCEthCompatibility: true,
+		SyncMode:              downloader.FullSync,
+		MinSyncPeers:          1,
+		DatabaseCache:         256,
+		DatabaseHandles:       256,
+		TxPool:                core.DefaultTxPoolConfig,
+		RPCEthCompatibility:   true,
+		RPCGasPriceMultiplier: big.NewInt(100),
 		Istanbul: istanbul.Config{
 			Validator: true,
 			// Set announce gossip period to 1 minute, if not set this results

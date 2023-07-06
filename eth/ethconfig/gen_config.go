@@ -57,6 +57,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		Istanbul                istanbul.Config
 		DocRoot                 string `toml:"-"`
 		RPCGasInflationRate     float64
+		RPCGasPriceMultiplier   *big.Int
 		RPCGasCap               uint64
 		RPCTxFeeCap             float64
 		RPCEthCompatibility     bool
@@ -106,6 +107,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.Istanbul = c.Istanbul
 	enc.DocRoot = c.DocRoot
 	enc.RPCGasInflationRate = c.RPCGasInflationRate
+	enc.RPCGasPriceMultiplier = c.RPCGasPriceMultiplier
 	enc.RPCGasCap = c.RPCGasCap
 	enc.RPCTxFeeCap = c.RPCTxFeeCap
 	enc.RPCEthCompatibility = c.RPCEthCompatibility
@@ -159,6 +161,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		Istanbul                *istanbul.Config
 		DocRoot                 *string `toml:"-"`
 		RPCGasInflationRate     *float64
+		RPCGasPriceMultiplier   *big.Int
 		RPCGasCap               *uint64
 		RPCTxFeeCap             *float64
 		RPCEthCompatibility     *bool
@@ -290,6 +293,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.RPCGasInflationRate != nil {
 		c.RPCGasInflationRate = *dec.RPCGasInflationRate
+	}
+	if dec.RPCGasPriceMultiplier != nil {
+		c.RPCGasPriceMultiplier = dec.RPCGasPriceMultiplier
 	}
 	if dec.RPCGasCap != nil {
 		c.RPCGasCap = *dec.RPCGasCap
