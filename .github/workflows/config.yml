@@ -29,7 +29,7 @@ jobs:
     env:
       NODE_VERSION: 18
       PYTHON_VERSION: '3.9'
-      CONTRACTS_BUILD_PATH: packages/protocol/build/contracts
+      CONTRACTS_BUILD_PATH: packages/protocol/build
 
     steps:
     - name: Checkout celo-blockchain repo
@@ -77,7 +77,6 @@ jobs:
         yarn build
         cd packages/protocol
         yarn run build:sol
-        cp build/contracts-mento/* build/contracts/  # Include mento contracts
     - name: Upload built system contracts
       if: always()
       uses: actions/upload-artifact@v3
