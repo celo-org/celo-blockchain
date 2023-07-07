@@ -273,7 +273,7 @@ func (b *LesApiBackend) SuggestPrice(ctx context.Context, currencyAddress *commo
 	if err != nil {
 		return nil, err
 	}
-	return gpm.GetGasPriceSuggestion(vmRunner, currencyAddress)
+	return gpm.GetGasPriceSuggestion(vmRunner, currencyAddress, b.eth.config.RPCGasPriceMultiplier)
 }
 
 func (b *LesApiBackend) GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Context) uint64 {
