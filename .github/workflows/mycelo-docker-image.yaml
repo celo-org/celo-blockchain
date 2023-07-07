@@ -35,3 +35,19 @@ jobs:
           load: true
       - name: Check docker images
         run: docker images
+      - name: Run mycelo image
+        run: |
+          docker run \
+            --rm \
+            --name mycelo \
+            mycelo:latest \
+              "/usr/local/bin/mycelo genesis \
+                --buildpath /contracts \
+                --template loadtest \
+                --validators 1 \
+                --dev.accounts 1 \
+                --blockperiod 5 \
+                --epoch 600 \
+                --blockgaslimit 30000000 \
+                --mnemonic \"flock crumble custom public elder fix picnic title naive today update load delay jeans curtain engage radar flag trap maple help sustain chapter still\""
+
