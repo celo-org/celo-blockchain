@@ -11,7 +11,7 @@ RUN apt-get update && apt install -y git
 ADD ./monorepo_commit /monorepo_commit
 RUN git clone https://github.com/celo-org/celo-monorepo /celo-monorepo && \
     cd /celo-monorepo && \
-    git checkout $(cat /monorepo_commit) 
+    git checkout $(cat /monorepo_commit)
 RUN apt-get update && \
     apt-get install -y lsb-release && \
     apt-get install -y curl build-essential python2 pkg-config libsecret-1-dev libudev-dev libusb-dev libusb-1.0-0 bash

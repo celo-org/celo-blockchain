@@ -10,7 +10,7 @@ on:
     branches:
       - master
 
-concurrency: 
+concurrency:
   group: mycelo-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
