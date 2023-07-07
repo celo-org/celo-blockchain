@@ -58,8 +58,8 @@ func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, er
 		RequestTimeout: 3000,
 	})
 
-	// Add balances to developer accounts
-	genesis.FundAccounts(genesisConfig, env.Accounts().DeveloperAccounts())
+	// Add balances to validator and developer accounts
+	genesis.FundAccounts(genesisConfig, append(env.Accounts().ValidatorAccounts(), env.Accounts().DeveloperAccounts()...))
 
 	return genesisConfig, nil
 }
@@ -144,8 +144,8 @@ func (e monorepoEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	genesisConfig.EpochRewards.TargetVotingYieldAdjustmentFactor = fixed.MustNew("0.1")
 	genesisConfig.Reserve.InitialBalance = common.MustBigInt("100000000000000000000000000") // 100M CELO
 
-	// Add balances to validator accounts instead of developer accounts
-	genesis.FundAccounts(genesisConfig, env.Accounts().ValidatorAccounts())
+	// Add balances to validator and developer accounts
+	genesis.FundAccounts(genesisConfig, append(env.Accounts().ValidatorAccounts(), env.Accounts().DeveloperAccounts()...))
 
 	return genesisConfig, nil
 }
