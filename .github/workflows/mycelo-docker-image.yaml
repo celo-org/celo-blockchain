@@ -35,11 +35,14 @@ jobs:
           load: true
       - name: Check docker images
         run: docker images
-      - name: Run mycelo image
+      - name: Generate genesis.json using mycelo image
         run: |
+          mkdir genesis
           docker run \
             --rm \
             --name mycelo \
+            -v ./genesis:/genesis \
+            -w /genesis \
             mycelo:latest \
               "/usr/local/bin/mycelo genesis \
                 --buildpath /contracts \
@@ -49,5 +52,7 @@ jobs:
                 --blockperiod 5 \
                 --epoch 600 \
                 --blockgaslimit 30000000 \
-                --mnemonic \"flock crumble custom public elder fix picnic title naive today update load delay jeans curtain engage radar flag trap maple help sustain chapter still\"; \
-                head -n30 genesis.json"
+                --mnemonic \"flock crumble custom public elder fix picnic title naive today update load delay jeans curtain engage radar flag trap maple help sustain chapter still\""
+      - name: Print genesis.json
+        run: |
+          head -n 30 ./genesis/genesis.json
