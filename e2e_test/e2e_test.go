@@ -94,8 +94,8 @@ func TestTraceSendCeloViaGoldToken(t *testing.T) {
 
 	require.NoError(t, err)
 	// Check top level gas values
-	require.Equal(t, "0x45fe", result["gasUsed"])
-	require.Equal(t, "0x467c", result["gas"])
+	require.Equal(t, "0x45d6", result["gasUsed"])
+	require.Equal(t, "0x4653", result["gas"])
 	// TODO add more specific trace-checking as part of
 	// this issue: https://github.com/celo-org/celo-blockchain/issues/2078
 }
