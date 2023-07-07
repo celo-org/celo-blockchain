@@ -6,6 +6,10 @@ on:
       - 'release/[0-9]+.[0-9]+'
   workflow_dispatch:
 
+concurrency: 
+  group: build-commit-images-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   # From Cloud Build trigger ff28b668-43bf-4c3a-8967-fbf6640fdf5f in celo-testnet
   # https://console.cloud.google.com/cloud-build/triggers;region=global/edit/ff28b668-43bf-4c3a-8967-fbf6640fdf5f?project=celo-testnet&supportedpurview=project
