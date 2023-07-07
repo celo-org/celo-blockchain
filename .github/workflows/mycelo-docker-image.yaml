@@ -32,8 +32,7 @@ jobs:
           push: false
           tags: mycelo:latest
           load: true
-          build-args:
-            - GETH_COMMIT={{ github.sha }}
+          build-args: GETH_COMMIT={{ github.sha }}
       - name: Check docker images
         run: docker images
       - name: Generate genesis.json using mycelo image
