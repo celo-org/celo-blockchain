@@ -1,6 +1,7 @@
 package gasprice
 
 import (
+	"math"
 	"math/big"
 	"testing"
 
@@ -18,7 +19,7 @@ func TestGetGasPriceSuggestion(t *testing.T) {
 	sortedOracleAddress := common.HexToAddress("0x091")
 
 	t.Run("with baseFee != nil", func(t *testing.T) {
-		t.Run("should return baseFee * 5 currency == nil", func(t *testing.T) {
+		t.Run("should return baseFee multiplied with factor if currency == nil", func(t *testing.T) {
 			g := NewGomegaWithT(t)
 
 			runner := testutil.NewMockEVMRunner()
@@ -27,18 +28,25 @@ func TestGetGasPriceSuggestion(t *testing.T) {
 			registry.AddContract(config.GoldTokenRegistryId, celoAddress)
 
 			contract := testutil.NewSingleMethodContract(config.GasPriceMinimumRegistryId, "getGasPriceMinimum",
-				func(currency common.Address) *big.Int { return big.NewInt(777777) },
+				func(currency common.Address) *big.Int { return big.NewInt(555555) },
 			)
 			runner.RegisterContract(gpmAddress, contract)
 			registry.AddContract(config.GasPriceMinimumRegistryId, gpmAddress)
 
-			suggestedGpm, err := GetGasPriceSuggestion(runner, nil, common.Big1)
+			suggestedGpm, err := GetGasPriceSuggestion(runner, nil, big.NewInt(777777), big.NewInt(500))
 			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(777777 * 5)))
 
-			g.Expect(suggestedGpm).To(Equal(new(big.Int).Mul(common.Big1, big.NewInt(5))))
+			suggestedGpm, err = GetGasPriceSuggestion(runner, nil, big.NewInt(777777), big.NewInt(100))
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(777777)))
+
+			suggestedGpm, err = GetGasPriceSuggestion(runner, nil, big.NewInt(777777), big.NewInt(110))
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(math.Floor(777777 * 1.1))))
 		})
 
-		t.Run("should return baseFee * exchangeRateOfCurrency * 5 currency != nil", func(t *testing.T) {
+		t.Run("should return baseFee * exchangeRateOfCurrency multiplied with factor if currency != nil", func(t *testing.T) {
 			g := NewGomegaWithT(t)
 
 			runner := testutil.NewMockEVMRunner()
@@ -64,16 +72,23 @@ func TestGetGasPriceSuggestion(t *testing.T) {
 			runner.RegisterContract(sortedOracleAddress, contractSO)
 			registry.AddContract(config.SortedOraclesRegistryId, sortedOracleAddress)
 
-			suggestedGpm, err := GetGasPriceSuggestion(runner, &altFeeCurrency, common.Big1)
+			suggestedGpm, err := GetGasPriceSuggestion(runner, &altFeeCurrency, big.NewInt(555555), big.NewInt(500))
 			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(555555 * 5 * 2)))
 
-			g.Expect(suggestedGpm).To(Equal(new(big.Int).Mul(new(big.Int).Mul(common.Big1, common.Big2), big.NewInt(5))))
+			suggestedGpm, err = GetGasPriceSuggestion(runner, &altFeeCurrency, big.NewInt(555555), big.NewInt(100))
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(555555 * 2)))
+
+			suggestedGpm, err = GetGasPriceSuggestion(runner, &altFeeCurrency, big.NewInt(555555), big.NewInt(110))
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(math.Floor(555555 * 1.1 * 2))))
 		})
 	})
 
 	t.Run("with baseFee == nil", func(t *testing.T) {
 
-		t.Run("should return gasPriceMinimum contract * 5 if current == nil", func(t *testing.T) {
+		t.Run("should return gasPriceMinimum contract multiplied with factor if current == nil", func(t *testing.T) {
 			g := NewGomegaWithT(t)
 
 			runner := testutil.NewMockEVMRunner()
@@ -92,13 +107,20 @@ func TestGetGasPriceSuggestion(t *testing.T) {
 			runner.RegisterContract(gpmAddress, contract)
 			registry.AddContract(config.GasPriceMinimumRegistryId, gpmAddress)
 
-			suggestedGpm, err := GetGasPriceSuggestion(runner, nil, nil)
+			suggestedGpm, err := GetGasPriceSuggestion(runner, nil, nil, big.NewInt(500))
 			g.Expect(err).NotTo(HaveOccurred())
-
 			g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(777777 * 5)))
+
+			suggestedGpm, err = GetGasPriceSuggestion(runner, nil, nil, big.NewInt(100))
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(777777)))
+
+			suggestedGpm, err = GetGasPriceSuggestion(runner, nil, nil, big.NewInt(110))
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(math.Floor(777777 * 1.1))))
 		})
 
-		t.Run("should return gasPriceMinimum(feeCurrency) * 5 if baseFee != nil", func(t *testing.T) {
+		t.Run("should return gasPriceMinimum(feeCurrency) multiplied with factor if baseFee != nil", func(t *testing.T) {
 			g := NewGomegaWithT(t)
 
 			runner := testutil.NewMockEVMRunner()
@@ -117,10 +139,17 @@ func TestGetGasPriceSuggestion(t *testing.T) {
 			runner.RegisterContract(gpmAddress, contract)
 			registry.AddContract(config.GasPriceMinimumRegistryId, gpmAddress)
 
-			suggestedGpm, err := GetGasPriceSuggestion(runner, &altFeeCurrency, nil)
+			suggestedGpm, err := GetGasPriceSuggestion(runner, &altFeeCurrency, nil, big.NewInt(500))
 			g.Expect(err).NotTo(HaveOccurred())
-
 			g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(555555 * 5)))
+
+			suggestedGpm, err = GetGasPriceSuggestion(runner, &altFeeCurrency, nil, big.NewInt(100))
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(555555)))
+
+			suggestedGpm, err = GetGasPriceSuggestion(runner, &altFeeCurrency, nil, big.NewInt(110))
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(math.Floor(555555 * 1.1))))
 		})
 	})
 }

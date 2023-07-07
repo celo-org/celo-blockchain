@@ -68,9 +68,12 @@ func GetRealBaseFeeForCurrency(vmRunner vm.EVMRunner, currencyAddress *common.Ad
 
 // GetGasPriceSuggestion suggests a gas price the suggestionMultiplier times higher than the GPM in the appropriate currency.
 // TODO: Switch to using a caching GPM manager under high load.
-func GetGasPriceSuggestion(vmRunner vm.EVMRunner, currencyAddress *common.Address, baseFee *big.Int) (*big.Int, error) {
+func GetGasPriceSuggestion(vmRunner vm.EVMRunner, currencyAddress *common.Address, baseFee *big.Int, multiplier *big.Int) (*big.Int, error) {
 	gasPriceMinimum, err := GetBaseFeeForCurrency(vmRunner, currencyAddress, baseFee)
-	return new(big.Int).Mul(gasPriceMinimum, suggestionMultiplier), err
+	gasPriceWithMultiplier := new(big.Int).Mul(gasPriceMinimum, multiplier)
+
+	res := new(big.Int).Div(gasPriceWithMultiplier, big.NewInt(100))
+	return res, err
 }
 
 // GetGasTipCapSuggestion suggests a max tip of 2GWei in the appropriate currency.
