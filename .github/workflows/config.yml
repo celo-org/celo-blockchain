@@ -16,7 +16,7 @@ concurrency:
 env:
   # Increment these to force cache rebuilding
   SYSTEM_CONTRACTS_CACHE_VERSION: 3
-  CHECKOUT_MONOREPO_CACHE_VERSION: 6
+  CHECKOUT_MONOREPO_CACHE_VERSION: 7
   GO_VERSION: '1.18'
   # Location where compiled system contracts are stored under the root of this
   # repo.
