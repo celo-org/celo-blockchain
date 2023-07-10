@@ -138,7 +138,7 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 	}
 
 	// Genesis config
-	genesisConfig, err := template.createGenesisConfig(env, gingerbreadBlock != nil)
+	genesisConfig, err := template.createGenesisConfig(env, gingerbreadBlock)
 	if err != nil {
 		return nil, nil, err
 	}

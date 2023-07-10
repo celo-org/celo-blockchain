@@ -655,6 +655,7 @@ func (ctx *deployContext) deploySortedOracles() error {
 
 func (ctx *deployContext) deployGasPriceMinimum() error {
 	return ctx.deployCoreContract("contracts", "GasPriceMinimum", func(contract *contract.EVMBackend) error {
+		ctx.logger.Info("GasPriceMinimum", "BaseFeeOpCodeActivationBlock", ctx.genesisConfig.GasPriceMinimum.BaseFeeOpCodeActivationBlock)
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
 			ctx.genesisConfig.GasPriceMinimum.MinimumFloor,

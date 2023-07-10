@@ -44,7 +44,8 @@ func init() {
 // network to process the transaction.
 func TestSendCelo(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
-	gc, ec, err := test.BuildConfig(ac, true)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -69,7 +70,8 @@ func TestSendCelo(t *testing.T) {
 // and can be useful for debugging these traces.
 func TestTraceSendCeloViaGoldToken(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
-	gc, ec, err := test.BuildConfig(ac, true)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -105,7 +107,8 @@ func TestTraceSendCeloViaGoldToken(t *testing.T) {
 // Use the callTracer to trace a native CELO transfer.
 func TestCallTraceTransactionNativeTransfer(t *testing.T) {
 	ac := test.AccountConfig(1, 2)
-	gc, ec, err := test.BuildConfig(ac, true)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -142,7 +145,8 @@ func TestCallTraceTransactionNativeTransfer(t *testing.T) {
 // Use the prestateTracer to trace a native CELO transfer.
 func TestPrestateTransactionNativeTransfer(t *testing.T) {
 	ac := test.AccountConfig(1, 2)
-	gc, ec, err := test.BuildConfig(ac, true)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -179,7 +183,8 @@ func TestSingleNodeNetworkManyTxs(t *testing.T) {
 	iterations := 5
 	txsPerIteration := 5
 	ac := test.AccountConfig(1, 1)
-	gc, ec, err := test.BuildConfig(ac, true)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	gc.Istanbul.Epoch = uint64(iterations) * 50 // avoid the epoch for this test
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
@@ -204,7 +209,8 @@ func TestSingleNodeNetworkManyTxs(t *testing.T) {
 // We previously had an open bug for this https://github.com/celo-org/celo-blockchain/issues/1574
 func TestEpochBlockMarshaling(t *testing.T) {
 	accounts := test.AccountConfig(1, 0)
-	gc, ec, err := test.BuildConfig(accounts, true)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(accounts, gingerbreadBlock)
 	require.NoError(t, err)
 
 	// Configure the shortest possible epoch, uptimeLookbackWindow minimum is 3
@@ -233,7 +239,8 @@ func TestEpochBlockMarshaling(t *testing.T) {
 // validators are shut down, when they restart the network is able to continue.
 func TestStartStopValidators(t *testing.T) {
 	ac := test.AccountConfig(4, 2)
-	gc, ec, err := test.BuildConfig(ac, true)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, _, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -369,7 +376,8 @@ func TestStartStopValidators(t *testing.T) {
 // trace block code was the source of the concurrent map access.
 func TestBlockTracingConcurrentMapAccess(t *testing.T) {
 	ac := test.AccountConfig(1, 2)
-	gc, ec, err := test.BuildConfig(ac, true)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -419,7 +427,8 @@ func TestBlockTracingConcurrentMapAccess(t *testing.T) {
 // Helpful for debugging issues in TestBlockTracingConcurrentMapAccess.
 func TestBlockTracingSequentialAccess(t *testing.T) {
 	ac := test.AccountConfig(1, 2)
-	gc, ec, err := test.BuildConfig(ac, true)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -453,7 +462,8 @@ type rpcCustomTransaction struct {
 // price by the tx, which could be less than the feeCap (as in this example)
 func TestRPCDynamicTxGasPriceWithBigFeeCap(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
-	gc, ec, err := test.BuildConfig(ac, true)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -493,7 +503,8 @@ func TestRPCDynamicTxGasPriceWithBigFeeCap(t *testing.T) {
 // GasPriceMinimum contract
 func TestRPCDynamicTxGasPriceWithState(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
-	gc, ec, err := test.BuildConfig(ac, true)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	ec.TxLookupLimit = 0
 	ec.NoPruning = true
@@ -564,9 +575,13 @@ func TestRPCDynamicTxGasPriceWithoutStateForAlternativeCurrencyAfterGingerbread(
 }
 
 func testRPCDynamicTxGasPriceWithoutState(t *testing.T, afterGingerbread, alternativeCurrency bool) {
+	var gingerbreadBlock *big.Int
+	if afterGingerbread {
+		gingerbreadBlock = common.Big1
+	}
 	cusdAddress := common.HexToAddress("0xd008")
 	ac := test.AccountConfig(3, 2)
-	gc, ec, err := test.BuildConfig(ac, afterGingerbread)
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	ec.TrieDirtyCache = 5
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
@@ -639,7 +654,8 @@ func pruneStateOfBlock(ctx context.Context, node *test.Node, blockHash common.Ha
 
 func runMochaTest(t *testing.T, add_args func(*env.AccountsConfig, *genesis.Config, test.Network) []string) {
 	ac := test.AccountConfig(1, 1)
-	gc, ec, err := test.BuildConfig(ac, true)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -693,7 +709,8 @@ func TestEthersJSCompatibility(t *testing.T) {
 // returning the 'gasLimit' and 'baseFeePerGas' fields on RPC blocks.
 func TestEthersJSCompatibilityDisableAfterGingerbread(t *testing.T) {
 	ac := test.AccountConfig(1, 1)
-	gc, ec, err := test.BuildConfig(ac, true)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 
 	// Check fields present (compatibility set by default)
@@ -740,7 +757,8 @@ func TestEthersJSCompatibilityDisableAfterGingerbread(t *testing.T) {
 // Gingerbread is relevant because it added the gasLimit to the header.
 func TestEthersJSCompatibilityDisableBeforeGingerbread(t *testing.T) {
 	ac := test.AccountConfig(1, 1)
-	gc, ec, err := test.BuildConfig(ac, false)
+	var gingerbreadBlock *big.Int = nil
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 
 	// Check fields present (compatibility set by default)

@@ -13,7 +13,7 @@ import (
 
 type template interface {
 	createEnv(workdir string) (*env.Environment, error)
-	createGenesisConfig(*env.Environment, bool) (*genesis.Config, error)
+	createGenesisConfig(*env.Environment, *big.Int) (*genesis.Config, error)
 }
 
 func templateFromString(templateStr string) template {
@@ -48,15 +48,18 @@ func (e localEnv) createEnv(workdir string) (*env.Environment, error) {
 	return env, nil
 }
 
-func (e localEnv) createGenesisConfig(env *env.Environment, gingerbreadActivated bool) (*genesis.Config, error) {
+func (e localEnv) createGenesisConfig(env *env.Environment, gingerbreadBlock *big.Int) (*genesis.Config, error) {
 
-	genesisConfig := genesis.CreateCommonGenesisConfig(env.Config.ChainID, env.Accounts().AdminAccount().Address, params.IstanbulConfig{
+	genesisConfig, err := genesis.CreateCommonGenesisConfig(env.Config.ChainID, env.Accounts().AdminAccount().Address, params.IstanbulConfig{
 		Epoch:          10,
 		ProposerPolicy: 2,
 		LookbackWindow: 3,
 		BlockPeriod:    1,
 		RequestTimeout: 3000,
-	}, gingerbreadActivated)
+	}, gingerbreadBlock)
+	if err != nil {
+		return nil, err
+	}
 
 	// Add balances to developer accounts
 	genesis.FundAccounts(genesisConfig, env.Accounts().DeveloperAccounts())
@@ -85,14 +88,17 @@ func (e loadtestEnv) createEnv(workdir string) (*env.Environment, error) {
 	return env, nil
 }
 
-func (e loadtestEnv) createGenesisConfig(env *env.Environment, gingerbreadActivated bool) (*genesis.Config, error) {
-	genesisConfig := genesis.CreateCommonGenesisConfig(env.Config.ChainID, env.Accounts().AdminAccount().Address, params.IstanbulConfig{
+func (e loadtestEnv) createGenesisConfig(env *env.Environment, gingerbreadBlock *big.Int) (*genesis.Config, error) {
+	genesisConfig, err := genesis.CreateCommonGenesisConfig(env.Config.ChainID, env.Accounts().AdminAccount().Address, params.IstanbulConfig{
 		Epoch:          1000,
 		ProposerPolicy: 2,
 		LookbackWindow: 3,
 		BlockPeriod:    5,
 		RequestTimeout: 3000,
-	}, gingerbreadActivated)
+	}, gingerbreadBlock)
+	if err != nil {
+		return nil, err
+	}
 
 	// 10 billion gas limit, set super high on purpose
 	genesisConfig.Blockchain.BlockGasLimit = 1000000000
@@ -130,14 +136,18 @@ func (e monorepoEnv) createEnv(workdir string) (*env.Environment, error) {
 	return env, nil
 }
 
-func (e monorepoEnv) createGenesisConfig(env *env.Environment, gingerbreadActivated bool) (*genesis.Config, error) {
-	genesisConfig := genesis.CreateCommonGenesisConfig(env.Config.ChainID, env.Accounts().AdminAccount().Address, params.IstanbulConfig{
+func (e monorepoEnv) createGenesisConfig(env *env.Environment, gingerbreadBlock *big.Int) (*genesis.Config, error) {
+	genesisConfig, err := genesis.CreateCommonGenesisConfig(env.Config.ChainID, env.Accounts().AdminAccount().Address, params.IstanbulConfig{
 		Epoch:          10,
 		ProposerPolicy: 2,
 		LookbackWindow: 3,
 		BlockPeriod:    1,
 		RequestTimeout: 3000,
-	}, gingerbreadActivated)
+	}, gingerbreadBlock)
+	if err != nil {
+		return nil, err
+	}
+
 	// To match the 'testing' config in monorepo
 	genesisConfig.EpochRewards.TargetVotingYieldInitial = fixed.MustNew("0.00016")
 	genesisConfig.EpochRewards.TargetVotingYieldMax = fixed.MustNew("0.0005")
