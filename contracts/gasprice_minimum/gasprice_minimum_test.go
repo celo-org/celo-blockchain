@@ -15,7 +15,7 @@ func TestGetGasPriceSuggestion(t *testing.T) {
 	celoAddress := common.HexToAddress("0x076")
 	gpmAddress := common.HexToAddress("0x090")
 
-	t.Run("should return gas price minimum multiplied by 5", func(t *testing.T) {
+	t.Run("should return gas price minimum multiplied with factor", func(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		runner := testutil.NewMockEVMRunner()
@@ -29,10 +29,17 @@ func TestGetGasPriceSuggestion(t *testing.T) {
 		runner.RegisterContract(gpmAddress, contract)
 		registry.AddContract(config.GasPriceMinimumRegistryId, gpmAddress)
 
-		suggestedGpm, err := GetGasPriceSuggestion(runner, nil)
+		suggestedGpm, err := GetGasPriceSuggestion(runner, nil, big.NewInt(500))
 		g.Expect(err).NotTo(HaveOccurred())
-
 		g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(777777 * 5)))
+
+		suggestedGpm, err = GetGasPriceSuggestion(runner, nil, big.NewInt(100))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(777777)))
+
+		suggestedGpm, err = GetGasPriceSuggestion(runner, nil, big.NewInt(110))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(855554)))
 
 	})
 }
