@@ -35,7 +35,6 @@ import (
 
 var (
 	FallbackGasPriceMinimum *big.Int = big.NewInt(0) // gas price minimum to return if unable to fetch from contract
-	suggestionMultiplier    *big.Int = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
 )
 
 const (
@@ -62,9 +61,12 @@ func GetGasTipCapSuggestion(vmRunner vm.EVMRunner, currencyAddress *common.Addre
 
 // GetGasPriceSuggestion suggests a gas price the suggestionMultiplier times higher than the GPM in the appropriate currency.
 // TODO: Switch to using a caching GPM manager under high load.
-func GetGasPriceSuggestion(vmRunner vm.EVMRunner, currency *common.Address) (*big.Int, error) {
+func GetGasPriceSuggestion(vmRunner vm.EVMRunner, currency *common.Address, multiplier *big.Int) (*big.Int, error) {
 	gasPriceMinimum, err := GetGasPriceMinimum(vmRunner, currency)
-	return new(big.Int).Mul(gasPriceMinimum, suggestionMultiplier), err
+
+	gasPriceWithMultiplier := new(big.Int).Mul(gasPriceMinimum, multiplier)
+	res := new(big.Int).Div(gasPriceWithMultiplier, big.NewInt(100))
+	return res, err
 }
 
 func GetGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*big.Int, error) {

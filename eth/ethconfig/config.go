@@ -139,6 +139,10 @@ type Config struct {
 	// RPCGasInflationRate is a global multiplier applied to the gas estimations
 	RPCGasInflationRate float64
 
+	// RPCGasPriceMultiplier is a global multiplier applied to the gas price
+	// It's a percent value, e.g. 120 means a multiplication factor of 1.2
+	RPCGasPriceMultiplier *big.Int
+
 	// RPCGasCap is the global gas cap for eth-call variants.
 	RPCGasCap uint64
 
