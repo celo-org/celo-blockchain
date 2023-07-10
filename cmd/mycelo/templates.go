@@ -61,8 +61,8 @@ func (e localEnv) createGenesisConfig(env *env.Environment, gingerbreadBlock *bi
 		return nil, err
 	}
 
-	// Add balances to developer accounts
-	genesis.FundAccounts(genesisConfig, env.Accounts().DeveloperAccounts())
+	// Add balances to validator and developer accounts
+	genesis.FundAccounts(genesisConfig, append(env.Accounts().ValidatorAccounts(), env.Accounts().DeveloperAccounts()...))
 
 	return genesisConfig, nil
 }
@@ -103,8 +103,8 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment, gingerbreadBlock 
 	// 10 billion gas limit, set super high on purpose
 	genesisConfig.Blockchain.BlockGasLimit = 1000000000
 
-	// Add balances to developer accounts
-	genesis.FundAccounts(genesisConfig, env.Accounts().DeveloperAccounts())
+	// Add balances to validator and developer accounts
+	genesis.FundAccounts(genesisConfig, append(env.Accounts().ValidatorAccounts(), env.Accounts().DeveloperAccounts()...))
 
 	genesisConfig.StableToken.InflationFactorUpdatePeriod = 1 * genesis.Year
 
@@ -154,8 +154,8 @@ func (e monorepoEnv) createGenesisConfig(env *env.Environment, gingerbreadBlock 
 	genesisConfig.EpochRewards.TargetVotingYieldAdjustmentFactor = fixed.MustNew("0.1")
 	genesisConfig.Reserve.InitialBalance = common.MustBigInt("100000000000000000000000000") // 100M CELO
 
-	// Add balances to validator accounts instead of developer accounts
-	genesis.FundAccounts(genesisConfig, env.Accounts().ValidatorAccounts())
+	// Add balances to validator and developer accounts
+	genesis.FundAccounts(genesisConfig, append(env.Accounts().ValidatorAccounts(), env.Accounts().DeveloperAccounts()...))
 
 	return genesisConfig, nil
 }
