@@ -58,6 +58,7 @@ type Genesis struct {
 	Number     uint64      `json:"number"`
 	GasUsed    uint64      `json:"gasUsed"`
 	ParentHash common.Hash `json:"parentHash"`
+	BaseFee    *big.Int    `json:"baseFeePerGas"`
 }
 
 // GenesisAlloc specifies the initial state that is part of the genesis block.
@@ -91,6 +92,7 @@ type genesisSpecMarshaling struct {
 	GasUsed   math.HexOrDecimal64
 	Number    math.HexOrDecimal64
 	Alloc     map[common.UnprefixedAddress]GenesisAccount
+	BaseFee   *math.HexOrDecimal256
 }
 
 type genesisAccountMarshaling struct {
@@ -284,8 +286,16 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		head.Difficulty = common.Big0
 		head.MixDigest = types.EmptyMixDigest
 		head.UncleHash = types.EmptyUncleHash
+		if g.BaseFee != nil {
+			head.BaseFee = g.BaseFee
+		} else {
+			if g.Config.FakeBaseFee != nil {
+				head.BaseFee = g.Config.FakeBaseFee
+			} else {
+				head.BaseFee = new(big.Int).SetUint64(params.InitialBaseFee)
+			}
+		}
 	}
-
 	statedb.Commit(false)
 	statedb.Database().TrieDB().Commit(root, true, nil)
 
@@ -347,7 +357,11 @@ func (g *Genesis) MustCommit(db ethdb.Database) *types.Block {
 
 // GenesisBlockForTesting creates and writes a block in which addr has the given wei balance.
 func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big.Int) *types.Block {
-	g := Genesis{Config: params.BaklavaChainConfig, Alloc: GenesisAlloc{addr: {Balance: balance}}}
+	g := Genesis{
+		Config:  params.BaklavaChainConfig,
+		Alloc:   GenesisAlloc{addr: {Balance: balance}},
+		BaseFee: big.NewInt(params.InitialBaseFee),
+	}
 	return g.MustCommit(db)
 }
 
@@ -397,6 +411,7 @@ func DeveloperGenesisBlock(period uint64) *Genesis {
 	return &Genesis{
 		Config:    &config,
 		ExtraData: hexutil.MustDecode(developerExtraData),
+		BaseFee:   big.NewInt(params.InitialBaseFee),
 		Alloc:     *devAlloc,
 	}
 }

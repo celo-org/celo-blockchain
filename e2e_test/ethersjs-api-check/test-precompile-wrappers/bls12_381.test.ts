@@ -34,7 +34,7 @@ describe("BLS12-381", function () {
     const signerKey: any = ethers.toBeHex(process.env.npm_config_signerkey!)
     const signer = new ethers.Wallet(signerKey, provider);
 
-    const contractJSON = fs.readFileSync("../../compiled-system-contracts/BLS12_381Passthrough.json", 'utf8');
+    const contractJSON = fs.readFileSync("../../compiled-system-contracts/contracts/BLS12_381Passthrough.json", 'utf8');
     const TestContractFactory = ethers.ContractFactory.fromSolidity(contractJSON, signer);
     instance = await TestContractFactory.deploy();
     await new Promise(f => setTimeout(f, 100));

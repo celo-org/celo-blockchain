@@ -8,5 +8,5 @@ go run ./mycelo/internal/scripts/generate -buildpath ./compiled-system-contracts
 
 For a custom one:
 ```
-go run ./mycelo/internal/scripts/generate -buildpath $CELO_MONOREPO/packages/protocol/build/contracts
+go run ./mycelo/internal/scripts/generate -buildpath $CELO_MONOREPO/packages/protocol/build
 ```

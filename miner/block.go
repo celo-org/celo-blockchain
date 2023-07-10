@@ -25,6 +25,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/contracts/random"
@@ -108,7 +109,6 @@ func prepareBlock(w *worker) (*blockState, error) {
 		gasLimit:       blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner),
 		header:         header,
 		txFeeRecipient: txFeeRecipient,
-		sysCtx:         core.NewSysContractCallCtx(header, state.Copy(), w.chain),
 	}
 	b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
 	if w.chainConfig.IsGingerbread(header.Number) {
@@ -117,7 +117,11 @@ func prepareBlock(w *worker) (*blockState, error) {
 		header.Nonce = types.EncodeNonce(0)
 		header.UncleHash = types.EmptyUncleHash
 		header.MixDigest = types.EmptyMixDigest
+		// Needs the baseFee of the last Header
+		parentVmRunner := w.chain.NewEVMRunner(parent.Header(), state.Copy())
+		header.BaseFee = misc.CalcBaseFee(w.chainConfig, parent.Header(), parentVmRunner)
 	}
+	b.sysCtx = core.NewSysContractCallCtx(header, state.Copy(), w.chain)
 
 	// Play our part in generating the random beacon.
 	if w.isRunning() && random.IsRunning(vmRunner) {

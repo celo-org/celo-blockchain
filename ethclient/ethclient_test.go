@@ -222,6 +222,7 @@ func generateTestChain() (*core.Genesis, []*types.Block) {
 		Alloc:     core.GenesisAlloc{testAddr: {Balance: testBalance}},
 		ExtraData: []byte("test genesis"),
 		Timestamp: 9000,
+		BaseFee:   common.Big0,
 	}
 	generate := func(i int, g *core.BlockGen) {
 		g.OffsetTime(5)
@@ -310,6 +311,9 @@ func testHeader(t *testing.T, chain []*types.Block, client *rpc.Client) {
 			}
 			if got != nil && got.Difficulty != nil && got.Difficulty.Sign() == 0 {
 				got.Difficulty = big.NewInt(0) // hack to make DeepEqual work
+			}
+			if got != nil && got.BaseFee != nil && got.BaseFee.Sign() == 0 {
+				got.BaseFee = big.NewInt(0) // hack to make DeepEqual work
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("HeaderByNumber(%v)\n   = %+v\nwant %+v", tt.block, got, tt.want)

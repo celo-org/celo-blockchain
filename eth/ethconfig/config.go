@@ -53,10 +53,11 @@ var Defaults = Config{
 	SnapshotCache:           102,
 	GatewayFee:              big.NewInt(0),
 
-	TxPool:              core.DefaultTxPoolConfig,
-	RPCGasInflationRate: 1.3,
-	RPCGasCap:           25000000,
-	RPCTxFeeCap:         500, // 500 celo
+	TxPool:                core.DefaultTxPoolConfig,
+	RPCGasInflationRate:   1.3,
+	RPCGasPriceMultiplier: big.NewInt(200),
+	RPCGasCap:             25000000,
+	RPCTxFeeCap:           500, // 500 celo
 
 	Istanbul: *istanbul.DefaultConfig,
 }

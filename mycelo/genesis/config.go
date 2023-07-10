@@ -138,18 +138,10 @@ type ElectionParametersMarshaling struct {
 	MaxVotesPerAccount *bigintstr.BigIntStr `json:"maxVotesPerAccount"`
 }
 
-// Version represents an artifact version number
-type Version struct {
-	Major int64 `json:"major"`
-	Minor int64 `json:"minor"`
-	Patch int64 `json:"patch"`
-}
-
 // BlockchainParameters are the initial configuration parameters for Blockchain
 type BlockchainParameters struct {
-	Version                 Version `json:"version"`
-	GasForNonGoldCurrencies uint64  `json:"gasForNonGoldCurrencies"`
-	BlockGasLimit           uint64  `json:"blockGasLimit"`
+	GasForNonGoldCurrencies uint64 `json:"gasForNonGoldCurrencies"`
+	BlockGasLimit           uint64 `json:"blockGasLimit"`
 }
 
 //go:generate gencodec -type DoubleSigningSlasherParameters -field-override DoubleSigningSlasherParametersMarshaling -out gen_double_signing_slasher_parameters_json.go
@@ -265,13 +257,15 @@ type SortedOraclesParameters struct {
 
 // GasPriceMinimumParameters are the initial configuration parameters for GasPriceMinimum
 type GasPriceMinimumParameters struct {
-	MinimumFloor    *big.Int     `json:"minimumFloor"`
-	TargetDensity   *fixed.Fixed `json:"targetDensity"`
-	AdjustmentSpeed *fixed.Fixed `json:"adjustmentSpeed"`
+	MinimumFloor                 *big.Int     `json:"minimumFloor"`
+	TargetDensity                *fixed.Fixed `json:"targetDensity"`
+	AdjustmentSpeed              *fixed.Fixed `json:"adjustmentSpeed"`
+	BaseFeeOpCodeActivationBlock *big.Int     `json:"baseFeeOpCodeActivationBlock"`
 }
 
 type GasPriceMinimumParametersMarshaling struct {
-	MinimumFloor *bigintstr.BigIntStr `json:"minimumFloor"`
+	MinimumFloor                 *bigintstr.BigIntStr `json:"minimumFloor"`
+	BaseFeeOpCodeActivationBlock *bigintstr.BigIntStr `json:"baseFeeOpCodeActivationBlock"`
 }
 
 // GrandaMentoParameters are the initial configuration parameters for GrandaMento

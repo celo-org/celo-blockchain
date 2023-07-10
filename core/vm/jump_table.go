@@ -81,6 +81,9 @@ func newGingerbreadInstructionSet() JumpTable {
 	// Need to apply 2929 and 3529 again to make sure changes from updated 1884 and 2200 are overwritten
 	enable2929(&instructionSet) // Access lists for trie accesses https://eips.ethereum.org/EIPS/eip-2929
 	enable3529(&instructionSet) // EIP-3529: Reduction in refunds https://eips.ethereum.org/EIPS/eip-3529
+
+	enable3198(&instructionSet) // Base fee opcode https://eips.ethereum.org/EIPS/eip-3198
+
 	return instructionSet
 }
 
