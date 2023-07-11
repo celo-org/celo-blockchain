@@ -387,7 +387,10 @@ func createConversionFunctions(sysCtx *core.SysContractCallCtx, chain *core.Bloc
 		return sysCtx.GetGasPriceMinimum(feeCurrency)
 	}
 	toCeloFn := func(amount *big.Int, feeCurrency *common.Address) *big.Int {
-		curr, _ := currencyManager.GetCurrency(feeCurrency)
+		curr, err := currencyManager.GetCurrency(feeCurrency)
+		if err != nil {
+			log.Error("toCeloFn: could not get currency", "err", err)
+		}
 		return curr.ToCELO(amount)
 	}
 
