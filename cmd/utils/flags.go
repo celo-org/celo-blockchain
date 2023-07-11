@@ -449,7 +449,7 @@ var (
 	RPCGlobalGasPriceMultiplierFlag = cli.Float64Flag{
 		Name:  "rpc.gaspricemultiplier",
 		Usage: "Multiplier applied to the gasPrice rpc call (1 = gasPrice, 1.3 = gasPrice + 30%, etc. Defaults to 2.0)",
-		Value: 2.0,
+		Value: float64(ethconfig.Defaults.RPCGasPriceMultiplier.Int64() / 100),
 	}
 	RPCGlobalGasCapFlag = cli.Uint64Flag{
 		Name:  "rpc.gascap",

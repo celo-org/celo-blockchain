@@ -340,19 +340,23 @@ func AccountConfig(numValidators, numExternal int) *env.AccountsConfig {
 // NOTE: Do not edit the Istanbul field of the returned genesis config it will
 // be overwritten with the corresponding config from the Istanbul field of the
 // returned eth config.
-func BuildConfig(accounts *env.AccountsConfig) (*genesis.Config, *ethconfig.Config, error) {
-	gc := genesis.CreateCommonGenesisConfig(
+func BuildConfig(accounts *env.AccountsConfig, gingerbreadBlock *big.Int) (*genesis.Config, *ethconfig.Config, error) {
+	gc, err := genesis.CreateCommonGenesisConfig(
 		big.NewInt(1),
 		accounts.AdminAccount().Address,
 		params.IstanbulConfig{},
+		gingerbreadBlock,
 	)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	genesis.FundAccounts(gc, accounts.DeveloperAccounts())
 
 	// copy the base eth config, so we can modify it without damaging the
 	// original.
 	ec := &eth.Config{}
-	err := copyObject(BaseEthConfig, ec)
+	err = copyObject(BaseEthConfig, ec)
 	return gc, ec, err
 }
 
@@ -519,6 +523,7 @@ func ValueTransferTransactionWithDynamicFee(
 	recipient common.Address,
 	nonce uint64,
 	value *big.Int,
+	feeCurrency *common.Address,
 	gasFeeCap *big.Int,
 	gasTipCap *big.Int,
 	signer types.Signer,
@@ -526,19 +531,20 @@ func ValueTransferTransactionWithDynamicFee(
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
-	msg := ethereum.CallMsg{From: sender, To: &recipient, Value: value}
+	msg := ethereum.CallMsg{From: sender, To: &recipient, Value: value, FeeCurrency: feeCurrency}
 	gasLimit, err := client.EstimateGas(ctx, msg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to estimate gas needed: %v", err)
 	}
 	// Create the transaction and sign it
 	rawTx := types.NewTx(&types.CeloDynamicFeeTx{
-		Nonce:     nonce,
-		To:        &recipient,
-		Value:     value,
-		Gas:       gasLimit,
-		GasFeeCap: gasFeeCap,
-		GasTipCap: gasTipCap,
+		Nonce:       nonce,
+		To:          &recipient,
+		Value:       value,
+		Gas:         gasLimit,
+		FeeCurrency: feeCurrency,
+		GasFeeCap:   gasFeeCap,
+		GasTipCap:   gasTipCap,
 	})
 	signed, err := types.SignTx(rawTx, signer, senderKey)
 	if err != nil {

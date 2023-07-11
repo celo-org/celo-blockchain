@@ -15,23 +15,26 @@ var _ = (*GasPriceMinimumParametersMarshaling)(nil)
 // MarshalJSON marshals as JSON.
 func (g GasPriceMinimumParameters) MarshalJSON() ([]byte, error) {
 	type GasPriceMinimumParameters struct {
-		MinimumFloor    *bigintstr.BigIntStr `json:"minimumFloor"`
-		TargetDensity   *fixed.Fixed         `json:"targetDensity"`
-		AdjustmentSpeed *fixed.Fixed         `json:"adjustmentSpeed"`
+		MinimumFloor                 *bigintstr.BigIntStr `json:"minimumFloor"`
+		TargetDensity                *fixed.Fixed         `json:"targetDensity"`
+		AdjustmentSpeed              *fixed.Fixed         `json:"adjustmentSpeed"`
+		BaseFeeOpCodeActivationBlock *bigintstr.BigIntStr `json:"baseFeeOpCodeActivationBlock"`
 	}
 	var enc GasPriceMinimumParameters
 	enc.MinimumFloor = (*bigintstr.BigIntStr)(g.MinimumFloor)
 	enc.TargetDensity = g.TargetDensity
 	enc.AdjustmentSpeed = g.AdjustmentSpeed
+	enc.BaseFeeOpCodeActivationBlock = (*bigintstr.BigIntStr)(g.BaseFeeOpCodeActivationBlock)
 	return json.Marshal(&enc)
 }
 
 // UnmarshalJSON unmarshals from JSON.
 func (g *GasPriceMinimumParameters) UnmarshalJSON(input []byte) error {
 	type GasPriceMinimumParameters struct {
-		MinimumFloor    *bigintstr.BigIntStr `json:"minimumFloor"`
-		TargetDensity   *fixed.Fixed         `json:"targetDensity"`
-		AdjustmentSpeed *fixed.Fixed         `json:"adjustmentSpeed"`
+		MinimumFloor                 *bigintstr.BigIntStr `json:"minimumFloor"`
+		TargetDensity                *fixed.Fixed         `json:"targetDensity"`
+		AdjustmentSpeed              *fixed.Fixed         `json:"adjustmentSpeed"`
+		BaseFeeOpCodeActivationBlock *bigintstr.BigIntStr `json:"baseFeeOpCodeActivationBlock"`
 	}
 	var dec GasPriceMinimumParameters
 	if err := json.Unmarshal(input, &dec); err != nil {
@@ -45,6 +48,9 @@ func (g *GasPriceMinimumParameters) UnmarshalJSON(input []byte) error {
 	}
 	if dec.AdjustmentSpeed != nil {
 		g.AdjustmentSpeed = dec.AdjustmentSpeed
+	}
+	if dec.BaseFeeOpCodeActivationBlock != nil {
+		g.BaseFeeOpCodeActivationBlock = (*big.Int)(dec.BaseFeeOpCodeActivationBlock)
 	}
 	return nil
 }

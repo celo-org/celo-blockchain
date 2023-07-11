@@ -27,10 +27,10 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/contracts/erc20gas"
-	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
+	gpm "github.com/celo-org/celo-blockchain/eth/gasprice"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 	// cmath "github.com/celo-org/celo-blockchain/common/math"
@@ -212,7 +212,7 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRu
 	if evm.ChainConfig().IsEspresso(evm.Context.BlockNumber) {
 		gasPriceMinimum = sysCtx.GetGasPriceMinimum(msg.FeeCurrency())
 	} else {
-		gasPriceMinimum, _ = gpm.GetGasPriceMinimum(vmRunner, msg.FeeCurrency())
+		gasPriceMinimum, _ = gpm.GetBaseFeeForCurrency(vmRunner, msg.FeeCurrency(), nil)
 	}
 
 	return &StateTransition{
@@ -241,17 +241,6 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRu
 func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*ExecutionResult, error) {
 	log.Trace("Applying state transition message", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "gas price", msg.GasPrice(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas", msg.Gas(), "value", msg.Value(), "data", msg.Data())
 	return NewStateTransition(evm, msg, gp, vmRunner, sysCtx).TransitionDb()
-}
-
-// ApplyMessageWithoutGasPriceMinimum applies the given message with the gas price minimum
-// set to zero. It's only for use in eth_call and eth_estimateGas, so that they can be used
-// with gas price set to zero if the sender doesn't have funds to pay for gas.
-// Returns the gas used (which does not include gas refunds) and an error if it failed.
-func ApplyMessageWithoutGasPriceMinimum(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*ExecutionResult, error) {
-	log.Trace("Applying state transition message without gas price minimum", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas limit", msg.Gas(), "value", msg.Value(), "data", msg.Data())
-	st := NewStateTransition(evm, msg, gp, vmRunner, sysCtx)
-	st.gasPriceMinimum = common.Big0
-	return st.TransitionDb()
 }
 
 // to returns the recipient of the message.
@@ -403,7 +392,7 @@ func (st *StateTransition) preCheck() error {
 			}
 		}
 	} else { // Make sure this transaction's gas price >= baseFee (pre Espresso)
-		if st.gasPrice.Cmp(st.gasPriceMinimum) < 0 {
+		if !st.evm.Config.NoBaseFee && st.gasPrice.Cmp(st.gasPriceMinimum) < 0 {
 			log.Debug("Tx gas price is less than minimum", "minimum", st.gasPriceMinimum, "price", st.gasPrice)
 			return ErrGasPriceDoesNotExceedMinimum
 		}

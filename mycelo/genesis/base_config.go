@@ -10,20 +10,26 @@ import (
 
 // BaseConfig creates base parameters for celo
 // Callers must complete missing pieces
-func BaseConfig() *Config {
+func BaseConfig(gingerbreadBlock *big.Int) *Config {
+	baseFeeOpCodeActivationBlock := gingerbreadBlock
 	bigInt := big.NewInt
 	bigIntStr := common.MustBigInt
 	fixed := fixed.MustNew
 	decimal := decimal.RequireFromString
+
+	if baseFeeOpCodeActivationBlock == nil {
+		baseFeeOpCodeActivationBlock = big.NewInt(0) // deactivated
+	}
 
 	return &Config{
 		SortedOracles: SortedOraclesParameters{
 			ReportExpirySeconds: 5 * Minute,
 		},
 		GasPriceMinimum: GasPriceMinimumParameters{
-			MinimumFloor:    bigInt(100000000),
-			AdjustmentSpeed: fixed("0.5"),
-			TargetDensity:   fixed("0.5"),
+			MinimumFloor:                 bigInt(100000000),
+			AdjustmentSpeed:              fixed("0.5"),
+			TargetDensity:                fixed("0.5"),
+			BaseFeeOpCodeActivationBlock: baseFeeOpCodeActivationBlock,
 		},
 		Reserve: ReserveParameters{
 			TobinTaxStalenessThreshold: 3153600000,
@@ -150,7 +156,6 @@ func BaseConfig() *Config {
 			Frozen: false,
 		},
 		Blockchain: BlockchainParameters{
-			Version:                 Version{1, 0, 0},
 			GasForNonGoldCurrencies: 50000,
 			BlockGasLimit:           13000000,
 		},

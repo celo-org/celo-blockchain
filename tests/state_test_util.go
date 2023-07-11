@@ -84,6 +84,7 @@ type stEnv struct {
 	GasLimit  uint64         `json:"currentGasLimit"   gencodec:"required"`
 	Number    uint64         `json:"currentNumber"     gencodec:"required"`
 	Timestamp uint64         `json:"currentTimestamp"  gencodec:"required"`
+	BaseFee   *big.Int       `json:"currentBaseFee"  gencodec:"optional"`
 }
 
 type stEnvMarshaling struct {
@@ -91,6 +92,7 @@ type stEnvMarshaling struct {
 	GasLimit  math.HexOrDecimal64
 	Number    math.HexOrDecimal64
 	Timestamp math.HexOrDecimal64
+	BaseFee   *math.HexOrDecimal256
 }
 
 //go:generate gencodec -type stTransaction -field-override stTransactionMarshaling -out gen_sttransaction.go
@@ -184,7 +186,7 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 
 	var baseFee *big.Int
 	if config.IsEspresso(new(big.Int)) {
-		// baseFee = t.json.Env.BaseFee ?
+		baseFee = t.json.Env.BaseFee
 		if baseFee == nil {
 			// Retesteth uses `0x10` for genesis baseFee. Therefore, it defaults to
 			// parent - 2 : 0xa as the basefee for 'this' context.

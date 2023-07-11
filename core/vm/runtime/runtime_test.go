@@ -721,7 +721,7 @@ func TestColdAccountAccessCost(t *testing.T) {
 // TestColdAccountAccessCost test that the cold account access cost is reported
 // correctly
 // see: https://github.com/ethereum/go-ethereum/issues/22649
-func TestColdAccountAccessCostPreGFork(t *testing.T) {
+func TestColdAccountAccessCostPreGingerbreadFork(t *testing.T) {
 	for i, tc := range []struct {
 		code []byte
 		step int
@@ -977,7 +977,7 @@ func TestRuntimeJSTracer(t *testing.T) {
 	}
 }
 
-func TestRuntimeJSTracerPreGFork(t *testing.T) {
+func TestRuntimeJSTracerPreGingerbreadFork(t *testing.T) {
 	jsTracers := []string{
 		`{enters: 0, exits: 0, enterGas: 0, gasUsed: 0, steps:0,
 	step: function() { this.steps++}, 

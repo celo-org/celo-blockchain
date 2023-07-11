@@ -907,7 +907,7 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 		}
 	}
 	// Execute the trace
-	msg, err := args.ToMessage(api.backend.RPCGasCap(), nil)
+	msg, err := args.ToMessage(api.backend.RPCGasCap(), block.Header().BaseFee)
 	if err != nil {
 		return nil, err
 	}

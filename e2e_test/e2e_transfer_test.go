@@ -35,7 +35,8 @@ const (
 // - validator account has tip fee added.
 func TestTransferCELO(t *testing.T) {
 	ac := test.AccountConfig(1, 3)
-	gc, ec, err := test.BuildConfig(ac)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -235,8 +236,8 @@ func TestTransferCELO(t *testing.T) {
 // - validator account has tip fee added.
 func TestTransferCELOPreGingerbread(t *testing.T) {
 	ac := test.AccountConfig(1, 3)
-	gc, ec, err := test.BuildConfig(ac)
-	gc.Hardforks.GingerbreadBlock = nil
+	var gingerbreadBlock *big.Int = nil
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
