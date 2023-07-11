@@ -41,7 +41,7 @@ jobs:
           docker run \
             --rm \
             --name mycelo \
-            -v ./genesis:/genesis \
+            -v $(pwd)/genesis:/genesis \
             -w /genesis \
             mycelo:latest \
               "/usr/local/bin/mycelo genesis \
@@ -55,4 +55,4 @@ jobs:
                 --mnemonic \"flock crumble custom public elder fix picnic title naive today update load delay jeans curtain engage radar flag trap maple help sustain chapter still\""
       - name: Print genesis.json
         run: |
-          head -n 30 ./genesis/genesis.json
+          head -n 30 $(pwd)/genesis/genesis.json
