@@ -1,0 +1,58 @@
+name: Build mycelo image
+
+on:
+  push:
+    branches:
+      - master
+
+  pull_request:
+    branches:
+      - master
+
+concurrency:
+  group: mycelo-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build-mycelo-image:
+    name: Build mycelo image
+    runs-on: [self-hosted, blockchain, 8-cpu]
+    steps:
+      - name: Checkout celo-blockchain repo
+        uses: actions/checkout@v3
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Build mycelo image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile.mycelo
+          push: false
+          tags: mycelo:latest
+          load: true
+          build-args: GETH_COMMIT={{ github.sha }}
+      - name: Check docker images
+        run: docker images
+      - name: Generate genesis.json using mycelo image
+        run: |
+          mkdir genesis
+          docker run \
+            --rm \
+            --name mycelo \
+            -v $(pwd)/genesis:/genesis \
+            -w /genesis \
+            mycelo:latest \
+              "/usr/local/bin/mycelo genesis \
+                --buildpath /contracts \
+                --template loadtest \
+                --validators 1 \
+                --dev.accounts 1 \
+                --blockperiod 5 \
+                --epoch 600 \
+                --blockgaslimit 30000000 \
+                --mnemonic \"flock crumble custom public elder fix picnic title naive today update load delay jeans curtain engage radar flag trap maple help sustain chapter still\""
+      - name: Print genesis.json
+        run: |
+          head -n 30 $(pwd)/genesis/genesis.json
