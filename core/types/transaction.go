@@ -549,7 +549,7 @@ type TxWithMinerFee struct {
 	tx       *Transaction
 	minerFee *big.Int // in CELO
 }
-type ToCELOFn func(amount *big.Int, feeCurrency *common.Address) *big.Int
+type ToCELOFn func(amount *big.Int, feeCurrency *common.Address) (*big.Int, error)
 
 // NewTxWithMinerFee creates a wrapped transaction, calculating the effective
 // miner gasTipCap if a base fee is provided. The MinerFee is converted to CELO.
@@ -559,9 +559,14 @@ func NewTxWithMinerFee(tx *Transaction, baseFeeFn func(feeCurrency *common.Addre
 	if err != nil {
 		return nil, err
 	}
+	minerFeeInCelo, err := toCELO(minerFee, tx.FeeCurrency())
+	if err != nil {
+		log.Error("NewTxWithMinerFee: Could not convert fees for tx", "tx", tx, "err", err)
+		return nil, err
+	}
 	return &TxWithMinerFee{
 		tx:       tx,
-		minerFee: toCELO(minerFee, tx.FeeCurrency()),
+		minerFee: minerFeeInCelo,
 	}, nil
 }
 

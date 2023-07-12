@@ -394,7 +394,11 @@ func totalFees(block *types.Block, receipts []*types.Receipt, baseFeeFn func(*co
 		if espresso {
 			basefee = baseFeeFn(tx.FeeCurrency())
 		}
-		fee := toCELO(new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), tx.EffectiveGasTipValue(basefee)), tx.FeeCurrency())
+		fee, err := toCELO(new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), tx.EffectiveGasTipValue(basefee)), tx.FeeCurrency())
+		if err != nil {
+			log.Error("totalFees: Could not convert fees for tx", "tx", tx, "err", err)
+			continue
+		}
 		feesWei.Add(feesWei, fee)
 	}
 	return new(big.Float).Quo(new(big.Float).SetInt(feesWei), new(big.Float).SetInt(big.NewInt(params.Ether)))
@@ -409,12 +413,12 @@ func createConversionFunctions(sysCtx *core.SysContractCallCtx, chain *core.Bloc
 	baseFeeFn := func(feeCurrency *common.Address) *big.Int {
 		return sysCtx.GetGasPriceMinimum(feeCurrency)
 	}
-	toCeloFn := func(amount *big.Int, feeCurrency *common.Address) *big.Int {
+	toCeloFn := func(amount *big.Int, feeCurrency *common.Address) (*big.Int, error) {
 		curr, err := currencyManager.GetCurrency(feeCurrency)
 		if err != nil {
-			log.Error("toCeloFn: could not get currency", "err", err)
+			return nil, fmt.Errorf("toCeloFn: %w", err)
 		}
-		return curr.ToCELO(amount)
+		return curr.ToCELO(amount), nil
 	}
 
 	return baseFeeFn, toCeloFn
