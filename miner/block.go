@@ -117,7 +117,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 		header.Nonce = types.EncodeNonce(0)
 		header.UncleHash = types.EmptyUncleHash
 		header.MixDigest = types.EmptyMixDigest
-		// Needs the baseFee of the last Header
+		// Needs the baseFee at the final state of the last block
 		parentVmRunner := w.chain.NewEVMRunner(parent.Header(), state.Copy())
 		header.BaseFee = misc.CalcBaseFee(w.chainConfig, parent.Header(), parentVmRunner)
 	}

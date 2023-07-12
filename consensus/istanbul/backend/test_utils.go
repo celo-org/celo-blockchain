@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/backendtest"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
+	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -176,12 +178,20 @@ func AppendValidatorsToGenesisBlock(genesis *core.Genesis, validators []istanbul
 }
 
 func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
+	// needed to calculate the baseFee when the core contracts were not deployed
+	baseFee := misc.CalcBaseFeeEthereum(params.TestChainConfig, parent.Header())
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     parent.Number().Add(parent.Number(), common.Big1),
 		GasUsed:    0,
 		Extra:      parent.Extra(),
 		Time:       parent.Time() + config.BlockPeriod,
+		BaseFee:    baseFee,
+		GasLimit:   params.DefaultGasLimit,
+		Difficulty: big.NewInt(0),
+		Nonce:      types.EncodeNonce(0),
+		UncleHash:  types.EmptyUncleHash,
+		MixDigest:  types.EmptyMixDigest,
 	}
 	return header
 }
