@@ -29,7 +29,6 @@ import (
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/uptime"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
-	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/contracts/gold_token"
@@ -213,18 +212,6 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainHeaderReader, head
 			// Verify that the gasUsed is <= gasLimit
 			if header.GasUsed > header.GasLimit {
 				return fmt.Errorf("invalid gasUsed: have %d, gasLimit %d", header.GasUsed, header.GasLimit)
-			}
-			// Process the block to verify that the transactions are valid and to retrieve the resulting state and receipts
-			// Get the state from this block's parent.
-			state, err := sb.stateAt(parent.Hash())
-			if err != nil {
-				sb.logger.Error("verify - Error in getting the block's parent's state", "parentHash", parent.Hash().Hex(), "err", err)
-				return err
-			}
-			vmRunnerParent := sb.chain.NewEVMRunner(parent, state)
-			if err := misc.VerifyEip1559Header(chain.Config(), parent, header, vmRunnerParent); err != nil {
-				// Verify the header's EIP-1559 attributes.
-				return err
 			}
 		}
 	} else if err := sb.checkEpochBlockExists(chain, header, parents); err != nil {
