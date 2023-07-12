@@ -387,7 +387,7 @@ func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
 }
 
 // totalFees computes total consumed fees in CELO. Block transactions and receipts have to have the same order.
-func totalFees(block *types.Block, receipts []*types.Receipt, baseFeeFn func(*common.Address) *big.Int, toCELO func(*big.Int, *common.Address) *big.Int, espresso bool) *big.Float {
+func totalFees(block *types.Block, receipts []*types.Receipt, baseFeeFn func(*common.Address) *big.Int, toCELO types.ToCELOFn, espresso bool) *big.Float {
 	feesWei := new(big.Int)
 	for i, tx := range block.Transactions() {
 		var basefee *big.Int
@@ -402,7 +402,7 @@ func totalFees(block *types.Block, receipts []*types.Receipt, baseFeeFn func(*co
 
 // createConversionFunctions creates a function to convert any currency to Celo and a function to get the gas price minimum for that currency.
 // Both functions internally cache their results.
-func createConversionFunctions(sysCtx *core.SysContractCallCtx, chain *core.BlockChain, header *types.Header, state *state.StateDB) (func(feeCurrency *common.Address) *big.Int, func(amount *big.Int, feeCurrency *common.Address) *big.Int) {
+func createConversionFunctions(sysCtx *core.SysContractCallCtx, chain *core.BlockChain, header *types.Header, state *state.StateDB) (func(feeCurrency *common.Address) *big.Int, types.ToCELOFn) {
 	vmRunner := chain.NewEVMRunner(header, state)
 	currencyManager := currency.NewManager(vmRunner)
 

@@ -549,11 +549,12 @@ type TxWithMinerFee struct {
 	tx       *Transaction
 	minerFee *big.Int // in CELO
 }
+type ToCELOFn func(amount *big.Int, feeCurrency *common.Address) *big.Int
 
 // NewTxWithMinerFee creates a wrapped transaction, calculating the effective
 // miner gasTipCap if a base fee is provided. The MinerFee is converted to CELO.
 // Returns error in case of a negative effective miner gasTipCap.
-func NewTxWithMinerFee(tx *Transaction, baseFeeFn func(feeCurrency *common.Address) *big.Int, toCELO func(amount *big.Int, feeCurrency *common.Address) *big.Int) (*TxWithMinerFee, error) {
+func NewTxWithMinerFee(tx *Transaction, baseFeeFn func(feeCurrency *common.Address) *big.Int, toCELO ToCELOFn) (*TxWithMinerFee, error) {
 	minerFee, err := tx.EffectiveGasTip(baseFeeFn(tx.FeeCurrency()))
 	if err != nil {
 		return nil, err
@@ -596,11 +597,11 @@ func (s *TxByPriceAndTime) Pop() interface{} {
 // transactions in a profit-maximizing sorted order, while supporting removing
 // entire batches of transactions for non-executable accounts.
 type TransactionsByPriceAndNonce struct {
-	txs       map[common.Address]Transactions                             // Per account nonce-sorted list of transactions
-	heads     TxByPriceAndTime                                            // Next transaction for each unique account (price heap)
-	signer    Signer                                                      // Signer for the set of transactions
-	baseFeeFn func(feeCurrency *common.Address) *big.Int                  // Function to get the basefee for the specified feecurrency.
-	toCELO    func(amount *big.Int, feeCurrency *common.Address) *big.Int // Current exchange rate to CELO
+	txs       map[common.Address]Transactions            // Per account nonce-sorted list of transactions
+	heads     TxByPriceAndTime                           // Next transaction for each unique account (price heap)
+	signer    Signer                                     // Signer for the set of transactions
+	baseFeeFn func(feeCurrency *common.Address) *big.Int // Function to get the basefee for the specified feecurrency.
+	toCELO    ToCELOFn                                   // Current exchange rate to CELO
 }
 
 // NewTransactionsByPriceAndNonce creates a transaction set that can retrieve
@@ -609,7 +610,7 @@ type TransactionsByPriceAndNonce struct {
 // Note, the input map is reowned so the caller should not interact any more with
 // if after providing it to the constructor.
 // Note: txCmpFunc should handle the basefee
-func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transactions, baseFeeFn func(feeCurrency *common.Address) *big.Int, toCELO func(amount *big.Int, feeCurrency *common.Address) *big.Int) *TransactionsByPriceAndNonce {
+func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transactions, baseFeeFn func(feeCurrency *common.Address) *big.Int, toCELO ToCELOFn) *TransactionsByPriceAndNonce {
 	// Initialize a price and received time based heap with the head transactions
 	heads := make(TxByPriceAndTime, 0, len(txs))
 	for from, accTxs := range txs {
