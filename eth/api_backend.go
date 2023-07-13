@@ -315,11 +315,14 @@ func (b *EthAPIBackend) GasPriceMinimumForHeader(ctx context.Context, currencyAd
 	if header.BaseFee != nil && currencyAddress == nil {
 		return header.BaseFee, nil
 	}
-	state, err := b.eth.blockchain.StateAt(header.Root)
+	// The gasPriceMinimum (celo or alternative currency) of a specific block, is the one at the beginning of the block,
+	// not the end of it (the state_root of the header is the a state resulted of applying the block). So, the state to
+	// be used, MUST be the state result of the parent block
+	state, parent, err := b.StateAndHeaderByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockHash: &header.ParentHash})
 	if err != nil {
 		return nil, err
 	}
-	vmRunner := b.eth.BlockChain().NewEVMRunner(header, state)
+	vmRunner := b.eth.BlockChain().NewEVMRunner(parent, state)
 	return gp.GetBaseFeeForCurrency(vmRunner, currencyAddress, header.BaseFee)
 }
 
@@ -327,11 +330,14 @@ func (b *EthAPIBackend) RealGasPriceMinimumForHeader(ctx context.Context, curren
 	if header.BaseFee != nil && currencyAddress == nil {
 		return header.BaseFee, nil
 	}
-	state, err := b.eth.blockchain.StateAt(header.Root)
+	// The gasPriceMinimum (celo or alternative currency) of a specific block, is the one at the beginning of the block,
+	// not the end of it (the state_root of the header is the a state resulted of applying the block). So, the state to
+	// be used, MUST be the state result of the parent block
+	state, parent, err := b.StateAndHeaderByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockHash: &header.ParentHash})
 	if err != nil {
 		return nil, err
 	}
-	vmRunner := b.eth.BlockChain().NewEVMRunner(header, state)
+	vmRunner := b.eth.BlockChain().NewEVMRunner(parent, state)
 	return gp.GetRealBaseFeeForCurrency(vmRunner, currencyAddress, header.BaseFee)
 }
 
@@ -344,24 +350,43 @@ func (b *EthAPIBackend) SuggestPrice(ctx context.Context, currencyAddress *commo
 }
 
 func (b *EthAPIBackend) GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) uint64 {
-	statedb, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
+	header, err := b.HeaderByNumberOrHash(ctx, blockNrOrHash)
+	if err != nil {
+		log.Warn("Cannot retrieve the header for blockGasLimit", "err", err)
+		return params.DefaultGasLimit
+	}
+	if header.GasLimit > 0 {
+		return header.GasLimit
+	}
+	// The gasLimit of a specific block, is the one at the beginning of the block,
+	// not the end of it (the state_root of the header is the a state resulted of applying the block). So, the state to
+	// be used, MUST be the state result of the parent block
+	state, parent, err := b.StateAndHeaderByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockHash: &header.ParentHash})
 	if err != nil {
 		log.Warn("Cannot create evmCaller to get blockGasLimit", "err", err)
 		return params.DefaultGasLimit
 	}
-
-	vmRunner := b.eth.BlockChain().NewEVMRunner(header, statedb)
+	vmRunner := b.eth.BlockChain().NewEVMRunner(parent, state)
 	return blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
 }
 
 func (b *EthAPIBackend) GetRealBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (uint64, error) {
-	statedb, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
+	header, err := b.HeaderByNumberOrHash(ctx, blockNrOrHash)
+	if err != nil {
+		return 0, fmt.Errorf("EthApiBackend failed to retrieve header for gas limit %v: %w", blockNrOrHash, err)
+	}
+	if header.GasLimit > 0 {
+		return header.GasLimit, nil
+	}
+	// The gasLimit of a specific block, is the one at the beginning of the block,
+	// not the end of it (the state_root of the header is the a state resulted of applying the block). So, the state to
+	// be used, MUST be the state result of the parent block
+	state, parent, err := b.StateAndHeaderByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockHash: &header.ParentHash})
 	if err != nil {
 		return 0, fmt.Errorf("EthApiBackend failed to retrieve state for block gas limit for block %v: %w", blockNrOrHash, err)
 	}
-
-	caller := b.eth.BlockChain().NewEVMRunner(header, statedb)
-	limit, err := blockchain_parameters.GetBlockGasLimit(caller)
+	vmRunner := b.eth.BlockChain().NewEVMRunner(parent, state)
+	limit, err := blockchain_parameters.GetBlockGasLimit(vmRunner)
 	if err != nil {
 		return 0, fmt.Errorf("EthApiBackend failed to retrieve block gas limit from blockchain parameters constract for block %v: %w", blockNrOrHash, err)
 	}
