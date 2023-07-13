@@ -325,6 +325,7 @@ func GenerateBadBlock(parent *types.Block, engine consensus.Engine, txs types.Tr
 		Extra:      CreateEmptyIstanbulExtra(nil),
 	}
 	if config.IsGingerbread(header.Number) {
+		header.GasLimit = params.DefaultGasLimit
 		if config.FakeBaseFee != nil {
 			header.BaseFee = config.FakeBaseFee
 		} else {
