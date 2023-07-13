@@ -69,7 +69,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		gp          = new(GasPool).AddGas(blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner))
 	)
 
-	// This checks that the baseFee and the gaLimit are correct.
+	// This checks that the baseFee and the gasLimit are correct.
 	// As we need state to address this, the header Verify is not useful because
 	// the client not necessary will have the state of the parent.
 	if p.config.IsGingerbread(header.Number) {
