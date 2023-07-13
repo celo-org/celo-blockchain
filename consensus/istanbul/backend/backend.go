@@ -615,8 +615,8 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (*istanbulCore.StateProces
 		parent := sb.chain.GetHeader(block.Header().ParentHash, block.Header().Number.Uint64()-1)
 
 		vmRunnerParent := sb.chain.NewEVMRunner(parent, state)
+		// Verify the header's EIP-1559 attributes.
 		if err := misc.VerifyEip1559Header(sb.chain.Config(), parent, block.Header(), vmRunnerParent); err != nil {
-			// Verify the header's EIP-1559 attributes.
 			return nil, 0, err
 		}
 	}

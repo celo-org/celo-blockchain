@@ -199,7 +199,12 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainHeaderReader, head
 			return err
 		}
 
-		if !chain.Config().IsGingerbread(header.Number) {
+		if chain.Config().IsGingerbread(header.Number) {
+			// Verify that the gasUsed is <= gasLimit
+			if header.GasUsed > header.GasLimit {
+				return fmt.Errorf("invalid gasUsed: have %d, gasLimit %d", header.GasUsed, header.GasLimit)
+			}
+		} else {
 			// Verify BaseFee not present before Gingerbread fork.
 			if header.BaseFee != nil {
 				return fmt.Errorf("invalid baseFee before fork: have %d, want <nil>", header.BaseFee)
@@ -207,11 +212,6 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainHeaderReader, head
 			// Verify GasLimit not bigger than zero before Gingerbread fork.
 			if header.GasLimit > 0 {
 				return fmt.Errorf("invalid gasLimit before fork: have %d, want <nil>", header.GasLimit)
-			}
-		} else {
-			// Verify that the gasUsed is <= gasLimit
-			if header.GasUsed > header.GasLimit {
-				return fmt.Errorf("invalid gasUsed: have %d, gasLimit %d", header.GasUsed, header.GasLimit)
 			}
 		}
 	} else if err := sb.checkEpochBlockExists(chain, header, parents); err != nil {
