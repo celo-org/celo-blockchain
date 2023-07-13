@@ -23,6 +23,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -282,7 +283,7 @@ func makeHeader(chain consensus.ChainHeaderReader, parent *types.Block, state *s
 		if chain.Config().FakeBaseFee != nil {
 			header.BaseFee = chain.Config().FakeBaseFee
 		} else {
-			header.BaseFee = common.Big0
+			header.BaseFee = misc.CalcBaseFeeEthereum(chain.Config(), parent.Header())
 		}
 		header.GasLimit = params.DefaultGasLimit
 		header.Difficulty = big.NewInt(0)

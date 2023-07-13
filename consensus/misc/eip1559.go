@@ -56,6 +56,9 @@ func VerifyEip1559Header(config *params.ChainConfig, parent, header *types.Heade
 func CalcBaseFee(config *params.ChainConfig, parent *types.Header, vmRunnerParent vm.EVMRunner) *big.Int {
 	var newBaseFee *big.Int
 	var err error
+	if config.FakeBaseFee != nil {
+		return config.FakeBaseFee
+	}
 	// If the current block is the first Gingerbread block, return the gasPriceMinimum on the state.
 	// If the parent is the genesis, the header won't have a gasLimit
 	if !config.IsGingerbread(parent.Number) || parent.Number.Uint64() == 0 {
@@ -79,6 +82,9 @@ func CalcBaseFee(config *params.ChainConfig, parent *types.Header, vmRunnerParen
 
 // CalcBaseFee calculates the basefee of the header.
 func CalcBaseFeeEthereum(config *params.ChainConfig, parent *types.Header) *big.Int {
+	if config.FakeBaseFee != nil {
+		return config.FakeBaseFee
+	}
 	// If the current block is the first EIP-1559 block, return the InitialBaseFee.
 	// If the parent is the genesis, the header won't have a gasLimit (celo)
 	if !config.IsGingerbread(parent.Number) || parent.Number.Uint64() == 0 {

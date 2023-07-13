@@ -22,6 +22,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -67,6 +68,21 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		vmRunner    = p.bc.NewEVMRunner(block.Header(), statedb)
 		gp          = new(GasPool).AddGas(blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner))
 	)
+
+	// This checks that the baseFee and the gaLimit are correct.
+	// As we need state to address this, the header Verify is not useful because
+	// the client not necessary will have the state of the parent.
+	if p.config.IsGingerbread(header.Number) {
+		parentHeader := p.bc.GetHeaderByHash(block.ParentHash())
+		// Needs the baseFee at the final state of the last block
+		parentVmRunner := p.bc.NewEVMRunner(parentHeader, statedb.Copy())
+		// Verifies both the gasLimit and the baseFee of the header are correct
+		err := misc.VerifyEip1559Header(p.config, parentHeader, header, parentVmRunner)
+		if err != nil {
+			return nil, nil, 0, err
+		}
+	}
+
 	if random.IsRunning(vmRunner) {
 		author, err := p.bc.Engine().Author(header)
 		if err != nil {
