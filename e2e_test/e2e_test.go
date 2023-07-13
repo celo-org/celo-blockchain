@@ -541,7 +541,8 @@ func TestRPCDynamicTxGasPriceWithState(t *testing.T) {
 	require.NoError(t, err)
 
 	// Prune state
-	err = pruneStateOfBlock(ctx, network[0], *json.BlockHash)
+	// As the gasPrice of the block N, is the one from the state of the block N-1, we need to prune the parent block
+	err = pruneStateOfBlock(ctx, network[0], new(big.Int).Sub(json.BlockNumber.ToInt(), common.Big1))
 	require.NoError(t, err)
 
 	var json2 *rpcCustomTransaction
@@ -619,9 +620,9 @@ func testRPCDynamicTxGasPriceWithoutState(t *testing.T, afterGingerbread, altern
 	// Create one block to be able to prune the last state
 	_, err = accounts[0].SendCeloTracked(ctx, accounts[1].Address, 1, network[0])
 	require.NoError(t, err)
-
 	// Prune state
-	err = pruneStateOfBlock(ctx, network[0], *json.BlockHash)
+	// As the gasPrice of the block N, is the one from the state of the block N-1, we need to prune the parent block
+	err = pruneStateOfBlock(ctx, network[0], new(big.Int).Sub(json.BlockNumber.ToInt(), common.Big1))
 	require.NoError(t, err)
 
 	var json2 *rpcCustomTransaction
@@ -640,9 +641,9 @@ func testRPCDynamicTxGasPriceWithoutState(t *testing.T, afterGingerbread, altern
 	}
 }
 
-func pruneStateOfBlock(ctx context.Context, node *test.Node, blockHash common.Hash) error {
+func pruneStateOfBlock(ctx context.Context, node *test.Node, blockNumber *big.Int) error {
 	var block *types.Block
-	block, err := node.WsClient.BlockByHash(ctx, blockHash)
+	block, err := node.WsClient.BlockByNumber(ctx, blockNumber)
 	if err != nil {
 		return err
 	}

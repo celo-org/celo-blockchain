@@ -52,10 +52,9 @@ func TestTransferCELO(t *testing.T) {
 	gateWayFeeRecipient := devAccounts[2]
 
 	// Get datum to set GasPrice/MaxFeePerGas/MaxPriorityFeePerGas to sensible values
-	header, err := network[0].WsClient.HeaderByNumber(ctx, common.Big0)
+	header, err := network[0].WsClient.HeaderByNumber(ctx, common.Big1)
 	require.NoError(t, err)
-	datum, err := network[0].Eth.APIBackend.GasPriceMinimumForHeader(ctx, nil, header)
-	require.NoError(t, err)
+	datum := header.BaseFee
 
 	testCases := []struct {
 		name        string
@@ -254,7 +253,7 @@ func TestTransferCELOPreGingerbread(t *testing.T) {
 	gateWayFeeRecipient := devAccounts[2]
 
 	// Get datum to set GasPrice/MaxFeePerGas/MaxPriorityFeePerGas to sensible values
-	header, err := network[0].WsClient.HeaderByNumber(ctx, common.Big0)
+	header, err := network[0].WsClient.HeaderByNumber(ctx, common.Big1)
 	require.NoError(t, err)
 	datum, err := network[0].Eth.APIBackend.GasPriceMinimumForHeader(ctx, nil, header)
 	require.NoError(t, err)
