@@ -65,7 +65,7 @@ var (
 		ChurritoBlock:       big.NewInt(0),
 		DonutBlock:          big.NewInt(0),
 		EspressoBlock:       big.NewInt(0),
-		GingerbreadBlock:    nil,
+		GingerbreadBlock:    big.NewInt(2800),
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
