@@ -62,9 +62,9 @@ var (
 		ConstantinopleBlock: big.NewInt(0),
 		PetersburgBlock:     big.NewInt(0),
 		IstanbulBlock:       big.NewInt(0),
-		ChurritoBlock:       big.NewInt(6774000),
-		DonutBlock:          big.NewInt(6774000),
-		EspressoBlock:       big.NewInt(11838440),
+		ChurritoBlock:       big.NewInt(0),
+		DonutBlock:          big.NewInt(0),
+		EspressoBlock:       big.NewInt(0),
 		GingerbreadBlock:    nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
