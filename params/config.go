@@ -91,7 +91,7 @@ var (
 		ChurritoBlock:       big.NewInt(2719099),
 		DonutBlock:          big.NewInt(5002000),
 		EspressoBlock:       big.NewInt(9195000),
-		GingerbreadBlock:    nil,
+		GingerbreadBlock:    big.NewInt(18733000),
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
