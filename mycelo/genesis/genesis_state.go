@@ -635,10 +635,14 @@ func (ctx *deployContext) deployValidators() error {
 
 func (ctx *deployContext) deployElection() error {
 	return ctx.deployCoreContract("contracts", "Election", func(contract *contract.EVMBackend) error {
+		maxValidators := ctx.genesisConfig.Election.MaxElectableValidators
+		if uint64(ctx.accounts.NumValidators) > maxValidators {
+			maxValidators = uint64(ctx.accounts.NumValidators)
+		}
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
 			newBigInt(ctx.genesisConfig.Election.MinElectableValidators),
-			newBigInt(ctx.genesisConfig.Election.MaxElectableValidators),
+			newBigInt(maxValidators),
 			ctx.genesisConfig.Election.MaxVotesPerAccount,
 			ctx.genesisConfig.Election.ElectabilityThreshold.BigInt(),
 		)
