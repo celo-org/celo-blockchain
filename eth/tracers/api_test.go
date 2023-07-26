@@ -567,7 +567,6 @@ func TestTraceBlockWithEIP1559Tx(t *testing.T) {
 				Code: testutil.RegistryProxyOpcodes,
 				Storage: map[common.Hash]common.Hash{
 					common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"): common.HexToHash("0xce11"), // Registry Implementation
-					common.HexToHash("0x91646b8507bf2e54d7c3de9155442ba111546b81af1cbdd1f68eeb6926b98d58"): common.HexToHash("0xd023"), // Governance Proxy
 				},
 				Balance: big.NewInt(0),
 			},
@@ -643,7 +642,6 @@ func TestTraceTransactionWithRegistryDeployed(t *testing.T) {
 			Code: testutil.RegistryProxyOpcodes,
 			Storage: map[common.Hash]common.Hash{
 				common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"): common.HexToHash("0xce11"), // Registry Implementation
-				common.HexToHash("0x91646b8507bf2e54d7c3de9155442ba111546b81af1cbdd1f68eeb6926b98d58"): common.HexToHash("0xd023"), // Governance Proxy
 			},
 			Balance: big.NewInt(0),
 		},
