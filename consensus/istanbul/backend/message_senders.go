@@ -17,6 +17,7 @@
 package backend
 
 import (
+	"fmt"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -58,6 +59,7 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 	} else {
 		destPeers := sb.getPeersFromDestAddresses(destAddresses)
 		if len(destPeers) > 0 {
+			fmt.Printf("[PEER] Multicasting %d bytes of payload to %d peers, code %d\n", len(payload), len(destPeers), ethMsgCode)
 			sb.asyncMulticast(destPeers, payload, ethMsgCode)
 		}
 	}
@@ -103,6 +105,8 @@ func (sb *Backend) Gossip(payload []byte, ethMsgCode uint64) error {
 		}
 	}
 
+	fmt.Printf("[PEER] Gossiping %d bytes of payload to %d peers, code %d\n", len(payload), len(peersToSendMsg), ethMsgCode)
+
 	sb.asyncMulticast(peersToSendMsg, payload, ethMsgCode)
 
 	return nil
@@ -126,5 +130,6 @@ func (sb *Backend) asyncMulticast(destPeers map[enode.ID]consensus.Peer, payload
 // Unicast asynchronously sends a message to a single peer.
 func (sb *Backend) Unicast(peer consensus.Peer, payload []byte, ethMsgCode uint64) {
 	peerMap := map[enode.ID]consensus.Peer{peer.Node().ID(): peer}
+	fmt.Printf("[PEER] Unicasting %d bytes of payload, code %d\n", len(payload), ethMsgCode)
 	sb.asyncMulticast(peerMap, payload, ethMsgCode)
 }

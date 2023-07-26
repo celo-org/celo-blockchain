@@ -17,6 +17,7 @@
 package proxy
 
 import (
+	"fmt"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -84,6 +85,7 @@ func (p *proxyEngine) handleForwardMsg(peer consensus.Peer, payload []byte) (boo
 
 	fwdMsg := istMsg.ForwardMessage()
 	logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
+	fmt.Println("Forwarding a message")
 	if err := p.backend.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code, false); err != nil {
 		logger.Error("Error in multicasting a forwarded message", "error", err)
 		return true, err
