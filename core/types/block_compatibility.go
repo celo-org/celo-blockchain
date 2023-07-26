@@ -86,12 +86,12 @@ func (h *Header) DecodeRLP(s *rlp.Stream) error {
 }
 
 func (h *Header) EncodeRLP(w io.Writer) error {
-	if h.Difficulty == nil {
+	if (h.UncleHash == common.Hash{}) {
 		// Before gingerbread hardfork Celo did not include all of
 		// Ethereum's header fields. In that case we must omit the new
 		// fields from the header when encoding as RLP to maintain the same encoding and hashes.
-		// `Difficulty` is a safe way to check, since it is always nil before
-		// gingerbread and always 0 after.
+		// `UncleHash` is a safe way to check, since it is the zero hash before
+		// gingerbread and non-zero after.
 		rlpFields := []interface{}{
 			h.ParentHash,
 			h.Coinbase,
