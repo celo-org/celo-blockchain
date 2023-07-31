@@ -42,7 +42,7 @@ const ProtocolName = "eth"
 var ProtocolVersions = []uint{ETH66}
 
 // maxMessageSize is the maximum cap on the size of a protocol message.
-const maxMessageSize = 10 * 1024 * 1024
+const maxMessageSize = 14 * 1024 * 1024
 
 const (
 	StatusMsg                     = 0x00
