@@ -103,7 +103,7 @@ var PrecompiledContractsIstanbul = map[common.Address]CeloPrecompiledContract{
 }
 
 // PrecompiledContractsDonut contains the default set of pre-compiled Ethereum
-// contracts used in the Donit release.
+// contracts used in the Donut release.
 var PrecompiledContractsDonut = map[common.Address]CeloPrecompiledContract{
 	common.BytesToAddress([]byte{1}): &wrap{&ecrecover{}},
 	common.BytesToAddress([]byte{2}): &wrap{&sha256hash{}},
@@ -148,9 +148,9 @@ var PrecompiledContractsDonut = map[common.Address]CeloPrecompiledContract{
 	celoPrecompileAddress(30): &getValidatorBLS{},
 }
 
-// PrecompiledContractsBerlin contains the default set of pre-compiled Ethereum
-// contracts used in the Berlin release.
-var PrecompiledContractsE = map[common.Address]CeloPrecompiledContract{
+// PrecompiledContractsEspresso contains the default set of pre-compiled Ethereum
+// contracts used in the Espresso release.
+var PrecompiledContractsEspresso = map[common.Address]CeloPrecompiledContract{
 	common.BytesToAddress([]byte{1}): &wrap{&ecrecover{}},
 	common.BytesToAddress([]byte{2}): &wrap{&sha256hash{}},
 	common.BytesToAddress([]byte{3}): &wrap{&ripemd160hash{}},
@@ -195,12 +195,62 @@ var PrecompiledContractsE = map[common.Address]CeloPrecompiledContract{
 	celoPrecompileAddress(30): &getValidatorBLS{},
 }
 
+// PrecompiledContractsGingerbread contains the default set of pre-compiled Ethereum
+// contracts used in the Gingerbread release.
+var PrecompiledContractsGingerbread = map[common.Address]CeloPrecompiledContract{
+	common.BytesToAddress([]byte{1}): &wrap{&ecrecover{}},
+	common.BytesToAddress([]byte{2}): &wrap{&sha256hash{}},
+	common.BytesToAddress([]byte{3}): &wrap{&ripemd160hash{}},
+	common.BytesToAddress([]byte{4}): &wrap{&dataCopy{}},
+	common.BytesToAddress([]byte{5}): &wrap{&bigModExp{eip2565: true}},
+	common.BytesToAddress([]byte{6}): &wrap{&bn256AddIstanbul{}},
+	common.BytesToAddress([]byte{7}): &wrap{&bn256ScalarMulIstanbul{}},
+	common.BytesToAddress([]byte{8}): &wrap{&bn256PairingIstanbul{}},
+	common.BytesToAddress([]byte{9}): &wrap{&blake2F{}},
+
+	// Celo Precompiled Contracts
+	celoPrecompileAddress(2):  &transfer{},
+	celoPrecompileAddress(3):  &fractionMulExp{},
+	celoPrecompileAddress(4):  &wrap{&proofOfPossession{}},
+	celoPrecompileAddress(5):  &getValidator{},
+	celoPrecompileAddress(6):  &numberValidators{},
+	celoPrecompileAddress(7):  &epochSize{},
+	celoPrecompileAddress(8):  &wrap{&blockNumberFromHeader{}},
+	celoPrecompileAddress(9):  &wrap{&hashHeader{}},
+	celoPrecompileAddress(10): &getParentSealBitmap{},
+	celoPrecompileAddress(11): &getVerifiedSealBitmap{},
+
+	// New in Donut hard fork
+	celoPrecompileAddress(12): &ed25519Verify{},
+	celoPrecompileAddress(13): &wrap{&bls12381G1Add{}},
+	celoPrecompileAddress(14): &wrap{&bls12381G1Mul{}},
+	celoPrecompileAddress(15): &wrap{&bls12381G1MultiExp{}},
+	celoPrecompileAddress(16): &wrap{&bls12381G2Add{}},
+	celoPrecompileAddress(17): &wrap{&bls12381G2Mul{}},
+	celoPrecompileAddress(18): &wrap{&bls12381G2MultiExp{}},
+	celoPrecompileAddress(19): &wrap{&bls12381Pairing{}},
+	celoPrecompileAddress(20): &wrap{&bls12381MapG1{}},
+	celoPrecompileAddress(21): &wrap{&bls12381MapG2{}},
+	celoPrecompileAddress(29): &wrap{&cip20HashFunctions{Cip20HashesDonut}},
+	celoPrecompileAddress(30): &getValidatorBLS{},
+
+	// Precompiles removed in Gingerbread hard fork
+	// * bls12377G1Add
+	// * bls12377G1Mul
+	// * bls12377G1MultiExp
+	// * bls12377G2Add
+	// * bls12377G2Mul
+	// * bls12377G2MultiExp
+	// * bls12377Pairing
+}
+
 var (
-	PrecompiledAddressesE         []common.Address
-	PrecompiledAddressesDonut     []common.Address
-	PrecompiledAddressesIstanbul  []common.Address
-	PrecompiledAddressesByzantium []common.Address
-	PrecompiledAddressesHomestead []common.Address
+	PrecompiledAddressesGingerbread []common.Address
+	PrecompiledAddressesEspresso    []common.Address
+	PrecompiledAddressesDonut       []common.Address
+	PrecompiledAddressesIstanbul    []common.Address
+	PrecompiledAddressesByzantium   []common.Address
+	PrecompiledAddressesHomestead   []common.Address
 )
 
 func init() {
@@ -216,16 +266,21 @@ func init() {
 	for k := range PrecompiledContractsDonut {
 		PrecompiledAddressesDonut = append(PrecompiledAddressesDonut, k)
 	}
-	for k := range PrecompiledContractsE {
-		PrecompiledAddressesE = append(PrecompiledAddressesE, k)
+	for k := range PrecompiledContractsEspresso {
+		PrecompiledAddressesEspresso = append(PrecompiledAddressesEspresso, k)
+	}
+	for k := range PrecompiledContractsGingerbread {
+		PrecompiledAddressesGingerbread = append(PrecompiledAddressesGingerbread, k)
 	}
 }
 
 // ActivePrecompiles returns the precompiles enabled with the current configuration.
 func ActivePrecompiles(rules params.Rules) []common.Address {
 	switch {
+	case rules.IsGingerbread:
+		return PrecompiledAddressesGingerbread
 	case rules.IsEspresso:
-		return PrecompiledAddressesE
+		return PrecompiledAddressesEspresso
 	case rules.IsDonut:
 		return PrecompiledAddressesDonut
 	case rules.IsIstanbul:
