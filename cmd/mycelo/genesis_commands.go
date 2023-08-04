@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/internal/fileutils"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
@@ -139,6 +140,8 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 		} else {
 			gingerbreadBlock = big.NewInt(gingerbreadBlockNumber)
 		}
+	} else {
+		gingerbreadBlock = common.Big1
 	}
 
 	// Genesis config
@@ -184,8 +187,6 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 			genesisConfig.Hardforks.EspressoBlock = big.NewInt(espressoBlockNumber)
 		}
 	}
-
-	genesisConfig.Hardforks.GingerbreadBlock = gingerbreadBlock
 
 	if ctx.IsSet("forks.gingerbreadp2") {
 		gingerbreadP2BlockNumber := ctx.Int64("forks.gingerbreadp2")
