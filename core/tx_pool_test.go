@@ -154,6 +154,23 @@ func dynamicFeeTx(nonce uint64, gaslimit uint64, gasFee *big.Int, tip *big.Int, 
 	return tx
 }
 
+func celoDynamicFeeTxV2(nonce uint64, gaslimit uint64, gasFee *big.Int, tip *big.Int, key *ecdsa.PrivateKey) *types.Transaction {
+	feeCurrency := common.HexToAddress("02")
+	tx, _ := types.SignNewTx(key, types.LatestSignerForChainID(params.TestChainConfig.ChainID), &types.CeloDynamicFeeTxV2{
+		ChainID:     params.TestChainConfig.ChainID,
+		Nonce:       nonce,
+		GasTipCap:   tip,
+		GasFeeCap:   gasFee,
+		Gas:         gaslimit,
+		FeeCurrency: &feeCurrency,
+		To:          &common.Address{},
+		Value:       big.NewInt(100),
+		Data:        nil,
+		AccessList:  nil,
+	})
+	return tx
+}
+
 func setupTxPool() (*TxPool, *ecdsa.PrivateKey) {
 	return setupTxPoolWithConfig(params.TestChainConfig)
 }
@@ -377,6 +394,7 @@ func TestInvalidTransactionsPreGingerbread(t *testing.T) {
 	pool, key := setupTxPool()
 	defer pool.Stop()
 	pool.gingerbread = false
+	pool.gingerbreadP2 = false
 
 	tx := transaction(0, 100, key)
 	from, _ := deriveSender(tx)
@@ -419,6 +437,12 @@ func TestInvalidTransactionsPreGingerbread(t *testing.T) {
 	}
 	if err := pool.AddLocal(tx); err != nil {
 		t.Error("expected", nil, "got", err)
+	}
+
+	// Adding a gateway fee should result in insufficient funds again.
+	tx = celoDynamicFeeTxV2(0, 100, big.NewInt(50), big.NewInt(10), key)
+	if err := pool.AddRemote(tx); err != ErrTxTypeNotSupported {
+		t.Error("expected", ErrTxTypeNotSupported)
 	}
 }
 

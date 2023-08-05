@@ -149,6 +149,10 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, gp *GasPool
 		}
 	}
 
+	if !config.IsGingerbreadP2(blockNumber) && tx.Type() == types.CeloDynamicFeeTxV2Type {
+		return nil, ErrTxTypeNotSupported
+	}
+
 	// Create a new context to be used in the EVM environment
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
