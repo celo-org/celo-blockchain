@@ -298,7 +298,7 @@ func (t *Transaction) UnmarshalJSON(input []byte) error {
 			}
 		}
 
-	case CeloDynamicFeeTxType:
+	case CeloDynamicFeeTxType, CeloDynamicFeeTxV2Type:
 		var itx CeloDynamicFeeTx
 		inner = &itx
 		// Access list is optional for now.
@@ -329,10 +329,12 @@ func (t *Transaction) UnmarshalJSON(input []byte) error {
 		}
 		itx.Gas = uint64(*dec.Gas)
 		itx.FeeCurrency = dec.FeeCurrency
-		itx.GatewayFeeRecipient = dec.GatewayFeeRecipient
-		itx.GatewayFee = new(big.Int)
-		if dec.GatewayFee != nil {
-			itx.GatewayFee.Set((*big.Int)(dec.GatewayFee))
+		if dec.Type == CeloDynamicFeeTxType {
+			itx.GatewayFeeRecipient = dec.GatewayFeeRecipient
+			itx.GatewayFee = new(big.Int)
+			if dec.GatewayFee != nil {
+				itx.GatewayFee.Set((*big.Int)(dec.GatewayFee))
+			}
 		}
 		if dec.Value == nil {
 			return errors.New("missing required field 'value' in transaction")

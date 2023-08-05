@@ -1306,12 +1306,21 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		result.BlockNumber = (*hexutil.Big)(new(big.Int).SetUint64(blockNumber))
 		result.TransactionIndex = (*hexutil.Uint64)(&index)
 	}
+	// Celo specifics
+	if tx.Type() == types.LegacyTxType || tx.Type() == types.CeloDynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxV2Type {
+		result.FeeCurrency = tx.FeeCurrency()
+		if tx.Type() != types.CeloDynamicFeeTxV2Type {
+			result.GatewayFeeRecipient = tx.GatewayFeeRecipient()
+			result.GatewayFee = (*hexutil.Big)(tx.GatewayFee())
+		}
+	}
+
 	switch tx.Type() {
 	case types.AccessListTxType:
 		al := tx.AccessList()
 		result.Accesses = &al
 		result.ChainID = (*hexutil.Big)(tx.ChainId())
-	case types.DynamicFeeTxType, types.CeloDynamicFeeTxType:
+	case types.DynamicFeeTxType, types.CeloDynamicFeeTxType, types.CeloDynamicFeeTxV2Type:
 		al := tx.AccessList()
 		result.Accesses = &al
 		result.ChainID = (*hexutil.Big)(tx.ChainId())
@@ -1648,7 +1657,7 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 		fields["effectiveGasPrice"] = hexutil.Uint64(tx.GasPrice().Uint64())
 	} else {
 		// var gasPrice *big.Int = new(big.Int)
-		if tx.Type() == types.DynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxType {
+		if tx.Type() == types.DynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxV2Type {
 			header, err := s.b.HeaderByHash(ctx, blockHash)
 			if err != nil {
 				return nil, err
