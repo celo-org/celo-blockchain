@@ -222,19 +222,19 @@ var PrecompiledContractsGingerbread = map[common.Address]CeloPrecompiledContract
 
 	// New in Donut hard fork
 	celoPrecompileAddress(12): &ed25519Verify{},
-	celoPrecompileAddress(13): &wrap{&bls12381G1Add{}},
-	celoPrecompileAddress(14): &wrap{&bls12381G1Mul{}},
-	celoPrecompileAddress(15): &wrap{&bls12381G1MultiExp{}},
-	celoPrecompileAddress(16): &wrap{&bls12381G2Add{}},
-	celoPrecompileAddress(17): &wrap{&bls12381G2Mul{}},
-	celoPrecompileAddress(18): &wrap{&bls12381G2MultiExp{}},
-	celoPrecompileAddress(19): &wrap{&bls12381Pairing{}},
-	celoPrecompileAddress(20): &wrap{&bls12381MapG1{}},
-	celoPrecompileAddress(21): &wrap{&bls12381MapG2{}},
 	celoPrecompileAddress(29): &wrap{&cip20HashFunctions{Cip20HashesDonut}},
 	celoPrecompileAddress(30): &getValidatorBLS{},
 
 	// Precompiles removed in Gingerbread hard fork
+	// * bls12381G1Add
+	// * bls12381G1Mul
+	// * bls12381G1MultiExp
+	// * bls12381G2Add
+	// * bls12381G2Mul
+	// * bls12381G2MultiExp
+	// * bls12381Pairing
+	// * bls12381MapG1
+	// * bls12381MapG2
 	// * bls12377G1Add
 	// * bls12377G1Mul
 	// * bls12377G1MultiExp
