@@ -185,6 +185,7 @@ func makeGenesis(faucets []*ecdsa.PrivateKey) *core.Genesis {
 
 	genesis.Config = params.BaklavaChainConfig
 	genesis.Config.GingerbreadBlock = gingerbreadBlock
+	genesis.Config.GingerbreadP2Block = gingerbreadBlock
 
 	genesis.Config.ChainID = big.NewInt(18)
 	genesis.Config.EIP150Hash = common.Hash{}

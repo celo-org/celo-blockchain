@@ -58,6 +58,10 @@ var templateFlags = []cli.Flag{
 		Name:  "forks.gingerbread",
 		Usage: "Optional flag to allow gingerbread fork overwritting (default: 0, disable: -1)",
 	},
+	cli.Int64Flag{
+		Name:  "forks.gingerbreadp2",
+		Usage: "Optional flag to allow gingerbread p2 fork overwritting (default: 0, disable: -1)",
+	},
 }
 
 var buildpathFlag = cli.StringFlag{
@@ -182,6 +186,15 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 	}
 
 	genesisConfig.Hardforks.GingerbreadBlock = gingerbreadBlock
+
+	if ctx.IsSet("forks.gingerbreadp2") {
+		gingerbreadP2BlockNumber := ctx.Int64("forks.gingerbreadp2")
+		if gingerbreadP2BlockNumber < 0 {
+			genesisConfig.Hardforks.GingerbreadP2Block = nil
+		} else {
+			genesisConfig.Hardforks.GingerbreadP2Block = big.NewInt(gingerbreadP2BlockNumber)
+		}
+	}
 
 	return env, genesisConfig, nil
 }

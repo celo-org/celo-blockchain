@@ -74,6 +74,7 @@ var (
 		utils.USBFlag,
 		// utils.SmartCardDaemonPathFlag,
 		utils.OverrideGingerbreadFlag,
+		utils.OverrideGingerbreadP2Flag,
 		utils.TxPoolLocalsFlag,
 		utils.TxPoolNoLocalsFlag,
 		utils.TxPoolJournalFlag,
