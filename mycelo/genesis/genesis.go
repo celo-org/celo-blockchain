@@ -37,10 +37,11 @@ func CreateCommonGenesisConfig(chainID *big.Int, adminAccountAddress common.Addr
 	genesisConfig.GenesisTimestamp = uint64(time.Now().Unix())
 	genesisConfig.Istanbul = istanbulConfig
 	genesisConfig.Hardforks = HardforkConfig{
-		ChurritoBlock:    common.Big0,
-		DonutBlock:       common.Big0,
-		EspressoBlock:    common.Big0,
-		GingerbreadBlock: gingerbreadBlock,
+		ChurritoBlock:      common.Big0,
+		DonutBlock:         common.Big0,
+		EspressoBlock:      common.Big0,
+		GingerbreadBlock:   gingerbreadBlock,
+		GingerbreadP2Block: gingerbreadBlock,
 	}
 
 	// Make admin account manager of Governance & Reserve

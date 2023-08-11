@@ -52,6 +52,7 @@ func TestStateProcessorErrors(t *testing.T) {
 			DonutBlock:          big.NewInt(0),
 			EspressoBlock:       big.NewInt(0),
 			GingerbreadBlock:    big.NewInt(0),
+			GingerbreadP2Block:  big.NewInt(0),
 			Faker:               true,
 			FakeBaseFee:         common.Big3,
 		}

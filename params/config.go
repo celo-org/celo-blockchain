@@ -646,6 +646,7 @@ func (c *ChainConfig) OverrideChainIdConfig(chainId *big.Int) *ChainConfig {
 
 func (c *ChainConfig) DisableGingerbread() *ChainConfig {
 	c.GingerbreadBlock = nil
+	c.GingerbreadP2Block = nil
 	return c
 }
 
