@@ -222,7 +222,6 @@ var PrecompiledContractsGingerbreadP2 = map[common.Address]CeloPrecompiledContra
 
 	// New in Donut hard fork
 	celoPrecompileAddress(12): &ed25519Verify{},
-	celoPrecompileAddress(29): &wrap{&cip20HashFunctions{Cip20HashesDonut}},
 	celoPrecompileAddress(30): &getValidatorBLS{},
 
 	// Precompiles removed in Gingerbread P2 hard fork
@@ -242,6 +241,7 @@ var PrecompiledContractsGingerbreadP2 = map[common.Address]CeloPrecompiledContra
 	// * bls12377G2Mul
 	// * bls12377G2MultiExp
 	// * bls12377Pairing
+	// * cip20HashFunctions
 }
 
 var (
