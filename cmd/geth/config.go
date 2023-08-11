@@ -161,6 +161,9 @@ func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 	if ctx.GlobalIsSet(utils.OverrideGingerbreadFlag.Name) {
 		cfg.Eth.OverrideGingerbread = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideGingerbreadFlag.Name))
 	}
+	if ctx.GlobalIsSet(utils.OverrideGingerbreadP2Flag.Name) {
+		cfg.Eth.OverrideGingerbreadP2 = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideGingerbreadP2Flag.Name))
+	}
 	backend, _ := utils.RegisterEthService(stack, &cfg.Eth)
 
 	// Configure GraphQL if requested
