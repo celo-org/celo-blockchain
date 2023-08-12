@@ -135,6 +135,16 @@ func TestTransferCELO(t *testing.T) {
 			},
 			expectedErr: core.ErrGatewayFeeDeprecated,
 		},
+		{
+			name: "CeloDynamicFeeTxV2Type - MaxPriorityFeePerGas",
+			txArgs: &ethapi.TransactionArgs{
+				To:                   &recipient.Address,
+				Value:                (*hexutil.Big)(new(big.Int).SetInt64(oneCelo)),
+				MaxFeePerGas:         (*hexutil.Big)(datum.Mul(datum, new(big.Int).SetInt64(4))),
+				MaxPriorityFeePerGas: (*hexutil.Big)(datum),
+			},
+			expectedErr: nil,
+		},
 	}
 
 	// Get feeHandlerAddress
@@ -186,7 +196,7 @@ func TestTransferCELO(t *testing.T) {
 			case types.LegacyTxType, types.AccessListTxType:
 				fee := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(receipt.GasUsed))
 				expected = new(big.Int).Sub(fee, baseFee)
-			case types.DynamicFeeTxType, types.CeloDynamicFeeTxType:
+			case types.DynamicFeeTxType, types.CeloDynamicFeeTxType, types.CeloDynamicFeeTxV2Type:
 				expected = tx.EffectiveGasTipValue(gpm)
 				expected.Mul(expected, new(big.Int).SetUint64(receipt.GasUsed))
 			}
@@ -198,7 +208,7 @@ func TestTransferCELO(t *testing.T) {
 			switch tx.Type() {
 			case types.LegacyTxType, types.AccessListTxType:
 				fee = new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(receipt.GasUsed))
-			case types.DynamicFeeTxType, types.CeloDynamicFeeTxType:
+			case types.DynamicFeeTxType, types.CeloDynamicFeeTxType, types.CeloDynamicFeeTxV2Type:
 				tip := tx.EffectiveGasTipValue(gpm)
 				tip.Mul(tip, new(big.Int).SetUint64(receipt.GasUsed))
 				fee = new(big.Int).Add(tip, baseFee)
@@ -362,7 +372,7 @@ func TestTransferCELOPreGingerbread(t *testing.T) {
 			case types.LegacyTxType, types.AccessListTxType:
 				fee := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(receipt.GasUsed))
 				expected = new(big.Int).Sub(fee, baseFee)
-			case types.DynamicFeeTxType, types.CeloDynamicFeeTxType:
+			case types.DynamicFeeTxType, types.CeloDynamicFeeTxType, types.CeloDynamicFeeTxV2Type:
 				expected = tx.EffectiveGasTipValue(gpm)
 				expected.Mul(expected, new(big.Int).SetUint64(receipt.GasUsed))
 			}
@@ -374,7 +384,7 @@ func TestTransferCELOPreGingerbread(t *testing.T) {
 			switch tx.Type() {
 			case types.LegacyTxType, types.AccessListTxType:
 				fee = new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(receipt.GasUsed))
-			case types.DynamicFeeTxType, types.CeloDynamicFeeTxType:
+			case types.DynamicFeeTxType, types.CeloDynamicFeeTxType, types.CeloDynamicFeeTxV2Type:
 				tip := tx.EffectiveGasTipValue(gpm)
 				tip.Mul(tip, new(big.Int).SetUint64(receipt.GasUsed))
 				fee = new(big.Int).Add(tip, baseFee)

@@ -274,20 +274,35 @@ func (args *TransactionArgs) toTransaction() *types.Transaction {
 		if args.AccessList != nil {
 			al = *args.AccessList
 		}
-		if args.FeeCurrency != nil || args.GatewayFeeRecipient != nil || args.GatewayFee != nil {
-			data = &types.CeloDynamicFeeTx{
-				To:                  args.To,
-				ChainID:             (*big.Int)(args.ChainID),
-				Nonce:               uint64(*args.Nonce),
-				Gas:                 uint64(*args.Gas),
-				GasFeeCap:           (*big.Int)(args.MaxFeePerGas),
-				GasTipCap:           (*big.Int)(args.MaxPriorityFeePerGas),
-				FeeCurrency:         args.FeeCurrency,
-				GatewayFeeRecipient: args.GatewayFeeRecipient,
-				GatewayFee:          (*big.Int)(args.GatewayFee),
-				Value:               (*big.Int)(args.Value),
-				Data:                args.data(),
-				AccessList:          al,
+		if args.FeeCurrency != nil {
+			if args.GatewayFeeRecipient != nil || args.GatewayFee != nil {
+				data = &types.CeloDynamicFeeTx{
+					To:                  args.To,
+					ChainID:             (*big.Int)(args.ChainID),
+					Nonce:               uint64(*args.Nonce),
+					Gas:                 uint64(*args.Gas),
+					GasFeeCap:           (*big.Int)(args.MaxFeePerGas),
+					GasTipCap:           (*big.Int)(args.MaxPriorityFeePerGas),
+					FeeCurrency:         args.FeeCurrency,
+					GatewayFeeRecipient: args.GatewayFeeRecipient,
+					GatewayFee:          (*big.Int)(args.GatewayFee),
+					Value:               (*big.Int)(args.Value),
+					Data:                args.data(),
+					AccessList:          al,
+				}
+			} else {
+				data = &types.CeloDynamicFeeTxV2{
+					To:          args.To,
+					ChainID:     (*big.Int)(args.ChainID),
+					Nonce:       uint64(*args.Nonce),
+					Gas:         uint64(*args.Gas),
+					GasFeeCap:   (*big.Int)(args.MaxFeePerGas),
+					GasTipCap:   (*big.Int)(args.MaxPriorityFeePerGas),
+					FeeCurrency: args.FeeCurrency,
+					Value:       (*big.Int)(args.Value),
+					Data:        args.data(),
+					AccessList:  al,
+				}
 			}
 		} else {
 			data = &types.DynamicFeeTx{

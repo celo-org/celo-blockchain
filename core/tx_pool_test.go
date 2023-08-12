@@ -439,7 +439,7 @@ func TestInvalidTransactionsPreGingerbread(t *testing.T) {
 		t.Error("expected", nil, "got", err)
 	}
 
-	// Adding a gateway fee should result in insufficient funds again.
+	// Sending a celo dynamic fee tx v2 before gingerbreadP2 shouldn't be supported
 	tx = celoDynamicFeeTxV2(0, 100, big.NewInt(50), big.NewInt(10), key)
 	if err := pool.AddRemote(tx); err != ErrTxTypeNotSupported {
 		t.Error("expected", ErrTxTypeNotSupported)

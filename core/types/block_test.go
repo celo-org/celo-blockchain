@@ -220,6 +220,57 @@ func TestEIP2718BlockEncoding(t *testing.T) {
 	}
 }
 
+// Generated with the util method:
+// createBlock -> CeloLegacy: 1, Legacy: 1, AccessListTxs: 1, DynamicFeeTxs: 1, CeloDynamicFeeTxs: 1, CeloDynamicFeeTxV2s: 1
+func TestGingerbreadV2lockEncoding(t *testing.T) {
+	blockEnc := common.FromHex("f90708f9022ca07285abd5b24742f184ad676e31f6054663b3529bc35ea2fcad8a3e0f642a46f7a01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347948888f1f195afa192cfee860698584c030f4c9db1a0ecc60e00b3fe5ce9f6e1a10e5469764daf51f1fe93c22ec3f9a7583a80357217a00f8a85b2cefc3f3bdcd594cbfe6d2b3dc0cfa325c13e460f43625cc7f87e7efaa0f865bb301e7e1fa1770408b78883905d5c1fbc85f2075e73ddb25af0cecb13acb9010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000808230398401312d0083056ea0845c47775cad636f6f6c65737420626c6f636b206f6e20636861696e00000000000000000000ccc0c08080c3808080c3808080a00000000000000000000000000000000000000000000000000000000000000000880000000000000000843b9aca00f9048ff8c980830493e082520894095e7baea6a6c7c4c2dfeb977efac326af552d8701b86400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000820a95a0e09f33982929a4add7fbdfa141ede280ad09df5d8c0d5ef22c202f478c5305cda04d8cd766b308105decc48f5cd8289c245aa995e02c71e055b82208b84df8706af8f601830493e082c3509400000000000000000000000000000000000000009400000000000000000000000000000000000000008203e894095e7baea6a6c7c4c2dfeb977efac326af552d8702b86400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000820a95a04717584a10d5110650886b986cec7ce034d728c6a465aa9f704ed0db5d9910fda039896cfff456020df764639d6a5e008f524a32751e0feddba1913e41a821c18eb89f01f89c820539800a82ea6094095e7baea6a6c7c4c2dfeb977efac326af552d878080f838f7940000000000000000000000000000000000000001e1a0000000000000000000000000000000000000000000000000000000000000000080a0b6d96a8750fa226d63a875982a7e8fd202052b21d7d1223875ee9edc2afa65b9a01b672ceba49eea32c55fcbbdc34761d7aa526352bcfe9bc9ec9216c9a507aa4ab8a102f89e82053980800a8301117094095e7baea6a6c7c4c2dfeb977efac326af552d878080f838f7940000000000000000000000000000000000000001e1a0000000000000000000000000000000000000000000000000000000000000000080a01e1b9068708d66b00e498033d9889c8e805df0b21418274756373f02e0d860cda07cb202948fd2a5a7c2cdbda3243794ba77dc0d2670443c227684da3eaf6e6788b8ce7cf8cb82053980800a830124f89400000000000000000000000000000000000000009400000000000000000000000000000000000000008203e894095e7baea6a6c7c4c2dfeb977efac326af552d878080f838f7940000000000000000000000000000000000000001e1a0000000000000000000000000000000000000000000000000000000000000000001a0766de8871b9c0fd6a3c71346b1cf1c77c0b4659f07c3abaf2a6fb214d6bc08eda05a5410312a20d3ea3c61ed8690eaf730aa966a55863a6fa6b71809af559662cbb8b67bf8b382053980800a8301388094095e7baea6a6c7c4c2dfeb977efac326af552d878080f838f7940000000000000000000000000000000000000001e1a0000000000000000000000000000000000000000000000000000000000000000094000000000000000000000000000000000000000080a0a81c34f55be71cc51b5cd54dcf67751cd48d8b68cb4f164ade9adbdacf174fa0a00824cb6411645c936d000b3f6def4a85c6409d9063ddbd6700b3fc394aea5d15f842a00000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000c28080")
+	var block Block
+	if err := rlp.DecodeBytes(blockEnc, &block); err != nil {
+		t.Fatal("decode error: ", err)
+	}
+
+	check := func(f string, got, want interface{}) {
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%s mismatch: got %v, want %v", f, got, want)
+		}
+	}
+	check("GasUsed", block.GasUsed(), uint64(356000))
+	check("Coinbase", block.Coinbase(), common.HexToAddress("8888f1f195afa192cfee860698584c030f4c9db1"))
+	check("Root", block.Root(), common.HexToHash("ecc60e00b3fe5ce9f6e1a10e5469764daf51f1fe93c22ec3f9a7583a80357217"))
+	check("Hash", block.Hash(), common.HexToHash("ed02502c2a563fb874fa478864a117e01605c354b9e360ce502ddabeb3d831c7"))
+	check("Time", block.Time(), uint64(1548187484))
+	check("Size", block.Size(), common.StorageSize(len(blockEnc)))
+	check("ParentHash", block.ParentHash(), common.HexToHash("7285abd5b24742f184ad676e31f6054663b3529bc35ea2fcad8a3e0f642a46f7"))
+	check("Extra", block.Extra(), emptyIstanbulExtra([]byte("coolest block on chain")))
+
+	check("BaseFee", block.BaseFee(), new(big.Int).SetUint64(1000000000))
+	check("GasLimit", block.GasLimit(), uint64(20000000))
+	check("Difficulty", block.Difficulty(), common.Big0)
+	check("Nonce", block.Nonce(), uint64(0))
+	check("UncleHash", block.UncleHash(), EmptyUncleHash)
+	check("MixDigest", block.MixDigest(), EmptyMixDigest)
+
+	check("len(Transactions)", len(block.Transactions()), 6)
+	check("Transactions[0].Hash", block.Transactions()[0].Hash(), common.HexToHash("0x5f5c93fe4605a4158b5a8bdbec58f22572ff87d01decfad4ed5c7566021331f7"))
+	check("Transactions[1].Hash", block.Transactions()[1].Hash(), common.HexToHash("0xb546fe9757ce8ce90f70ffc0d3c9fe487e959dfc0b3ca228ada5aa7adcd3ba65"))
+	check("Transactions[2].Hash", block.Transactions()[2].Hash(), common.HexToHash("0xf8788e8994bf97da1a657bdad7f4d35c1ddc0cee3eab9568a1efbbfb1e51052f"))
+	check("Transactions[2].Type()", block.Transactions()[2].Type(), uint8(AccessListTxType))
+	check("Transactions[3].Hash", block.Transactions()[3].Hash(), common.HexToHash("0x500c64fd686616af63e4ac35425dd650f3b55a2dfb6c31589ff257cd73f32df0"))
+	check("Transactions[3].Type()", block.Transactions()[3].Type(), uint8(DynamicFeeTxType))
+	check("Transactions[4].Hash", block.Transactions()[4].Hash(), common.HexToHash("0xed4909f536a88b0c3f156f0d70f462cbafa3f915438da1f4833a9ddf1e0e2fe3"))
+	check("Transactions[4].Type()", block.Transactions()[4].Type(), uint8(CeloDynamicFeeTxType))
+	check("Transactions[5].Hash", block.Transactions()[5].Hash(), common.HexToHash("0x12ced3dd929528b94d2ffa9bafa724cd68470d6532675f164b28fd0518f64350"))
+	check("Transactions[5].Type()", block.Transactions()[5].Type(), uint8(CeloDynamicFeeTxV2Type))
+
+	ourBlockEnc, err := rlp.EncodeToBytes(&block)
+	if err != nil {
+		t.Fatal("encode error: ", err)
+	}
+	if !bytes.Equal(ourBlockEnc, blockEnc) {
+		t.Errorf("encoded block mismatch:\ngot:  %x\nwant: %x", ourBlockEnc, blockEnc)
+	}
+}
+
 var benchBuffer = bytes.NewBuffer(make([]byte, 0, 32000))
 
 func BenchmarkEncodeBlock(b *testing.B) {
@@ -295,19 +346,20 @@ func makeBenchBlock() *Block {
 	return NewBlock(header, txs, receipts, nil, newHasher())
 }
 
-func createBlock(legacyTxs, celoLegacyTxs, accessListTxs, dynamicFeeTxs, celoDynamicFeeTxs uint) {
+func createBlock(legacyTxs, celoLegacyTxs, accessListTxs, dynamicFeeTxs, celoDynamicFeeTxs, celoDynamicFeeTxV2s uint) {
 	var (
-		key, _     = crypto.GenerateKey()
-		txs        = make([]*Transaction, legacyTxs+celoLegacyTxs+accessListTxs+dynamicFeeTxs+celoDynamicFeeTxs)
-		receipts   = make([]*Receipt, len(txs))
-		signer     = LatestSigner(params.TestChainConfig)
-		to         = common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87")
-		chainID    = params.TestChainConfig.ChainID
-		parentHash = common.HexToHash("7285abd5b24742f184ad676e31f6054663b3529bc35ea2fcad8a3e0f642a46f7")
-		coinbase   = common.HexToAddress("8888f1f195afa192cfee860698584c030f4c9db1")
-		time       = uint64(1548187484)
-		number     = big.NewInt(12345)
-		root       = common.HexToHash("ecc60e00b3fe5ce9f6e1a10e5469764daf51f1fe93c22ec3f9a7583a80357217")
+		key, _          = crypto.GenerateKey()
+		txs             = make([]*Transaction, legacyTxs+celoLegacyTxs+accessListTxs+dynamicFeeTxs+celoDynamicFeeTxs+celoDynamicFeeTxV2s)
+		receipts        = make([]*Receipt, len(txs))
+		signer          = LatestSigner(params.TestChainConfig)
+		to              = common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87")
+		chainID         = params.TestChainConfig.ChainID
+		parentHash      = common.HexToHash("7285abd5b24742f184ad676e31f6054663b3529bc35ea2fcad8a3e0f642a46f7")
+		coinbase        = common.HexToAddress("8888f1f195afa192cfee860698584c030f4c9db1")
+		time            = uint64(1548187484)
+		number          = big.NewInt(12345)
+		root            = common.HexToHash("ecc60e00b3fe5ce9f6e1a10e5469764daf51f1fe93c22ec3f9a7583a80357217")
+		gingerbreadFork = celoDynamicFeeTxV2s > 0
 	)
 	header := &Header{
 		ParentHash: parentHash,
@@ -316,6 +368,15 @@ func createBlock(legacyTxs, celoLegacyTxs, accessListTxs, dynamicFeeTxs, celoDyn
 		Number:     number,
 		Time:       time,
 		Extra:      emptyIstanbulExtra([]byte("coolest block on chain")),
+	}
+	// Gingerbread Fork
+	if gingerbreadFork {
+		header.BaseFee = new(big.Int).SetUint64(params.InitialBaseFee)
+		header.GasLimit = params.DefaultGasLimit
+		header.Difficulty = big.NewInt(0)
+		header.Nonce = EncodeNonce(0)
+		header.UncleHash = EmptyUncleHash
+		header.MixDigest = EmptyMixDigest
 	}
 	var gasAccumulator uint64 = 0
 	for i := range txs {
@@ -359,7 +420,7 @@ func createBlock(legacyTxs, celoLegacyTxs, accessListTxs, dynamicFeeTxs, celoDyn
 					AccessList: accesses,
 					Data:       []byte{},
 				})
-				dynamicFeeTxs -= 0
+				dynamicFeeTxs -= 1
 			} else if celoDynamicFeeTxs > 0 {
 				tx = NewTx(&CeloDynamicFeeTx{
 					ChainID:             chainID,
@@ -374,7 +435,20 @@ func createBlock(legacyTxs, celoLegacyTxs, accessListTxs, dynamicFeeTxs, celoDyn
 					AccessList:          accesses,
 					Data:                []byte{},
 				})
-				dynamicFeeTxs -= 0
+				celoDynamicFeeTxs -= 1
+			} else if celoDynamicFeeTxV2s > 0 {
+				tx = NewTx(&CeloDynamicFeeTxV2{
+					ChainID:     chainID,
+					Nonce:       0,
+					To:          &to,
+					Gas:         80000,
+					GasFeeCap:   big.NewInt(10),
+					GasTipCap:   big.NewInt(0),
+					FeeCurrency: &common.ZeroAddress,
+					AccessList:  accesses,
+					Data:        []byte{},
+				})
+				celoDynamicFeeTxV2s -= 1
 			}
 		}
 		signedTx, err := SignTx(tx, signer, key)
@@ -402,10 +476,20 @@ func createBlock(legacyTxs, celoLegacyTxs, accessListTxs, dynamicFeeTxs, celoDyn
 	fmt.Println("Size", block.Size(), common.StorageSize(len(ourBlockEnc)))
 	fmt.Println("ParentHash", block.ParentHash())
 	fmt.Println("len(Transactions)", len(block.Transactions()))
+	if gingerbreadFork {
+		fmt.Println("BaseFee ", block.BaseFee())
+		fmt.Println("GasLimit ", block.GasLimit())
+		fmt.Println("Difficulty ", block.Difficulty())
+		fmt.Println("Nonce ", block.Nonce())
+		fmt.Println("UncleHash ", block.UncleHash())
+		fmt.Println("MixDigest ", block.MixDigest())
+	}
 
 	for i := range txs {
-		fmt.Println("Transactions[0].Hash", block.Transactions()[i].Hash())
-		fmt.Println("Transactions[0].Type", block.Transactions()[i].Type())
+		fmt.Printf("Transactions[%d].Hash ", i)
+		fmt.Println(block.Transactions()[i].Hash())
+		fmt.Printf("Transactions[%d].Type ", i)
+		fmt.Println(block.Transactions()[i].Type())
 	}
 }
 

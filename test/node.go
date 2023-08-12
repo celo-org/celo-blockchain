@@ -537,7 +537,7 @@ func ValueTransferTransactionWithDynamicFee(
 		return nil, fmt.Errorf("failed to estimate gas needed: %v", err)
 	}
 	// Create the transaction and sign it
-	rawTx := types.NewTx(&types.CeloDynamicFeeTx{
+	rawTx := types.NewTx(&types.CeloDynamicFeeTxV2{
 		Nonce:       nonce,
 		To:          &recipient,
 		Value:       value,
