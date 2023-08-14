@@ -442,6 +442,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if err := CheckEthCompatibility(st.msg); err != nil {
 		return nil, err
 	}
+	if (st.msg.GatewayFee() != nil || st.msg.GatewayFeeRecipient() != nil) && st.evm.ChainConfig().IsGingerbread(st.evm.Context.BlockNumber) {
+		return nil, ErrGatewayFeeDeprecated
+	}
 
 	// Check clauses 1-2
 	if err := st.preCheck(); err != nil {
