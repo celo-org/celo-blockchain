@@ -64,6 +64,15 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 		}
 		return consensus.ErrPrunedAncestor
 	}
+	if v.config.IsGingerbreadP2(block.Number()) {
+		bytesBlock := new(BytesBlock).AddBytes(params.MaxTxDataPerBlock)
+
+		for _, tx := range block.Transactions() {
+			if err := bytesBlock.SubBytes(uint64(tx.Size())); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
