@@ -400,6 +400,7 @@ func (b *EthAPIBackend) RPCGasCap() uint64 {
 }
 
 func (b *EthAPIBackend) RPCEthCompatibility() bool {
+	log.Info("RPCEthCompatibility called", "RPCEthCompatibility", b.eth.config.RPCEthCompatibility)
 	return b.eth.config.RPCEthCompatibility
 }
 
