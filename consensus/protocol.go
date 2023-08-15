@@ -45,7 +45,10 @@ type P2PServer interface {
 // Peer defines the interface for a p2p.peer
 type Peer interface {
 	// Send sends the message to this peer
-	Send(msgcode uint64, data interface{}) error
+	Send(msgcode uint64, data []byte) error
+	// SendDoubleEncoded sends the message to this peer.
+	// message payload should be twice encoded in rlp encoding.
+	SendDoubleEncoded(msgcode uint64, data []byte) error
 	// Node returns the peer's enode
 	Node() *enode.Node
 	// Version returns the peer's version
