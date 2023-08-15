@@ -310,13 +310,7 @@ func (tx *Transaction) Nonce() uint64 { return tx.inner.nonce() }
 // To returns the recipient address of the transaction.
 // For contract-creation transactions, To returns nil.
 func (tx *Transaction) To() *common.Address {
-	// Copy the pointed-to address.
-	ito := tx.inner.to()
-	if ito == nil {
-		return nil
-	}
-	cpy := *ito
-	return &cpy
+	return copyAddressPtr(tx.inner.to())
 }
 
 // Cost returns value + gasprice * gaslimit + gatewayfee.
@@ -459,10 +453,14 @@ func (tx *Transaction) WithSignature(signer Signer, sig []byte) (*Transaction, e
 }
 
 // FeeCurrency returns the fee currency of the transaction. Nil implies paying in CELO.
-func (tx *Transaction) FeeCurrency() *common.Address { return tx.inner.feeCurrency() }
+func (tx *Transaction) FeeCurrency() *common.Address {
+	return copyAddressPtr(tx.inner.feeCurrency())
+}
 
 // GatewayFeeRecipient returns the address to the send the gateway fee to. Nil implies no recipient.
-func (tx *Transaction) GatewayFeeRecipient() *common.Address { return tx.inner.gatewayFeeRecipient() }
+func (tx *Transaction) GatewayFeeRecipient() *common.Address {
+	return copyAddressPtr(tx.inner.gatewayFeeRecipient())
+}
 
 // GatewayFee returns the fee that should be paid to the gateway fee recipient.
 // Will not return nil, but instead returns 0 if the underlying transction does not have a gatewayfee.
@@ -763,3 +761,12 @@ func (m Message) EthCompatible() bool                  { return m.ethCompatible 
 func (m Message) FeeCurrency() *common.Address         { return m.feeCurrency }
 func (m Message) GatewayFeeRecipient() *common.Address { return m.gatewayFeeRecipient }
 func (m Message) GatewayFee() *big.Int                 { return m.gatewayFee }
+
+// copyAddressPtr copies an address.
+func copyAddressPtr(a *common.Address) *common.Address {
+	if a == nil {
+		return nil
+	}
+	cpy := *a
+	return &cpy
+}

@@ -75,8 +75,8 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		enc.Data = (*hexutil.Bytes)(&tx.Data)
 		enc.To = t.To()
 		enc.V = (*hexutil.Big)(tx.V)
-		enc.FeeCurrency = tx.FeeCurrency // todo: check if needs deep copy
-		enc.GatewayFeeRecipient = tx.GatewayFeeRecipient
+		enc.FeeCurrency = t.FeeCurrency()
+		enc.GatewayFeeRecipient = t.GatewayFeeRecipient()
 		enc.GatewayFee = (*hexutil.Big)(tx.GatewayFee)
 		enc.R = (*hexutil.Big)(tx.R)
 		enc.S = (*hexutil.Big)(tx.S)
@@ -113,8 +113,8 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		enc.Gas = (*hexutil.Uint64)(&tx.Gas)
 		enc.MaxFeePerGas = (*hexutil.Big)(tx.GasFeeCap)
 		enc.MaxPriorityFeePerGas = (*hexutil.Big)(tx.GasTipCap)
-		enc.FeeCurrency = tx.FeeCurrency // todo: check if needs deep copy
-		enc.GatewayFeeRecipient = tx.GatewayFeeRecipient
+		enc.FeeCurrency = t.FeeCurrency()
+		enc.GatewayFeeRecipient = t.GatewayFeeRecipient()
 		enc.GatewayFee = (*hexutil.Big)(tx.GatewayFee)
 		enc.Value = (*hexutil.Big)(tx.Value)
 		enc.Data = (*hexutil.Bytes)(&tx.Data)
@@ -129,7 +129,7 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		enc.Gas = (*hexutil.Uint64)(&tx.Gas)
 		enc.MaxFeePerGas = (*hexutil.Big)(tx.GasFeeCap)
 		enc.MaxPriorityFeePerGas = (*hexutil.Big)(tx.GasTipCap)
-		enc.FeeCurrency = tx.FeeCurrency // todo: check if needs deep copy
+		enc.FeeCurrency = t.FeeCurrency()
 		enc.Value = (*hexutil.Big)(tx.Value)
 		enc.Data = (*hexutil.Bytes)(&tx.Data)
 		enc.To = t.To()
