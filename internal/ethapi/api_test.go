@@ -51,7 +51,7 @@ func TestNewRPCTransactionCeloDynamicV2(t *testing.T) {
 		assert.Equal(t, (*hexutil.Big)(big.NewInt(0).Add(gasTipCap, baseFee)), rpcTx.GasPrice)
 	})
 
-	t.Run("Unminned transaction. GasPrice == GasFeeCap", func(t *testing.T) {
+	t.Run("Unmined transaction. GasPrice == GasFeeCap", func(t *testing.T) {
 		rpcTx := newRPCTransaction(types.NewTx(&types.CeloDynamicFeeTxV2{
 			FeeCurrency: &currency,
 			ChainID:     chainId,
