@@ -22,7 +22,7 @@ func (bp *BytesBlock) AddBytes(amount uint64) *BytesBlock {
 // available and returns an error otherwise.
 func (bp *BytesBlock) SubBytes(amount uint64) error {
 	if uint64(*bp) < amount {
-		return ErrGasLimitReached
+		return ErrBytesLimitReached
 	}
 	*(*uint64)(bp) -= amount
 	return nil
