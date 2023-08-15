@@ -25,7 +25,7 @@ require (
 	github.com/deckarep/golang-set v0.0.0-20180603214616-504e848d77ea
 	github.com/deepmap/oapi-codegen v1.8.2 // indirect
 	github.com/dlclark/regexp2 v1.2.0 // indirect
-	github.com/docker/docker v1.6.1
+	github.com/docker/docker v20.10.24+incompatible
 	github.com/dop251/goja v0.0.0-20200721192441-a695b0cdd498
 	github.com/fatih/color v1.7.0
 	github.com/fjl/memsize v0.0.0-20190710130421-bcb5799ab5e5
@@ -69,16 +69,15 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/tklauser/go-sysconf v0.3.5 // indirect
 	github.com/tyler-smith/go-bip39 v1.0.1-0.20181017060643-dbb3b84ba2ef
-	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
-	golang.org/x/net v0.0.0-20210805182204-aaa1db679c0d // indirect
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210816183151-1e6c022a8912
+	golang.org/x/crypto v0.1.0
+	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
+	golang.org/x/sys v0.1.0
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 	gopkg.in/olebedev/go-duktape.v3 v3.0.0-20200619000410-60c24ae608a6
 	gopkg.in/urfave/cli.v1 v1.20.0
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gotest.tools v2.2.0+incompatible
+	gotest.tools/v3 v3.5.0 // indirect
 )
 
 // Use our fork which disables bitcode
