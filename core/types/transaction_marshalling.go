@@ -312,7 +312,7 @@ func (t *Transaction) UnmarshalJSON(input []byte) error {
 			}
 		}
 
-	case CeloDynamicFeeTxType, CeloDynamicFeeTxV2Type:
+	case CeloDynamicFeeTxType:
 		var itx CeloDynamicFeeTx
 		inner = &itx
 		// Access list is optional for now.
@@ -343,13 +343,68 @@ func (t *Transaction) UnmarshalJSON(input []byte) error {
 		}
 		itx.Gas = uint64(*dec.Gas)
 		itx.FeeCurrency = dec.FeeCurrency
-		if dec.Type == CeloDynamicFeeTxType {
-			itx.GatewayFeeRecipient = dec.GatewayFeeRecipient
-			itx.GatewayFee = new(big.Int)
-			if dec.GatewayFee != nil {
-				itx.GatewayFee.Set((*big.Int)(dec.GatewayFee))
+		itx.GatewayFeeRecipient = dec.GatewayFeeRecipient
+		itx.GatewayFee = new(big.Int)
+		if dec.GatewayFee != nil {
+			itx.GatewayFee.Set((*big.Int)(dec.GatewayFee))
+		}
+		if dec.Value == nil {
+			return errors.New("missing required field 'value' in transaction")
+		}
+		itx.Value = (*big.Int)(dec.Value)
+		if dec.Data == nil {
+			return errors.New("missing required field 'input' in transaction")
+		}
+		itx.Data = *dec.Data
+		if dec.V == nil {
+			return errors.New("missing required field 'v' in transaction")
+		}
+		itx.V = (*big.Int)(dec.V)
+		if dec.R == nil {
+			return errors.New("missing required field 'r' in transaction")
+		}
+		itx.R = (*big.Int)(dec.R)
+		if dec.S == nil {
+			return errors.New("missing required field 's' in transaction")
+		}
+		itx.S = (*big.Int)(dec.S)
+		withSignature := itx.V.Sign() != 0 || itx.R.Sign() != 0 || itx.S.Sign() != 0
+		if withSignature {
+			if err := sanityCheckSignature(itx.V, itx.R, itx.S, false); err != nil {
+				return err
 			}
 		}
+	case CeloDynamicFeeTxV2Type:
+		var itx CeloDynamicFeeTxV2
+		inner = &itx
+		// Access list is optional for now.
+		if dec.AccessList != nil {
+			itx.AccessList = *dec.AccessList
+		}
+		if dec.ChainID == nil {
+			return errors.New("missing required field 'chainId' in transaction")
+		}
+		itx.ChainID = (*big.Int)(dec.ChainID)
+		if dec.To != nil {
+			itx.To = dec.To
+		}
+		if dec.Nonce == nil {
+			return errors.New("missing required field 'nonce' in transaction")
+		}
+		itx.Nonce = uint64(*dec.Nonce)
+		if dec.MaxPriorityFeePerGas == nil {
+			return errors.New("missing required field 'maxPriorityFeePerGas' for txdata")
+		}
+		itx.GasTipCap = (*big.Int)(dec.MaxPriorityFeePerGas)
+		if dec.MaxFeePerGas == nil {
+			return errors.New("missing required field 'maxFeePerGas' for txdata")
+		}
+		itx.GasFeeCap = (*big.Int)(dec.MaxFeePerGas)
+		if dec.Gas == nil {
+			return errors.New("missing required field 'gas' for txdata")
+		}
+		itx.Gas = uint64(*dec.Gas)
+		itx.FeeCurrency = dec.FeeCurrency
 		if dec.Value == nil {
 			return errors.New("missing required field 'value' in transaction")
 		}

@@ -136,6 +136,16 @@ func TestTransferCELO(t *testing.T) {
 			expectedErr: core.ErrGatewayFeeDeprecated,
 		},
 		{
+			name: "CeloDynamicFeeTxV2Type - gas = MaxFeePerGas - BaseFee",
+			txArgs: &ethapi.TransactionArgs{
+				To:                   &recipient.Address,
+				Value:                (*hexutil.Big)(new(big.Int).SetInt64(oneCelo)),
+				MaxFeePerGas:         (*hexutil.Big)(datum.Mul(datum, new(big.Int).SetInt64(4))),
+				MaxPriorityFeePerGas: (*hexutil.Big)(datum.Mul(datum, new(big.Int).SetInt64(4))),
+			},
+			expectedErr: nil,
+		},
+		{
 			name: "CeloDynamicFeeTxV2Type - MaxPriorityFeePerGas",
 			txArgs: &ethapi.TransactionArgs{
 				To:                   &recipient.Address,
@@ -163,12 +173,12 @@ func TestTransferCELO(t *testing.T) {
 			blockNum, err := client.BlockNumber(ctx)
 			require.NoError(t, err)
 			signer := types.MakeSigner(devAccounts[0].ChainConfig, new(big.Int).SetUint64(blockNum))
-			tx, err := prepareTransaction(*tc.txArgs, sender.Key, sender.Address, signer, client)
+			tx, err := prepareTransaction(*tc.txArgs, sender.Key, sender.Address, signer, client, true)
 			require.NoError(t, err)
 			err = client.SendTransaction(ctx, tx)
 			if tc.expectedErr != nil {
 				// Once the error is checked, there's nothing more to do
-				if err.Error() != tc.expectedErr.Error() {
+				if err == nil || err.Error() != tc.expectedErr.Error() {
 					t.Error("Expected error", tc.expectedErr, "got", err)
 				}
 				return
@@ -347,7 +357,7 @@ func TestTransferCELOPreGingerbread(t *testing.T) {
 			blockNum, err := client.BlockNumber(ctx)
 			require.NoError(t, err)
 			signer := types.MakeSigner(devAccounts[0].ChainConfig, new(big.Int).SetUint64(blockNum))
-			tx, err := prepareTransaction(*tc.txArgs, sender.Key, sender.Address, signer, client)
+			tx, err := prepareTransaction(*tc.txArgs, sender.Key, sender.Address, signer, client, false)
 			require.NoError(t, err)
 			err = client.SendTransaction(ctx, tx)
 			require.NoError(t, err, "SendTransaction failed", "tx", *tx)
@@ -408,7 +418,7 @@ func TestTransferCELOPreGingerbread(t *testing.T) {
 }
 
 // prepareTransaction prepares gasPrice, gasLimit and sign the transaction.
-func prepareTransaction(txArgs ethapi.TransactionArgs, senderKey *ecdsa.PrivateKey, sender common.Address, signer types.Signer, client *ethclient.Client) (*types.Transaction, error) {
+func prepareTransaction(txArgs ethapi.TransactionArgs, senderKey *ecdsa.PrivateKey, sender common.Address, signer types.Signer, client *ethclient.Client, isGingerbreadP2 bool) (*types.Transaction, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
@@ -430,7 +440,7 @@ func prepareTransaction(txArgs ethapi.TransactionArgs, senderKey *ecdsa.PrivateK
 	}
 
 	// Create the transaction and sign it
-	rawTx := txArgs.ToTransaction()
+	rawTx := txArgs.ToTransaction(isGingerbreadP2)
 	signed, err := types.SignTx(rawTx, signer, senderKey)
 	if err != nil {
 		return nil, err
