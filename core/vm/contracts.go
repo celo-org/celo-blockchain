@@ -221,10 +221,10 @@ var PrecompiledContractsGingerbreadP2 = map[common.Address]CeloPrecompiledContra
 	celoPrecompileAddress(11): &getVerifiedSealBitmap{},
 
 	// New in Donut hard fork
-	celoPrecompileAddress(12): &ed25519Verify{},
 	celoPrecompileAddress(30): &getValidatorBLS{},
 
 	// Precompiles removed in Gingerbread P2 hard fork
+	// * ed25519Verify
 	// * bls12381G1Add
 	// * bls12381G1Mul
 	// * bls12381G1MultiExp
