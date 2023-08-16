@@ -308,7 +308,7 @@ loop:
 			// Everything ok, collect the logs and shift in the next transaction from the same account
 			coalescedLogs = append(coalescedLogs, logs...)
 			b.tcount++
-			// bytesBlock != nil => GngerbreadP2
+			// bytesBlock != nil => GingerbreadP2
 			if b.bytesBlock != nil {
 				if err := b.bytesBlock.SubBytes(uint64(tx.Size())); err != nil {
 					// This should never happen because we are validating before that we have enough space
