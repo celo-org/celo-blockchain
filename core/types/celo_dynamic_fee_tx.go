@@ -46,11 +46,11 @@ type CeloDynamicFeeTx struct {
 func (tx *CeloDynamicFeeTx) copy() TxData {
 	cpy := &CeloDynamicFeeTx{
 		Nonce:               tx.Nonce,
-		To:                  tx.To, // TODO: copy pointed-to address
+		To:                  copyAddressPtr(tx.To),
 		Data:                common.CopyBytes(tx.Data),
 		Gas:                 tx.Gas,
-		FeeCurrency:         tx.FeeCurrency,
-		GatewayFeeRecipient: tx.GatewayFeeRecipient,
+		FeeCurrency:         copyAddressPtr(tx.FeeCurrency),
+		GatewayFeeRecipient: copyAddressPtr(tx.GatewayFeeRecipient),
 		// These are copied below.
 		AccessList: make(AccessList, len(tx.AccessList)),
 		GatewayFee: new(big.Int),

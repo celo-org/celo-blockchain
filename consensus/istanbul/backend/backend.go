@@ -621,6 +621,13 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (*istanbulCore.StateProces
 		}
 	}
 
+	if sb.chain.Config().IsGingerbreadP2(block.Number()) {
+		if err := core.ValidateBlockSize(block, params.MaxTxDataPerBlock); err != nil {
+			sb.logger.Error("verify - Error in validating txs block size", "err", err)
+			return nil, 0, err
+		}
+	}
+
 	// Apply this block's transactions to update the state
 	receipts, logs, usedGas, err := sb.processBlock(block, state)
 	if err != nil {

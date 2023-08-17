@@ -4,8 +4,7 @@
   "description": "runs ethers.js against an api to check compatibility",
   "main": "index.js",
   "scripts": {
-    "test": "mocha -r ts-node/register test/*.ts",
-    "test-precompile-wrappers": "mocha -r ts-node/register test-precompile-wrappers/*.ts"
+    "test": "mocha -r ts-node/register test/*.ts"
   },
   "author": "",
   "license": "ISC",

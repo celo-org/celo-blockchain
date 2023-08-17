@@ -41,11 +41,12 @@ import (
 type blockState struct {
 	signer types.Signer
 
-	state    *state.StateDB // apply state changes here
-	tcount   int            // tx count in cycle
-	gasPool  *core.GasPool  // available gas used to pack transactions
-	gasLimit uint64
-	sysCtx   *core.SysContractCallCtx
+	state      *state.StateDB   // apply state changes here
+	tcount     int              // tx count in cycle
+	gasPool    *core.GasPool    // available gas used to pack transactions
+	bytesBlock *core.BytesBlock // available bytes used to pack transactions
+	gasLimit   uint64
+	sysCtx     *core.SysContractCallCtx
 
 	header         *types.Header
 	txs            []*types.Transaction
@@ -120,6 +121,9 @@ func prepareBlock(w *worker) (*blockState, error) {
 		// Needs the baseFee at the final state of the last block
 		parentVmRunner := w.chain.NewEVMRunner(parent.Header(), state.Copy())
 		header.BaseFee = misc.CalcBaseFee(w.chainConfig, parent.Header(), parentVmRunner)
+	}
+	if w.chainConfig.IsGingerbreadP2(header.Number) {
+		b.bytesBlock = new(core.BytesBlock).SetLimit(params.MaxTxDataPerBlock)
 	}
 	b.sysCtx = core.NewSysContractCallCtx(header, state.Copy(), w.chain)
 
@@ -255,6 +259,12 @@ loop:
 			txs.Pop()
 			continue
 		}
+		// Same short-circuit of the gas above, but for bytes in the block (b.bytesBlock != nil => GingerbreadP2)
+		if b.bytesBlock != nil && b.bytesBlock.BytesLeft() < uint64(tx.Size()) {
+			log.Trace("Skipping transaction which requires more bytes than is left in the block", "hash", tx.Hash(), "bytes", b.bytesBlock.BytesLeft(), "txbytes", uint64(tx.Size()))
+			txs.Pop()
+			continue
+		}
 		// Error may be ignored here. The error has already been checked
 		// during transaction acceptance is the transaction pool.
 		//
@@ -298,6 +308,13 @@ loop:
 			// Everything ok, collect the logs and shift in the next transaction from the same account
 			coalescedLogs = append(coalescedLogs, logs...)
 			b.tcount++
+			// bytesBlock != nil => GingerbreadP2
+			if b.bytesBlock != nil {
+				if err := b.bytesBlock.SubBytes(uint64(tx.Size())); err != nil {
+					// This should never happen because we are validating before that we have enough space
+					return err
+				}
+			}
 			txs.Shift()
 
 		default:

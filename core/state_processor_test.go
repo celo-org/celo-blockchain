@@ -210,6 +210,13 @@ func TestStateProcessorErrors(t *testing.T) {
 				},
 				want: "could not apply tx 0 [0xd82a0c2519acfeac9a948258c47e784acd20651d9d80f9a1c67b4137651c3a24]: insufficient funds for gas * price + value + gatewayFee: address 0x71562b71999873DB5b286dF957af199Ec94617F7 have 1000000000000000000 want 2431633873983640103894990685182446064918669677978451844828609264166175722438635000",
 			},
+			{
+				name: "ErrBytesLimitReached",
+				txs: []*types.Transaction{
+					makeTx(0, common.Address{}, big.NewInt(0), params.TxGas+params.TxDataZeroGas*params.MaxTxDataPerBlock, big.NewInt(875000000), nil, nil, nil, getBigData(int(params.MaxTxDataPerBlock))),
+				},
+				want: ErrBytesLimitReached.Error(),
+			},
 		} {
 			block := GenerateBadBlock(genesis, mockEngine.NewFaker(), tt.txs, gspec.Config)
 			_, err := blockchain.InsertChain(types.Blocks{block})
@@ -348,8 +355,12 @@ func GenerateBadBlock(parent *types.Block, engine consensus.Engine, txs types.Tr
 		receipts = append(receipts, receipt)
 		cumulativeGas += tx.Gas()
 	}
+	header.GasUsed = cumulativeGas
 	header.Root = common.BytesToHash(hasher.Sum(nil))
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, receipts, nil, trie.NewStackTrie(nil))
+}
 
+func getBigData(length int) []byte {
+	return make([]byte, length)
 }
