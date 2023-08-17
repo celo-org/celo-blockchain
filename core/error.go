@@ -55,6 +55,10 @@ var (
 	// by a transaction is higher than what's left in the block.
 	ErrGasLimitReached = errors.New("gas limit reached")
 
+	// ErrBytesLimitReached is returned if the amount of bytes required
+	// by a transaction is higher than what's left in the block.
+	ErrBytesLimitReached = errors.New("block's bytes limit reached")
+
 	// ErrInsufficientFundsForTransfer is returned if the transaction sender doesn't
 	// have enough funds for transfer(topmost call only).
 	// Note that the check for this is done after buying the gas.
