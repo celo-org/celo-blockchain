@@ -266,7 +266,7 @@ func (args *TransactionArgs) ToMessage(globalGasCap uint64, baseFee *big.Int) (t
 
 // toTransaction converts the arguments to a transaction.
 // This assumes that setDefaults has been called.
-func (args *TransactionArgs) toTransaction() *types.Transaction {
+func (args *TransactionArgs) toTransaction(isGingerbreadP2 bool) *types.Transaction {
 	var data types.TxData
 	switch {
 	case args.MaxFeePerGas != nil:
@@ -274,7 +274,7 @@ func (args *TransactionArgs) toTransaction() *types.Transaction {
 		if args.AccessList != nil {
 			al = *args.AccessList
 		}
-		if args.FeeCurrency != nil || args.GatewayFeeRecipient != nil || args.GatewayFee != nil {
+		if args.GatewayFeeRecipient != nil || args.GatewayFee != nil || (!isGingerbreadP2 && args.FeeCurrency != nil) {
 			data = &types.CeloDynamicFeeTx{
 				To:                  args.To,
 				ChainID:             (*big.Int)(args.ChainID),
@@ -288,6 +288,19 @@ func (args *TransactionArgs) toTransaction() *types.Transaction {
 				Value:               (*big.Int)(args.Value),
 				Data:                args.data(),
 				AccessList:          al,
+			}
+		} else if isGingerbreadP2 && args.FeeCurrency != nil {
+			data = &types.CeloDynamicFeeTxV2{
+				To:          args.To,
+				ChainID:     (*big.Int)(args.ChainID),
+				Nonce:       uint64(*args.Nonce),
+				Gas:         uint64(*args.Gas),
+				GasFeeCap:   (*big.Int)(args.MaxFeePerGas),
+				GasTipCap:   (*big.Int)(args.MaxPriorityFeePerGas),
+				FeeCurrency: args.FeeCurrency,
+				Value:       (*big.Int)(args.Value),
+				Data:        args.data(),
+				AccessList:  al,
 			}
 		} else {
 			data = &types.DynamicFeeTx{
@@ -334,8 +347,8 @@ func (args *TransactionArgs) toTransaction() *types.Transaction {
 
 // ToTransaction converts the arguments to a transaction.
 // This assumes that setDefaults has been called.
-func (args *TransactionArgs) ToTransaction() *types.Transaction {
-	return args.toTransaction()
+func (args *TransactionArgs) ToTransaction(isGingerbread bool) *types.Transaction {
+	return args.toTransaction(isGingerbread)
 }
 
 func (args *TransactionArgs) checkEthCompatibility() error {

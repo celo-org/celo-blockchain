@@ -228,7 +228,7 @@ func (t *Transaction) GasPrice(ctx context.Context) (hexutil.Big, error) {
 	switch tx.Type() {
 	case types.AccessListTxType:
 		return hexutil.Big(*tx.GasPrice()), nil
-	case types.DynamicFeeTxType, types.CeloDynamicFeeTxType:
+	case types.DynamicFeeTxType, types.CeloDynamicFeeTxType, types.CeloDynamicFeeTxV2Type:
 		if t.block != nil {
 			if baseFee, _ := t.block.BaseFeePerGasForCurrency(ctx, tx.FeeCurrency()); baseFee != nil {
 				// price = min(tip, gasFeeCap - baseFee) + baseFee
@@ -247,7 +247,7 @@ func (t *Transaction) EffectiveGasPrice(ctx context.Context) (*hexutil.Big, erro
 		return nil, err
 	}
 	switch tx.Type() {
-	case types.DynamicFeeTxType, types.CeloDynamicFeeTxType:
+	case types.DynamicFeeTxType, types.CeloDynamicFeeTxType, types.CeloDynamicFeeTxV2Type:
 		if t.block != nil {
 			if baseFee, _ := t.block.BaseFeePerGasForCurrency(ctx, tx.FeeCurrency()); baseFee != nil {
 				// price = min(tip, gasFeeCap - baseFee) + baseFee
