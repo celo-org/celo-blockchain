@@ -272,11 +272,12 @@ type TxPool struct {
 	signer      types.Signer
 	mu          sync.RWMutex
 
-	homestead   bool // Fork indicator for the homestead fork
-	istanbul    bool // Fork indicator whether we are in the istanbul stage.
-	donut       bool // Fork indicator for the Donut fork.
-	espresso    bool // Fork indicator for the Espresso fork.
-	gingerbread bool // Fork indicator for the Gingerbread fork.
+	homestead     bool // Fork indicator for the homestead fork
+	istanbul      bool // Fork indicator whether we are in the istanbul stage.
+	donut         bool // Fork indicator for the Donut fork.
+	espresso      bool // Fork indicator for the Espresso fork.
+	gingerbread   bool // Fork indicator for the Gingerbread fork.
+	gingerbreadP2 bool // Fork indicator for the Gingerbread P2 fork.
 
 	currentState    *state.StateDB // Current state in the blockchain head
 	currentVMRunner vm.EVMRunner   // Current EVMRunner
@@ -672,6 +673,10 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 	// Reject dynamic fee transactions until EIP-1559 activates.
 	if !pool.espresso && (tx.Type() == types.DynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxType) {
+		return ErrTxTypeNotSupported
+	}
+	// Reject celo dynamic fee v2 until gingerbreadP2
+	if !pool.gingerbreadP2 && tx.Type() == types.CeloDynamicFeeTxV2Type {
 		return ErrTxTypeNotSupported
 	}
 	// Reject transactions over defined size to prevent DOS attacks
@@ -1419,6 +1424,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	pool.donut = pool.chainconfig.IsDonut(next)
 	pool.espresso = pool.chainconfig.IsEspresso(next)
 	pool.gingerbread = pool.chainconfig.IsGingerbread(next)
+	pool.gingerbreadP2 = pool.chainconfig.IsGingerbreadP2(next)
 }
 
 // promoteExecutables moves transactions that have become processable from the
