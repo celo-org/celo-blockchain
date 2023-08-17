@@ -42,12 +42,14 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 	logger := sb.logger.New("func", "Backend.distributeEpochPaymentsAndRewards", "blocknum", header.Number.Uint64())
 
 	vmRunner := sb.chain.NewEVMRunner(header, state)
-	// Check if reward distribution has been frozen and return early without error if it is.
-	if frozen, err := freezer.IsFrozen(vmRunner, config.EpochRewardsRegistryId); err != nil {
-		logger.Warn("Failed to determine if epoch rewards are frozen", "err", err)
-	} else if frozen {
-		logger.Debug("Epoch rewards are frozen, skipping distribution")
-		return nil
+	if !sb.ChainConfig().IsGingerbread(header.Number) {
+		// Check if reward distribution has been frozen and return early without error if it is.
+		if frozen, err := freezer.IsFrozen(vmRunner, config.EpochRewardsRegistryId); err != nil {
+			logger.Warn("Failed to determine if epoch rewards are frozen", "err", err)
+		} else if frozen {
+			logger.Debug("Epoch rewards are frozen, skipping distribution")
+			return nil
+		}
 	}
 
 	// Get necessary Addresses First
@@ -119,7 +121,7 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 		return err
 	}
 
-	if sb.ChainConfig().IsGFork(header.Number) {
+	if sb.ChainConfig().IsGingerbread(header.Number) {
 		if err := sb.distributeCommunityRewards(vmRunner, communityReward); err != nil {
 			return err
 		}

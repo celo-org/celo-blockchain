@@ -23,6 +23,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -278,6 +279,18 @@ func makeHeader(chain consensus.ChainHeaderReader, parent *types.Block, state *s
 	}
 	// Properly set the extra data field
 	header.Extra = CreateEmptyIstanbulExtra(header.Extra)
+	if chain.Config().IsGingerbread(header.Number) {
+		if chain.Config().FakeBaseFee != nil {
+			header.BaseFee = chain.Config().FakeBaseFee
+		} else {
+			header.BaseFee = misc.CalcBaseFeeEthereum(chain.Config(), parent.Header())
+		}
+		header.GasLimit = params.DefaultGasLimit
+		header.Difficulty = big.NewInt(0)
+		header.Nonce = types.EncodeNonce(0)
+		header.UncleHash = types.EmptyUncleHash
+		header.MixDigest = types.EmptyMixDigest
+	}
 	return header
 }
 

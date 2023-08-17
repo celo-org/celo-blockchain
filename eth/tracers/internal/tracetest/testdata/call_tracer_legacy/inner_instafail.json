@@ -28,6 +28,7 @@
     "config": {
       "chainId": 3,
       "homesteadBlock": 0,
+      "donutBlock": 0,
       "daoForkSupport": true,
       "eip150Block": 0,
       "eip150Hash": "0x41941023680923e0fe4d74a34bdac8141f2540e3ae90623718e47d66d1ca4a2d",
@@ -65,7 +66,7 @@
         "from": "0x6c06b16512b332e6cd8293a2974872674716ce18",
         "to": "0x66fdfd05e46126a07465ad24e40cc0597bc1ef31",
         "value": "0x14d1120d7b160000",
-        "error":"internal failure",
+        "error": "internal failure",
         "input": "0x"
       }
     ]

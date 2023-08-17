@@ -113,4 +113,8 @@ var (
 	// ErrUnprotectedTransaction is returned if replay protection is required (post-Donut) but the transaction doesn't
 	// use it.
 	ErrUnprotectedTransaction = errors.New("replay protection is required")
+
+	// ErrGatewayFeeDeprecated is returned when a transaction containing a gateway fee is encountered after the
+	// G hardfork
+	ErrGatewayFeeDeprecated = errors.New("gateway fee is deprecated")
 )

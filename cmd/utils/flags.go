@@ -23,6 +23,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
+	"math/big"
 	"path/filepath"
 	godebug "runtime/debug"
 	"strconv"
@@ -237,9 +238,14 @@ var (
 	}
 
 	// Hard fork activation overrides
-	OverrideEHardforkFlag = cli.Uint64Flag{
-		Name:  "override.espresso",
-		Usage: "Manually specify the espresso fork block, overriding the bundled setting",
+	OverrideGingerbreadFlag = cli.Uint64Flag{
+		Name:  "override.gingerbread",
+		Usage: "Manually specify the gingerbread fork block, overriding the bundled setting",
+	}
+
+	OverrideGingerbreadP2Flag = cli.Uint64Flag{
+		Name:  "override.gingerbreadp2",
+		Usage: "Manually specify the gingerbread p2 fork block, overriding the bundled setting",
 	}
 
 	BloomFilterSizeFlag = cli.Uint64Flag{
@@ -444,6 +450,11 @@ var (
 		Name:  "rpc.gasinflationrate",
 		Usage: "Multiplier applied to the gasEstimation rpc call (1 = gasEstimation, 1.3 = gasEstimation + 30%, etc. Defaults to 1.3)",
 		Value: ethconfig.Defaults.RPCGasInflationRate,
+	}
+	RPCGlobalGasPriceMultiplierFlag = cli.Float64Flag{
+		Name:  "rpc.gaspricemultiplier",
+		Usage: "Multiplier applied to the gasPrice rpc call (1 = gasPrice, 1.3 = gasPrice + 30%, etc. Defaults to 2.0)",
+		Value: float64(ethconfig.Defaults.RPCGasPriceMultiplier.Int64() / 100),
 	}
 	RPCGlobalGasCapFlag = cli.Uint64Flag{
 		Name:  "rpc.gascap",
@@ -1745,6 +1756,15 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 
 	if ctx.GlobalIsSet(RPCGlobalGasInflationRateFlag.Name) {
 		cfg.RPCGasInflationRate = ctx.GlobalFloat64(RPCGlobalGasInflationRateFlag.Name)
+	}
+	if ctx.GlobalIsSet(RPCGlobalGasPriceMultiplierFlag.Name) {
+		floatMutliplier := ctx.GlobalFloat64(RPCGlobalGasPriceMultiplierFlag.Name)
+		if floatMutliplier < 1.0 {
+			log.Warn("Too low RPCGasPriceMultiplier, setting to 1.0", "provided value", floatMutliplier)
+			floatMutliplier = 1.0
+		}
+
+		cfg.RPCGasPriceMultiplier = big.NewInt(int64(floatMutliplier * 100))
 	}
 	if cfg.RPCGasInflationRate < 1 {
 		Fatalf("The inflation rate shouldn't be less than 1: %f", cfg.RPCGasInflationRate)

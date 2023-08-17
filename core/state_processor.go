@@ -22,6 +22,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -67,6 +68,21 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		vmRunner    = p.bc.NewEVMRunner(block.Header(), statedb)
 		gp          = new(GasPool).AddGas(blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner))
 	)
+
+	// This checks that the baseFee and the gasLimit are correct.
+	// As we need state to address this, the header Verify is not useful because
+	// the client not necessary will have the state of the parent.
+	if p.config.IsGingerbread(header.Number) {
+		parentHeader := p.bc.GetHeaderByHash(block.ParentHash())
+		// Needs the baseFee at the final state of the last block
+		parentVmRunner := p.bc.NewEVMRunner(parentHeader, statedb.Copy())
+		// Verifies both the gasLimit and the baseFee of the header are correct
+		err := misc.VerifyEip1559Header(p.config, parentHeader, header, parentVmRunner)
+		if err != nil {
+			return nil, nil, 0, err
+		}
+	}
+
 	if random.IsRunning(vmRunner) {
 		author, err := p.bc.Engine().Author(header)
 		if err != nil {
@@ -85,9 +101,9 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		baseFee *big.Int
 		sysCtx  *SysContractCallCtx
 	)
-	if p.bc.Config().IsEspresso(blockNumber) {
+	if p.config.IsEspresso(blockNumber) {
 		sysCtx = NewSysContractCallCtx(header, statedb, p.bc)
-		if p.bc.Config().FakeBaseFee != nil {
+		if p.config.FakeBaseFee != nil {
 			sysCtx = MockSysContractCallCtx(p.bc.Config().FakeBaseFee)
 		}
 	}
@@ -95,7 +111,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, cfg)
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
-		if p.bc.chainConfig.IsEspresso(header.Number) {
+		if p.config.IsEspresso(header.Number) {
 			baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
 		}
 		msg, err := tx.AsMessage(types.MakeSigner(p.config, header.Number), baseFee)
@@ -122,6 +138,15 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 func applyTransaction(msg types.Message, config *params.ChainConfig, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*types.Receipt, error) {
 	if config.IsDonut(blockNumber) && !config.IsEspresso(blockNumber) && !tx.Protected() {
 		return nil, ErrUnprotectedTransaction
+	}
+
+	// CIP 57 deprecates full node incentives
+	// Check that neither `GatewayFeeRecipient` nor `GatewayFee` are set, otherwise reject the transaction
+	if config.IsGingerbread(blockNumber) {
+		gatewayFeeSet := !(msg.GatewayFee() == nil || msg.GatewayFee().Cmp(common.Big0) == 0)
+		if msg.GatewayFeeRecipient() != nil || gatewayFeeSet {
+			return nil, ErrGatewayFeeDeprecated
+		}
 	}
 
 	// Create a new context to be used in the EVM environment

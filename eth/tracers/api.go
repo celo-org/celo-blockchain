@@ -54,6 +54,13 @@ const (
 	// and reexecute to produce missing historical state necessary to run a specific
 	// trace.
 	defaultTraceReexec = uint64(128)
+
+	// defaultTracechainMemLimit is the size of the triedb, at which traceChain
+	// switches over and tries to use a disk-backed database instead of building
+	// on top of memory.
+	// For non-archive nodes, this limit _will_ be overblown, as disk-backed tries
+	// will only be found every ~15K blocks or so.
+	defaultTracechainMemLimit = common.StorageSize(500 * 1024 * 1024)
 )
 
 // Backend interface provides the common API services (that are provided by
@@ -68,7 +75,10 @@ type Backend interface {
 	ChainConfig() *params.ChainConfig
 	Engine() consensus.Engine
 	ChainDb() ethdb.Database
-	StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, checkLive bool) (*state.StateDB, error)
+	// StateAtBlock returns the state corresponding to the stateroot of the block.
+	// N.B: For executing transactions on block N, the required stateRoot is block N-1,
+	// so this method should be called with the parent.
+	StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, checkLive, preferDisk bool) (*state.StateDB, error)
 	StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, vm.EVMRunner, *state.StateDB, error)
 	NewEVMRunner(*types.Header, vm.StateDB) vm.EVMRunner
 }
@@ -342,6 +352,7 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 			}
 			close(results)
 		}()
+		var preferDisk bool
 		// Feed all the blocks both into the tracer, as well as fast process concurrently
 		for number = start.NumberU64(); number < end.NumberU64(); number++ {
 			// Stop tracing if interruption was requested
@@ -371,18 +382,24 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 			}
 			// Prepare the statedb for tracing. Don't use the live database for
 			// tracing to avoid persisting state junks into the database.
-			statedb, err = api.backend.StateAtBlock(localctx, block, reexec, statedb, false)
+			statedb, err = api.backend.StateAtBlock(localctx, block, reexec, statedb, false, preferDisk)
 			if err != nil {
 				failed = err
 				break
 			}
-			if statedb.Database().TrieDB() != nil {
+			if trieDb := statedb.Database().TrieDB(); trieDb != nil {
 				// Hold the reference for tracer, will be released at the final stage
-				statedb.Database().TrieDB().Reference(block.Root(), common.Hash{})
+				trieDb.Reference(block.Root(), common.Hash{})
 
 				// Release the parent state because it's already held by the tracer
 				if parent != (common.Hash{}) {
-					statedb.Database().TrieDB().Dereference(parent)
+					trieDb.Dereference(parent)
+				}
+				// Prefer disk if the trie db memory grows too much
+				s1, s2 := trieDb.Size()
+				if !preferDisk && (s1+s2) > defaultTracechainMemLimit {
+					log.Info("Switching to prefer-disk mode for tracing", "size", s1+s2)
+					preferDisk = true
 				}
 			}
 			parent = block.Root()
@@ -518,7 +535,7 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 	if config != nil && config.Reexec != nil {
 		reexec = *config.Reexec
 	}
-	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true)
+	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false)
 	if err != nil {
 		return nil, err
 	}
@@ -586,7 +603,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	if config != nil && config.Reexec != nil {
 		reexec = *config.Reexec
 	}
-	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true)
+	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false)
 	if err != nil {
 		return nil, err
 	}
@@ -603,7 +620,6 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	if threads > len(txs) {
 		threads = len(txs)
 	}
-	blockCtx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 	blockHash := block.Hash()
 
 	isEspresso := api.backend.ChainConfig().IsEspresso(block.Number())
@@ -614,6 +630,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	for th := 0; th < threads; th++ {
 		pend.Add(1)
 		go func() {
+			blockCtx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 			defer pend.Done()
 			// Fetch and execute the next transaction trace tasks
 			for task := range jobs {
@@ -637,6 +654,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	vmRunner := api.backend.NewEVMRunner(block.Header(), statedb)
 	// Feed the transactions into the tracers and return
 	var failed error
+	blockCtx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 	for i, tx := range txs {
 		// Send the trace task over for execution
 		jobs <- &txTraceTask{statedb: statedb.Copy(), index: i}
@@ -685,7 +703,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 	if config != nil && config.Reexec != nil {
 		reexec = *config.Reexec
 	}
-	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true)
+	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false)
 	if err != nil {
 		return nil, err
 	}
@@ -834,7 +852,7 @@ func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *
 		if err != nil {
 			return nil, err
 		}
-		sysStateDB, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true)
+		sysStateDB, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false)
 		if err != nil {
 			return nil, err
 		}
@@ -878,7 +896,7 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 	if config != nil && config.Reexec != nil {
 		reexec = *config.Reexec
 	}
-	statedb, err := api.backend.StateAtBlock(ctx, block, reexec, nil, true)
+	statedb, err := api.backend.StateAtBlock(ctx, block, reexec, nil, true, false)
 	if err != nil {
 		return nil, err
 	}
@@ -889,7 +907,7 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 		}
 	}
 	// Execute the trace
-	msg, err := args.ToMessage(api.backend.RPCGasCap(), nil)
+	msg, err := args.ToMessage(api.backend.RPCGasCap(), block.Header().BaseFee)
 	if err != nil {
 		return nil, err
 	}
@@ -917,12 +935,14 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 func (api *API) traceTx(ctx context.Context, message core.Message, txctx *Context, vmctx vm.BlockContext, vmRunner vm.EVMRunner, statedb *state.StateDB, sysCtx *core.SysContractCallCtx, config *TraceConfig) (interface{}, error) {
 	// Assemble the structured logger or the JavaScript tracer
 	var (
-		tracer    vm.Tracer
+		tracer    vm.EVMLogger
 		err       error
 		txContext = core.NewEVMTxContext(message)
 	)
 	switch {
-	case config != nil && config.Tracer != nil:
+	case config == nil:
+		tracer = vm.NewStructLogger(nil)
+	case config.Tracer != nil:
 		// Define a meaningful timeout of a single transaction trace
 		timeout := defaultTraceTimeout
 		if config.Timeout != nil {
@@ -930,23 +950,19 @@ func (api *API) traceTx(ctx context.Context, message core.Message, txctx *Contex
 				return nil, err
 			}
 		}
-		// Constuct the JavaScript tracer to execute with
-		if tracer, err = New(*config.Tracer, txctx); err != nil {
+		if t, err := New(*config.Tracer, txctx); err != nil {
 			return nil, err
+		} else {
+			deadlineCtx, cancel := context.WithTimeout(ctx, timeout)
+			go func() {
+				<-deadlineCtx.Done()
+				if errors.Is(deadlineCtx.Err(), context.DeadlineExceeded) {
+					t.Stop(errors.New("execution timeout"))
+				}
+			}()
+			defer cancel()
+			tracer = t
 		}
-		// Handle timeouts and RPC cancellations
-		deadlineCtx, cancel := context.WithTimeout(ctx, timeout)
-		go func() {
-			<-deadlineCtx.Done()
-			if deadlineCtx.Err() == context.DeadlineExceeded {
-				tracer.(*Tracer).Stop(errors.New("execution timeout"))
-			}
-		}()
-		defer cancel()
-
-	case config == nil:
-		tracer = vm.NewStructLogger(nil)
-
 	default:
 		tracer = vm.NewStructLogger(config.LogConfig)
 	}
@@ -976,7 +992,7 @@ func (api *API) traceTx(ctx context.Context, message core.Message, txctx *Contex
 			StructLogs:  ethapi.FormatLogs(tracer.StructLogs()),
 		}, nil
 
-	case *Tracer:
+	case Tracer:
 		return tracer.GetResult()
 
 	default:

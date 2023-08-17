@@ -25,47 +25,29 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/config"
-	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/contracts/internal/n"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/params"
 )
 
 // Gas price minimum serves as baseFee(EIP1559) after Espresso HF.
 
 var (
 	FallbackGasPriceMinimum *big.Int = big.NewInt(0) // gas price minimum to return if unable to fetch from contract
-	suggestionMultiplier    *big.Int = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
 )
 
 const (
-	maxGasForGetGasPriceMinimum    uint64 = 2 * n.Million
-	maxGasForUpdateGasPriceMinimum uint64 = 2 * n.Million
+	maxGasForGetGasPriceMinimum        uint64 = 2 * n.Million
+	maxGasForGasPriceMinimumFloor      uint64 = 2 * n.Million
+	maxGasForUpdateGasPriceMinimum     uint64 = 2 * n.Million
+	maxGasForGetUpdatedGasPriceMinimum uint64 = 2 * n.Million
 )
 
 var (
-	getGasPriceMinimumMethod      = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "getGasPriceMinimum", maxGasForGetGasPriceMinimum)
-	getGasPriceMinimumFloorMethod = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "gasPriceMinimumFloor", maxGasForGetGasPriceMinimum)
-	updateGasPriceMinimumMethod   = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "updateGasPriceMinimum", maxGasForUpdateGasPriceMinimum)
+	getGasPriceMinimumMethod        = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "getGasPriceMinimum", maxGasForGetGasPriceMinimum)
+	getGasPriceMinimumFloorMethod   = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "gasPriceMinimumFloor", maxGasForGasPriceMinimumFloor)
+	updateGasPriceMinimumMethod     = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "updateGasPriceMinimum", maxGasForUpdateGasPriceMinimum)
+	getUpdatedGasPriceMinimumMethod = contracts.NewRegisteredContractMethod(config.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "getUpdatedGasPriceMinimum", maxGasForGetUpdatedGasPriceMinimum)
 )
-
-// GetGasTipCapSuggestion suggests a max tip of 2GWei in the appropriate currency.
-// TODO: Switch to using a caching currency manager under high load.
-func GetGasTipCapSuggestion(vmRunner vm.EVMRunner, currencyAddress *common.Address) (*big.Int, error) {
-	celoTipSuggestion := new(big.Int).Mul(common.Big2, big.NewInt(params.GWei))
-	exchangeRate, err := currency.GetExchangeRate(vmRunner, currencyAddress)
-	if err != nil {
-		return nil, err
-	}
-	return exchangeRate.FromBase(celoTipSuggestion), nil
-}
-
-// GetGasPriceSuggestion suggests a gas price the suggestionMultiplier times higher than the GPM in the appropriate currency.
-// TODO: Switch to using a caching GPM manager under high load.
-func GetGasPriceSuggestion(vmRunner vm.EVMRunner, currency *common.Address) (*big.Int, error) {
-	gasPriceMinimum, err := GetGasPriceMinimum(vmRunner, currency)
-	return new(big.Int).Mul(gasPriceMinimum, suggestionMultiplier), err
-}
 
 func GetGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*big.Int, error) {
 	var currencyAddress common.Address
@@ -137,6 +119,19 @@ func GetGasPriceMinimumFloor(vmRunner vm.EVMRunner) (*big.Int, error) {
 	}
 
 	return gasPriceMinimumFloor, err
+}
+
+func GetUpdatedGasPriceMinimum(vmRunner vm.EVMRunner, lastUsedGas, gasLimit uint64) (*big.Int, error) {
+	var err error
+
+	var updatedGasPriceMinimum *big.Int
+	err = getUpdatedGasPriceMinimumMethod.Query(vmRunner, &updatedGasPriceMinimum, big.NewInt(int64(lastUsedGas)), big.NewInt(int64(gasLimit)))
+
+	if err != nil {
+		return nil, err
+	}
+
+	return updatedGasPriceMinimum, err
 }
 
 func UpdateGasPriceMinimum(vmRunner vm.EVMRunner, lastUsedGas uint64) (*big.Int, error) {

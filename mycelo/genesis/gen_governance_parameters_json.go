@@ -20,7 +20,6 @@ func (g GovernanceParameters) MarshalJSON() ([]byte, error) {
 		MinDeposit              *bigintstr.BigIntStr `json:"minDeposit"`
 		QueueExpiry             uint64               `json:"queueExpiry"`
 		DequeueFrequency        uint64               `json:"dequeueFrequency"`
-		ApprovalStageDuration   uint64               `json:"approvalStageDuration"`
 		ReferendumStageDuration uint64               `json:"referendumStageDuration"`
 		ExecutionStageDuration  uint64               `json:"executionStageDuration"`
 		ParticipationBaseline   *fixed.Fixed         `json:"participationBaseline"`
@@ -34,7 +33,6 @@ func (g GovernanceParameters) MarshalJSON() ([]byte, error) {
 	enc.MinDeposit = (*bigintstr.BigIntStr)(g.MinDeposit)
 	enc.QueueExpiry = g.QueueExpiry
 	enc.DequeueFrequency = g.DequeueFrequency
-	enc.ApprovalStageDuration = g.ApprovalStageDuration
 	enc.ReferendumStageDuration = g.ReferendumStageDuration
 	enc.ExecutionStageDuration = g.ExecutionStageDuration
 	enc.ParticipationBaseline = g.ParticipationBaseline
@@ -52,7 +50,6 @@ func (g *GovernanceParameters) UnmarshalJSON(input []byte) error {
 		MinDeposit              *bigintstr.BigIntStr `json:"minDeposit"`
 		QueueExpiry             *uint64              `json:"queueExpiry"`
 		DequeueFrequency        *uint64              `json:"dequeueFrequency"`
-		ApprovalStageDuration   *uint64              `json:"approvalStageDuration"`
 		ReferendumStageDuration *uint64              `json:"referendumStageDuration"`
 		ExecutionStageDuration  *uint64              `json:"executionStageDuration"`
 		ParticipationBaseline   *fixed.Fixed         `json:"participationBaseline"`
@@ -78,9 +75,6 @@ func (g *GovernanceParameters) UnmarshalJSON(input []byte) error {
 	}
 	if dec.DequeueFrequency != nil {
 		g.DequeueFrequency = *dec.DequeueFrequency
-	}
-	if dec.ApprovalStageDuration != nil {
-		g.ApprovalStageDuration = *dec.ApprovalStageDuration
 	}
 	if dec.ReferendumStageDuration != nil {
 		g.ReferendumStageDuration = *dec.ReferendumStageDuration

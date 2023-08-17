@@ -69,10 +69,11 @@ type TxPool struct {
 	mined        map[common.Hash][]*types.Transaction // mined transactions by block hash
 	clearIdx     uint64                               // earliest block nr that can contain mined tx info
 
-	homestead bool // Fork indicator whether homestead has been activated
-	istanbul  bool // Fork indicator whether we are in the istanbul stage
-	donut     bool // Fork indicator whether Donut has been activated
-	espresso  bool // Fork indicator whether Espresso has been activated
+	homestead   bool // Fork indicator whether homestead has been activated
+	istanbul    bool // Fork indicator whether we are in the istanbul stage
+	donut       bool // Fork indicator whether Donut has been activated
+	espresso    bool // Fork indicator whether Espresso has been activated
+	gingerbread bool // Fork indicator whether Gingerbread has been activated
 }
 
 // TxRelayBackend provides an interface to the mechanism that forwards transacions
@@ -325,10 +326,10 @@ func (pool *TxPool) setNewHead(head *types.Header) {
 
 	// Update fork indicator by next pending block number
 	next := new(big.Int).Add(head.Number, big.NewInt(1))
-	pool.homestead = pool.config.IsHomestead(next)
 	pool.istanbul = pool.config.IsIstanbul(next)
 	pool.donut = pool.config.IsDonut(next)
 	pool.espresso = pool.config.IsEspresso(next)
+	pool.gingerbread = pool.config.IsGingerbread(next)
 }
 
 // Stop stops the light transaction pool
@@ -374,6 +375,12 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		return err
 	}
 
+	// CIP 57 deprecates full node incentives
+	gatewayFeeSet := !(tx.GatewayFee() == nil || tx.GatewayFee().Cmp(common.Big0) == 0)
+	if pool.gingerbread && (tx.GatewayFeeRecipient() != nil || gatewayFeeSet) {
+		return core.ErrGatewayFeeDeprecated
+	}
+
 	// Validate the transaction sender and it's sig. Throw
 	// if the from fields is invalid.
 	if from, err = types.Sender(pool.signer, tx); err != nil {
@@ -405,7 +412,7 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
 	}
 	// Should supply enough intrinsic gas
-	gas, err := core.IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, pool.homestead, pool.istanbul, tx.FeeCurrency(), gasForAlternativeCurrency)
+	gas, err := core.IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, tx.FeeCurrency(), gasForAlternativeCurrency, pool.istanbul)
 	if err != nil {
 		return err
 	}

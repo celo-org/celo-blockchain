@@ -251,10 +251,12 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 	}
 }
 
+// Creates a new test server handler for LES tests
+// As this is currently only used in `TestTransactionGatewayFeeRequirementLesX`, the Gingerbread Fork is disabled
 func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Database, clock mclock.Clock) (*serverHandler, *backends.SimulatedBackend, func()) {
 	var (
 		gspec = core.Genesis{
-			Config: params.IstanbulTestChainConfig,
+			Config: params.IstanbulTestChainConfig.DeepCopy().DisableGingerbread(),
 			Alloc:  core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
 		}
 		oracle *checkpointoracle.CheckpointOracle

@@ -51,7 +51,8 @@ func TestStateProcessorErrors(t *testing.T) {
 			ChurritoBlock:       big.NewInt(0),
 			DonutBlock:          big.NewInt(0),
 			EspressoBlock:       big.NewInt(0),
-			GForkBlock:          big.NewInt(0),
+			GingerbreadBlock:    big.NewInt(0),
+			GingerbreadP2Block:  big.NewInt(0),
 			Faker:               true,
 			FakeBaseFee:         common.Big3,
 		}
@@ -324,8 +325,14 @@ func GenerateBadBlock(parent *types.Block, engine consensus.Engine, txs types.Tr
 		Time:       parent.Time() + 10,
 		Extra:      CreateEmptyIstanbulExtra(nil),
 	}
-	header.Extra = CreateEmptyIstanbulExtra(header.Extra)
-
+	if config.IsGingerbread(header.Number) {
+		header.GasLimit = params.DefaultGasLimit
+		if config.FakeBaseFee != nil {
+			header.BaseFee = config.FakeBaseFee
+		} else {
+			header.BaseFee = common.Big0
+		}
+	}
 	var receipts []*types.Receipt
 	// The post-state result doesn't need to be correct (this is a bad block), but we do need something there
 	// Preferably something unique. So let's use a combo of blocknum + txhash

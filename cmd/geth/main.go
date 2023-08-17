@@ -41,6 +41,11 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/node"
+
+	// Force-load the tracer engines to trigger registration
+	_ "github.com/celo-org/celo-blockchain/eth/tracers/js"
+	_ "github.com/celo-org/celo-blockchain/eth/tracers/native"
+
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -68,7 +73,8 @@ var (
 		utils.NoUSBFlag,
 		utils.USBFlag,
 		// utils.SmartCardDaemonPathFlag,
-		utils.OverrideEHardforkFlag,
+		utils.OverrideGingerbreadFlag,
+		utils.OverrideGingerbreadP2Flag,
 		utils.TxPoolLocalsFlag,
 		utils.TxPoolNoLocalsFlag,
 		utils.TxPoolJournalFlag,
@@ -187,6 +193,7 @@ var (
 		utils.IPCPathFlag,
 		utils.InsecureUnlockAllowedFlag,
 		utils.RPCGlobalGasInflationRateFlag,
+		utils.RPCGlobalGasPriceMultiplierFlag,
 		utils.RPCGlobalGasCapFlag,
 		utils.RPCGlobalTxFeeCapFlag,
 	}

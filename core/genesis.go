@@ -58,6 +58,7 @@ type Genesis struct {
 	Number     uint64      `json:"number"`
 	GasUsed    uint64      `json:"gasUsed"`
 	ParentHash common.Hash `json:"parentHash"`
+	BaseFee    *big.Int    `json:"baseFeePerGas"`
 }
 
 // GenesisAlloc specifies the initial state that is part of the genesis block.
@@ -91,6 +92,7 @@ type genesisSpecMarshaling struct {
 	GasUsed   math.HexOrDecimal64
 	Number    math.HexOrDecimal64
 	Alloc     map[common.UnprefixedAddress]GenesisAccount
+	BaseFee   *math.HexOrDecimal256
 }
 
 type genesisAccountMarshaling struct {
@@ -146,10 +148,10 @@ func (e *GenesisMismatchError) Error() string {
 //
 // The returned chain configuration is never nil.
 func SetupGenesisBlock(db ethdb.Database, genesis *Genesis) (*params.ChainConfig, common.Hash, error) {
-	return SetupGenesisBlockWithOverride(db, genesis, nil)
+	return SetupGenesisBlockWithOverride(db, genesis, nil, nil)
 }
 
-func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, overrideEHardfork *big.Int) (*params.ChainConfig, common.Hash, error) {
+func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, overrideGingerbread, overrideGingerbreadP2 *big.Int) (*params.ChainConfig, common.Hash, error) {
 	if genesis != nil && (genesis.Config == nil || genesis.Config.Istanbul == nil) {
 		return params.MainnetChainConfig, common.Hash{}, errGenesisNoConfig
 	}
@@ -202,8 +204,11 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 
 	// Get the existing chain configuration.
 	newcfg := genesis.configOrDefault(stored)
-	if overrideEHardfork != nil {
-		newcfg.EspressoBlock = overrideEHardfork
+	if overrideGingerbread != nil {
+		newcfg.GingerbreadBlock = overrideGingerbread
+	}
+	if overrideGingerbreadP2 != nil {
+		newcfg.GingerbreadP2Block = overrideGingerbreadP2
 	}
 
 	if err := newcfg.CheckConfigForkOrder(); err != nil {
@@ -278,7 +283,22 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		Coinbase:   g.Coinbase,
 		Root:       root,
 	}
-
+	if g.Config != nil && g.Config.IsGingerbread(common.Big0) {
+		head.Nonce = types.EncodeNonce(0)
+		head.GasLimit = params.GenesisGasLimit
+		head.Difficulty = common.Big0
+		head.MixDigest = types.EmptyMixDigest
+		head.UncleHash = types.EmptyUncleHash
+		if g.BaseFee != nil {
+			head.BaseFee = g.BaseFee
+		} else {
+			if g.Config.FakeBaseFee != nil {
+				head.BaseFee = g.Config.FakeBaseFee
+			} else {
+				head.BaseFee = new(big.Int).SetUint64(params.InitialBaseFee)
+			}
+		}
+	}
 	statedb.Commit(false)
 	statedb.Database().TrieDB().Commit(root, true, nil)
 
@@ -340,7 +360,11 @@ func (g *Genesis) MustCommit(db ethdb.Database) *types.Block {
 
 // GenesisBlockForTesting creates and writes a block in which addr has the given wei balance.
 func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big.Int) *types.Block {
-	g := Genesis{Config: params.BaklavaChainConfig, Alloc: GenesisAlloc{addr: {Balance: balance}}}
+	g := Genesis{
+		Config:  params.BaklavaChainConfig,
+		Alloc:   GenesisAlloc{addr: {Balance: balance}},
+		BaseFee: big.NewInt(params.InitialBaseFee),
+	}
 	return g.MustCommit(db)
 }
 
@@ -390,6 +414,7 @@ func DeveloperGenesisBlock(period uint64) *Genesis {
 	return &Genesis{
 		Config:    &config,
 		ExtraData: hexutil.MustDecode(developerExtraData),
+		BaseFee:   big.NewInt(params.InitialBaseFee),
 		Alloc:     *devAlloc,
 	}
 }

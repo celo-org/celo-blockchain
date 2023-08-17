@@ -10,6 +10,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	gp "github.com/celo-org/celo-blockchain/eth/gasprice"
 )
 
 // SysContractCallCtx acts as a cache holding information obtained through
@@ -57,11 +58,11 @@ func NewSysContractCallCtx(header *types.Header, state *state.StateDB, factory r
 		sc.whitelistedCurrencies[feeCurrency] = struct{}{}
 	}
 	// gas price minimum
-	celoGPM, _ := gasprice_minimum.GetGasPriceMinimum(vmRunner, nil)
+	celoGPM, _ := gp.GetBaseFeeForCurrency(vmRunner, nil, header.BaseFee)
 	sc.gasPriceMinimums[common.ZeroAddress] = celoGPM
 
 	for feeCurrency := range sc.whitelistedCurrencies {
-		gasPriceMinimum, _ := gasprice_minimum.GetGasPriceMinimum(vmRunner, &feeCurrency)
+		gasPriceMinimum, _ := gp.GetBaseFeeForCurrency(vmRunner, &feeCurrency, header.BaseFee)
 		sc.gasPriceMinimums[feeCurrency] = gasPriceMinimum
 	}
 	return sc

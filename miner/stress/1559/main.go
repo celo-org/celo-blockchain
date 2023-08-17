@@ -42,7 +42,7 @@ import (
 )
 
 var (
-	espressoBlock = big.NewInt(30) // Predefined london fork block for activating eip 1559.
+	gingerbreadBlock = big.NewInt(30) // Predefined Gingerbread block for activating eip 1559 (with the baseFee in the header).
 )
 
 func main() {
@@ -110,10 +110,8 @@ func main() {
 		index := rand.Intn(len(faucets))
 		backend := nodes[index%len(nodes)]
 
-		// headHeader := backend.BlockChain().CurrentHeader()
-		// baseFee := headHeader.BaseFee
-		// TODO: Get GPM here
-		var baseFee *big.Int
+		headHeader := backend.BlockChain().CurrentHeader()
+		baseFee := headHeader.BaseFee
 
 		// Create a self transaction and inject into the pool. The legacy
 		// and 1559 transactions can all be created by random even if the
@@ -186,7 +184,8 @@ func makeGenesis(faucets []*ecdsa.PrivateKey) *core.Genesis {
 	genesis := core.DefaultBaklavaGenesisBlock()
 
 	genesis.Config = params.BaklavaChainConfig
-	genesis.Config.EspressoBlock = espressoBlock
+	genesis.Config.GingerbreadBlock = gingerbreadBlock
+	genesis.Config.GingerbreadP2Block = gingerbreadBlock
 
 	genesis.Config.ChainID = big.NewInt(18)
 	genesis.Config.EIP150Hash = common.Hash{}
@@ -197,10 +196,10 @@ func makeGenesis(faucets []*ecdsa.PrivateKey) *core.Genesis {
 			Balance: new(big.Int).Exp(big.NewInt(2), big.NewInt(128), nil),
 		}
 	}
-	if espressoBlock.Sign() == 0 {
+	if gingerbreadBlock.Sign() == 0 {
 		log.Info("Enabled the eip 1559 by default")
 	} else {
-		log.Info("Registered the london fork", "number", espressoBlock)
+		log.Info("Registered the Gingerbread fork", "number", gingerbreadBlock)
 	}
 	return genesis
 }

@@ -57,12 +57,14 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		Istanbul                istanbul.Config
 		DocRoot                 string `toml:"-"`
 		RPCGasInflationRate     float64
+		RPCGasPriceMultiplier   *big.Int
 		RPCGasCap               uint64
 		RPCTxFeeCap             float64
 		RPCEthCompatibility     bool
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
-		OverrideEHardfork       *big.Int                       `toml:",omitempty"`
+		OverrideGingerbread     *big.Int                       `toml:",omitempty"`
+		OverrideGingerbreadP2   *big.Int                       `toml:",omitempty"`
 		MinSyncPeers            int                            `toml:",omitempty"`
 	}
 	var enc Config
@@ -106,12 +108,14 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.Istanbul = c.Istanbul
 	enc.DocRoot = c.DocRoot
 	enc.RPCGasInflationRate = c.RPCGasInflationRate
+	enc.RPCGasPriceMultiplier = c.RPCGasPriceMultiplier
 	enc.RPCGasCap = c.RPCGasCap
 	enc.RPCTxFeeCap = c.RPCTxFeeCap
 	enc.RPCEthCompatibility = c.RPCEthCompatibility
 	enc.Checkpoint = c.Checkpoint
 	enc.CheckpointOracle = c.CheckpointOracle
-	enc.OverrideEHardfork = c.OverrideEHardfork
+	enc.OverrideGingerbread = c.OverrideGingerbread
+	enc.OverrideGingerbreadP2 = c.OverrideGingerbreadP2
 	enc.MinSyncPeers = c.MinSyncPeers
 	return &enc, nil
 }
@@ -159,12 +163,14 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		Istanbul                *istanbul.Config
 		DocRoot                 *string `toml:"-"`
 		RPCGasInflationRate     *float64
+		RPCGasPriceMultiplier   *big.Int
 		RPCGasCap               *uint64
 		RPCTxFeeCap             *float64
 		RPCEthCompatibility     *bool
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
-		OverrideEHardfork       *big.Int                       `toml:",omitempty"`
+		OverrideGingerbread     *big.Int                       `toml:",omitempty"`
+		OverrideGingerbreadP2   *big.Int                       `toml:",omitempty"`
 		MinSyncPeers            *int                           `toml:",omitempty"`
 	}
 	var dec Config
@@ -291,6 +297,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.RPCGasInflationRate != nil {
 		c.RPCGasInflationRate = *dec.RPCGasInflationRate
 	}
+	if dec.RPCGasPriceMultiplier != nil {
+		c.RPCGasPriceMultiplier = dec.RPCGasPriceMultiplier
+	}
 	if dec.RPCGasCap != nil {
 		c.RPCGasCap = *dec.RPCGasCap
 	}
@@ -306,8 +315,11 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.CheckpointOracle != nil {
 		c.CheckpointOracle = dec.CheckpointOracle
 	}
-	if dec.OverrideEHardfork != nil {
-		c.OverrideEHardfork = dec.OverrideEHardfork
+	if dec.OverrideGingerbread != nil {
+		c.OverrideGingerbread = dec.OverrideGingerbread
+	}
+	if dec.OverrideGingerbreadP2 != nil {
+		c.OverrideGingerbreadP2 = dec.OverrideGingerbreadP2
 	}
 	if dec.MinSyncPeers != nil {
 		c.MinSyncPeers = *dec.MinSyncPeers

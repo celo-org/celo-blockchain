@@ -55,8 +55,12 @@ var templateFlags = []cli.Flag{
 		Usage: "Optional flag to allow espresso fork overwritting (default: 0, disable: -1)",
 	},
 	cli.Int64Flag{
-		Name:  "forks.gfork",
-		Usage: "Optional flag to allow gfork fork overwritting (default: 0, disable: -1)",
+		Name:  "forks.gingerbread",
+		Usage: "Optional flag to allow gingerbread fork overwritting (default: 0, disable: -1)",
+	},
+	cli.Int64Flag{
+		Name:  "forks.gingerbreadp2",
+		Usage: "Optional flag to allow gingerbread p2 fork overwritting (default: 0, disable: -1)",
 	},
 }
 
@@ -99,7 +103,7 @@ var createGenesisFromConfigCommand = cli.Command{
 func readBuildPath(ctx *cli.Context) (string, error) {
 	buildpath := ctx.String(buildpathFlag.Name)
 	if buildpath == "" {
-		buildpath = path.Join(os.Getenv("CELO_MONOREPO"), "packages/protocol/build/contracts")
+		buildpath = path.Join(os.Getenv("CELO_MONOREPO"), "packages/protocol/build")
 		if fileutils.FileExists(buildpath) {
 			log.Info("Missing --buildpath flag, using CELO_MONOREPO derived path", "buildpath", buildpath)
 		} else {
@@ -127,8 +131,18 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 		env.Accounts().Mnemonic = ctx.String("mnemonic")
 	}
 
+	var gingerbreadBlock *big.Int
+	if ctx.IsSet("forks.gingerbread") {
+		gingerbreadBlockNumber := ctx.Int64("forks.gingerbread")
+		if gingerbreadBlockNumber < 0 {
+			gingerbreadBlock = nil
+		} else {
+			gingerbreadBlock = big.NewInt(gingerbreadBlockNumber)
+		}
+	}
+
 	// Genesis config
-	genesisConfig, err := template.createGenesisConfig(env)
+	genesisConfig, err := template.createGenesisConfig(env, gingerbreadBlock)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -171,12 +185,14 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 		}
 	}
 
-	if ctx.IsSet("forks.gFork") {
-		gForkBlockNumber := ctx.Int64("forks.gFork")
-		if gForkBlockNumber < 0 {
-			genesisConfig.Hardforks.GForkBlock = nil
+	genesisConfig.Hardforks.GingerbreadBlock = gingerbreadBlock
+
+	if ctx.IsSet("forks.gingerbreadp2") {
+		gingerbreadP2BlockNumber := ctx.Int64("forks.gingerbreadp2")
+		if gingerbreadP2BlockNumber < 0 {
+			genesisConfig.Hardforks.GingerbreadP2Block = nil
 		} else {
-			genesisConfig.Hardforks.GForkBlock = big.NewInt(gForkBlockNumber)
+			genesisConfig.Hardforks.GingerbreadP2Block = big.NewInt(gingerbreadP2BlockNumber)
 		}
 	}
 

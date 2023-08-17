@@ -57,15 +57,15 @@ var (
 	constantinopleInstructionSet   = newConstantinopleInstructionSet()
 	istanbulInstructionSet         = newIstanbulInstructionSet()
 	espressoInstructionSet         = newEspressoInstructionSet()
-	gforkInstructionSet            = newGforkInstructionSet()
+	gingerbreadInstructionSet      = newGingerbreadInstructionSet()
 )
 
 // JumpTable contains the EVM opcodes supported at a given fork.
 type JumpTable [256]*operation
 
-// newGforkInstructionSet returns the frontier, homestead, byzantium,
-// constantinople, istanbul, petersburg, espresso and g-fork instructions.
-func newGforkInstructionSet() JumpTable {
+// newGingerbreadInstructionSet returns the frontier, homestead, byzantium,
+// constantinople, istanbul, petersburg, espresso and gingerbread instructions.
+func newGingerbreadInstructionSet() JumpTable {
 	instructionSet := newEspressoInstructionSet()
 	instructionSet[GASLIMIT] = &operation{
 		execute:     opGasLimit,
@@ -73,6 +73,17 @@ func newGforkInstructionSet() JumpTable {
 		minStack:    minStack(0, 1),
 		maxStack:    maxStack(0, 1),
 	}
+
+	// Enable gas price changes in 1884 and 2200 that were omitted before
+	enable1884(&instructionSet) // Reprice reader opcodes - https://eips.ethereum.org/EIPS/eip-1884
+	enable2200(&instructionSet) // Net metered SSTORE - https://eips.ethereum.org/EIPS/eip-2200
+
+	// Need to apply 2929 and 3529 again to make sure changes from updated 1884 and 2200 are overwritten
+	enable2929(&instructionSet) // Access lists for trie accesses https://eips.ethereum.org/EIPS/eip-2929
+	enable3529(&instructionSet) // EIP-3529: Reduction in refunds https://eips.ethereum.org/EIPS/eip-3529
+
+	enable3198(&instructionSet) // Base fee opcode https://eips.ethereum.org/EIPS/eip-3198
+
 	return instructionSet
 }
 
@@ -80,8 +91,8 @@ func newGforkInstructionSet() JumpTable {
 // constantinople, istanbul, petersburg and espresso instructions.
 func newEspressoInstructionSet() JumpTable {
 	instructionSet := newIstanbulInstructionSet()
-	enable2929(&instructionSet) // Access lists for trie accesses https://eips.ethereum.org/EIPS/eip-2929
-	enable3529(&instructionSet) // EIP-3529: Reduction in refunds https://eips.ethereum.org/EIPS/eip-3529
+	enable2929(&instructionSet)     // Access lists for trie accesses https://eips.ethereum.org/EIPS/eip-2929
+	enable3529Celo(&instructionSet) // EIP-3529: Reduction in refunds https://eips.ethereum.org/EIPS/eip-3529
 	return instructionSet
 }
 
@@ -90,9 +101,9 @@ func newEspressoInstructionSet() JumpTable {
 func newIstanbulInstructionSet() JumpTable {
 	instructionSet := newConstantinopleInstructionSet()
 
-	enable1344(&instructionSet) // ChainID opcode - https://eips.ethereum.org/EIPS/eip-1344
-	enable1884(&instructionSet) // Reprice reader opcodes - https://eips.ethereum.org/EIPS/eip-1884
-	enable2200(&instructionSet) // Net metered SSTORE - https://eips.ethereum.org/EIPS/eip-2200
+	enable1344(&instructionSet)     // ChainID opcode - https://eips.ethereum.org/EIPS/eip-1344
+	enable1884Celo(&instructionSet) // Reprice reader opcodes - https://eips.ethereum.org/EIPS/eip-1884
+	enable2200Celo(&instructionSet) // Net metered SSTORE - https://eips.ethereum.org/EIPS/eip-2200
 
 	return instructionSet
 }

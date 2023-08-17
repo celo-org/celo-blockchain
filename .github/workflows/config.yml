@@ -10,14 +10,14 @@ on:
       - master
 
 concurrency: 
-  group: ${{ github.head_ref }}
+  group: ${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 env:
   # Increment these to force cache rebuilding
   SYSTEM_CONTRACTS_CACHE_VERSION: 3
-  CHECKOUT_MONOREPO_CACHE_VERSION: 5
-  GO_VERSION: '1.17.5'
+  CHECKOUT_MONOREPO_CACHE_VERSION: 7
+  GO_VERSION: '1.18'
   # Location where compiled system contracts are stored under the root of this
   # repo.
   SYSTEM_CONTRACTS_PATH: "compiled-system-contracts"
@@ -27,9 +27,9 @@ jobs:
     name: Build celo-monorepo
     runs-on: [self-hosted, blockchain, 8-cpu]
     env:
-      NODE_VERSION: 12
-      PYTHON_VERSION: '2.7'
-      CONTRACTS_BUILD_PATH: packages/protocol/build/contracts
+      NODE_VERSION: 18
+      PYTHON_VERSION: '3.9'
+      CONTRACTS_BUILD_PATH: packages/protocol/build
 
     steps:
     - name: Checkout celo-blockchain repo
@@ -330,6 +330,7 @@ jobs:
   e2e-benchmarks:
     name: End-to-end benchmarks
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
 
     needs:
     - go-modules
@@ -364,8 +365,9 @@ jobs:
   end-to-end-blockchain-parameters-test:
     name: End-to-end blockchain parameters test
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -410,8 +412,9 @@ jobs:
   end-to-end-governance-test:
     name: End-to-end governance test
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -457,8 +460,9 @@ jobs:
   end-to-end-sync-test:
     name: End-to-end sync test
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -503,8 +507,9 @@ jobs:
   end-to-end-slashing-test:
     name: End-to-end slashing test
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -549,8 +554,9 @@ jobs:
   end-to-end-transfers-test:
     name: End-to-end transfers test
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -595,8 +601,9 @@ jobs:
   end-to-end-validator-order-test:
     name: End-to-end validator order test
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -641,8 +648,9 @@ jobs:
   end-to-end-cip35-eth-compatibility-test:
     name: End-to-end CIP35-eth compatibility test
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -687,8 +695,9 @@ jobs:
   end-to-end-replica-test:
     name: End-to-end replica test
     runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules

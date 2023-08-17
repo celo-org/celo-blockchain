@@ -53,10 +53,11 @@ var Defaults = Config{
 	SnapshotCache:           102,
 	GatewayFee:              big.NewInt(0),
 
-	TxPool:              core.DefaultTxPoolConfig,
-	RPCGasInflationRate: 1.3,
-	RPCGasCap:           25000000,
-	RPCTxFeeCap:         500, // 500 celo
+	TxPool:                core.DefaultTxPoolConfig,
+	RPCGasInflationRate:   1.3,
+	RPCGasPriceMultiplier: big.NewInt(200),
+	RPCGasCap:             25000000,
+	RPCTxFeeCap:           500, // 500 celo
 
 	Istanbul: *istanbul.DefaultConfig,
 }
@@ -139,6 +140,10 @@ type Config struct {
 	// RPCGasInflationRate is a global multiplier applied to the gas estimations
 	RPCGasInflationRate float64
 
+	// RPCGasPriceMultiplier is a global multiplier applied to the gas price
+	// It's a percent value, e.g. 120 means a multiplication factor of 1.2
+	RPCGasPriceMultiplier *big.Int
+
 	// RPCGasCap is the global gas cap for eth-call variants.
 	RPCGasCap uint64
 
@@ -157,8 +162,11 @@ type Config struct {
 	// CheckpointOracle is the configuration for checkpoint oracle.
 	CheckpointOracle *params.CheckpointOracleConfig `toml:",omitempty"`
 
-	// E block override (TODO: remove after the fork)
-	OverrideEHardfork *big.Int `toml:",omitempty"`
+	// Gingerbread block override (TODO: remove after the fork)
+	OverrideGingerbread *big.Int `toml:",omitempty"`
+
+	// Gingerbread block override (TODO: remove after the fork)
+	OverrideGingerbreadP2 *big.Int `toml:",omitempty"`
 
 	// The minimum required peers in order for syncing to be initiated, if left
 	// at 0 then the default will be used.

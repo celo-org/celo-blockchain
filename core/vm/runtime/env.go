@@ -34,7 +34,7 @@ func NewEnv(cfg *Config) *vm.EVM {
 		BlockNumber:        cfg.BlockNumber,
 		Time:               cfg.Time,
 		IsGoldTokenAddress: vmcontext.IsGoldTokenAddress,
-		// BaseFee:     cfg.BaseFee, // TODO: Set to GPM
+		BaseFee:            cfg.BaseFee,
 	}
 
 	if cfg.ChainConfig.Istanbul != nil {

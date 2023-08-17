@@ -67,7 +67,8 @@ func setDefaults(cfg *Config) {
 			ChurritoBlock:       new(big.Int),
 			DonutBlock:          new(big.Int),
 			EspressoBlock:       new(big.Int),
-			GForkBlock:          new(big.Int),
+			GingerbreadBlock:    new(big.Int),
+			GingerbreadP2Block:  new(big.Int),
 		}
 	}
 	if cfg.Time == nil {

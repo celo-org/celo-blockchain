@@ -226,11 +226,14 @@ func (api *PublicFilterAPI) NewHeads(ctx context.Context) (*rpc.Subscription, er
 			select {
 			case h := <-headers:
 				jsonHeader := ethapi.RPCMarshalHeader(h)
-				baseFee, err := api.backend.RealGasPriceMinimumForHeader(ctx, nil, h)
-				if err != nil {
-					log.Debug("Not adding baseFeePerGas to header subscription, failed to retrieve gas price minimum", "block", h.Number.Uint64(), "err", err)
-				} else {
-					jsonHeader["baseFeePerGas"] = (*hexutil.Big)(baseFee)
+				// If != nil, is added in the RPCMarshalHeader
+				if h.BaseFee == nil {
+					baseFee, err := api.backend.RealGasPriceMinimumForHeader(ctx, nil, h)
+					if err != nil {
+						log.Debug("Not adding baseFeePerGas to header subscription, failed to retrieve gas price minimum", "block", h.Number.Uint64(), "err", err)
+					} else {
+						jsonHeader["baseFeePerGas"] = (*hexutil.Big)(baseFee)
+					}
 				}
 				notifier.Notify(rpcSub.ID, jsonHeader)
 			case <-rpcSub.Err():

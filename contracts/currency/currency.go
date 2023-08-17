@@ -17,6 +17,7 @@
 package currency
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -113,10 +114,10 @@ type ExchangeRate struct {
 // Requires numerator >=0 && denominator >= 0
 func NewExchangeRate(numerator *big.Int, denominator *big.Int) (*ExchangeRate, error) {
 	if numerator == nil || common.Big0.Cmp(numerator) >= 0 {
-		return nil, contracts.ErrExchangeRateZero
+		return nil, fmt.Errorf("numerator zero: %w", contracts.ErrExchangeRateZero)
 	}
 	if denominator == nil || common.Big0.Cmp(denominator) >= 0 {
-		return nil, contracts.ErrExchangeRateZero
+		return nil, fmt.Errorf("denominator zero: %w", contracts.ErrExchangeRateZero)
 	}
 	return &ExchangeRate{numerator, denominator}, nil
 }

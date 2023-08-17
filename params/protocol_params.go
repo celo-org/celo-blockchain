@@ -19,7 +19,8 @@ package params
 const (
 	// GasLimitBoundDivisor uint64 = 1024    // The bound divisor of the gas limit, used in update calculations.
 	// MinGasLimit          uint64 = 5000    // Minimum the gas limit may ever be.
-	// GenesisGasLimit      uint64 = 4712388 // Gas limit of the Genesis block.
+	GenesisGasLimit uint64 = 4712388 // Gas limit of the Genesis block.
+
 	MaximumExtraDataSize  uint64 = 32    // Maximum size extra data may be after Genesis.
 	ExpByteGas            uint64 = 10    // Times ceil(log256(exponent)) for the EXP instruction.
 	SloadGas              uint64 = 50    // Multiplied by the number of 32-byte words that are copied (round up) for any *COPY operation and added.
@@ -54,17 +55,14 @@ const (
 	SstoreResetGasEIP2200             uint64 = 5000  // Once per SSTORE operation from clean non-zero to something else
 	SstoreClearsScheduleRefundEIP2200 uint64 = 15000 // Once per SSTORE operation for clearing an originally existing storage slot
 
-	// ColdAccountAccessCostEIP2929 (2600 -> 900), ColdSloadCostEIP2929 (2100 -> 800) are modified according to CIP-0048
-	// Links: https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
-	ColdAccountAccessCostEIP2929 = uint64(900) // COLD_ACCOUNT_ACCESS_COST
-	ColdSloadCostEIP2929         = uint64(800) // COLD_SLOAD_COST
-	WarmStorageReadCostEIP2929   = uint64(100) // WARM_STORAGE_READ_COST
+	ColdAccountAccessCostEIP2929 = uint64(2600) // COLD_ACCOUNT_ACCESS_COST
+	ColdSloadCostEIP2929         = uint64(2100) // COLD_SLOAD_COST
+	WarmStorageReadCostEIP2929   = uint64(100)  // WARM_STORAGE_READ_COST
 
 	// In EIP-2200: SstoreResetGas was 5000.
 	// In EIP-2929: SstoreResetGas was changed to '5000 - COLD_SLOAD_COST'.
 	// In EIP-3529: SSTORE_CLEARS_SCHEDULE is defined as SSTORE_RESET_GAS + ACCESS_LIST_STORAGE_KEY_COST
-	// Which becomes: 5000 - 2100 + 1900 = 4800 (ethereum)
-	// Which becomes: 5000 - 800 + 1900 = 6100 (celo)
+	// Which becomes: 5000 - 2100 + 1900 = 4800
 	SstoreClearsScheduleRefundEIP3529 uint64 = SstoreResetGasEIP2200 - ColdSloadCostEIP2929 + TxAccessListStorageKeyGas
 
 	JumpdestGas   uint64 = 1     // Once per JUMPDEST operation.
@@ -118,9 +116,9 @@ const (
 	// Introduced in Tangerine Whistle (Eip 150)
 	CreateBySelfdestructGas uint64 = 25000
 
-	// BaseFeeChangeDenominator = 8          // Bounds the amount the base fee can change between blocks.
-	// ElasticityMultiplier     = 2          // Bounds the maximum gas limit an EIP-1559 block may have.
-	// InitialBaseFee           = 1000000000 // Initial base fee for EIP-1559 blocks.
+	BaseFeeChangeDenominator = 8          // Bounds the amount the base fee can change between blocks.
+	ElasticityMultiplier     = 2          // Bounds the maximum gas limit an EIP-1559 block may have.
+	InitialBaseFee           = 1000000000 // Initial base fee for EIP-1559 blocks.
 
 	MaxCodeSize = 65536 // Maximum bytecode to permit for a contract (2^16)
 

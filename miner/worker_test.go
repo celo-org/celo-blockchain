@@ -88,10 +88,10 @@ func init() {
 		To:       &testUserAddress,
 		Value:    big.NewInt(1000),
 		Gas:      params.TxGas,
-		GasPrice: new(big.Int),
+		GasPrice: big.NewInt(params.InitialBaseFee),
 	})
 	pendingTxs = append(pendingTxs, tx1)
-	tx2, _ := types.SignTx(types.NewTransaction(1, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil), signer, testBankKey)
+	tx2, _ := types.SignTx(types.NewTransaction(1, testUserAddress, big.NewInt(1000), params.TxGas, big.NewInt(params.InitialBaseFee), nil), signer, testBankKey)
 	newTxs = append(newTxs, tx2)
 
 	rand.Seed(time.Now().UnixNano())
@@ -169,7 +169,7 @@ func (b *testWorkerBackend) TxPool() *core.TxPool              { return b.txPool
 func (b *testWorkerBackend) newRandomTx(creation bool) *types.Transaction {
 	signer := types.LatestSigner(b.chain.Config())
 	var tx *types.Transaction
-	gasPrice := big.NewInt(10)
+	gasPrice := big.NewInt(10 * params.InitialBaseFee)
 	if creation {
 		tx, _ = types.SignTx(types.NewContractCreation(b.txPool.Nonce(testBankAddress), big.NewInt(0), testGas, gasPrice, common.FromHex(testCode)), signer, testBankKey)
 	} else {
