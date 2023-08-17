@@ -361,14 +361,6 @@ func GenerateBadBlock(parent *types.Block, engine consensus.Engine, txs types.Tr
 	return types.NewBlock(header, txs, receipts, nil, trie.NewStackTrie(nil))
 }
 
-func fillZero(slice []byte, length int) {
-	for i := 0; i < length && i < len(slice); i++ {
-		slice[i] = 0x00
-	}
-}
-
 func getBigData(length int) []byte {
-	f := make([]byte, length)
-	fillZero(f, length)
-	return f
+	return make([]byte, length)
 }

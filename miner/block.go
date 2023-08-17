@@ -123,7 +123,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 		header.BaseFee = misc.CalcBaseFee(w.chainConfig, parent.Header(), parentVmRunner)
 	}
 	if w.chainConfig.IsGingerbreadP2(header.Number) {
-		b.bytesBlock = new(core.BytesBlock).AddBytes(params.MaxTxDataPerBlock)
+		b.bytesBlock = new(core.BytesBlock).SetLimit(params.MaxTxDataPerBlock)
 	}
 	b.sysCtx = core.NewSysContractCallCtx(header, state.Copy(), w.chain)
 

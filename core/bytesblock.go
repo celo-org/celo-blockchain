@@ -9,8 +9,8 @@ import (
 // in a block. The zero value is a block with zero bytes available.
 type BytesBlock uint64
 
-// AddBytes makes bytes available to use.
-func (bp *BytesBlock) AddBytes(amount uint64) *BytesBlock {
+// SetLimit makes bytes available to use.
+func (bp *BytesBlock) SetLimit(amount uint64) *BytesBlock {
 	if uint64(*bp) > math.MaxUint64-amount {
 		panic("block's bytes pushed above uint64")
 	}
