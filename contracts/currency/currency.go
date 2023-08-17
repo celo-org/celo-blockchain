@@ -187,7 +187,7 @@ func (cc *CurrencyManager) GetCurrency(currencyAddress *common.Address) (*Curren
 // CmpValues compares values of potentially different currencies
 func (cc *CurrencyManager) CmpValues(val1 *big.Int, currencyAddr1 *common.Address, val2 *big.Int, currencyAddr2 *common.Address) int {
 	// Short circuit if the fee currency is the same. nil currency => native currency
-	if (currencyAddr1 == nil && currencyAddr2 == nil) || (currencyAddr1 != nil && currencyAddr2 != nil && *currencyAddr1 == *currencyAddr2) {
+	if common.AreEqualAddresses(currencyAddr1, currencyAddr2) {
 		return val1.Cmp(val2)
 	}
 

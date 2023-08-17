@@ -106,16 +106,16 @@ func TestMultiPushPop(t *testing.T) {
 	var cmp CurrencyCmpFn = func(p1 *big.Int, cc1 *common.Address, p2 *big.Int, cc2 *common.Address) int {
 		var val1 int = int(p1.Int64())
 		var val2 int = int(p2.Int64())
-		if cc1 == c1 {
+		if common.AreEqualAddresses(cc1, c1) {
 			val1 *= 10
 		}
-		if cc2 == c1 {
+		if common.AreEqualAddresses(cc2, c1) {
 			val2 *= 10
 		}
-		if cc1 == c2 {
+		if common.AreEqualAddresses(cc1, c2) {
 			val1 *= 100
 		}
-		if cc2 == c2 {
+		if common.AreEqualAddresses(cc2, c2) {
 			val2 *= 100
 		}
 		return val1 - val2
@@ -187,16 +187,16 @@ func TestMultiAddInit(t *testing.T) {
 	var cmp CurrencyCmpFn = func(p1 *big.Int, cc1 *common.Address, p2 *big.Int, cc2 *common.Address) int {
 		var val1 int = int(p1.Int64())
 		var val2 int = int(p2.Int64())
-		if cc1 == c1 {
+		if common.AreEqualAddresses(cc1, c1) {
 			val1 *= 10
 		}
-		if cc2 == c1 {
+		if common.AreEqualAddresses(cc2, c1) {
 			val2 *= 10
 		}
-		if cc1 == c2 {
+		if common.AreEqualAddresses(cc1, c2) {
 			val1 *= 100
 		}
-		if cc2 == c2 {
+		if common.AreEqualAddresses(cc2, c2) {
 			val2 *= 100
 		}
 		return val1 - val2
