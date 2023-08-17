@@ -41,6 +41,7 @@ import (
 	"github.com/celo-org/celo-blockchain/eth/filters"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rpc"
 )
@@ -76,7 +77,7 @@ type SimulatedBackend struct {
 // and uses a simulated blockchain for testing purposes.
 // A simulated backend always uses chainID 1337.
 func NewSimulatedBackendWithDatabase(database ethdb.Database, alloc core.GenesisAlloc) *SimulatedBackend {
-	genesis := core.Genesis{Config: params.IstanbulTestChainConfig, Alloc: alloc}
+	genesis := core.Genesis{Config: params.TestChainConfig, Alloc: alloc}
 	genesis.MustCommit(database)
 	blockchain, _ := core.NewBlockChain(database, nil, genesis.Config, mockEngine.NewFaker(), vm.Config{}, nil, nil)
 
@@ -501,6 +502,38 @@ func (b *SimulatedBackend) EstimateGas(ctx context.Context, call ethereum.CallMs
 		vmRunner := b.blockchain.NewEVMRunner(b.pendingBlock.Header(), b.pendingState)
 		hi = blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
 	}
+	// Normalize the max fee per gas the call is willing to spend.
+	var feeCap *big.Int
+	if call.GasPrice != nil && (call.GasFeeCap != nil || call.GasTipCap != nil) {
+		return 0, errors.New("both gasPrice and (maxFeePerGas or maxPriorityFeePerGas) specified")
+	} else if call.GasPrice != nil {
+		feeCap = call.GasPrice
+	} else if call.GasFeeCap != nil {
+		feeCap = call.GasFeeCap
+	} else {
+		feeCap = common.Big0
+	}
+	// Recap the highest gas allowance with account's balance.
+	if feeCap.BitLen() != 0 {
+		balance := b.pendingState.GetBalance(call.From) // from can't be nil
+		available := new(big.Int).Set(balance)
+		if call.Value != nil {
+			if call.Value.Cmp(available) >= 0 {
+				return 0, errors.New("insufficient funds for transfer")
+			}
+			available.Sub(available, call.Value)
+		}
+		allowance := new(big.Int).Div(available, feeCap)
+		if allowance.IsUint64() && hi > allowance.Uint64() {
+			transfer := call.Value
+			if transfer == nil {
+				transfer = new(big.Int)
+			}
+			log.Warn("Gas estimation capped by limited funds", "original", hi, "balance", balance,
+				"sent", transfer, "feecap", feeCap, "fundable", allowance)
+			hi = allowance.Uint64()
+		}
+	}
 	cap = hi
 
 	// Create a helper to check if a gas allowance results in an executable transaction
@@ -564,7 +597,7 @@ func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallM
 		return nil, errors.New("both gasPrice and (maxFeePerGas or maxPriorityFeePerGas) specified")
 	}
 	head := b.blockchain.CurrentHeader()
-	if !b.blockchain.Config().IsEspresso(head.Number) {
+	if !b.blockchain.Config().IsLondon(head.Number) {
 		// If there's no basefee, then it must be a non-1559 execution
 		if call.GasPrice == nil {
 			call.GasPrice = new(big.Int)
@@ -607,16 +640,19 @@ func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallM
 	// Execute the call.
 	msg := callMsg{call}
 
-	// Create a new environment which holds all relevant information
-	// about the transaction and calling mechanisms.
 	txContext := core.NewEVMTxContext(msg)
 	evmContext := core.NewEVMBlockContext(block.Header(), b.blockchain, nil)
+	// Create a new environment which holds all relevant information
+	// about the transaction and calling mechanisms.
 	vmEnv := vm.NewEVM(evmContext, txContext, stateDB, b.config, vm.Config{NoBaseFee: true})
 	gasPool := new(core.GasPool).AddGas(math.MaxUint64)
 	vmRunner := b.blockchain.NewEVMRunner(block.Header(), stateDB)
 	var sysCtx *core.SysContractCallCtx
 	if b.config.IsEspresso(block.Number()) {
 		parent := b.blockchain.GetBlockByNumber(block.NumberU64() - 1)
+		if block.NumberU64() == 0 {
+			parent = b.blockchain.GetBlockByNumber(0)
+		}
 		sysStateDB, err := b.blockchain.StateAt(parent.Root())
 		if err != nil {
 			return nil, err
@@ -763,7 +799,7 @@ func (b *SimulatedBackend) AdjustTime(adjustment time.Duration) error {
 	defer b.mu.Unlock()
 
 	if len(b.pendingBlock.Transactions()) != 0 {
-		return errors.New("could not adjust time on non-empty block")
+		return errors.New("Could not adjust time on non-empty block")
 	}
 
 	blocks, _ := core.GenerateChain(b.config, b.blockchain.CurrentBlock(), mockEngine.NewFaker(), b.database, 1, func(number int, block *core.BlockGen) {
@@ -872,6 +908,10 @@ func (fb *filterBackend) BloomStatus() (uint64, uint64) { return 4096, 0 }
 
 func (fb *filterBackend) ServiceFilter(ctx context.Context, ms *bloombits.MatcherSession) {
 	panic("not supported")
+}
+
+func (fb *filterBackend) RealGasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error) {
+	return nil, fmt.Errorf("filterBackend does not implement RealGasPriceMinimumForHeader")
 }
 
 func nullSubscription() event.Subscription {

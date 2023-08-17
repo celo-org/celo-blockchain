@@ -45,13 +45,13 @@ type Config struct {
 	Blockchain                 BlockchainParameters
 	Random                     RandomParameters
 	Attestations               AttestationsParameters
-	TransferWhitelist          TransferWhitelistParameters
 	ReserveSpenderMultiSig     MultiSigParameters
 	GovernanceApproverMultiSig MultiSigParameters
 	DoubleSigningSlasher       DoubleSigningSlasherParameters
 	DowntimeSlasher            DowntimeSlasherParameters
 	Governance                 GovernanceParameters
 	GrandaMento                GrandaMentoParameters
+	FeeHandler                 FeeHandlerParameters
 }
 
 // Save will write config into a json file
@@ -82,9 +82,11 @@ func (cfg *Config) ChainConfig() *params.ChainConfig {
 		PetersburgBlock:     common.Big0,
 		IstanbulBlock:       common.Big0,
 
-		ChurritoBlock: cfg.Hardforks.ChurritoBlock,
-		DonutBlock:    cfg.Hardforks.DonutBlock,
-		EspressoBlock: cfg.Hardforks.EspressoBlock,
+		ChurritoBlock:      cfg.Hardforks.ChurritoBlock,
+		DonutBlock:         cfg.Hardforks.DonutBlock,
+		EspressoBlock:      cfg.Hardforks.EspressoBlock,
+		GingerbreadBlock:   cfg.Hardforks.GingerbreadBlock,
+		GingerbreadP2Block: cfg.Hardforks.GingerbreadP2Block,
 
 		Istanbul: &params.IstanbulConfig{
 			Epoch:          cfg.Istanbul.Epoch,
@@ -98,9 +100,11 @@ func (cfg *Config) ChainConfig() *params.ChainConfig {
 
 // HardforkConfig contains celo hardforks activation blocks
 type HardforkConfig struct {
-	ChurritoBlock *big.Int `json:"churritoBlock"`
-	DonutBlock    *big.Int `json:"donutBlock"`
-	EspressoBlock *big.Int `json:"espressoBlock"`
+	ChurritoBlock      *big.Int `json:"churritoBlock"`
+	DonutBlock         *big.Int `json:"donutBlock"`
+	EspressoBlock      *big.Int `json:"espressoBlock"`
+	GingerbreadBlock   *big.Int `json:"gingerbreadBlock"`
+	GingerbreadP2Block *big.Int `json:"gingerbreadP2Block"`
 }
 
 // MultiSigParameters are the initial configuration parameters for a MultiSig contract
@@ -136,18 +140,10 @@ type ElectionParametersMarshaling struct {
 	MaxVotesPerAccount *bigintstr.BigIntStr `json:"maxVotesPerAccount"`
 }
 
-// Version represents an artifact version number
-type Version struct {
-	Major int64 `json:"major"`
-	Minor int64 `json:"minor"`
-	Patch int64 `json:"patch"`
-}
-
 // BlockchainParameters are the initial configuration parameters for Blockchain
 type BlockchainParameters struct {
-	Version                 Version `json:"version"`
-	GasForNonGoldCurrencies uint64  `json:"gasForNonGoldCurrencies"`
-	BlockGasLimit           uint64  `json:"blockGasLimit"`
+	GasForNonGoldCurrencies uint64 `json:"gasForNonGoldCurrencies"`
+	BlockGasLimit           uint64 `json:"blockGasLimit"`
 }
 
 //go:generate gencodec -type DoubleSigningSlasherParameters -field-override DoubleSigningSlasherParametersMarshaling -out gen_double_signing_slasher_parameters_json.go
@@ -186,7 +182,6 @@ type GovernanceParameters struct {
 	MinDeposit              *big.Int     `json:"minDeposit"`
 	QueueExpiry             uint64       `json:"queueExpiry"`
 	DequeueFrequency        uint64       `json:"dequeueFrequency"`
-	ApprovalStageDuration   uint64       `json:"approvalStageDuration"`
 	ReferendumStageDuration uint64       `json:"referendumStageDuration"`
 	ExecutionStageDuration  uint64       `json:"executionStageDuration"`
 	ParticipationBaseline   *fixed.Fixed `json:"participationBaseline"`
@@ -236,12 +231,6 @@ type EpochRewardsParametersMarshaling struct {
 	MaxValidatorEpochPayment *bigintstr.BigIntStr `json:"maxValidatorEpochPayment"`
 }
 
-// TransferWhitelistParameters are the initial configuration parameters for TransferWhitelist
-type TransferWhitelistParameters struct {
-	Addresses   []common.Address `json:"addresses"`
-	RegistryIDs []common.Hash    `json:"registryIds"`
-}
-
 // GoldTokenParameters are the initial configuration parameters for GoldToken
 type GoldTokenParameters struct {
 	Frozen          bool        `json:"frozen"`
@@ -270,13 +259,15 @@ type SortedOraclesParameters struct {
 
 // GasPriceMinimumParameters are the initial configuration parameters for GasPriceMinimum
 type GasPriceMinimumParameters struct {
-	MinimumFloor    *big.Int     `json:"minimumFloor"`
-	TargetDensity   *fixed.Fixed `json:"targetDensity"`
-	AdjustmentSpeed *fixed.Fixed `json:"adjustmentSpeed"`
+	MinimumFloor                 *big.Int     `json:"minimumFloor"`
+	TargetDensity                *fixed.Fixed `json:"targetDensity"`
+	AdjustmentSpeed              *fixed.Fixed `json:"adjustmentSpeed"`
+	BaseFeeOpCodeActivationBlock *big.Int     `json:"baseFeeOpCodeActivationBlock"`
 }
 
 type GasPriceMinimumParametersMarshaling struct {
-	MinimumFloor *bigintstr.BigIntStr `json:"minimumFloor"`
+	MinimumFloor                 *bigintstr.BigIntStr `json:"minimumFloor"`
+	BaseFeeOpCodeActivationBlock *bigintstr.BigIntStr `json:"baseFeeOpCodeActivationBlock"`
 }
 
 // GrandaMentoParameters are the initial configuration parameters for GrandaMento
@@ -286,6 +277,16 @@ type GrandaMentoParameters struct {
 	Spread                        *fixed.Fixed                  `json:"spread"`
 	VetoPeriodSeconds             uint64                        `json:"vetoPeriodSeconds"`
 	StableTokenExchangeLimits     StableTokenExchangeLimitsList `json:"stableTokenExchangeLimits"`
+}
+
+// FeeHandlerParameters are the initial configuration parameters for FeeHandler
+type FeeHandlerParameters struct {
+	NewFeeBeneficiary common.Address   `json:"newFeeBeneficiary"`
+	NewBurnFraction   *fixed.Fixed     `json:"newBurnFraction"`
+	Tokens            []common.Address `json:"tokens"`
+	Handlers          []common.Address `json:"handlers"`
+	NewLimits         []*big.Int       `json:"newLimits"`
+	NewMaxSlippages   []*big.Int       `json:"newMaxSlippages"`
 }
 
 //go:generate gencodec -type StableTokenExchangeLimit -field-override StableTokenExchangeLimitsMarshaling -out gen_stable_token_exchange_limit_json.go

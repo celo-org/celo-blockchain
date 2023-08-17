@@ -27,14 +27,14 @@ func NewEnv(cfg *Config) *vm.EVM {
 		GasPrice: cfg.GasPrice,
 	}
 	blockContext := vm.BlockContext{
-		CanTransfer:          vmcontext.CanTransfer,
-		Transfer:             vmcontext.TobinTransfer,
-		GetHash:              cfg.GetHashFn,
-		Coinbase:             cfg.Coinbase,
-		BlockNumber:          cfg.BlockNumber,
-		Time:                 cfg.Time,
-		GetRegisteredAddress: vmcontext.GetRegisteredAddress,
-		// BaseFee:     cfg.BaseFee, // TODO: Set to GPM
+		CanTransfer:        vmcontext.CanTransfer,
+		Transfer:           vmcontext.TobinTransfer,
+		GetHash:            cfg.GetHashFn,
+		Coinbase:           cfg.Coinbase,
+		BlockNumber:        cfg.BlockNumber,
+		Time:               cfg.Time,
+		IsGoldTokenAddress: vmcontext.IsGoldTokenAddress,
+		BaseFee:            cfg.BaseFee,
 	}
 
 	if cfg.ChainConfig.Istanbul != nil {

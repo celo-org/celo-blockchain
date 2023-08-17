@@ -22,14 +22,15 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
-	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/contracts/erc20gas"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
+	gpm "github.com/celo-org/celo-blockchain/eth/gasprice"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 	// cmath "github.com/celo-org/celo-blockchain/common/math"
@@ -211,7 +212,7 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRu
 	if evm.ChainConfig().IsEspresso(evm.Context.BlockNumber) {
 		gasPriceMinimum = sysCtx.GetGasPriceMinimum(msg.FeeCurrency())
 	} else {
-		gasPriceMinimum, _ = gpm.GetGasPriceMinimum(vmRunner, msg.FeeCurrency())
+		gasPriceMinimum, _ = gpm.GetBaseFeeForCurrency(vmRunner, msg.FeeCurrency(), nil)
 	}
 
 	return &StateTransition{
@@ -240,17 +241,6 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRu
 func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*ExecutionResult, error) {
 	log.Trace("Applying state transition message", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "gas price", msg.GasPrice(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas", msg.Gas(), "value", msg.Value(), "data", msg.Data())
 	return NewStateTransition(evm, msg, gp, vmRunner, sysCtx).TransitionDb()
-}
-
-// ApplyMessageWithoutGasPriceMinimum applies the given message with the gas price minimum
-// set to zero. It's only for use in eth_call and eth_estimateGas, so that they can be used
-// with gas price set to zero if the sender doesn't have funds to pay for gas.
-// Returns the gas used (which does not include gas refunds) and an error if it failed.
-func ApplyMessageWithoutGasPriceMinimum(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*ExecutionResult, error) {
-	log.Trace("Applying state transition message without gas price minimum", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas limit", msg.Gas(), "value", msg.Value(), "data", msg.Data())
-	st := NewStateTransition(evm, msg, gp, vmRunner, sysCtx)
-	st.gasPriceMinimum = common.Big0
-	return st.TransitionDb()
 }
 
 // to returns the recipient of the message.
@@ -351,62 +341,6 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, feeCurrency *c
 	return nil
 }
 
-func (st *StateTransition) debitGas(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
-	if amount.Cmp(big.NewInt(0)) == 0 {
-		return nil
-	}
-	evm := st.evm
-	// Function is "debitGasFees(address from, uint256 value)"
-	// selector is first 4 bytes of keccak256 of "debitGasFees(address,uint256)"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("debitGasFees(address,uint256)")[0:4].hex())'
-	functionSelector := hexutil.MustDecode("0x58cf9672")
-	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
-
-	// Run only primary evm.Call() with tracer
-	if evm.GetDebug() {
-		evm.SetDebug(false)
-		defer func() { evm.SetDebug(true) }()
-	}
-
-	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
-	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForDebitGasFeesTransactions, big.NewInt(0))
-	gasUsed := params.MaxGasForDebitGasFeesTransactions - leftoverGas
-	log.Trace("debitGasFees called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
-	return err
-}
-
-func (st *StateTransition) creditGasFees(
-	from common.Address,
-	feeRecipient common.Address,
-	gatewayFeeRecipient *common.Address,
-	communityFund common.Address,
-	refund *big.Int,
-	tipTxFee *big.Int,
-	gatewayFee *big.Int,
-	baseTxFee *big.Int,
-	feeCurrency *common.Address) error {
-	evm := st.evm
-	// Function is "creditGasFees(address,address,address,address,uint256,uint256,uint256,uint256)"
-	functionSelector := hexutil.MustDecode("0x6a30b253")
-	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(from), common.AddressToAbi(feeRecipient), common.AddressToAbi(*gatewayFeeRecipient), common.AddressToAbi(communityFund), common.AmountToAbi(refund), common.AmountToAbi(tipTxFee), common.AmountToAbi(gatewayFee), common.AmountToAbi(baseTxFee)})
-
-	// Run only primary evm.Call() with tracer
-	if evm.GetDebug() {
-		evm.SetDebug(false)
-		defer func() { evm.SetDebug(true) }()
-	}
-
-	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
-	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, params.MaxGasForCreditGasFeesTransactions, big.NewInt(0))
-	gasUsed := params.MaxGasForCreditGasFeesTransactions - leftoverGas
-	log.Trace("creditGas called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
-	return err
-}
-
 func (st *StateTransition) debitFee(from common.Address, feeCurrency *common.Address) (err error) {
 	effectiveFee := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 	// If GatewayFeeRecipient is unspecified, the gateway fee value is ignore and the sender is not charged.
@@ -419,7 +353,7 @@ func (st *StateTransition) debitFee(from common.Address, feeCurrency *common.Add
 		st.state.SubBalance(from, effectiveFee)
 		return nil
 	} else {
-		return st.debitGas(from, effectiveFee, feeCurrency)
+		return erc20gas.DebitFees(st.evm, from, effectiveFee, feeCurrency)
 	}
 }
 
@@ -436,9 +370,8 @@ func (st *StateTransition) preCheck() error {
 				st.msg.From().Hex(), msgNonce, stNonce)
 		}
 	}
-
-	// Make sure that transaction gasFeeCap >= baseFee (post Espresso)
-	if st.evm.ChainConfig().IsEspresso(st.evm.Context.BlockNumber) {
+	// Make sure that transaction gasFeeCap is greater than the baseFee (post london)
+	if st.evm.ChainConfig().IsLondon(st.evm.Context.BlockNumber) {
 		// Skip the checks if gas fields are zero and baseFee was explicitly disabled (eth_call)
 		if !st.evm.Config.NoBaseFee || st.gasFeeCap.BitLen() > 0 || st.gasTipCap.BitLen() > 0 {
 			if l := st.gasFeeCap.BitLen(); l > 256 {
@@ -459,7 +392,7 @@ func (st *StateTransition) preCheck() error {
 			}
 		}
 	} else { // Make sure this transaction's gas price >= baseFee (pre Espresso)
-		if st.gasPrice.Cmp(st.gasPriceMinimum) < 0 {
+		if !st.evm.Config.NoBaseFee && st.gasPrice.Cmp(st.gasPriceMinimum) < 0 {
 			log.Debug("Tx gas price is less than minimum", "minimum", st.gasPriceMinimum, "price", st.gasPrice)
 			return ErrGasPriceDoesNotExceedMinimum
 		}
@@ -553,7 +486,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 
 	// Set up the initial access list.
-	if rules := st.evm.ChainConfig().Rules(st.evm.Context.BlockNumber); espresso {
+	if rules := st.evm.ChainConfig().Rules(st.evm.Context.BlockNumber); rules.IsBerlin {
 		st.state.PrepareAccessList(msg.From(), msg.To(), vm.ActivePrecompiles(rules), msg.AccessList())
 	}
 	var (
@@ -614,13 +547,19 @@ func (st *StateTransition) distributeTxFees() error {
 	}
 
 	caller := &vmcontext.SharedEVMRunner{EVM: st.evm}
-	governanceAddress, err := contracts.GetRegisteredAddress(caller, params.GovernanceRegistryId)
+	var contractId [32]byte
+	if st.evm.ChainConfig().IsGingerbread(st.evm.Context.BlockNumber) {
+		contractId = config.FeeHandlerId
+	} else {
+		contractId = config.GovernanceRegistryId
+	}
+	feeHandlerAddress, err := contracts.GetRegisteredAddress(caller, contractId)
 	if err != nil {
 		if err != contracts.ErrSmartContractNotDeployed && err != contracts.ErrRegistryContractNotDeployed {
 			return err
 		}
-		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
-		governanceAddress = common.ZeroAddress
+		log.Trace("Cannot credit gas fee to FeeHandler: refunding fee to sender", "error", err, "fee", baseTxFee)
+		feeHandlerAddress = common.ZeroAddress
 		refund.Add(refund, baseTxFee)
 		baseTxFee = new(big.Int)
 	}
@@ -628,19 +567,19 @@ func (st *StateTransition) distributeTxFees() error {
 	log.Trace("distributeTxFees", "from", from, "refund", refund, "feeCurrency", st.msg.FeeCurrency(),
 		"gatewayFeeRecipient", *gatewayFeeRecipient, "gatewayFee", st.msg.GatewayFee(),
 		"coinbaseFeeRecipient", st.evm.Context.Coinbase, "coinbaseFee", tipTxFee,
-		"comunityFundRecipient", governanceAddress, "communityFundFee", baseTxFee)
+		"feeHandler", feeHandlerAddress, "communityFundFee", baseTxFee)
 	if feeCurrency == nil {
 		if gatewayFeeRecipient != &common.ZeroAddress {
 			st.state.AddBalance(*gatewayFeeRecipient, st.msg.GatewayFee())
 		}
-		if governanceAddress != common.ZeroAddress {
-			st.state.AddBalance(governanceAddress, baseTxFee)
+		if feeHandlerAddress != common.ZeroAddress {
+			st.state.AddBalance(feeHandlerAddress, baseTxFee)
 		}
 		st.state.AddBalance(st.evm.Context.Coinbase, tipTxFee)
 		st.state.AddBalance(from, refund)
 	} else {
-		if err = st.creditGasFees(from, st.evm.Context.Coinbase, gatewayFeeRecipient, governanceAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
-			log.Error("Error crediting", "from", from, "coinbase", st.evm.Context.Coinbase, "gateway", gatewayFeeRecipient, "fund", governanceAddress)
+		if err = erc20gas.CreditFees(st.evm, from, st.evm.Context.Coinbase, gatewayFeeRecipient, feeHandlerAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
+			log.Error("Error crediting", "from", from, "coinbase", st.evm.Context.Coinbase, "gateway", gatewayFeeRecipient, "feeHandler", feeHandlerAddress)
 			return err
 		}
 

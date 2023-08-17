@@ -221,13 +221,6 @@ func GetNodeID(enodeURL string) (*enode.ID, error) {
 	return &id, nil
 }
 
-// RandomnessCommitmentDBLocation will return the key for where the
-// given commitment's cached key-value entry
-func RandomnessCommitmentDBLocation(commitment common.Hash) []byte {
-	dbRandomnessPrefix := []byte("db-randomness-prefix")
-	return append(dbRandomnessPrefix, commitment.Bytes()...)
-}
-
 func GetTimestamp() uint {
 	// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
 	return uint(time.Now().Unix())

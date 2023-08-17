@@ -23,6 +23,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
+	"math/big"
 	"path/filepath"
 	godebug "runtime/debug"
 	"strconv"
@@ -237,9 +238,14 @@ var (
 	}
 
 	// Hard fork activation overrides
-	OverrideEHardforkFlag = cli.Uint64Flag{
-		Name:  "override.espresso",
-		Usage: "Manually specify the espresso fork block, overriding the bundled setting",
+	OverrideGingerbreadFlag = cli.Uint64Flag{
+		Name:  "override.gingerbread",
+		Usage: "Manually specify the gingerbread fork block, overriding the bundled setting",
+	}
+
+	OverrideGingerbreadP2Flag = cli.Uint64Flag{
+		Name:  "override.gingerbreadp2",
+		Usage: "Manually specify the gingerbread p2 fork block, overriding the bundled setting",
 	}
 
 	BloomFilterSizeFlag = cli.Uint64Flag{
@@ -445,6 +451,11 @@ var (
 		Usage: "Multiplier applied to the gasEstimation rpc call (1 = gasEstimation, 1.3 = gasEstimation + 30%, etc. Defaults to 1.3)",
 		Value: ethconfig.Defaults.RPCGasInflationRate,
 	}
+	RPCGlobalGasPriceMultiplierFlag = cli.Float64Flag{
+		Name:  "rpc.gaspricemultiplier",
+		Usage: "Multiplier applied to the gasPrice rpc call (1 = gasPrice, 1.3 = gasPrice + 30%, etc. Defaults to 2.0)",
+		Value: float64(ethconfig.Defaults.RPCGasPriceMultiplier.Int64() / 100),
+	}
 	RPCGlobalGasCapFlag = cli.Uint64Flag{
 		Name:  "rpc.gascap",
 		Usage: "Sets a cap on gas that can be used in eth_call/estimateGas (0=infinite)",
@@ -635,10 +646,6 @@ var (
 		Usage: "Specifies whether to use an in memory discovery table",
 	}
 
-	VersionCheckFlag = cli.BoolFlag{
-		Name:  "disable-version-check",
-		Usage: "Disable version check. Use if the parameter is set erroneously",
-	}
 	DNSDiscoveryFlag = cli.StringFlag{
 		Name:  "discovery.dns",
 		Usage: "Sets DNS discovery entry points (use \"\" to disable DNS)",
@@ -1750,6 +1757,15 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	if ctx.GlobalIsSet(RPCGlobalGasInflationRateFlag.Name) {
 		cfg.RPCGasInflationRate = ctx.GlobalFloat64(RPCGlobalGasInflationRateFlag.Name)
 	}
+	if ctx.GlobalIsSet(RPCGlobalGasPriceMultiplierFlag.Name) {
+		floatMutliplier := ctx.GlobalFloat64(RPCGlobalGasPriceMultiplierFlag.Name)
+		if floatMutliplier < 1.0 {
+			log.Warn("Too low RPCGasPriceMultiplier, setting to 1.0", "provided value", floatMutliplier)
+			floatMutliplier = 1.0
+		}
+
+		cfg.RPCGasPriceMultiplier = big.NewInt(int64(floatMutliplier * 100))
+	}
 	if cfg.RPCGasInflationRate < 1 {
 		Fatalf("The inflation rate shouldn't be less than 1: %f", cfg.RPCGasInflationRate)
 	}
@@ -1789,7 +1805,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = params.MainnetNetworkId
 		}
-		cfg.Genesis = core.MainnetGenesisBlock()
+		cfg.Genesis = core.DefaultGenesisBlock()
 		SetDNSDiscoveryDefaults(cfg, params.MainnetGenesisHash)
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
@@ -2030,7 +2046,7 @@ func MakeGenesis(ctx *cli.Context) *core.Genesis {
 	var genesis *core.Genesis
 	switch {
 	case ctx.GlobalBool(MainnetFlag.Name):
-		genesis = core.MainnetGenesisBlock()
+		genesis = core.DefaultGenesisBlock()
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		genesis = core.DefaultBaklavaGenesisBlock()
 	case ctx.GlobalBool(AlfajoresFlag.Name):

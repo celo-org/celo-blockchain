@@ -4,15 +4,20 @@ on:
   push:
     branches:
       - master
+
   pull_request:
     branches:
       - master
 
+concurrency: 
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 env:
   # Increment these to force cache rebuilding
-  SYSTEM_CONTRACTS_CACHE_VERSION: 2
-  CHECKOUT_MONOREPO_CACHE_VERSION: 4
-  GO_VERSION: '1.17.5'
+  SYSTEM_CONTRACTS_CACHE_VERSION: 3
+  CHECKOUT_MONOREPO_CACHE_VERSION: 7
+  GO_VERSION: '1.18'
   # Location where compiled system contracts are stored under the root of this
   # repo.
   SYSTEM_CONTRACTS_PATH: "compiled-system-contracts"
@@ -20,11 +25,11 @@ env:
 jobs:
   prepare-system-contracts:
     name: Build celo-monorepo
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
     env:
-      NODE_VERSION: 12
-      PYTHON_VERSION: '2.7'
-      CONTRACTS_BUILD_PATH: packages/protocol/build/contracts
+      NODE_VERSION: 18
+      PYTHON_VERSION: '3.9'
+      CONTRACTS_BUILD_PATH: packages/protocol/build
 
     steps:
     - name: Checkout celo-blockchain repo
@@ -81,7 +86,7 @@ jobs:
 
   go-modules:
     name: Setup go
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
 
     steps:
     - name: Checkout repo
@@ -96,7 +101,7 @@ jobs:
   check-imports:
     name: Check imports
     needs: go-modules
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
 
     steps:
     - name: Checkout repo
@@ -112,7 +117,7 @@ jobs:
 
   lint:
     name: Lint code
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
     needs: go-modules
 
     steps:
@@ -125,14 +130,11 @@ jobs:
         check-latest: false
         cache: true
     - name: Run linter
-      uses: golangci/golangci-lint-action@v3
-      with:
-        skip-pkg-cache: true
-        only-new-issues: true
+      run: make lint
 
   unit-tests:
     name: Unit tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
     needs:
     - go-modules
     - prepare-system-contracts
@@ -160,7 +162,7 @@ jobs:
     - name: Generate test report
       if: always()
       run: |
-        go-junit-report -set-exit-code < go-test.out > report.xml
+        go-junit-report -set-exit-code < go-test.out | tee -a report.xml
     - name: Test summary
       id: unit-tests-summary
       if: always()
@@ -178,12 +180,18 @@ jobs:
         message-id: test-summary
     # TODO: figure out if we need a token
     - name: Upload coverage to codecov
+      if: always()
       uses: codecov/codecov-action@v3
+    - name: Fail if there are failed tests
+      if: steps.unit-tests-summary.outputs.failed > 0
+      run: |
+        echo "There are failed tests"
+        exit 1
 
   race:
     name: Data race detector
     if: ${{ github.ref == 'refs/heads/master' || contains(github.ref, 'release') }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
     needs:
     - go-modules
     - prepare-system-contracts
@@ -220,7 +228,7 @@ jobs:
 
   build-and-store-binaries:
     name: Build and store binaries
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
     needs:
       - go-modules
 
@@ -244,7 +252,7 @@ jobs:
 
   istanbul-e2e-coverage:
     name: Istanbul consensus coverage
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
     # Needed to publish the summary PR comment
     permissions:
       pull-requests: write
@@ -293,7 +301,7 @@ jobs:
 
   lightest-sync-test:
     name: Lightest sync test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
 
     needs:
     - build-and-store-binaries
@@ -321,7 +329,8 @@ jobs:
 
   e2e-benchmarks:
     name: End-to-end benchmarks
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
 
     needs:
     - go-modules
@@ -355,9 +364,10 @@ jobs:
 
   end-to-end-blockchain-parameters-test:
     name: End-to-end blockchain parameters test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -401,9 +411,10 @@ jobs:
 
   end-to-end-governance-test:
     name: End-to-end governance test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -448,9 +459,10 @@ jobs:
 
   end-to-end-sync-test:
     name: End-to-end sync test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -494,9 +506,10 @@ jobs:
 
   end-to-end-slashing-test:
     name: End-to-end slashing test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -540,9 +553,10 @@ jobs:
 
   end-to-end-transfers-test:
     name: End-to-end transfers test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -586,9 +600,10 @@ jobs:
 
   end-to-end-validator-order-test:
     name: End-to-end validator order test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -632,9 +647,10 @@ jobs:
 
   end-to-end-cip35-eth-compatibility-test:
     name: End-to-end CIP35-eth compatibility test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -678,9 +694,10 @@ jobs:
 
   end-to-end-replica-test:
     name: End-to-end replica test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, blockchain, 8-cpu]
+    timeout-minutes: 30
     env:
-      NODE_VERSION: 12
+      NODE_VERSION: 18
 
     needs:
     - go-modules

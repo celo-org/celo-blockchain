@@ -26,6 +26,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/mclock"
+	"github.com/celo-org/celo-blockchain/core"
 	vfs "github.com/celo-org/celo-blockchain/les/vflux/server"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
@@ -66,11 +67,18 @@ func parseNode(node string) (enode.ID, error) {
 
 //GatewayFee returns the current gateway fee of this light server
 func (api *PrivateLightServerAPI) GatewayFee() (gf *big.Int, err error) {
+	if api.server.handler.blockchain.Config().IsGingerbread(api.server.handler.blockchain.CurrentHeader().Number) {
+		return nil, core.ErrGatewayFeeDeprecated
+	}
 	return api.server.handler.gatewayFee, nil
 }
 
 //SetGatewayFee allows this light server node to set a gateway fee
 func (api *PrivateLightServerAPI) SetGatewayFee(gf *big.Int) error {
+	if api.server.handler.blockchain.Config().IsGingerbread(api.server.handler.blockchain.CurrentHeader().Number) {
+		return core.ErrGatewayFeeDeprecated
+	}
+
 	if gf.Cmp(common.Big0) < 0 {
 		return errInvalidGatewayFee
 	}
@@ -85,6 +93,10 @@ func (api *PrivateLightServerAPI) SetGatewayFee(gf *big.Int) error {
 
 // SetGatewayFeeRecipient sets the etherbase of the gateway fee recipient
 func (api *PrivateLightServerAPI) SetGatewayFeeRecipient(etherbase common.Address) error {
+	if api.server.handler.blockchain.Config().IsGingerbread(api.server.handler.blockchain.CurrentHeader().Number) {
+		return core.ErrGatewayFeeDeprecated
+	}
+
 	if api.server.handler.etherbase != etherbase {
 		api.server.handler.etherbase = etherbase
 		if err := api.server.BroadcastGatewayFeeInfo(); err != nil {
@@ -95,6 +107,9 @@ func (api *PrivateLightServerAPI) SetGatewayFeeRecipient(etherbase common.Addres
 }
 
 func (api *PrivateLightServerAPI) GatewayFeeRecipient() (eb common.Address, err error) {
+	if api.server.handler.blockchain.Config().IsGingerbread(api.server.handler.blockchain.CurrentHeader().Number) {
+		return common.Address{}, core.ErrGatewayFeeDeprecated
+	}
 	return api.server.handler.etherbase, nil
 }
 
@@ -453,11 +468,17 @@ func NewPrivateLightClientAPI(le *LightEthereum) *PrivateLightClientAPI {
 }
 
 func (api *PrivateLightClientAPI) GatewayFeeCache() map[string]*GatewayFeeInformation {
+	if api.le.blockchain.Config().IsGingerbread(api.le.handler.backend.blockchain.CurrentHeader().Number) {
+		return nil
+	}
 	return api.le.handler.gatewayFeeCache.getMap()
 }
 
 // RequestPeerGatewayFees updates cache by pulling gateway fee peer nodes
 func (api *PrivateLightClientAPI) RequestPeerGatewayFees() error {
+	if api.le.blockchain.Config().IsGingerbread(api.le.handler.backend.blockchain.CurrentHeader().Number) {
+		return core.ErrGatewayFeeDeprecated
+	}
 	peerNodes := api.le.peers.allPeers()
 	for _, peerNode := range peerNodes {
 		cost := peerNode.getRequestCost(GetGatewayFeeMsg, int(1))
@@ -471,6 +492,9 @@ func (api *PrivateLightClientAPI) RequestPeerGatewayFees() error {
 
 // SuggestGatewayFee suggests the best light server to choose based on different factors. Currently only minPeerGatewayFee.
 func (api *PrivateLightClientAPI) SuggestGatewayFee() (*GatewayFeeInformation, error) {
+	if api.le.blockchain.Config().IsGingerbread(api.le.handler.backend.blockchain.CurrentHeader().Number) {
+		return nil, core.ErrGatewayFeeDeprecated
+	}
 	bestGatewayFeeInfo, err := api.le.handler.gatewayFeeCache.MinPeerGatewayFee()
 	if err != nil {
 		return nil, err

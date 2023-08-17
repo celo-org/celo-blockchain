@@ -7,35 +7,10 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
-	"github.com/celo-org/celo-blockchain/params"
 )
 
-func TestGetGasPriceSuggestion(t *testing.T) {
-	celoAddress := common.HexToAddress("0x076")
-	gpmAddress := common.HexToAddress("0x090")
-
-	t.Run("should return gas price minimum multiplied by 5", func(t *testing.T) {
-		g := NewGomegaWithT(t)
-
-		runner := testutil.NewMockEVMRunner()
-		registry := testutil.NewRegistryMock()
-		runner.RegisterContract(params.RegistrySmartContractAddress, registry)
-		registry.AddContract(params.GoldTokenRegistryId, celoAddress)
-
-		contract := testutil.NewSingleMethodContract(params.GasPriceMinimumRegistryId, "getGasPriceMinimum",
-			func(currency common.Address) *big.Int { return big.NewInt(777777) },
-		)
-		runner.RegisterContract(gpmAddress, contract)
-		registry.AddContract(params.GasPriceMinimumRegistryId, gpmAddress)
-
-		suggestedGpm, err := GetGasPriceSuggestion(runner, nil)
-		g.Expect(err).NotTo(HaveOccurred())
-
-		g.Expect(suggestedGpm.Uint64()).To(Equal(uint64(777777 * 5)))
-
-	})
-}
 func TestGetGasPriceMinimum(t *testing.T) {
 	cusdAddress := common.HexToAddress("0x077")
 	celoAddress := common.HexToAddress("0x076")
@@ -73,7 +48,7 @@ func TestGetGasPriceMinimum(t *testing.T) {
 
 		runner := testutil.NewMockEVMRunner()
 		registry := testutil.NewRegistryMock()
-		runner.RegisterContract(params.RegistrySmartContractAddress, registry)
+		runner.RegisterContract(config.RegistrySmartContractAddress, registry)
 
 		// with gold currency
 		ret, err := GetGasPriceMinimum(runner, nil)
@@ -86,9 +61,9 @@ func TestGetGasPriceMinimum(t *testing.T) {
 
 		runner := testutil.NewMockEVMRunner()
 		registry := testutil.NewRegistryMock()
-		runner.RegisterContract(params.RegistrySmartContractAddress, registry)
-		registry.AddContract(params.StableTokenRegistryId, cusdAddress)
-		registry.AddContract(params.GoldTokenRegistryId, celoAddress)
+		runner.RegisterContract(config.RegistrySmartContractAddress, registry)
+		registry.AddContract(config.StableTokenRegistryId, cusdAddress)
+		registry.AddContract(config.GoldTokenRegistryId, celoAddress)
 
 		// with gold currency
 		ret, err := GetGasPriceMinimum(runner, nil)
@@ -106,15 +81,15 @@ func TestGetGasPriceMinimum(t *testing.T) {
 
 		runner := testutil.NewMockEVMRunner()
 		registry := testutil.NewRegistryMock()
-		runner.RegisterContract(params.RegistrySmartContractAddress, registry)
-		registry.AddContract(params.GoldTokenRegistryId, celoAddress)
+		runner.RegisterContract(config.RegistrySmartContractAddress, registry)
+		registry.AddContract(config.GoldTokenRegistryId, celoAddress)
 
-		contract := testutil.NewSingleMethodContract(params.GasPriceMinimumRegistryId, "getGasPriceMinimum", func(currency common.Address) *big.Int {
+		contract := testutil.NewSingleMethodContract(config.GasPriceMinimumRegistryId, "getGasPriceMinimum", func(currency common.Address) *big.Int {
 			g.Expect(currency).To(Equal(celoAddress))
 			return big.NewInt(777777)
 		})
 		runner.RegisterContract(gpmAddress, contract)
-		registry.AddContract(params.GasPriceMinimumRegistryId, gpmAddress)
+		registry.AddContract(config.GasPriceMinimumRegistryId, gpmAddress)
 
 		ret, err := GetGasPriceMinimum(runner, nil)
 		g.Expect(err).NotTo(HaveOccurred())
@@ -126,15 +101,15 @@ func TestGetGasPriceMinimum(t *testing.T) {
 
 		runner := testutil.NewMockEVMRunner()
 		registry := testutil.NewRegistryMock()
-		runner.RegisterContract(params.RegistrySmartContractAddress, registry)
-		registry.AddContract(params.StableTokenRegistryId, cusdAddress)
+		runner.RegisterContract(config.RegistrySmartContractAddress, registry)
+		registry.AddContract(config.StableTokenRegistryId, cusdAddress)
 
-		contract := testutil.NewSingleMethodContract(params.GasPriceMinimumRegistryId, "getGasPriceMinimum", func(currency common.Address) *big.Int {
+		contract := testutil.NewSingleMethodContract(config.GasPriceMinimumRegistryId, "getGasPriceMinimum", func(currency common.Address) *big.Int {
 			g.Expect(currency).To(Equal(cusdAddress))
 			return big.NewInt(777777)
 		})
 		runner.RegisterContract(gpmAddress, contract)
-		registry.AddContract(params.GasPriceMinimumRegistryId, gpmAddress)
+		registry.AddContract(config.GasPriceMinimumRegistryId, gpmAddress)
 
 		// with non gold currency
 		ret, err := GetGasPriceMinimum(runner, &cusdAddress)
@@ -156,18 +131,18 @@ func TestUpdateGasPriceMinimum(t *testing.T) {
 
 		runner := testutil.NewMockEVMRunner()
 		registry := testutil.NewRegistryMock()
-		runner.RegisterContract(params.RegistrySmartContractAddress, registry)
-		registry.AddContract(params.BlockchainParametersRegistryId, blockchainParametersAddress)
-		registry.AddContract(params.GasPriceMinimumRegistryId, gpmAddress)
+		runner.RegisterContract(config.RegistrySmartContractAddress, registry)
+		registry.AddContract(config.BlockchainParametersRegistryId, blockchainParametersAddress)
+		registry.AddContract(config.GasPriceMinimumRegistryId, gpmAddress)
 
 		runner.RegisterContract(blockchainParametersAddress,
-			testutil.NewSingleMethodContract(params.BlockchainParametersRegistryId, "blockGasLimit",
+			testutil.NewSingleMethodContract(config.BlockchainParametersRegistryId, "blockGasLimit",
 				func() *big.Int {
 					return big.NewInt(int64(blockGasLimit))
 				}),
 		)
 		runner.RegisterContract(gpmAddress,
-			testutil.NewSingleMethodContract(params.GasPriceMinimumRegistryId, "updateGasPriceMinimum",
+			testutil.NewSingleMethodContract(config.GasPriceMinimumRegistryId, "updateGasPriceMinimum",
 				func(gas *big.Int, maxGas *big.Int) *big.Int {
 					g.Expect(gas.Uint64()).To(Equal(lastUsedGas))
 					g.Expect(maxGas.Uint64()).To(Equal(blockGasLimit))

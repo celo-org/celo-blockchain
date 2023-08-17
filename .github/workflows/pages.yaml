@@ -1,0 +1,111 @@
+name: Build and publish forkdiff github-pages
+permissions:
+  contents: write
+on:
+  push:
+    branches:
+      - master
+env:
+  GO_VERSION: '1.17.5'
+  CELO_BLOCKCHAIN_PATH: 'celo-blockchain'
+  GO_ETHEREUM_PATH: 'go-ethereum'
+
+jobs:
+  create-forkdiff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout celo-blockchain
+        uses: actions/checkout@v3
+        with:
+          path: ${{ env.CELO_BLOCKCHAIN_PATH }}
+
+      - name: Checkout go-ethereum
+        uses: actions/checkout@v3
+        with:
+          path: ${{ env.GO_ETHEREUM_PATH }}
+          repository: ethereum/go-ethereum
+          ref: eae3b1946a276ac099e0018fc792d9e8c3bfda6d
+
+      - name: Setup golang
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: false
+
+      - name: Install goimports
+        run: |
+          go install golang.org/x/tools/cmd/goimports@latest
+
+      - name: Minimize unhelpful differences (formatting, imports)
+        # Replace github.com/celo-org/celo-blockchain -> github.com/ethereum/go-ethereum
+        # Re-replaces crypto/bls as this is specific to Celo, to avoid confusing diffs
+        # Replaces 'ethereum "github.com/ethereum/go-ethereum"' imports (Celo renaming)
+        # Applies gofmt to both repositories to minimize formatting differences
+        # The last steps replace 2+ white spaces with a single space, since git diff --ignore-all-space
+        # is not available. If this causes other issues down the line, delete those two lines.
+        run: |
+          grep -rl "//\s*nolint:\s*unused$" ${{ env.CELO_BLOCKCHAIN_PATH }}/. | xargs sed -i "s#//\s*nolint:\s*unused\$##"
+          grep -rl "github.com/celo-org/celo-blockchain" ${{ env.CELO_BLOCKCHAIN_PATH }}/. --exclude "*fork.yaml"| xargs sed -i "s#github.com/celo-org/celo-blockchain#github.com/ethereum/go-ethereum#"
+          grep -rl "github.com/ethereum/go-ethereum/crypto/bls" ${{ env.CELO_BLOCKCHAIN_PATH }}/. --exclude "*fork.yaml"| xargs sed -i "s#github.com/ethereum/go-ethereum/crypto/bls#github.com/celo-org/celo-blockchain/crypto/bls#"
+          grep -rl 'ethereum "github.com/ethereum/go-ethereum"' . --exclude "*fork.yaml" | xargs sed -i 's#ethereum "github.com/ethereum/go-ethereum"#"github.com/ethereum/go-ethereum"#'
+          gofmt -w ./${{ env.CELO_BLOCKCHAIN_PATH }} ./${{ env.GO_ETHEREUM_PATH }}
+          goimports -w ./${{ env.CELO_BLOCKCHAIN_PATH }} ./${{ env.GO_ETHEREUM_PATH }}
+          grep -rl " \{2,\}" ${{ env.CELO_BLOCKCHAIN_PATH }}/. --include \*.go --exclude "*fork.yaml" | xargs sed -i "s# \{2,\}# #g"
+          grep -rl " \{2,\}" ${{ env.GO_ETHEREUM_PATH }}/. --include \*.go | xargs sed -i "s# \{2,\}# #g"
+
+      - name: Commit changes locally (${{ env.CELO_BLOCKCHAIN_PATH }})
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: "Replace github.com/celo-org/celo-blockchain and run gofmt locally"
+          add: '-u'
+          push: false
+          cwd: './${{ env.CELO_BLOCKCHAIN_PATH }}'
+
+      - name: Commit changes locally (${{ env.GO_ETHEREUM_PATH }})
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: "Run gofmt locally"
+          add: '-u'
+          push: false
+          cwd: './${{ env.GO_ETHEREUM_PATH }}'
+
+      - name: Build forkdiff
+        uses: "docker://eelaclabs/forkdiff:latest"
+        with:
+          args: -repo=/github/workspace/${{ env.CELO_BLOCKCHAIN_PATH }} -upstream-repo=/github/workspace/${{ env.GO_ETHEREUM_PATH }} -fork=/github/workspace/${{ env.CELO_BLOCKCHAIN_PATH }}/.github/fork.yaml -out=/github/workspace/index.html
+
+      - name: Upload forkdiff index.html
+        uses: actions/upload-artifact@v3
+        with:
+          name: forkdiff-output
+          path: ./index.html
+
+  # Split into a separate step since JamesIves/github-pages-deploy-action@v4
+  # requires running actions/checkout from the main workspace,
+  # which we do not do above as we need to checkout two repositories.
+
+  deploy:
+    needs:
+      - create-forkdiff
+    concurrency: ci-${{ github.ref }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout celo-blockchain
+        uses: actions/checkout@v3
+
+      - name: Build pages directory
+        run: |
+          mkdir -p /tmp/pages
+          touch /tmp/pages/.nojekyll
+
+      - name: Restore forkdiff index.html output
+        uses: actions/download-artifact@v3
+        with:
+          name: forkdiff-output
+          path: /tmp/pages/index.html
+
+      - name: Deploy
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: /tmp/pages
+          clean: true

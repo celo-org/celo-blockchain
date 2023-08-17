@@ -65,6 +65,8 @@ var (
 		ChurritoBlock:       big.NewInt(6774000),
 		DonutBlock:          big.NewInt(6774000),
 		EspressoBlock:       big.NewInt(11838440),
+		GingerbreadBlock:    nil,
+		GingerbreadP2Block:  nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -90,6 +92,8 @@ var (
 		ChurritoBlock:       big.NewInt(2719099),
 		DonutBlock:          big.NewInt(5002000),
 		EspressoBlock:       big.NewInt(9195000),
+		GingerbreadBlock:    nil,
+		GingerbreadP2Block:  nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -115,6 +119,8 @@ var (
 		ChurritoBlock:       big.NewInt(4960000),
 		DonutBlock:          big.NewInt(4960000),
 		EspressoBlock:       big.NewInt(9472000),
+		GingerbreadBlock:    nil,
+		GingerbreadP2Block:  nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -124,31 +130,51 @@ var (
 		},
 	}
 
-	DeveloperChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
-		Epoch:          300,
-		ProposerPolicy: 0,
-		RequestTimeout: 1000,
-		BlockPeriod:    1,
-	}, true, false}
+	TestChainConfig = &ChainConfig{
+		ChainID:        big.NewInt(1337),
+		HomesteadBlock: big.NewInt(0),
 
-	IstanbulTestChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, nil, &IstanbulConfig{
-		Epoch:          300,
-		ProposerPolicy: 0,
-		RequestTimeout: 1000,
-		BlockPeriod:    1,
-	}, true, false}
+		DAOForkBlock:   nil,
+		DAOForkSupport: false,
 
-	IstanbulEHFTestChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), big.NewInt(0), big.NewInt(0), &IstanbulConfig{
-		Epoch:          300,
-		ProposerPolicy: 0,
-		RequestTimeout: 1000,
-		BlockPeriod:    1,
-	}, true, false}
+		EIP150Block: big.NewInt(0),
+		EIP150Hash:  common.Hash{},
 
-	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, nil, &IstanbulConfig{
-		Epoch:          30000,
-		ProposerPolicy: 0,
-	}, true, true}
+		EIP155Block: big.NewInt(0),
+		EIP158Block: big.NewInt(0),
+
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+
+		ChurritoBlock:      big.NewInt(0),
+		DonutBlock:         big.NewInt(0),
+		EspressoBlock:      big.NewInt(0),
+		GingerbreadBlock:   big.NewInt(0),
+		GingerbreadP2Block: big.NewInt(0),
+
+		Istanbul: &IstanbulConfig{
+			Epoch:          30000,
+			ProposerPolicy: 0,
+		},
+
+		FullHeaderChainAvailable: true,
+		Faker:                    true,
+		FakeBaseFee:              common.Big0,
+	}
+	IstanbulTestChainConfig = TestChainConfig.
+				DeepCopy().
+				OverrideFakerConfig(false).
+				OverrideChainIdConfig(big.NewInt(1337)).
+				OverrideIstanbulConfig(
+			&IstanbulConfig{
+				Epoch:          300,
+				ProposerPolicy: 0,
+				RequestTimeout: 1000,
+				BlockPeriod:    1,
+			},
+		)
 	TestRules = TestChainConfig.Rules(new(big.Int))
 )
 
@@ -226,10 +252,14 @@ type ChainConfig struct {
 	ConstantinopleBlock *big.Int `json:"constantinopleBlock,omitempty"` // Constantinople switch block (nil = no fork, 0 = already activated)
 	PetersburgBlock     *big.Int `json:"petersburgBlock,omitempty"`     // Petersburg switch block (nil = same as Constantinople)
 	IstanbulBlock       *big.Int `json:"istanbulBlock,omitempty"`       // Istanbul switch block (nil = no fork, 0 = already on istanbul)
-	EWASMBlock          *big.Int `json:"ewasmBlock,omitempty"`          // EWASM switch block (nil = no fork, 0 = already activated)
-	ChurritoBlock       *big.Int `json:"churritoBlock,omitempty"`       // Churrito switch block (nil = no fork, 0 = already activated)
-	DonutBlock          *big.Int `json:"donutBlock,omitempty"`          // Donut switch block (nil = no fork, 0 = already activated)
-	EspressoBlock       *big.Int `json:"espressoBlock,omitempty"`       // Espresso switch block (nil = no fork, 0 = already activated)
+	// MuirGlacierBlock    *big.Int `json:"muirGlacierBlock,omitempty"`    // Eip-2384 (bomb delay) switch block (nil = no fork, 0 = already activated)
+	// BerlinBlock         *big.Int `json:"berlinBlock,omitempty"`         // Berlin switch block (nil = no fork, 0 = already on berlin)
+	// LondonBlock         *big.Int `json:"londonBlock,omitempty"`         // London switch block (nil = no fork, 0 = already on london)
+	ChurritoBlock      *big.Int `json:"churritoBlock,omitempty"`      // Churrito switch block (nil = no fork, 0 = already activated)
+	DonutBlock         *big.Int `json:"donutBlock,omitempty"`         // Donut switch block (nil = no fork, 0 = already activated)
+	EspressoBlock      *big.Int `json:"espressoBlock,omitempty"`      // Espresso switch block (nil = no fork, 0 = already activated)
+	GingerbreadBlock   *big.Int `json:"gingerbreadBlock,omitempty"`   // Gingerbread switch block (nil = no fork, 0 = already activated)
+	GingerbreadP2Block *big.Int `json:"gingerbreadP2Block,omitempty"` // GingerbreadP2 switch block (nil = no fork, 0 = already activated)
 
 	Istanbul *IstanbulConfig `json:"istanbul,omitempty"`
 	// This does not belong here but passing it to every function is not possible since that breaks
@@ -237,7 +267,8 @@ type ChainConfig struct {
 	FullHeaderChainAvailable bool // False for lightest Sync mode, true otherwise
 
 	// Requests mock engine if true
-	Faker bool `json:"faker,omitempty"`
+	Faker       bool     `json:"faker,omitempty"`
+	FakeBaseFee *big.Int `json:"baseFee,omitempty"`
 }
 
 // IstanbulConfig is the consensus engine configs for Istanbul based sealing.
@@ -271,7 +302,7 @@ func (c *ChainConfig) String() string {
 	} else {
 		engine = "MockEngine"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v Churrito: %v, Donut: %v, Espresso: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v Churrito: %v, Donut: %v, Espresso: %v, Gingerbread: %v, Gingerbread P2: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -283,9 +314,14 @@ func (c *ChainConfig) String() string {
 		c.ConstantinopleBlock,
 		c.PetersburgBlock,
 		c.IstanbulBlock,
+		// c.MuirGlacierBlock,
+		// c.BerlinBlock,
+		// c.LondonBlock,
 		c.ChurritoBlock,
 		c.DonutBlock,
 		c.EspressoBlock,
+		c.GingerbreadBlock,
+		c.GingerbreadP2Block,
 		engine,
 	)
 }
@@ -337,9 +373,16 @@ func (c *ChainConfig) IsIstanbul(num *big.Int) bool {
 	return isForked(c.IstanbulBlock, num)
 }
 
-// IsEWASM returns whether num represents a block number after the EWASM fork
-func (c *ChainConfig) IsEWASM(num *big.Int) bool {
-	return isForked(c.EWASMBlock, num)
+// IsBerlin returns whether num is either equal to the Berlin fork block or greater.
+// Celo change: This is used to keep code close to upstream, but uses Espresso activation block
+func (c *ChainConfig) IsBerlin(num *big.Int) bool {
+	return isForked(c.EspressoBlock, num)
+}
+
+// IsLondon returns whether num is either equal to the London fork block or greater.
+// Celo change: This is used to keep code close to upstream, but uses Espresso activation block
+func (c *ChainConfig) IsLondon(num *big.Int) bool {
+	return isForked(c.EspressoBlock, num)
 }
 
 // IsChurrito returns whether num represents a block number after the Churrito fork
@@ -352,9 +395,19 @@ func (c *ChainConfig) IsDonut(num *big.Int) bool {
 	return isForked(c.DonutBlock, num)
 }
 
-// IsEspresso returns whether num represents a block number after the E fork
+// IsEspresso returns whether num represents a block number after the Espresso fork
 func (c *ChainConfig) IsEspresso(num *big.Int) bool {
 	return isForked(c.EspressoBlock, num)
+}
+
+// IsGingerbread returns whether num represents a block number after the Gingerbread fork
+func (c *ChainConfig) IsGingerbread(num *big.Int) bool {
+	return isForked(c.GingerbreadBlock, num)
+}
+
+// IsGingerbreadP2 returns whether num represents a block number after the GingerbreadP2 fork
+func (c *ChainConfig) IsGingerbreadP2(num *big.Int) bool {
+	return isForked(c.GingerbreadP2Block, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -396,6 +449,8 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "churritoBlock", block: c.ChurritoBlock},
 		{name: "donutBlock", block: c.DonutBlock},
 		{name: "espressoBlock", block: c.EspressoBlock},
+		{name: "gingerbreadBlock", block: c.GingerbreadBlock},
+		{name: "gingerbreadP2Block", block: c.GingerbreadP2Block},
 	} {
 		if lastFork.name != "" {
 			// Next one must be higher number
@@ -456,9 +511,11 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	if isForkIncompatible(c.IstanbulBlock, newcfg.IstanbulBlock, head) {
 		return newCompatError("Istanbul fork block", c.IstanbulBlock, newcfg.IstanbulBlock)
 	}
-	if isForkIncompatible(c.EWASMBlock, newcfg.EWASMBlock, head) {
-		return newCompatError("ewasm fork block", c.EWASMBlock, newcfg.EWASMBlock)
-	}
+
+	return c.checkCeloCompatible(newcfg, head)
+}
+
+func (c *ChainConfig) checkCeloCompatible(newcfg *ChainConfig, head *big.Int) *ConfigCompatError {
 	if isForkIncompatible(c.ChurritoBlock, newcfg.ChurritoBlock, head) {
 		return newCompatError("Churrito fork block", c.ChurritoBlock, newcfg.ChurritoBlock)
 	}
@@ -466,7 +523,13 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 		return newCompatError("Donut fork block", c.DonutBlock, newcfg.DonutBlock)
 	}
 	if isForkIncompatible(c.EspressoBlock, newcfg.EspressoBlock, head) {
-		return newCompatError("E fork block", c.EspressoBlock, newcfg.EspressoBlock)
+		return newCompatError("Espresso fork block", c.EspressoBlock, newcfg.EspressoBlock)
+	}
+	if isForkIncompatible(c.GingerbreadBlock, newcfg.GingerbreadBlock, head) {
+		return newCompatError("Gingerbread fork block", c.GingerbreadBlock, newcfg.GingerbreadBlock)
+	}
+	if isForkIncompatible(c.GingerbreadP2Block, newcfg.GingerbreadP2Block, head) {
+		return newCompatError("Gingerbread p2 fork block", c.GingerbreadP2Block, newcfg.GingerbreadP2Block)
 	}
 	return nil
 }
@@ -535,7 +598,9 @@ type Rules struct {
 	ChainID                                                 *big.Int
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
+	IsBerlin, IsLondon                                      bool
 	IsChurrito, IsDonut, IsEspresso                         bool
+	IsGingerbread, IsGingerbreadP2                          bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -554,8 +619,76 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsConstantinople: c.IsConstantinople(num),
 		IsPetersburg:     c.IsPetersburg(num),
 		IsIstanbul:       c.IsIstanbul(num),
+		IsBerlin:         c.IsBerlin(num),
+		IsLondon:         c.IsLondon(num),
 		IsChurrito:       c.IsChurrito(num),
 		IsDonut:          c.IsDonut(num),
 		IsEspresso:       c.IsEspresso(num),
+		IsGingerbread:    c.IsGingerbread(num),
+		IsGingerbreadP2:  c.IsGingerbreadP2(num),
 	}
+}
+
+func (c *ChainConfig) OverrideIstanbulConfig(istanbulConfig *IstanbulConfig) *ChainConfig {
+	c.Istanbul = istanbulConfig
+	return c
+}
+
+func (c *ChainConfig) OverrideFakerConfig(faker bool) *ChainConfig {
+	c.Faker = faker
+	return c
+}
+
+func (c *ChainConfig) OverrideChainIdConfig(chainId *big.Int) *ChainConfig {
+	c.ChainID = chainId
+	return c
+}
+
+func (c *ChainConfig) DisableGingerbread() *ChainConfig {
+	c.GingerbreadBlock = nil
+	c.GingerbreadP2Block = nil
+	return c
+}
+
+func (c *ChainConfig) DeepCopy() *ChainConfig {
+	cpy := &ChainConfig{
+		ChainID:             copyBigIntOrNil(c.ChainID),
+		HomesteadBlock:      copyBigIntOrNil(c.HomesteadBlock),
+		DAOForkBlock:        copyBigIntOrNil(c.DAOForkBlock),
+		DAOForkSupport:      c.DAOForkSupport,
+		EIP150Block:         copyBigIntOrNil(c.EIP150Block),
+		EIP150Hash:          c.EIP150Hash,
+		EIP155Block:         copyBigIntOrNil(c.EIP155Block),
+		EIP158Block:         copyBigIntOrNil(c.EIP158Block),
+		ByzantiumBlock:      copyBigIntOrNil(c.ByzantiumBlock),
+		ConstantinopleBlock: copyBigIntOrNil(c.ConstantinopleBlock),
+		PetersburgBlock:     copyBigIntOrNil(c.PetersburgBlock),
+		IstanbulBlock:       copyBigIntOrNil(c.IstanbulBlock),
+		ChurritoBlock:       copyBigIntOrNil(c.ChurritoBlock),
+		DonutBlock:          copyBigIntOrNil(c.DonutBlock),
+		EspressoBlock:       copyBigIntOrNil(c.EspressoBlock),
+		GingerbreadBlock:    copyBigIntOrNil(c.GingerbreadBlock),
+		GingerbreadP2Block:  copyBigIntOrNil(c.GingerbreadP2Block),
+
+		Istanbul: &IstanbulConfig{
+			Epoch:          c.Istanbul.Epoch,
+			ProposerPolicy: c.Istanbul.ProposerPolicy,
+			LookbackWindow: c.Istanbul.LookbackWindow,
+			BlockPeriod:    c.Istanbul.BlockPeriod,
+			RequestTimeout: c.Istanbul.RequestTimeout,
+			// V2Block:        copyBigIntOrNil(c.Istanbul.V2Block),
+		},
+
+		FullHeaderChainAvailable: c.FullHeaderChainAvailable,
+		Faker:                    c.Faker,
+		FakeBaseFee:              c.FakeBaseFee,
+	}
+	return cpy
+}
+
+func copyBigIntOrNil(num *big.Int) *big.Int {
+	if num == nil {
+		return nil
+	}
+	return new(big.Int).Set(num)
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/contracts/gold_token"
 	"github.com/celo-org/celo-blockchain/core"
 	ethCore "github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -196,6 +197,50 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainHeaderReader, head
 		// Verify validators in extraData. Validators in snapshot and extraData should be the same.
 		if err := sb.verifySigner(chain, header, parents); err != nil {
 			return err
+		}
+
+		if chain.Config().IsGingerbread(header.Number) {
+			// Verify that the gasUsed is <= gasLimit
+			if header.GasUsed > header.GasLimit {
+				return fmt.Errorf("invalid gasUsed: have %d, gasLimit %d", header.GasUsed, header.GasLimit)
+			}
+			// Verify BaseFee is not nil.
+			if header.BaseFee == nil {
+				return fmt.Errorf("invalid BaseFee: must be different than <nil>")
+			}
+			// Verify Difficulty is not nil.
+			if header.Difficulty == nil {
+				return fmt.Errorf("invalid Difficulty: must be different than <nil>")
+			}
+			// Verify Difficulty is zero.
+			if header.Difficulty.Cmp(big.NewInt(0)) != 0 {
+				return fmt.Errorf("invalid Difficulty: have %d, want 0", header.Difficulty.Uint64())
+			}
+			// Verify Nonce is zero.
+			if header.Nonce.Uint64() != types.EncodeNonce(0).Uint64() {
+				return fmt.Errorf("invalid Nonce: have %d, want 0", header.Nonce.Uint64())
+			}
+			// Verify UncleHash is the empty hash.
+			if header.UncleHash != types.EmptyUncleHash {
+				return fmt.Errorf("invalid UncleHash: have %v, want %v", header.UncleHash, types.EmptyUncleHash)
+			}
+			// Verify MixDigest is the empty hash.
+			if header.MixDigest != types.EmptyMixDigest {
+				return fmt.Errorf("invalid MixDigest: have %v, want %v", header.MixDigest, types.EmptyMixDigest)
+			}
+		} else {
+			// Verify BaseFee not present before Gingerbread fork.
+			if header.BaseFee != nil {
+				return fmt.Errorf("invalid baseFee before fork: have %s, want <nil>", header.BaseFee)
+			}
+			// Verify GasLimit not bigger than zero before Gingerbread fork.
+			if header.GasLimit > 0 {
+				return fmt.Errorf("invalid gasLimit before fork: have %d, want <nil>", header.GasLimit)
+			}
+			// Verify Difficulty not present before Gingerbread fork.
+			if header.Difficulty != nil {
+				return fmt.Errorf("invalid Difficulty before fork: have %d, want <nil>", header.Difficulty)
+			}
 		}
 	} else if err := sb.checkEpochBlockExists(chain, header, parents); err != nil {
 		return err
@@ -501,16 +546,18 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 
 	snapshot := state.Snapshot()
 	vmRunner := sb.chain.NewEVMRunner(header, state)
-	err := sb.setInitialGoldTokenTotalSupplyIfUnset(vmRunner)
+	err := gold_token.SetInitialTotalSupplyIfUnset(sb.db, vmRunner)
 	if err != nil {
 		state.RevertToSnapshot(snapshot)
 	}
 
-	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
-	snapshot = state.Snapshot()
-	_, err = gpm.UpdateGasPriceMinimum(vmRunner, header.GasUsed)
-	if err != nil {
-		state.RevertToSnapshot(snapshot)
+	if !sb.ChainConfig().IsGingerbread(header.Number) {
+		// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
+		snapshot = state.Snapshot()
+		_, err = gpm.UpdateGasPriceMinimum(vmRunner, header.GasUsed)
+		if err != nil {
+			state.RevertToSnapshot(snapshot)
+		}
 	}
 
 	lastBlockOfEpoch := istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch)

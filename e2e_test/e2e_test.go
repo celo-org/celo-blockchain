@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -14,12 +15,19 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/eth/tracers"
 	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/mycelo/env"
+	"github.com/celo-org/celo-blockchain/mycelo/genesis"
 	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/rpc"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	// Force-load native and js packages, to trigger registration
+	_ "github.com/celo-org/celo-blockchain/eth/tracers/js"
+	_ "github.com/celo-org/celo-blockchain/eth/tracers/native"
 )
 
 func init() {
@@ -36,7 +44,8 @@ func init() {
 // network to process the transaction.
 func TestSendCelo(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
-	gc, ec, err := test.BuildConfig(ac)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -55,13 +64,127 @@ func TestSendCelo(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// This test starts a network, submits a GoldToken.transfer tx, waits for the whole
+// network to process the transaction, and traces that tx.
+// This tests that CELO transfers made via the transfer precompile work e2e
+// and can be useful for debugging these traces.
+func TestTraceSendCeloViaGoldToken(t *testing.T) {
+	ac := test.AccountConfig(3, 2)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+	// Send 1 wei of CELO from accounts[0] to accounts[1] by calling GoldToken.transfer
+	tx, err := accounts[0].SendCeloViaGoldToken(ctx, accounts[1].Address, 1, network[0])
+	require.NoError(t, err)
+
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+	c, err := rpc.DialContext(ctx, network[0].WSEndpoint())
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	tracerStr := "callTracer"
+	err = c.CallContext(ctx, &result, "debug_traceTransaction", tx.Hash().String(), tracers.TraceConfig{Tracer: &tracerStr})
+
+	require.NoError(t, err)
+	// Check top level gas values
+	require.Equal(t, "0x45d6", result["gasUsed"])
+	require.Equal(t, "0x4653", result["gas"])
+	// TODO add more specific trace-checking as part of
+	// this issue: https://github.com/celo-org/celo-blockchain/issues/2078
+}
+
+// Moved from API tests because registering the callTracer (necessary after the
+// go native tracer refactor) causes a circular import.
+// Use the callTracer to trace a native CELO transfer.
+func TestCallTraceTransactionNativeTransfer(t *testing.T) {
+	ac := test.AccountConfig(1, 2)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, network[0])
+	require.NoError(t, err)
+
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+	c, err := rpc.DialContext(ctx, network[0].WSEndpoint())
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	tracerStr := "callTracer"
+	err = c.CallContext(ctx, &result, "debug_traceTransaction", tx.Hash().String(), tracers.TraceConfig{Tracer: &tracerStr})
+	require.NoError(t, err)
+	res_json, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("failed to marshal result: %v", err)
+	}
+	expectedTraceStr := fmt.Sprintf(`{"from":"0x%x","gas":"0x0","gasUsed":"0x0","input":"0x","output":"0x","to":"0x%x","type":"CALL","value":"0x1"}`, accounts[0].Address, accounts[1].Address)
+	require.JSONEq(t, expectedTraceStr, string(res_json))
+}
+
+// Moved from API tests because registering the prestateTracer (necessary after the
+// go native tracer refactor) causes a circular import.
+// Use the prestateTracer to trace a native CELO transfer.
+func TestPrestateTransactionNativeTransfer(t *testing.T) {
+	ac := test.AccountConfig(1, 2)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, network[0])
+	require.NoError(t, err)
+
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+	c, err := rpc.DialContext(ctx, network[0].WSEndpoint())
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	tracerStr := "prestateTracer"
+	err = c.CallContext(ctx, &result, "debug_traceTransaction", tx.Hash().String(), tracers.TraceConfig{Tracer: &tracerStr})
+	require.NoError(t, err)
+
+	toAddrLowercase := strings.ToLower(accounts[1].Address.String())
+	if _, has := result[toAddrLowercase]; !has {
+		t.Fatalf("Expected %s in result", toAddrLowercase)
+	}
+}
+
 // This test verifies correct behavior in a network of size one, in the case that
 // this fails we know that the problem does not lie with our network code.
 func TestSingleNodeNetworkManyTxs(t *testing.T) {
 	iterations := 5
 	txsPerIteration := 5
 	ac := test.AccountConfig(1, 1)
-	gc, ec, err := test.BuildConfig(ac)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	gc.Istanbul.Epoch = uint64(iterations) * 50 // avoid the epoch for this test
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
@@ -86,7 +209,8 @@ func TestSingleNodeNetworkManyTxs(t *testing.T) {
 // We previously had an open bug for this https://github.com/celo-org/celo-blockchain/issues/1574
 func TestEpochBlockMarshaling(t *testing.T) {
 	accounts := test.AccountConfig(1, 0)
-	gc, ec, err := test.BuildConfig(accounts)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(accounts, gingerbreadBlock)
 	require.NoError(t, err)
 
 	// Configure the shortest possible epoch, uptimeLookbackWindow minimum is 3
@@ -115,7 +239,8 @@ func TestEpochBlockMarshaling(t *testing.T) {
 // validators are shut down, when they restart the network is able to continue.
 func TestStartStopValidators(t *testing.T) {
 	ac := test.AccountConfig(4, 2)
-	gc, ec, err := test.BuildConfig(ac)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, _, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -251,7 +376,8 @@ func TestStartStopValidators(t *testing.T) {
 // trace block code was the source of the concurrent map access.
 func TestBlockTracingConcurrentMapAccess(t *testing.T) {
 	ac := test.AccountConfig(1, 2)
-	gc, ec, err := test.BuildConfig(ac)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -297,6 +423,34 @@ func TestBlockTracingConcurrentMapAccess(t *testing.T) {
 	wg.Wait()
 }
 
+// Sends and traces a single native transfer.
+// Helpful for debugging issues in TestBlockTracingConcurrentMapAccess.
+func TestBlockTracingSequentialAccess(t *testing.T) {
+	ac := test.AccountConfig(1, 2)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*300)
+	defer cancel()
+	n := network[0]
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, n)
+	require.NoError(t, err)
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+	b := n.Tracker.GetProcessedBlockForTx(tx.Hash())
+	c, err := rpc.DialContext(ctx, n.WSEndpoint())
+	require.NoError(t, err)
+	var result []interface{}
+	err = c.CallContext(ctx, &result, "debug_traceBlockByNumber", hexutil.EncodeUint64(uint64(int(b.NumberU64()))))
+	require.NoError(t, err)
+}
+
 type rpcCustomTransaction struct {
 	BlockNumber *hexutil.Big `json:"blockNumber"`
 	BlockHash   *common.Hash `json:"blockHash"`
@@ -308,7 +462,8 @@ type rpcCustomTransaction struct {
 // price by the tx, which could be less than the feeCap (as in this example)
 func TestRPCDynamicTxGasPriceWithBigFeeCap(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
-	gc, ec, err := test.BuildConfig(ac)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -348,7 +503,8 @@ func TestRPCDynamicTxGasPriceWithBigFeeCap(t *testing.T) {
 // GasPriceMinimum contract
 func TestRPCDynamicTxGasPriceWithState(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
-	gc, ec, err := test.BuildConfig(ac)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	ec.TxLookupLimit = 0
 	ec.NoPruning = true
@@ -385,7 +541,8 @@ func TestRPCDynamicTxGasPriceWithState(t *testing.T) {
 	require.NoError(t, err)
 
 	// Prune state
-	err = pruneStateOfBlock(ctx, network[0], *json.BlockHash)
+	// As the gasPrice of the block N, is the one from the state of the block N-1, we need to prune the parent block
+	err = pruneStateOfBlock(ctx, network[0], new(big.Int).Sub(json.BlockNumber.ToInt(), common.Big1))
 	require.NoError(t, err)
 
 	var json2 *rpcCustomTransaction
@@ -402,12 +559,30 @@ func TestRPCDynamicTxGasPriceWithState(t *testing.T) {
 // TestRPCDynamicTxGasPriceWithoutState aims to test the scenario where a
 // an old dynamic tx is requested via rpc, to a full node that does not have
 // the state anymore.
-// As right now on Celo, we are not storing the baseFee in the header (as ethereum does),
-// to know the exactly gasPrice expent in a dynamic tx, depends on consuming the
-// GasPriceMinimum contract
-func TestRPCDynamicTxGasPriceWithoutState(t *testing.T) {
+func TestRPCDynamicTxGasPriceWithoutStateBeforeGingerbread(t *testing.T) {
+	testRPCDynamicTxGasPriceWithoutState(t, false, false)
+}
+
+func TestRPCDynamicTxGasPriceWithoutStateAfterGingerbread(t *testing.T) {
+	testRPCDynamicTxGasPriceWithoutState(t, true, false)
+}
+
+func TestRPCDynamicTxGasPriceWithoutStateForAlternativeCurrencyBeforeGingerbread(t *testing.T) {
+	testRPCDynamicTxGasPriceWithoutState(t, false, true)
+}
+
+func TestRPCDynamicTxGasPriceWithoutStateForAlternativeCurrencyAfterGingerbread(t *testing.T) {
+	testRPCDynamicTxGasPriceWithoutState(t, true, true)
+}
+
+func testRPCDynamicTxGasPriceWithoutState(t *testing.T, afterGingerbread, alternativeCurrency bool) {
+	var gingerbreadBlock *big.Int
+	if afterGingerbread {
+		gingerbreadBlock = common.Big1
+	}
+	cusdAddress := common.HexToAddress("0xd008")
 	ac := test.AccountConfig(3, 2)
-	gc, ec, err := test.BuildConfig(ac)
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	ec.TrieDirtyCache = 5
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
@@ -418,13 +593,17 @@ func TestRPCDynamicTxGasPriceWithoutState(t *testing.T) {
 
 	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
 
-	suggestedGasPrice, err := network[0].WsClient.SuggestGasPrice(ctx)
+	var feeCurrency *common.Address
+	if alternativeCurrency {
+		feeCurrency = &cusdAddress
+	}
+	suggestedGasPrice, err := network[0].WsClient.SuggestGasPriceInCurrency(ctx, feeCurrency)
 	require.NoError(t, err)
 	gasFeeCap := big.NewInt(0).Mul(suggestedGasPrice, big.NewInt(90))
 	gasTipCap := big.NewInt(0).Mul(suggestedGasPrice, big.NewInt(2))
 
 	// Send one celo from external account 0 to 1 via node 0.
-	tx, err := accounts[0].SendCeloWithDynamicFee(ctx, accounts[1].Address, 1, gasFeeCap, gasTipCap, network[0])
+	tx, err := accounts[0].SendValueWithDynamicFee(ctx, accounts[1].Address, 1, feeCurrency, gasFeeCap, gasTipCap, network[0])
 	require.NoError(t, err)
 
 	// Wait for the whole network to process the transaction.
@@ -441,9 +620,9 @@ func TestRPCDynamicTxGasPriceWithoutState(t *testing.T) {
 	// Create one block to be able to prune the last state
 	_, err = accounts[0].SendCeloTracked(ctx, accounts[1].Address, 1, network[0])
 	require.NoError(t, err)
-
 	// Prune state
-	err = pruneStateOfBlock(ctx, network[0], *json.BlockHash)
+	// As the gasPrice of the block N, is the one from the state of the block N-1, we need to prune the parent block
+	err = pruneStateOfBlock(ctx, network[0], new(big.Int).Sub(json.BlockNumber.ToInt(), common.Big1))
 	require.NoError(t, err)
 
 	var json2 *rpcCustomTransaction
@@ -455,12 +634,16 @@ func TestRPCDynamicTxGasPriceWithoutState(t *testing.T) {
 	// Blocknumber != nil it means that it eas already processed
 	require.NotNil(t, json2.BlockNumber)
 
-	require.Nil(t, json2.GasPrice)
+	if afterGingerbread && !alternativeCurrency {
+		require.Equal(t, json.GasPrice, json2.GasPrice)
+	} else {
+		require.Nil(t, json2.GasPrice)
+	}
 }
 
-func pruneStateOfBlock(ctx context.Context, node *test.Node, blockHash common.Hash) error {
+func pruneStateOfBlock(ctx context.Context, node *test.Node, blockNumber *big.Int) error {
 	var block *types.Block
-	block, err := node.WsClient.BlockByHash(ctx, blockHash)
+	block, err := node.WsClient.BlockByNumber(ctx, blockNumber)
 	if err != nil {
 		return err
 	}
@@ -470,19 +653,14 @@ func pruneStateOfBlock(ctx context.Context, node *test.Node, blockHash common.Ha
 	return nil
 }
 
-func TestEthersJSCompatibility(t *testing.T) {
+func runMochaTest(t *testing.T, add_args func(*env.AccountsConfig, *genesis.Config, test.Network) []string) {
 	ac := test.AccountConfig(1, 1)
-	gc, ec, err := test.BuildConfig(ac)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
 	defer shutdown()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
-	defer cancel()
-
-	num, err := network[0].WsClient.BlockNumber(ctx)
-	require.NoError(t, err)
 
 	// Execute typescript tests to check ethers.js compatibility.
 	//
@@ -495,35 +673,36 @@ func TestEthersJSCompatibility(t *testing.T) {
 	// The tests don't seem to work on CI with IPV6 addresses so we convert to IPV4 here
 	addr := strings.Replace(network[0].Node.HTTPEndpoint(), "[::]", "127.0.0.1", 1)
 
-	cmd := exec.Command("npm", "run", "test", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "ethers.js compatibility tests with state")
+	common_args := []string{"run", "--networkaddr=" + addr}
+	custom_args := add_args(ac, gc, network)
+
+	cmd := exec.Command("npm", append(common_args, custom_args...)...)
+
 	cmd.Dir = "./ethersjs-api-check/"
 	println("executing mocha test with", cmd.String())
 	output, err := cmd.CombinedOutput()
 	println(string(output))
 	require.NoError(t, err)
+}
 
-	err = network[0].Tracker.AwaitBlock(ctx, num+1)
-	require.NoError(t, err)
-	block := network[0].Tracker.GetProcessedBlock(num)
+func TestEthersJSCompatibility(t *testing.T) {
+	add_args := func(ac *env.AccountsConfig, gc *genesis.Config, network test.Network) []string {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+		defer cancel()
 
-	// Prune state
-	err = pruneStateOfBlock(ctx, network[0], block.Hash())
-	require.NoError(t, err)
-
-	// Execute typescript tests to check what happens with a pruned block.
-	cmd = exec.Command("npm", "run", "test", "--networkaddr="+addr, "--blocknum="+hexutil.Uint64(num).String(), "--", "--grep", "ethers.js compatibility tests with no state")
-	cmd.Dir = "./ethersjs-api-check/"
-	println("executing mocha test with", cmd.String())
-	output, err = cmd.CombinedOutput()
-	println(string(output))
-	require.NoError(t, err)
+		num, err := network[0].WsClient.BlockNumber(ctx)
+		require.NoError(t, err)
+		return []string{"test", "--blocknum=" + hexutil.Uint64(num).String(), "--", "--grep", "ethers.js compatibility tests with state"}
+	}
+	runMochaTest(t, add_args)
 }
 
 // This test checks the functionality of the configuration to enable/disable
 // returning the 'gasLimit' and 'baseFeePerGas' fields on RPC blocks.
-func TestEthersJSCompatibilityDisable(t *testing.T) {
+func TestEthersJSCompatibilityDisableAfterGingerbread(t *testing.T) {
 	ac := test.AccountConfig(1, 1)
-	gc, ec, err := test.BuildConfig(ac)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 
 	// Check fields present (compatibility set by default)
@@ -538,12 +717,13 @@ func TestEthersJSCompatibilityDisable(t *testing.T) {
 	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
 	require.NoError(t, err)
 
-	_, ok := result["gasLimit"]
-	assert.True(t, ok, "gasLimit field should be present on RPC block")
-	_, ok = result["baseFeePerGas"]
-	assert.True(t, ok, "baseFeePerGas field should be present on RPC block")
+	for _, field := range []string{"gasLimit", "baseFeePerGas", "sha3Uncles", "uncles", "nonce", "mixHash", "difficulty"} {
+		_, ok := result[field]
+		assert.Truef(t, ok, "%s field should be present on RPC block after Gingerbread", field)
+	}
+	require.Equal(t, result["sha3Uncles"], "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347")
 
-	// Turn of compatibility and check fields are not present
+	// Turn off compatibility and check fields are not present
 	ec.RPCEthCompatibility = false
 	network, shutdown, err = test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -556,8 +736,59 @@ func TestEthersJSCompatibilityDisable(t *testing.T) {
 	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
 	require.NoError(t, err)
 
-	_, ok = result["gasLimit"]
-	assert.False(t, ok, "gasLimit field should not be present on RPC block")
+	// After Gingerbread, gasLimit should be returned directly from the header, even if
+	// RPCEthCompatibility is off, since it is now part of the header hash.
+	_, ok := result["gasLimit"]
+	assert.True(t, ok, "gasLimit field must be present on RPC block after Gingerbread")
 	_, ok = result["baseFeePerGas"]
-	assert.False(t, ok, "baseFeePerGas field should not be present on RPC block")
+	assert.True(t, ok, "baseFeePerGas field must be present on RPC block")
+}
+
+// This test checks the functionality of the configuration to enable/disable
+// returning the 'gasLimit' and 'baseFeePerGas' fields on RPC blocks before the Gingerbread happened.
+// Gingerbread is relevant because it added the gasLimit to the header.
+func TestEthersJSCompatibilityDisableBeforeGingerbread(t *testing.T) {
+	ac := test.AccountConfig(1, 1)
+	var gingerbreadBlock *big.Int = nil
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	require.NoError(t, err)
+
+	// Check fields present (compatibility set by default)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	result := make(map[string]interface{})
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
+	require.NoError(t, err)
+
+	for _, field := range []string{"gasLimit", "baseFeePerGas", "difficulty"} {
+		_, ok := result[field]
+		assert.Truef(t, ok, "%s field should be present on RPC block before Gingerbread", field)
+	}
+	for _, field := range []string{"sha3Uncles", "uncles", "nonce", "mixHash"} {
+		_, ok := result[field]
+		assert.Falsef(t, ok, "%s field should not be present on RPC block before Gingerbread", field)
+	}
+
+	// Turn off compatibility and check fields are not present
+	ec.RPCEthCompatibility = false
+	network, shutdown, err = test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	result = make(map[string]interface{})
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
+	require.NoError(t, err)
+
+	for _, field := range []string{"gasLimit", "baseFeePerGas", "sha3Uncles", "uncles", "nonce", "mixHash", "difficulty"} {
+		_, ok := result[field]
+		assert.Falsef(t, ok, "%s field should not be present on RPC block before Gingerbread", field)
+	}
 }

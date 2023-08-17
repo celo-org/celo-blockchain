@@ -709,8 +709,8 @@ func (s *PublicBlockChainAPI) GetBlockByNumber(ctx context.Context, number rpc.B
 	if block != nil && err == nil {
 		response, err := s.rpcMarshalBlock(ctx, block, true, fullTx)
 
-		if err == nil && s.b.RPCEthCompatibility() {
-			addEthCompatibilityFields(ctx, response, s.b, block.Header())
+		if err == nil {
+			addEthCompatibilityFields(ctx, response, s.b, block)
 			if number == rpc.PendingBlockNumber {
 				// Pending blocks need to nil out a few fields
 				for _, field := range []string{"hash", "nonce", "miner"} {
@@ -732,9 +732,7 @@ func (s *PublicBlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Ha
 		if err != nil {
 			return nil, err
 		}
-		if s.b.RPCEthCompatibility() {
-			addEthCompatibilityFields(ctx, result, s.b, block.Header())
-		}
+		addEthCompatibilityFields(ctx, result, s.b, block)
 		return result, nil
 	}
 	return nil, err
@@ -744,25 +742,43 @@ func (s *PublicBlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Ha
 // and ethers.js (and potentially other web3 clients) by adding fields to our
 // rpc response that ethers.js depends upon.
 // See https://github.com/celo-org/celo-blockchain/issues/1945
-func addEthCompatibilityFields(ctx context.Context, block map[string]interface{}, b Backend, header *types.Header) {
-	hash := header.Hash()
-	numhash := rpc.BlockNumberOrHash{
-		BlockHash: &hash,
-	}
-	gasLimit, err := b.GetRealBlockGasLimit(ctx, numhash)
-	if err != nil {
-		log.Debug("Not adding gasLimit to RPC response, failed to retrieve it", "block", header.Number.Uint64(), "err", err)
-	} else {
-		block["gasLimit"] = hexutil.Uint64(gasLimit)
+func addEthCompatibilityFields(ctx context.Context, response map[string]interface{}, b Backend, block *types.Block) {
+	isGingerbread := b.ChainConfig().IsGingerbread(block.Number())
+	if !b.RPCEthCompatibility() {
+		if !isGingerbread {
+			delete(response, "gasLimit")
+		}
+		return
 	}
 
-	// Providing nil as the currency address gets the gas price minimum for the native celo asset.
-	baseFee, err := b.RealGasPriceMinimumForHeader(ctx, nil, header)
-	if err != nil {
-		log.Debug("Not adding baseFeePerGas to RPC response, failed to retrieve gas price minimum", "block", header.Number.Uint64(), "err", err)
-	} else {
-		block["baseFeePerGas"] = (*hexutil.Big)(baseFee)
+	header := block.Header()
+	if !isGingerbread {
+		// Before Gingerbread, the header did not include the gasLimit, so we have to manually add it for eth-compatible RPC responses.
+		hash := header.Hash()
+		numhash := rpc.BlockNumberOrHash{
+			BlockHash: &hash,
+		}
+		gasLimit, err := b.GetRealBlockGasLimit(ctx, numhash)
+		if err != nil {
+			log.Debug("Not adding gasLimit to RPC response, failed to retrieve it", "block", header.Number.Uint64(), "err", err)
+		} else {
+			response["gasLimit"] = hexutil.Uint64(gasLimit)
+		}
 	}
+
+	if header.BaseFee != nil {
+		response["baseFeePerGas"] = (*hexutil.Big)(header.BaseFee)
+	} else {
+		// Providing nil as the currency address gets the gas price minimum for the native celo asset.
+		baseFee, err := b.RealGasPriceMinimumForHeader(ctx, nil, header)
+		if err != nil {
+			log.Debug("Not adding baseFeePerGas to RPC response, failed to retrieve gas price minimum", "block", header.Number.Uint64(), "err", err)
+		} else {
+			response["baseFeePerGas"] = (*hexutil.Big)(baseFee)
+		}
+	}
+
+	response["difficulty"] = "0x0"
 }
 
 // GetUncleByBlockNumberAndIndex returns the uncle block for the given block hash and index. When fullTx is true
@@ -890,7 +906,7 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 	}
 
 	// Get a new instance of the EVM.
-	msg, err := args.ToMessage(globalGasCap, common.Big0) // core.ApplyMessageWithoutGasPriceMinimum below will eventually set basefee to 0
+	msg, err := args.ToMessage(globalGasCap, header.BaseFee)
 	if err != nil {
 		return nil, err
 	}
@@ -907,7 +923,8 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 
 	// Execute the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
-	result, err := core.ApplyMessageWithoutGasPriceMinimum(evm, msg, gp, b.NewEVMRunner(header, state), sysCtx)
+	vmRunner := b.NewEVMRunner(header, state)
+	result, err := core.ApplyMessage(evm, msg, gp, vmRunner, sysCtx)
 	if err := vmError(); err != nil {
 		return nil, err
 	}
@@ -977,6 +994,11 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 		hi  uint64
 		cap uint64
 	)
+	// Use zero address if sender unspecified.
+	if args.From == nil {
+		args.From = new(common.Address)
+	}
+	// Determine the highest gas limit can be used during the estimation.
 	if args.Gas != nil && uint64(*args.Gas) >= params.TxGas {
 		hi = uint64(*args.Gas)
 	} else {
@@ -988,11 +1010,6 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 		hi = gasCap
 	}
 	cap = hi
-
-	// Use zero address if sender unspecified.
-	if args.From == nil {
-		args.From = new(common.Address)
-	}
 	// Set gas price to nil (which will lead to it being zero), because the binary search
 	// assumes that if the transaction fails with gas limit A, and B < A, then it would
 	// also fail with gas limit B, which may not be the case if the gas price is non-zero,
@@ -1131,10 +1148,24 @@ func RPCMarshalHeader(head *types.Header) map[string]interface{} {
 		"miner":            head.Coinbase,
 		"extraData":        hexutil.Bytes(head.Extra),
 		"size":             hexutil.Uint64(head.Size()),
+		"gasLimit":         hexutil.Uint64(head.GasLimit),
 		"gasUsed":          hexutil.Uint64(head.GasUsed),
 		"timestamp":        hexutil.Uint64(head.Time),
 		"transactionsRoot": head.TxHash,
 		"receiptsRoot":     head.ReceiptHash,
+	}
+	// Former proof-of-work fields, now constants, see https://eips.ethereum.org/EIPS/eip-3675#block-structure
+	// Set after Gingerbread
+	if head.Difficulty != nil {
+		result["difficulty"] = (*hexutil.Big)(head.Difficulty)
+		result["nonce"] = head.Nonce
+		result["sha3Uncles"] = head.UncleHash
+		result["uncles"] = []interface{}{}
+		result["mixHash"] = head.MixDigest
+	}
+
+	if head.BaseFee != nil {
+		result["baseFeePerGas"] = (*hexutil.Big)(head.BaseFee)
 	}
 
 	return result
@@ -1297,6 +1328,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 			} else {
 				log.Warn("error retrieving baseFee for tx", "hash", tx.Hash().Hex(), "error", err)
 				// error != nil for DynamicFees implies that there is no state to retrieve the baseFee for that block
+				// (after the Gingerbread Fork, only the alternative currencies with no state)
 				result.GasPrice = nil
 			}
 		} else {
@@ -1560,12 +1592,17 @@ func getGasPriceMinimumFromState(ctx context.Context, b Backend, blockHash commo
 		if err != nil {
 			return nil, err
 		}
-
 		return getGasPriceMinimumFromStateWithHeader(ctx, b, header)(feeCurrency)
 	}
 }
 
 func getGasPriceMinimumFromStateWithHeader(ctx context.Context, b Backend, header *types.Header) func(feeCurrency *common.Address) (*big.Int, error) {
+	return func(feeCurrency *common.Address) (*big.Int, error) {
+		return b.GasPriceMinimumForHeader(ctx, feeCurrency, header)
+	}
+}
+
+func getRateFromStateWithHeader(ctx context.Context, b Backend, header *types.Header) func(feeCurrency *common.Address) (*big.Int, error) {
 	return func(feeCurrency *common.Address) (*big.Int, error) {
 		return b.GasPriceMinimumForHeader(ctx, feeCurrency, header)
 	}
@@ -1607,7 +1644,7 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 
 	fields := generateReceiptResponse(receipt, signer, tx, blockHash, blockNumber, index)
 	// Assign the effective gas price paid
-	if !s.b.ChainConfig().IsEspresso(bigblock) {
+	if !s.b.ChainConfig().IsLondon(bigblock) {
 		fields["effectiveGasPrice"] = hexutil.Uint64(tx.GasPrice().Uint64())
 	} else {
 		// var gasPrice *big.Int = new(big.Int)

@@ -91,86 +91,86 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 		// i:02, migr:03 Freezer
 		ctx.deployFreezer,
 
-		// i:03, migr:03 TransferWhitelist
-		ctx.deployTransferWhitelist,
-
-		// i:04, migr:03 FeeCurrencyWhitelist
+		// i:03, migr:03 FeeCurrencyWhitelist
 		ctx.deployFeeCurrencyWhitelist,
 
-		// i:05, migr:04 GoldToken
+		// i:04, migr:04 GoldToken
 		ctx.deployGoldToken,
 
-		// i:06, migr:05 SortedOracles
+		// i:05, migr:05 SortedOracles
 		ctx.deploySortedOracles,
 
-		// i:07, migr:06 GasPriceMinimum
+		// i:06, migr:06 GasPriceMinimum
 		ctx.deployGasPriceMinimum,
 
-		// i:08, migr:07 Reserve
+		// i:07, migr:07 Reserve
 		ctx.deployReserve,
 
-		// i:09, migr:08 ReserveSpenderMultisig (requires reserve to work)
+		// i:08, migr:08 ReserveSpenderMultisig (requires reserve to work)
 		ctx.deployReserveSpenderMultisig,
 
-		// i:10, migr:09 StableToken, StableTokenEUR and StableTokenBRL
+		// i:09, migr:09 StableToken, StableTokenEUR and StableTokenBRL
 		ctx.deployStableTokens,
 
-		// i:11, migr:10 Exchange, ExchangeEUR and ExchangeBRL
+		// i:10, migr:10 Exchange, ExchangeEUR and ExchangeBRL
 		ctx.deployExchanges,
 
-		// i:12, migr:11 Accounts
+		// i:11, migr:11 Accounts
 		ctx.deployAccounts,
 
-		// i:13, migr:12 LockedGold
+		// i:12, migr:12 LockedGold
 		ctx.deployLockedGold,
 
-		// i:14, migr:13 Validators
+		// i:13, migr:13 Validators
 		ctx.deployValidators,
 
-		// i:15, migr:14 Election
+		// i:14, migr:14 Election
 		ctx.deployElection,
 
-		// i:16, migr:15 EpochRewards
+		// i:15, migr:15 EpochRewards
 		ctx.deployEpochRewards,
 
-		// i:17, migr:16 Random
+		// i:16, migr:16 Random
 		ctx.deployRandom,
 
-		// i:18, migr17 Attestations
+		// i:17, migr17 Attestations
 		ctx.deployAttestations,
 
-		// 1:19, migr:18 Escrow
+		// 1:18, migr:18 Escrow
 		ctx.deployEscrow,
 
-		// i:20, migr:19 BlockchainParameters
+		// i:19, migr:19 BlockchainParameters
 		ctx.deployBlockchainParameters,
 
-		// i:21, migr:20 GovernanceSlasher
+		// i:20, migr:20 GovernanceSlasher
 		ctx.deployGovernanceSlasher,
 
-		// i:22, migr:21 DoubleSigningSlasher
+		// i:21, migr:21 DoubleSigningSlasher
 		ctx.deployDoubleSigningSlasher,
 
-		// i:23, migr:22 DowntimeSlasher
+		// i:22, migr:22 DowntimeSlasher
 		ctx.deployDowntimeSlasher,
 
-		// i:24, migr:23 GovernanceApproverMultiSig
+		// i:23, migr:23 GovernanceApproverMultiSig
 		ctx.deployGovernanceApproverMultiSig,
 
-		// i:25, migr:24 GrandaMento
+		// i:24, migr:24 GrandaMento
 		ctx.deployGrandaMento,
 
-		// i:26, migr:25 FederatedAttestations
+		// i:25, migr:25 FederatedAttestations
 		ctx.deployFederatedAttestations,
 
-		// i:27, migr:26 OdisPayment
+		// i:26, migr:26 OdisPayment
 		ctx.deployOdisPayments,
 
-		// i:28, migr:27 Governance
+		// i:27, migr:27 Governance
 		ctx.deployGovernance,
 
-		// i:29, migr:28 Elect Validators
+		// i:28, migr:28 Elect Validators
 		ctx.electValidators,
+
+		// i:29, migr:29 FeeHandler
+		ctx.deployFeeHandler,
 	}
 
 	logger := ctx.logger.New()
@@ -178,7 +178,7 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 	for i, step := range deploySteps {
 		logger.Info("Running deploy step", "number", i)
 		if err := step(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("Failed deployment step %d: %w", i, err)
 		}
 	}
 
@@ -232,7 +232,7 @@ func (ctx *deployContext) fundAdminAccount() {
 
 func (ctx *deployContext) deployLibraries() error {
 	for _, name := range env.Libraries() {
-		bytecode := ctx.truffleReader.MustReadDeployedBytecodeFor(name)
+		bytecode := ctx.truffleReader.MustReadDeployedBytecodeFor("contracts", name)
 		ctx.statedb.SetCode(env.MustLibraryAddressFor(name), bytecode)
 	}
 	return nil
@@ -240,10 +240,10 @@ func (ctx *deployContext) deployLibraries() error {
 
 // deployProxiedContract will deploy proxied contract
 // It will deploy the proxy contract, the impl contract, and initialize both
-func (ctx *deployContext) deployProxiedContract(name string, initialize func(contract *contract.EVMBackend) error) error {
+func (ctx *deployContext) deployProxiedContract(subpath, name string, initialize func(contract *contract.EVMBackend) error) error {
 	proxyAddress := env.MustProxyAddressFor(name)
 	implAddress := env.MustImplAddressFor(name)
-	bytecode := ctx.truffleReader.MustReadDeployedBytecodeFor(name)
+	bytecode := ctx.truffleReader.MustReadDeployedBytecodeFor(subpath, name)
 
 	logger := ctx.logger.New("contract", name)
 	logger.Info("Start Deploy of Proxied Contract", "proxyAddress", proxyAddress.Hex(), "implAddress", implAddress.Hex())
@@ -264,15 +264,15 @@ func (ctx *deployContext) deployProxiedContract(name string, initialize func(con
 
 	logger.Info("Initialize Contract")
 	if err := initialize(ctx.contract(name)); err != nil {
-		return err
+		return fmt.Errorf("initialize: %w", err)
 	}
 
 	return nil
 }
 
 // deployCoreContract will deploy a contract + proxy, and add it to the registry
-func (ctx *deployContext) deployCoreContract(name string, initialize func(contract *contract.EVMBackend) error) error {
-	if err := ctx.deployProxiedContract(name, initialize); err != nil {
+func (ctx *deployContext) deployCoreContract(subpath, name string, initialize func(contract *contract.EVMBackend) error) error {
+	if err := ctx.deployProxiedContract(subpath, name, initialize); err != nil {
 		return err
 	}
 
@@ -285,43 +285,8 @@ func (ctx *deployContext) deployCoreContract(name string, initialize func(contra
 	return nil
 }
 
-func (ctx *deployContext) deployTransferWhitelist() error {
-	name := "TransferWhitelist"
-	logger := ctx.logger.New("contract", name)
-
-	contract, err := contract.DeployCoreContract(
-		ctx.runtimeConfig,
-		"TransferWhitelist",
-		ctx.truffleReader.MustReadBytecodeFor("TransferWhitelist"),
-		env.MustProxyAddressFor("Registry"),
-	)
-	if err != nil {
-		return err
-	}
-	logger.Info("Contract deployed", "address", contract.Address)
-
-	logger.Debug("setDirectlyWhitelistedAddresses")
-	err = contract.SimpleCall("setDirectlyWhitelistedAddresses", ctx.genesisConfig.TransferWhitelist.Addresses)
-	if err != nil {
-		return err
-	}
-
-	logger.Debug("setWhitelistedContractIdentifiers")
-	err = contract.SimpleCall("setWhitelistedContractIdentifiers", ctx.genesisConfig.TransferWhitelist.RegistryIDs)
-	if err != nil {
-		return err
-	}
-
-	logger.Info("Add to Registry")
-	if err := ctx.contract("Registry").SimpleCall("setAddressFor", name, contract.Address); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (ctx *deployContext) deployMultiSig(name string, params MultiSigParameters) (common.Address, error) {
-	err := ctx.deployProxiedContract(name, func(contract *contract.EVMBackend) error {
+func (ctx *deployContext) deployMultiSig(subpath, name string, params MultiSigParameters) (common.Address, error) {
+	err := ctx.deployProxiedContract(subpath, name, func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			params.Signatories,
 			newBigInt(params.NumRequiredConfirmations),
@@ -335,7 +300,7 @@ func (ctx *deployContext) deployMultiSig(name string, params MultiSigParameters)
 }
 
 func (ctx *deployContext) deployReserveSpenderMultisig() error {
-	multiSigAddr, err := ctx.deployMultiSig("ReserveSpenderMultiSig", ctx.genesisConfig.ReserveSpenderMultiSig)
+	multiSigAddr, err := ctx.deployMultiSig("contracts-mento", "ReserveSpenderMultiSig", ctx.genesisConfig.ReserveSpenderMultiSig)
 	if err != nil {
 		return err
 	}
@@ -347,7 +312,7 @@ func (ctx *deployContext) deployReserveSpenderMultisig() error {
 }
 
 func (ctx *deployContext) deployGovernanceApproverMultiSig() error {
-	_, err := ctx.deployMultiSig("GovernanceApproverMultiSig", ctx.genesisConfig.GovernanceApproverMultiSig)
+	_, err := ctx.deployMultiSig("contracts", "GovernanceApproverMultiSig", ctx.genesisConfig.GovernanceApproverMultiSig)
 	return err
 }
 
@@ -356,7 +321,7 @@ func (ctx *deployContext) deployGovernance() error {
 	if ctx.genesisConfig.Governance.UseMultiSig {
 		approver = env.MustProxyAddressFor("GovernanceApproverMultiSig")
 	}
-	err := ctx.deployCoreContract("Governance", func(contract *contract.EVMBackend) error {
+	err := ctx.deployCoreContract("contracts", "Governance", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
 			approver,
@@ -364,7 +329,6 @@ func (ctx *deployContext) deployGovernance() error {
 			ctx.genesisConfig.Governance.MinDeposit,
 			newBigInt(ctx.genesisConfig.Governance.QueueExpiry),
 			newBigInt(ctx.genesisConfig.Governance.DequeueFrequency),
-			newBigInt(ctx.genesisConfig.Governance.ApprovalStageDuration),
 			newBigInt(ctx.genesisConfig.Governance.ReferendumStageDuration),
 			newBigInt(ctx.genesisConfig.Governance.ExecutionStageDuration),
 			ctx.genesisConfig.Governance.ParticipationBaseline.BigInt(),
@@ -385,17 +349,14 @@ func (ctx *deployContext) deployGovernance() error {
 }
 
 func (ctx *deployContext) deployRegistry() error {
-	return ctx.deployCoreContract("Registry", func(contract *contract.EVMBackend) error {
+	return ctx.deployCoreContract("contracts", "Registry", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize")
 	})
 }
 
 func (ctx *deployContext) deployBlockchainParameters() error {
-	return ctx.deployCoreContract("BlockchainParameters", func(contract *contract.EVMBackend) error {
+	return ctx.deployCoreContract("contracts", "BlockchainParameters", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			big.NewInt(ctx.genesisConfig.Blockchain.Version.Major),
-			big.NewInt(ctx.genesisConfig.Blockchain.Version.Minor),
-			big.NewInt(ctx.genesisConfig.Blockchain.Version.Patch),
 			newBigInt(ctx.genesisConfig.Blockchain.GasForNonGoldCurrencies),
 			newBigInt(ctx.genesisConfig.Blockchain.BlockGasLimit),
 			newBigInt(ctx.genesisConfig.Istanbul.LookbackWindow),
@@ -404,13 +365,13 @@ func (ctx *deployContext) deployBlockchainParameters() error {
 }
 
 func (ctx *deployContext) deployFreezer() error {
-	return ctx.deployCoreContract("Freezer", func(contract *contract.EVMBackend) error {
+	return ctx.deployCoreContract("contracts", "Freezer", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize")
 	})
 }
 
 func (ctx *deployContext) deployGovernanceSlasher() error {
-	err := ctx.deployCoreContract("GovernanceSlasher", func(contract *contract.EVMBackend) error {
+	err := ctx.deployCoreContract("contracts", "GovernanceSlasher", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
 		)
@@ -428,7 +389,7 @@ func (ctx *deployContext) addSlasher(slasherName string) error {
 }
 
 func (ctx *deployContext) deployDoubleSigningSlasher() error {
-	err := ctx.deployCoreContract("DoubleSigningSlasher", func(contract *contract.EVMBackend) error {
+	err := ctx.deployCoreContract("contracts", "DoubleSigningSlasher", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
 			ctx.genesisConfig.DoubleSigningSlasher.Penalty,
@@ -443,7 +404,7 @@ func (ctx *deployContext) deployDoubleSigningSlasher() error {
 }
 
 func (ctx *deployContext) deployDowntimeSlasher() error {
-	err := ctx.deployCoreContract("DowntimeSlasher", func(contract *contract.EVMBackend) error {
+	err := ctx.deployCoreContract("contracts", "DowntimeSlasher", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
 			ctx.genesisConfig.DowntimeSlasher.Penalty,
@@ -459,7 +420,7 @@ func (ctx *deployContext) deployDowntimeSlasher() error {
 }
 
 func (ctx *deployContext) deployAttestations() error {
-	return ctx.deployCoreContract("Attestations", func(contract *contract.EVMBackend) error {
+	return ctx.deployCoreContract("contracts", "Attestations", func(contract *contract.EVMBackend) error {
 		dollar := decimal.NewFromBigInt(common.Big1, int32(ctx.genesisConfig.StableToken.Decimals))
 		fee := dollar.Mul(ctx.genesisConfig.Attestations.AttestationRequestFeeInDollars)
 		return contract.SimpleCall("initialize",
@@ -474,13 +435,13 @@ func (ctx *deployContext) deployAttestations() error {
 }
 
 func (ctx *deployContext) deployEscrow() error {
-	return ctx.deployCoreContract("Escrow", func(contract *contract.EVMBackend) error {
+	return ctx.deployCoreContract("contracts", "Escrow", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize")
 	})
 }
 
 func (ctx *deployContext) deployFeeCurrencyWhitelist() error {
-	return ctx.deployCoreContract("FeeCurrencyWhitelist", func(contract *contract.EVMBackend) error {
+	return ctx.deployCoreContract("contracts", "FeeCurrencyWhitelist", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize")
 	})
 }
@@ -488,7 +449,7 @@ func (ctx *deployContext) deployFeeCurrencyWhitelist() error {
 func (ctx *deployContext) deployGrandaMento() error {
 	approver := ctx.accounts.AdminAccount().Address
 
-	err := ctx.deployCoreContract("GrandaMento", func(contract *contract.EVMBackend) error {
+	err := ctx.deployCoreContract("contracts-mento", "GrandaMento", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
 			approver,
@@ -513,20 +474,34 @@ func (ctx *deployContext) deployGrandaMento() error {
 	return nil
 }
 
+func (ctx *deployContext) deployFeeHandler() error {
+	return ctx.deployCoreContract("contracts", "FeeHandler", func(contract *contract.EVMBackend) error {
+		return contract.SimpleCall("initialize",
+			env.MustProxyAddressFor("Registry"),
+			ctx.genesisConfig.FeeHandler.NewFeeBeneficiary,
+			ctx.genesisConfig.FeeHandler.NewBurnFraction.BigInt(),
+			ctx.genesisConfig.FeeHandler.Tokens,
+			ctx.genesisConfig.FeeHandler.Handlers,
+			ctx.genesisConfig.FeeHandler.NewLimits,
+			ctx.genesisConfig.FeeHandler.NewMaxSlippages,
+		)
+	})
+}
+
 func (ctx *deployContext) deployFederatedAttestations() error {
-	return ctx.deployCoreContract("FederatedAttestations", func(contract *contract.EVMBackend) error {
+	return ctx.deployCoreContract("contracts", "FederatedAttestations", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize")
 	})
 }
 
 func (ctx *deployContext) deployOdisPayments() error {
-	return ctx.deployCoreContract("OdisPayments", func(contract *contract.EVMBackend) error {
+	return ctx.deployCoreContract("contracts", "OdisPayments", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize")
 	})
 }
 
 func (ctx *deployContext) deployGoldToken() error {
-	err := ctx.deployCoreContract("GoldToken", func(contract *contract.EVMBackend) error {
+	err := ctx.deployCoreContract("contracts", "GoldToken", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize", env.MustProxyAddressFor("Registry"))
 	})
 	if err != nil {
@@ -560,7 +535,7 @@ func (ctx *deployContext) deployExchanges() error {
 		{"ExchangeBRL", "StableTokenBRL", ctx.genesisConfig.ExchangeBRL},
 	}
 	for _, exchange := range exchanges {
-		err := ctx.deployCoreContract(exchange.contract, func(contract *contract.EVMBackend) error {
+		err := ctx.deployCoreContract("contracts-mento", exchange.contract, func(contract *contract.EVMBackend) error {
 			return contract.SimpleCall("initialize",
 				env.MustProxyAddressFor("Registry"),
 				exchange.stableTokenContract,
@@ -586,7 +561,7 @@ func (ctx *deployContext) deployExchanges() error {
 }
 
 func (ctx *deployContext) deployEpochRewards() error {
-	err := ctx.deployCoreContract("EpochRewards", func(contract *contract.EVMBackend) error {
+	err := ctx.deployCoreContract("contracts", "EpochRewards", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
 			ctx.genesisConfig.EpochRewards.TargetVotingYieldInitial.BigInt(),
@@ -617,13 +592,13 @@ func (ctx *deployContext) deployEpochRewards() error {
 }
 
 func (ctx *deployContext) deployAccounts() error {
-	return ctx.deployCoreContract("Accounts", func(contract *contract.EVMBackend) error {
+	return ctx.deployCoreContract("contracts", "Accounts", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize", env.MustProxyAddressFor("Registry"))
 	})
 }
 
 func (ctx *deployContext) deployRandom() error {
-	return ctx.deployCoreContract("Random", func(contract *contract.EVMBackend) error {
+	return ctx.deployCoreContract("contracts", "Random", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			newBigInt(ctx.genesisConfig.Random.RandomnessBlockRetentionWindow),
 		)
@@ -631,7 +606,7 @@ func (ctx *deployContext) deployRandom() error {
 }
 
 func (ctx *deployContext) deployLockedGold() error {
-	return ctx.deployCoreContract("LockedGold", func(contract *contract.EVMBackend) error {
+	return ctx.deployCoreContract("contracts", "LockedGold", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
 			newBigInt(ctx.genesisConfig.LockedGold.UnlockingPeriod),
@@ -640,7 +615,7 @@ func (ctx *deployContext) deployLockedGold() error {
 }
 
 func (ctx *deployContext) deployValidators() error {
-	return ctx.deployCoreContract("Validators", func(contract *contract.EVMBackend) error {
+	return ctx.deployCoreContract("contracts", "Validators", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
 			ctx.genesisConfig.Validators.GroupLockedGoldRequirements.Value,
@@ -659,11 +634,15 @@ func (ctx *deployContext) deployValidators() error {
 }
 
 func (ctx *deployContext) deployElection() error {
-	return ctx.deployCoreContract("Election", func(contract *contract.EVMBackend) error {
+	return ctx.deployCoreContract("contracts", "Election", func(contract *contract.EVMBackend) error {
+		maxValidators := ctx.genesisConfig.Election.MaxElectableValidators
+		if uint64(ctx.accounts.NumValidators) > maxValidators {
+			maxValidators = uint64(ctx.accounts.NumValidators)
+		}
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
 			newBigInt(ctx.genesisConfig.Election.MinElectableValidators),
-			newBigInt(ctx.genesisConfig.Election.MaxElectableValidators),
+			newBigInt(maxValidators),
 			ctx.genesisConfig.Election.MaxVotesPerAccount,
 			ctx.genesisConfig.Election.ElectabilityThreshold.BigInt(),
 		)
@@ -671,7 +650,7 @@ func (ctx *deployContext) deployElection() error {
 }
 
 func (ctx *deployContext) deploySortedOracles() error {
-	return ctx.deployCoreContract("SortedOracles", func(contract *contract.EVMBackend) error {
+	return ctx.deployCoreContract("contracts", "SortedOracles", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			newBigInt(ctx.genesisConfig.SortedOracles.ReportExpirySeconds),
 		)
@@ -679,18 +658,20 @@ func (ctx *deployContext) deploySortedOracles() error {
 }
 
 func (ctx *deployContext) deployGasPriceMinimum() error {
-	return ctx.deployCoreContract("GasPriceMinimum", func(contract *contract.EVMBackend) error {
+	return ctx.deployCoreContract("contracts", "GasPriceMinimum", func(contract *contract.EVMBackend) error {
+		ctx.logger.Info("GasPriceMinimum", "BaseFeeOpCodeActivationBlock", ctx.genesisConfig.GasPriceMinimum.BaseFeeOpCodeActivationBlock)
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
 			ctx.genesisConfig.GasPriceMinimum.MinimumFloor,
 			ctx.genesisConfig.GasPriceMinimum.TargetDensity.BigInt(),
 			ctx.genesisConfig.GasPriceMinimum.AdjustmentSpeed.BigInt(),
+			ctx.genesisConfig.GasPriceMinimum.BaseFeeOpCodeActivationBlock,
 		)
 	})
 }
 
 func (ctx *deployContext) deployReserve() error {
-	err := ctx.deployCoreContract("Reserve", func(contract *contract.EVMBackend) error {
+	err := ctx.deployCoreContract("contracts-mento", "Reserve", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
 			newBigInt(ctx.genesisConfig.Reserve.TobinTaxStalenessThreshold),
@@ -751,7 +732,7 @@ func (ctx *deployContext) deployStableTokens() error {
 		{"StableTokenBRL", ctx.genesisConfig.StableTokenBRL},
 	}
 	for _, token := range tokens {
-		err := ctx.deployCoreContract(token.contract, func(contract *contract.EVMBackend) error {
+		err := ctx.deployCoreContract("contracts-mento", token.contract, func(contract *contract.EVMBackend) error {
 			return contract.SimpleCall("initialize",
 				token.cfg.Name,
 				token.cfg.Symbol,

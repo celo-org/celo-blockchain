@@ -40,6 +40,11 @@ func (nc *NodeConfig) RPCPort() int64 {
 	return int64(8545 + nc.Number)
 }
 
+// RPCPort is the rpc port this node will use
+func (nc *NodeConfig) WebsocketPort() int64 {
+	return int64(9545 + nc.Number)
+}
+
 // NodePort is the node port this node will use
 func (nc *NodeConfig) NodePort() int64 {
 	return int64(30303 + nc.Number)
@@ -165,6 +170,10 @@ func (n *Node) Run(ctx context.Context) error {
 		"--http.addr", "127.0.0.1",
 		"--http.port", strconv.FormatInt(n.RPCPort(), 10),
 		"--http.api", "eth,net,web3,debug,admin,personal,istanbul,txpool",
+		"--ws",
+		"--ws.addr", "127.0.0.1",
+		"--ws.port", strconv.FormatInt(n.WebsocketPort(), 10),
+		"--ws.api", "eth,net,web3,debug,admin,personal,istanbul,txpool",
 		// "--nodiscover", "--nousb ",
 		"--unlock", addressToUnlock,
 		"--password", n.pwdFile(),

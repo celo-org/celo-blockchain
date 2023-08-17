@@ -5,14 +5,14 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/config"
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
-	"github.com/celo-org/celo-blockchain/params"
 	. "github.com/onsi/gomega"
 )
 
 func TestIsFrozen(t *testing.T) {
-	testutil.TestFailOnFailingRunner(t, IsFrozen, params.BlockchainParametersRegistryId)
-	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, IsFrozen, params.BlockchainParametersRegistryId)
+	testutil.TestFailOnFailingRunner(t, IsFrozen, config.BlockchainParametersRegistryId)
+	testutil.TestFailsWhenContractNotDeployed(t, contracts.ErrSmartContractNotDeployed, IsFrozen, config.BlockchainParametersRegistryId)
 
 	t.Run("should indicate if contract is frozen", func(t *testing.T) {
 		g := NewGomegaWithT(t)
@@ -25,22 +25,22 @@ func TestIsFrozen(t *testing.T) {
 
 		runner := testutil.NewMockEVMRunner()
 
-		contract := testutil.NewSingleMethodContract(params.FreezerRegistryId, "isFrozen", func(addr common.Address) bool {
+		contract := testutil.NewSingleMethodContract(config.FreezerRegistryId, "isFrozen", func(addr common.Address) bool {
 			return addr == blockchainAddress
 		})
 		runner.RegisterContract(freezerAddress, contract)
 
 		registry := testutil.NewRegistryMock()
-		runner.RegisterContract(params.RegistrySmartContractAddress, registry)
-		registry.AddContract(params.FreezerRegistryId, freezerAddress)
-		registry.AddContract(params.ValidatorsRegistryId, validatorsAddress)
-		registry.AddContract(params.BlockchainParametersRegistryId, blockchainAddress)
+		runner.RegisterContract(config.RegistrySmartContractAddress, registry)
+		registry.AddContract(config.FreezerRegistryId, freezerAddress)
+		registry.AddContract(config.ValidatorsRegistryId, validatorsAddress)
+		registry.AddContract(config.BlockchainParametersRegistryId, blockchainAddress)
 
-		isFrozen, err := IsFrozen(runner, params.BlockchainParametersRegistryId)
+		isFrozen, err := IsFrozen(runner, config.BlockchainParametersRegistryId)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(isFrozen).To(BeTrue())
 
-		isFrozen, err = IsFrozen(runner, params.ValidatorsRegistryId)
+		isFrozen, err = IsFrozen(runner, config.ValidatorsRegistryId)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(isFrozen).To(BeFalse())
 	})

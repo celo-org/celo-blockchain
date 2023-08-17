@@ -27,28 +27,6 @@ const BlockchainParametersStr = `[
 	{
 		"constant": true,
 		"inputs": [],
-		"name": "getMinimumClientVersion",
-		"outputs": [
-			{
-			"name": "major",
-			"type": "uint256"
-			},
-			{
-			"name": "minor",
-			"type": "uint256"
-			},
-			{
-			"name": "patch",
-			"type": "uint256"
-			}
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"constant": true,
-		"inputs": [],
 		"name": "blockGasLimit",
 		"outputs": [
 			{
@@ -449,7 +427,31 @@ const GasPriceMinimumStr = `[
 		"payable": false,
 		"stateMutability": "nonpayable",
 		"type": "function"
-		}
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "blockGasTotal",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "blockGasLimit",
+				"type": "uint256"
+			}
+		],
+		"name": "getUpdatedGasPriceMinimum",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
 ]`
 
 // nolint: gosec

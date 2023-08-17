@@ -18,37 +18,28 @@ package blockchain_parameters
 
 import (
 	"math/big"
-	"time"
 
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
+	"github.com/celo-org/celo-blockchain/contracts/config"
+	"github.com/celo-org/celo-blockchain/contracts/internal/n"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-var (
-	getMinimumClientVersionMethod               = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "getMinimumClientVersion", params.MaxGasForReadBlockchainParameter)
-	intrinsicGasForAlternativeFeeCurrencyMethod = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "intrinsicGasForAlternativeFeeCurrency", params.MaxGasForReadBlockchainParameter)
-	blockGasLimitMethod                         = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "blockGasLimit", params.MaxGasForReadBlockchainParameter)
-	getUptimeLookbackWindowMethod               = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "getUptimeLookbackWindow", params.MaxGasForReadBlockchainParameter)
+const (
+	maxGasForReadBlockchainParameter uint64 = 40 * n.Thousand // ad-hoc measurement is ~26k
 )
 
-// getMinimumVersion retrieves the client required minimum version
-// If a node is running a version smaller than this, it should exit/stop
-func getMinimumVersion(vmRunner vm.EVMRunner) (*params.VersionInfo, error) {
-	version := [3]*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(0)}
-	err := getMinimumClientVersionMethod.Query(vmRunner, &version)
-	if err != nil {
-		return nil, err
-	}
-	return &params.VersionInfo{
-		Major: version[0].Uint64(),
-		Minor: version[1].Uint64(),
-		Patch: version[2].Uint64(),
-	}, nil
-}
+var (
+	intrinsicGasForAlternativeFeeCurrencyMethod = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "intrinsicGasForAlternativeFeeCurrency", maxGasForReadBlockchainParameter)
+	blockGasLimitMethod                         = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "blockGasLimit", maxGasForReadBlockchainParameter)
+	getUptimeLookbackWindowMethod               = contracts.NewRegisteredContractMethod(config.BlockchainParametersRegistryId, abis.BlockchainParameters, "getUptimeLookbackWindow", maxGasForReadBlockchainParameter)
+)
+
+const DefaultIntrinsicGasForAlternativeFeeCurrency = config.IntrinsicGasForAlternativeFeeCurrency
 
 // GetIntrinsicGasForAlternativeFeeCurrencyOrDefault retrieves the intrisic gas for transactions that pay gas in
 // with an alternative currency (not CELO).
@@ -56,8 +47,8 @@ func getMinimumVersion(vmRunner vm.EVMRunner) (*params.VersionInfo, error) {
 func GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner vm.EVMRunner) uint64 {
 	gas, err := getIntrinsicGasForAlternativeFeeCurrency(vmRunner)
 	if err != nil {
-		log.Trace("Default gas", "gas", params.IntrinsicGasForAlternativeFeeCurrency, "method", "intrinsicGasForAlternativeFeeCurrency")
-		return params.IntrinsicGasForAlternativeFeeCurrency
+		log.Trace("Default gas", "gas", config.IntrinsicGasForAlternativeFeeCurrency, "method", "intrinsicGasForAlternativeFeeCurrency")
+		return config.IntrinsicGasForAlternativeFeeCurrency
 	}
 	log.Trace("Reading gas", "gas", gas)
 	return gas
@@ -110,44 +101,10 @@ func GetLookbackWindow(vmRunner vm.EVMRunner) (uint64, error) {
 	return lookbackWindow.Uint64(), nil
 }
 
-// checkMinimumVersion performs a check on the client's minimum version
-// In case of not passing hte check it will exit the node
-func checkMinimumVersion(vmRunner vm.EVMRunner) {
-	version, err := getMinimumVersion(vmRunner)
-
-	if err != nil {
-		logError("getMinimumClientVersion", err)
-		return
-	}
-
-	if params.CurrentVersionInfo.Cmp(version) == -1 {
-		time.Sleep(10 * time.Second)
-		// TODO this should exist gracefully, not like this
-		log.Crit("Client version older than required", "current", params.Version, "required", version)
-	}
-
-}
-
 func logError(method string, err error) {
 	if err == contracts.ErrRegistryContractNotDeployed {
-		log.Debug("Error calling "+method, "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
+		log.Debug("Error calling "+method, "err", err, "contract", hexutil.Encode(config.BlockchainParametersRegistryId[:]))
 	} else {
-		log.Warn("Error calling "+method, "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
+		log.Warn("Error calling "+method, "err", err, "contract", hexutil.Encode(config.BlockchainParametersRegistryId[:]))
 	}
-}
-
-// SpawnCheck starts a goroutine that will periodically check the client's minimun version
-// In case of not passing hte check it will exit the node
-func SpawnCheck(runnerFactory func() (vm.EVMRunner, error)) {
-	go func() {
-		for {
-			time.Sleep(60 * time.Second)
-
-			vmRunner, err := runnerFactory()
-			if err != nil {
-				continue
-			}
-			checkMinimumVersion(vmRunner)
-		}
-	}()
 }

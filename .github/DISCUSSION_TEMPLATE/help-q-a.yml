@@ -1,0 +1,34 @@
+title: "[Help] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The more specific you can be, the easier it will be to help you!
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: "What is the context of your question?"
+      value: |
+        Describe what was the result you were trying to achieve
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: "What is the problem you're facing?"
+      value: |
+        Describe the specific problem you have
+    validations:
+      required: true
+  - type: textarea
+    id: asks
+    attributes:
+      label: Asks
+      description: "What kind of help you're looking for?"
+      value: |
+        How can we help you?
+    validations:
+      required: true
+

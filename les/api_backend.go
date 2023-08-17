@@ -27,7 +27,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
-	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/bloombits"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -35,6 +34,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/eth/ethconfig"
+	gp "github.com/celo-org/celo-blockchain/eth/gasprice"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/light"
@@ -273,37 +273,56 @@ func (b *LesApiBackend) SuggestPrice(ctx context.Context, currencyAddress *commo
 	if err != nil {
 		return nil, err
 	}
-	return gpm.GetGasPriceSuggestion(vmRunner, currencyAddress)
+	return gp.GetGasPriceSuggestion(vmRunner, currencyAddress, b.CurrentHeader().BaseFee, b.eth.config.RPCGasPriceMultiplier)
 }
 
 func (b *LesApiBackend) GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Context) uint64 {
 	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
 	if err != nil {
 		log.Warn("Cannot read intrinsic gas for alternative fee currency", "err", err)
-		return params.IntrinsicGasForAlternativeFeeCurrency
+		return blockchain_parameters.DefaultIntrinsicGasForAlternativeFeeCurrency
 	}
 	return blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
 }
 
 func (b *LesApiBackend) GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) uint64 {
-	statedb, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
+	header, err := b.HeaderByNumberOrHash(ctx, blockNrOrHash)
+	if err != nil {
+		log.Warn("Cannot retrieve the header for blockGasLimit", "err", err)
+		return params.DefaultGasLimit
+	}
+	if header.GasLimit > 0 {
+		return header.GasLimit
+	}
+	// The gasLimit of a specific block, is the one at the beginning of the block,
+	// not the end of it (the state_root of the header is the a state resulted of applying the block). So, the state to
+	// be used, MUST be the state result of the parent block
+	state, parent, err := b.StateAndHeaderByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockHash: &header.ParentHash})
 	if err != nil {
 		log.Warn("Cannot create evmCaller to get blockGasLimit", "err", err)
 		return params.DefaultGasLimit
 	}
-
-	caller := b.eth.BlockChain().NewEVMRunner(header, statedb)
-	return blockchain_parameters.GetBlockGasLimitOrDefault(caller)
+	vmRunner := b.eth.BlockChain().NewEVMRunner(parent, state)
+	return blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
 }
 
 func (b *LesApiBackend) GetRealBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (uint64, error) {
-	statedb, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
+	header, err := b.HeaderByNumberOrHash(ctx, blockNrOrHash)
+	if err != nil {
+		return 0, fmt.Errorf("LesApiBackend failed to retrieve header for gas limit %v: %w", blockNrOrHash, err)
+	}
+	if header.GasLimit > 0 {
+		return header.GasLimit, nil
+	}
+	// The gasLimit of a specific block, is the one at the beginning of the block,
+	// not the end of it (the state_root of the header is the a state resulted of applying the block). So, the state to
+	// be used, MUST be the state result of the parent block
+	state, parent, err := b.StateAndHeaderByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockHash: &header.ParentHash})
 	if err != nil {
 		return 0, fmt.Errorf("LesApiBackend failed to retrieve state for block gas limit for block %v: %w", blockNrOrHash, err)
 	}
-
-	caller := b.eth.BlockChain().NewEVMRunner(header, statedb)
-	limit, err := blockchain_parameters.GetBlockGasLimit(caller)
+	vmRunner := b.eth.BlockChain().NewEVMRunner(parent, state)
+	limit, err := blockchain_parameters.GetBlockGasLimit(vmRunner)
 	if err != nil {
 		return 0, fmt.Errorf("LesApiBackend failed to retrieve block gas limit from blockchain parameters constract for block %v: %w", blockNrOrHash, err)
 	}
@@ -319,28 +338,49 @@ func (b *LesApiBackend) SuggestGasTipCap(ctx context.Context, currencyAddress *c
 	if err != nil {
 		return nil, err
 	}
-	return gpm.GetGasTipCapSuggestion(vmRunner, currencyAddress)
+	return gp.GetGasTipCapSuggestion(vmRunner, currencyAddress)
 }
 
 func (b *LesApiBackend) CurrentGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	header := b.CurrentHeader()
+	if header.BaseFee != nil && currencyAddress == nil {
+		return header.BaseFee, nil
+	}
 	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
 	if err != nil {
 		return nil, err
 	}
-	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
+	return gp.GetBaseFeeForCurrency(vmRunner, currencyAddress, header.BaseFee)
 }
 
 func (b *LesApiBackend) GasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error) {
-	state := light.NewState(ctx, header, b.eth.odr)
-	vmRunner := b.eth.blockchain.NewEVMRunner(header, state)
-
-	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
+	if header.BaseFee != nil && currencyAddress == nil {
+		return header.BaseFee, nil
+	}
+	// The gasPriceMinimum (celo or alternative currency) of a specific block, is the one at the beginning of the block,
+	// not the end of it (the state_root of the header is the a state resulted of applying the block). So, the state to
+	// be used, MUST be the state result of the parent block
+	state, parent, err := b.StateAndHeaderByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockHash: &header.ParentHash})
+	if err != nil {
+		return nil, err
+	}
+	vmRunner := b.eth.BlockChain().NewEVMRunner(parent, state)
+	return gp.GetBaseFeeForCurrency(vmRunner, currencyAddress, header.BaseFee)
 }
 
 func (b *LesApiBackend) RealGasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error) {
-	state := light.NewState(ctx, header, b.eth.odr)
-	vmRunner := b.eth.blockchain.NewEVMRunner(header, state)
-	return gpm.GetRealGasPriceMinimum(vmRunner, currencyAddress)
+	if header.BaseFee != nil && currencyAddress == nil {
+		return header.BaseFee, nil
+	}
+	// The gasPriceMinimum (celo or alternative currency) of a specific block, is the one at the beginning of the block,
+	// not the end of it (the state_root of the header is the a state resulted of applying the block). So, the state to
+	// be used, MUST be the state result of the parent block
+	state, parent, err := b.StateAndHeaderByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockHash: &header.ParentHash})
+	if err != nil {
+		return nil, err
+	}
+	vmRunner := b.eth.BlockChain().NewEVMRunner(parent, state)
+	return gp.GetRealBaseFeeForCurrency(vmRunner, currencyAddress, header.BaseFee)
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {
@@ -390,6 +430,9 @@ func (b *LesApiBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 }
 
 func (b *LesApiBackend) GatewayFeeRecipient() common.Address {
+	if b.ChainConfig().IsGingerbread(b.CurrentHeader().Number) {
+		return common.Address{}
+	}
 	return b.eth.GetRandomPeerEtherbase()
 }
 
@@ -406,7 +449,7 @@ func (b *LesApiBackend) CurrentHeader() *types.Header {
 	return b.eth.blockchain.CurrentHeader()
 }
 
-func (b *LesApiBackend) StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, checkLive bool) (*state.StateDB, error) {
+func (b *LesApiBackend) StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, checkLive bool, preferDisk bool) (*state.StateDB, error) {
 	return b.eth.stateAtBlock(ctx, block, reexec)
 }
 

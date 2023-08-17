@@ -158,8 +158,11 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 // makeFullNode loads geth configuration and creates the Ethereum backend.
 func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 	stack, cfg := makeConfigNode(ctx)
-	if ctx.GlobalIsSet(utils.OverrideEHardforkFlag.Name) {
-		cfg.Eth.OverrideEHardfork = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideEHardforkFlag.Name))
+	if ctx.GlobalIsSet(utils.OverrideGingerbreadFlag.Name) {
+		cfg.Eth.OverrideGingerbread = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideGingerbreadFlag.Name))
+	}
+	if ctx.GlobalIsSet(utils.OverrideGingerbreadP2Flag.Name) {
+		cfg.Eth.OverrideGingerbreadP2 = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideGingerbreadP2Flag.Name))
 	}
 	backend, _ := utils.RegisterEthService(stack, &cfg.Eth)
 

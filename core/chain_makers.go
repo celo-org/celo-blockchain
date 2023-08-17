@@ -23,6 +23,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -100,7 +101,7 @@ func (b *BlockGen) AddTxWithChain(bc ChainContext, tx *types.Transaction) {
 
 	celoMock := testutil.NewCeloMock()
 
-	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{}, celoMock.Runner, MockSysContractCallCtx())
+	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{}, celoMock.Runner, MockSysContractCallCtx(b.config.FakeBaseFee))
 	if err != nil {
 		panic(err)
 	}
@@ -109,10 +110,10 @@ func (b *BlockGen) AddTxWithChain(bc ChainContext, tx *types.Transaction) {
 }
 
 // MockSysContractCallCtx returns a SysContractCallCtx mock.
-func MockSysContractCallCtx() *SysContractCallCtx {
+func MockSysContractCallCtx(fakeBaseFee *big.Int) *SysContractCallCtx {
 	return &SysContractCallCtx{
 		// Set common.ZeroAddress to non-zero value to test on proper base fee distribution
-		gasPriceMinimums: map[common.Address]*big.Int{common.ZeroAddress: common.Big3},
+		gasPriceMinimums: map[common.Address]*big.Int{common.ZeroAddress: fakeBaseFee},
 	}
 }
 
@@ -133,6 +134,11 @@ func (b *BlockGen) AddUncheckedTx(tx *types.Transaction) {
 // Number returns the block number of the block being generated.
 func (b *BlockGen) Number() *big.Int {
 	return new(big.Int).Set(b.header.Number)
+}
+
+// MinimumGasPrice returns the EIP-1559 base fee of the block being generated.
+func (b *BlockGen) MinimumGasPrice(currency *common.Address) *big.Int {
+	return MockSysContractCallCtx(b.config.FakeBaseFee).GetGasPriceMinimum(currency)
 }
 
 // AddUncheckedReceipt forcefully adds a receipts to the block without a
@@ -273,6 +279,18 @@ func makeHeader(chain consensus.ChainHeaderReader, parent *types.Block, state *s
 	}
 	// Properly set the extra data field
 	header.Extra = CreateEmptyIstanbulExtra(header.Extra)
+	if chain.Config().IsGingerbread(header.Number) {
+		if chain.Config().FakeBaseFee != nil {
+			header.BaseFee = chain.Config().FakeBaseFee
+		} else {
+			header.BaseFee = misc.CalcBaseFeeEthereum(chain.Config(), parent.Header())
+		}
+		header.GasLimit = params.DefaultGasLimit
+		header.Difficulty = big.NewInt(0)
+		header.Nonce = types.EncodeNonce(0)
+		header.UncleHash = types.EmptyUncleHash
+		header.MixDigest = types.EmptyMixDigest
+	}
 	return header
 }
 
