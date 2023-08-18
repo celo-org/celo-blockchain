@@ -442,7 +442,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if err := CheckEthCompatibility(st.msg); err != nil {
 		return nil, err
 	}
-	if (st.msg.GatewayFee() != nil || st.msg.GatewayFeeRecipient() != nil) && st.evm.ChainConfig().IsGingerbread(st.evm.Context.BlockNumber) {
+	if st.evm.ChainConfig().IsGingerbread(st.evm.Context.BlockNumber) && (st.msg.GatewayFee().Sign() != 0 || st.msg.GatewayFeeRecipient() != nil) {
 		return nil, ErrGatewayFeeDeprecated
 	}
 
