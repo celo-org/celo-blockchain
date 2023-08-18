@@ -1431,9 +1431,10 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 // invalidated transactions (low nonce, low balance) are deleted.
 func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Transaction {
 	previousBlockNumber := pool.chain.CurrentBlock().Number()
-	// As we need to prune the txs with gateway fee after gingerbread and it just happens in the fork
-	// activation block to save unnecessary checks
-	inGingerbreadBlockActivation := pool.chainconfig.GingerbreadBlock.Cmp(new(big.Int).Add(previousBlockNumber, big.NewInt(1))) == 0
+	// We need to prune the txs with gateway fee after gingerbread and that just happens in the fork
+	// activation block (saves unnecessary checks).
+	inGingerbreadBlockActivation := pool.chainconfig.GingerbreadBlock != nil &&
+		pool.chainconfig.GingerbreadBlock.Cmp(new(big.Int).Add(previousBlockNumber, big.NewInt(1))) == 0
 	// Track the promoted transactions to broadcast them at once
 	var promoted []*types.Transaction
 
