@@ -761,6 +761,9 @@ func (m Message) EthCompatible() bool                  { return m.ethCompatible 
 func (m Message) FeeCurrency() *common.Address         { return m.feeCurrency }
 func (m Message) GatewayFeeRecipient() *common.Address { return m.gatewayFeeRecipient }
 func (m Message) GatewayFee() *big.Int                 { return m.gatewayFee }
+func (m Message) GatewaySet() bool {
+	return m.gatewayFeeRecipient != nil || (m.gatewayFee != nil && m.gatewayFee.Sign() != 0)
+}
 
 // copyAddressPtr copies an address.
 func copyAddressPtr(a *common.Address) *common.Address {
