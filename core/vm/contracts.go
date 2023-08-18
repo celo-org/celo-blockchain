@@ -127,7 +127,7 @@ var PrecompiledContractsDonut = map[common.Address]CeloPrecompiledContract{
 	celoPrecompileAddress(10): &getParentSealBitmap{},
 	celoPrecompileAddress(11): &getVerifiedSealBitmap{},
 	// New in Donut hard fork
-	celoPrecompileAddress(12): &ed25519Verify{},
+	// celoPrecompileAddress(12): &ed25519Verify{},
 	celoPrecompileAddress(13): &wrap{&bls12381G1Add{}},
 	celoPrecompileAddress(14): &wrap{&bls12381G1Mul{}},
 	celoPrecompileAddress(15): &wrap{&bls12381G1MultiExp{}},
@@ -144,7 +144,7 @@ var PrecompiledContractsDonut = map[common.Address]CeloPrecompiledContract{
 	celoPrecompileAddress(26): &wrap{&bls12377G2Mul{}},
 	celoPrecompileAddress(27): &wrap{&bls12377G2MultiExp{}},
 	celoPrecompileAddress(28): &wrap{&bls12377Pairing{}},
-	// celoPrecompileAddress(29): &wrap{&cip20HashFunctions{Cip20HashesDonut}},
+	celoPrecompileAddress(29): &wrap{&cip20HashFunctions{Cip20HashesDonut}},
 	celoPrecompileAddress(30): &getValidatorBLS{},
 }
 
@@ -174,7 +174,7 @@ var PrecompiledContractsE = map[common.Address]CeloPrecompiledContract{
 	celoPrecompileAddress(11): &getVerifiedSealBitmap{},
 
 	// New in Donut hard fork
-	celoPrecompileAddress(12): &ed25519Verify{},
+	// celoPrecompileAddress(12): &ed25519Verify{},
 	celoPrecompileAddress(13): &wrap{&bls12381G1Add{}},
 	celoPrecompileAddress(14): &wrap{&bls12381G1Mul{}},
 	celoPrecompileAddress(15): &wrap{&bls12381G1MultiExp{}},
@@ -191,7 +191,7 @@ var PrecompiledContractsE = map[common.Address]CeloPrecompiledContract{
 	celoPrecompileAddress(26): &wrap{&bls12377G2Mul{}},
 	celoPrecompileAddress(27): &wrap{&bls12377G2MultiExp{}},
 	celoPrecompileAddress(28): &wrap{&bls12377Pairing{}},
-	// celoPrecompileAddress(29): &wrap{&cip20HashFunctions{Cip20HashesDonut}},
+	celoPrecompileAddress(29): &wrap{&cip20HashFunctions{Cip20HashesDonut}},
 	celoPrecompileAddress(30): &getValidatorBLS{},
 }
 
