@@ -1432,8 +1432,8 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Transaction {
 	previousBlockNumber := pool.chain.CurrentBlock().Number()
 	// As we need to prune the txs with gateway fee after gingerbread and it just happens in the fork
-	// activation block, checking if the mined block was the previous to that activation will save future processing
-	inGingerbreadBlockActivation := pool.gingerbread && !pool.chainconfig.IsGingerbread(previousBlockNumber)
+	// activation block to save unnecesary checks
+	inGingerbreadBlockActivation := pool.chainconfig.GingerbreadBlock.Cmp(new(big.Int).Add(previousBlockNumber, big.NewInt(1))) == 0
 	// Track the promoted transactions to broadcast them at once
 	var promoted []*types.Transaction
 
