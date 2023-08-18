@@ -131,7 +131,7 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 	if ctx.IsSet("mnemonic") {
 		env.Accounts().Mnemonic = ctx.String("mnemonic")
 	}
-	fmt.Println("envFromTemplate: GB block:", ctx.Int64("forks.gingerbread"))
+
 	var gingerbreadBlock *big.Int
 	if ctx.IsSet("forks.gingerbread") {
 		gingerbreadBlockNumber := ctx.Int64("forks.gingerbread")
