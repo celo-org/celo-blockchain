@@ -662,8 +662,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	// CIP 57 deprecates full node incentives
-	gatewayFeeSet := !(tx.GatewayFee() == nil || tx.GatewayFee().Cmp(common.Big0) == 0)
-	if pool.gingerbread && (tx.GatewayFeeRecipient() != nil || gatewayFeeSet) {
+	if pool.gingerbread && tx.GatewaySet() {
 		return ErrGatewayFeeDeprecated
 	}
 
@@ -1431,6 +1430,10 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 // future queue to the set of pending transactions. During this process, all
 // invalidated transactions (low nonce, low balance) are deleted.
 func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Transaction {
+	previousBlockNumber := pool.chain.CurrentBlock().Number()
+	// As we need to prune the txs with gateway fee after gingerbread and it just happens in the fork
+	// activation block, checking if the mined block was the previous to that activation will save future processing
+	inGingerbreadBlockActivation := pool.gingerbread && !pool.chainconfig.IsGingerbread(previousBlockNumber)
 	// Track the promoted transactions to broadcast them at once
 	var promoted []*types.Transaction
 
@@ -1453,6 +1456,17 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 		for _, feeCurrency := range allCurrencies {
 			feeCurrencyBalance, _ := currency.GetBalanceOf(pool.currentVMRunner, addr, feeCurrency)
 			balances[feeCurrency] = feeCurrencyBalance
+		}
+		// Drop transactions with gatewayFee in the gingerbread HF block
+		if inGingerbreadBlockActivation {
+			txsWithGatewayFee := list.txs.Filter(func(tx *types.Transaction) bool {
+				return tx.GatewaySet()
+			})
+			for _, tx := range txsWithGatewayFee {
+				hash := tx.Hash()
+				pool.all.Remove(hash)
+			}
+			log.Trace("Removed queued transactions with gatewayFee", "count", len(txsWithGatewayFee))
 		}
 		// Drop all transactions that are too costly (low balance or out of gas)
 		drops, _ := list.Filter(pool.currentState.GetBalance(addr), balances, pool.currentMaxGas)

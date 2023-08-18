@@ -472,6 +472,11 @@ func (tx *Transaction) GatewayFee() *big.Int {
 	}
 }
 
+// GatewaySet returns true if the gatewayFeeRecipient or the gatewayFee are set.
+func (tx *Transaction) GatewaySet() bool {
+	return tx.inner.gatewayFeeRecipient() != nil || (tx.inner.gatewayFee() != nil && tx.inner.gatewayFee().Sign() != 0)
+}
+
 // EthCompatible returns true iff the RLP form of the LegacyTx does not have the celo specific fields.
 func (tx *Transaction) EthCompatible() bool { return tx.inner.ethCompatible() }
 
