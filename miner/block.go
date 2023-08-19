@@ -278,6 +278,12 @@ loop:
 			txs.Pop()
 			continue
 		}
+		if tx.GatewaySet() && w.chainConfig.IsGingerbread(b.header.Number) {
+			log.Trace("Ignoring transaction with gateway fee", "hash", tx.Hash(), "gingerbread", w.chainConfig.GingerbreadBlock)
+
+			txs.Pop()
+			continue
+		}
 		// Start executing the transaction
 		b.state.Prepare(tx.Hash(), b.tcount)
 
@@ -309,7 +315,7 @@ loop:
 			coalescedLogs = append(coalescedLogs, logs...)
 			b.tcount++
 			// bytesBlock != nil => GingerbreadP2
-			if b.bytesBlock != nil {
+			if b.bytesBlock != nil && w.chainConfig.IsGingerbreadP2(b.header.Number) {
 				if err := b.bytesBlock.SubBytes(uint64(tx.Size())); err != nil {
 					// This should never happen because we are validating before that we have enough space
 					return err
