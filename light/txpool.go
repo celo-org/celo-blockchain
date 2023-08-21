@@ -377,8 +377,7 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	}
 
 	// CIP 57 deprecates full node incentives
-	gatewayFeeSet := !(tx.GatewayFee() == nil || tx.GatewayFee().Cmp(common.Big0) == 0)
-	if pool.gingerbread && (tx.GatewayFeeRecipient() != nil || gatewayFeeSet) {
+	if pool.gingerbread && tx.GatewaySet() {
 		return core.ErrGatewayFeeDeprecated
 	}
 
