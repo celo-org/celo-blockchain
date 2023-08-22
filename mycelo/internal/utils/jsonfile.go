@@ -2,11 +2,11 @@ package utils
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 )
 
 func ReadJson(out interface{}, filepath string) error {
-	byteValue, err := ioutil.ReadFile(filepath)
+	byteValue, err := os.ReadFile(filepath)
 	if err != nil {
 		return err
 	}
@@ -20,5 +20,5 @@ func WriteJson(in interface{}, filepath string) error {
 		return err
 	}
 
-	return ioutil.WriteFile(filepath, byteValue, 0644)
+	return os.WriteFile(filepath, byteValue, 0644)
 }
