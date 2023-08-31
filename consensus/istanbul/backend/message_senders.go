@@ -118,7 +118,7 @@ func (sb *Backend) asyncMulticast(destPeers map[enode.ID]consensus.Peer, payload
 		peer := peer // Create new instance of peer for the goroutine
 		go func() {
 			logger.Trace("Sending istanbul message(s) to peer", "peer", peer, "node", peer.Node())
-			if err := peer.SendDoubleEncoded(ethMsgCode, reencodedPayload); err != nil {
+			if err := peer.Send(ethMsgCode, reencodedPayload); err != nil {
 				logger.Warn("Error in sending message", "peer", peer, "ethMsgCode", ethMsgCode, "err", err)
 			}
 		}()

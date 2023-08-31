@@ -90,7 +90,7 @@ func (pv *proxiedValidatorEngine) sendValEnodesShareMsg(proxyPeer consensus.Peer
 	}
 
 	logger.Trace("Sending Istanbul Validator Enodes Share payload to proxy peer", "proxyPeer", proxyPeer)
-	if err := proxyPeer.Send(istanbul.ValEnodesShareMsg, payload); err != nil {
+	if err := proxyPeer.EncodeAndSend(istanbul.ValEnodesShareMsg, payload); err != nil {
 		logger.Error("Error sending Istanbul ValEnodesShare Message to proxy", "err", err)
 		return err
 	}

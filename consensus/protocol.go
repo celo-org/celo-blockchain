@@ -44,11 +44,13 @@ type P2PServer interface {
 
 // Peer defines the interface for a p2p.peer
 type Peer interface {
-	// Send sends the message to this peer
+	// EncodeAndSend sends the message to this peer. data should be encoded
+	// only once with rlp encoding.
+	EncodeAndSend(msgcode uint64, data []byte) error
+	// Send sends the message to this peer. Since current istanbul protocol
+	// has messages encoded twice, data should be twice encoded
+	// with rlp encoding.
 	Send(msgcode uint64, data []byte) error
-	// SendDoubleEncoded sends the message to this peer.
-	// message payload should be twice encoded in rlp encoding.
-	SendDoubleEncoded(msgcode uint64, data []byte) error
 	// Node returns the peer's enode
 	Node() *enode.Node
 	// Version returns the peer's version
