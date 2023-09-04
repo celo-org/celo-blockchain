@@ -464,7 +464,6 @@ func ReadBody(db ethdb.Reader, hash common.Hash, number uint64) *types.Body {
 		return nil
 	}
 	body := new(types.Body)
-	fmt.Printf("Reading body before decoding, %s - %d %d\n", hash, number, len(data))
 	if err := rlp.Decode(bytes.NewReader(data), body); err != nil {
 		log.Error("Invalid block body RLP", "hash", hash, "err", err)
 		return nil
@@ -629,7 +628,6 @@ func ReadReceipts(db ethdb.Reader, hash common.Hash, number uint64, config *para
 	if receipts == nil {
 		return nil
 	}
-	fmt.Println("Reading receipts")
 	body := ReadBody(db, hash, number)
 	if body == nil {
 		log.Error("Missing body but have receipt", "hash", hash, "number", number)
@@ -741,7 +739,6 @@ func ReadLogs(db ethdb.Reader, hash common.Hash, number uint64) [][]*types.Log {
 		return nil
 	}
 
-	fmt.Println("Reading logs")
 	body := ReadBody(db, hash, number)
 	if body == nil {
 		log.Error("Missing body but have receipt", "hash", hash, "number", number)
@@ -769,7 +766,6 @@ func ReadBlock(db ethdb.Reader, hash common.Hash, number uint64) *types.Block {
 	if header == nil {
 		return nil
 	}
-	fmt.Println("Reading block")
 	body := ReadBody(db, hash, number)
 	if body == nil {
 		return nil

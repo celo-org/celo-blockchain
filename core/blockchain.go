@@ -844,7 +844,6 @@ func (bc *BlockChain) Genesis() *types.Block {
 func (bc *BlockChain) GetBody(hash common.Hash) *types.Body {
 	// Short circuit if the body's already in the cache, retrieve otherwise
 	if cached, ok := bc.bodyCache.Get(hash); ok {
-		fmt.Println("Cache hit")
 		body := cached.(*types.Body)
 		return body
 	}
@@ -852,7 +851,6 @@ func (bc *BlockChain) GetBody(hash common.Hash) *types.Body {
 	if number == nil {
 		return nil
 	}
-	fmt.Printf("Cache miss %d\n", number)
 	body := rawdb.ReadBody(bc.db, hash, *number)
 	if body == nil {
 		return nil
@@ -923,17 +921,14 @@ func (bc *BlockChain) HasBlockAndState(hash common.Hash, number uint64) bool {
 func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) *types.Block {
 	// Short circuit if the block's already in the cache, retrieve otherwise
 	if block, ok := bc.blockCache.Get(hash); ok {
-		fmt.Printf("Cache hit, getting the block %s %d\n", hash, number)
 		return block.(*types.Block)
 	}
-	fmt.Printf("Cache miss, getting the block %s %d\n", hash, number)
 	block := rawdb.ReadBlock(bc.db, hash, number)
 	if block == nil {
 		return nil
 	}
 	// Cache the found block for next time and return
-	evicted := bc.blockCache.Add(block.Hash(), block)
-	fmt.Printf("Eviction happened %v\n", evicted)
+	bc.blockCache.Add(block.Hash(), block)
 	return block
 }
 
@@ -2578,7 +2573,6 @@ func (bc *BlockChain) GetTransactionLookup(hash common.Hash) *rawdb.LegacyTxLook
 	if lookup, exist := bc.txLookupCache.Get(hash); exist {
 		return lookup.(*rawdb.LegacyTxLookupEntry)
 	}
-	fmt.Printf("In the lookup routine %s", hash)
 	tx, blockHash, blockNumber, txIndex := rawdb.ReadTransaction(bc.db, hash)
 	if tx == nil {
 		return nil
