@@ -65,8 +65,8 @@ var (
 		ChurritoBlock:       big.NewInt(6774000),
 		DonutBlock:          big.NewInt(6774000),
 		EspressoBlock:       big.NewInt(11838440),
-		GingerbreadBlock:    nil,
-		GingerbreadP2Block:  nil,
+		GingerbreadBlock:    big.NewInt(21616000),
+		GingerbreadP2Block:  big.NewInt(21616000),
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -92,8 +92,8 @@ var (
 		ChurritoBlock:       big.NewInt(2719099),
 		DonutBlock:          big.NewInt(5002000),
 		EspressoBlock:       big.NewInt(9195000),
-		GingerbreadBlock:    nil,
-		GingerbreadP2Block:  nil,
+		GingerbreadBlock:    big.NewInt(18785000),
+		GingerbreadP2Block:  big.NewInt(19157000),
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -119,8 +119,8 @@ var (
 		ChurritoBlock:       big.NewInt(4960000),
 		DonutBlock:          big.NewInt(4960000),
 		EspressoBlock:       big.NewInt(9472000),
-		GingerbreadBlock:    nil,
-		GingerbreadP2Block:  nil,
+		GingerbreadBlock:    big.NewInt(19814000),
+		GingerbreadP2Block:  big.NewInt(19814000),
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
