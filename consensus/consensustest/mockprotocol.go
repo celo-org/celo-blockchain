@@ -96,7 +96,11 @@ func NewMockPeer(node *enode.Node, purposes p2p.PurposeFlag) *MockPeer {
 	return mockPeer
 }
 
-func (mp *MockPeer) Send(msgCode uint64, data interface{}) error {
+func (mp *MockPeer) EncodeAndSend(msgCode uint64, data []byte) error {
+	return nil
+}
+
+func (mp *MockPeer) Send(msgCode uint64, data []byte) error {
 	return nil
 }
 

@@ -20,7 +20,6 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/log"
 )
@@ -173,7 +172,6 @@ func (c *core) handleMsg(payload []byte) error {
 
 	// Decode message and check its signature
 	msg := new(istanbul.Message)
-	logger.Debug("Got new message", "payload", hexutil.Encode(payload))
 	if err := msg.FromPayload(payload, c.validateFn); err != nil {
 		logger.Debug("Failed to decode message from payload", "err", err)
 		return err

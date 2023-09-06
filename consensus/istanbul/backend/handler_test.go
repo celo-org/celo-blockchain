@@ -32,7 +32,11 @@ type MockPeer struct {
 	NodeOverride *enode.Node
 }
 
-func (p *MockPeer) Send(msgcode uint64, data interface{}) error {
+func (p *MockPeer) EncodeAndSend(msgcode uint64, data []byte) error {
+	return nil
+}
+
+func (p *MockPeer) Send(msgcode uint64, data []byte) error {
 	return nil
 }
 

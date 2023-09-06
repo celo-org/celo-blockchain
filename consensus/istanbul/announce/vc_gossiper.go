@@ -64,5 +64,5 @@ func (vg *vcGossiper) SendAllFrom(vcDb *VersionCertificateDB, peer consensus.Pee
 		return err
 	}
 
-	return peer.Send(istanbul.VersionCertificatesMsg, payload)
+	return peer.EncodeAndSend(istanbul.VersionCertificatesMsg, payload)
 }
