@@ -110,6 +110,13 @@ func (sb *Backend) Gossip(payload []byte, ethMsgCode uint64) error {
 // sendMsg will asynchronously send the the Celo messages to all the peers in the destPeers param.
 func (sb *Backend) asyncMulticast(destPeers map[enode.ID]consensus.Peer, payload []byte, ethMsgCode uint64) error {
 	logger := sb.logger.New("func", "AsyncMulticastCeloMsg", "msgCode", ethMsgCode)
+	// Istanbul was encoding messages before sending it to the peer,
+	// then the peer itself would re-encode them before writing it into the
+	// output stream. This made it so that sending a message to 100 peers (validators),
+	// would encode the message a first time, then one hundred times more. With this
+	// change (making the double encode explicit here) we ensure the peer already
+	// receives the message in double encoded form, reducing the amount of rlp.encode
+	// calls from 101 to 2.
 	reencodedPayload, err := rlp.EncodeToBytes(payload)
 	if err != nil {
 		return err
