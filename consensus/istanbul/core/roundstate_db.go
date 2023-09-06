@@ -53,14 +53,6 @@ const (
 	// leveldb database cannot keep up with requested writes.
 	degradationWarnInterval = time.Minute
 
-	// minCache is the minimum amount of memory in megabytes to allocate to leveldb
-	// read and write caching, split half and half.
-	minCache = 16
-
-	// minHandles is the minimum number of files handles to allocate to the open
-	// database files.
-	minHandles = 16
-
 	// metricsGatheringInterval specifies the interval to retrieve leveldb database
 	// compaction, io and pause stats to report to the user.
 	metricsGatheringInterval = 3 * time.Second
@@ -203,12 +195,9 @@ func newPersistentDB(path string) (*leveldb.DB, error) {
 	opts := &opt.Options{
 		BlockSize:          128 * opt.KiB,
 		BlockCacheCapacity: 256 * opt.MiB,
-		OpenFilesCacheCapacity: 5, //120,
+		OpenFilesCacheCapacity: 5,
 		WriteBuffer:            128 * opt.MiB,
 		CompactionTableSize: 10 * opt.MiB,
-		// CompactionTotalSize: 100 * opt.MiB,
-		// CompactionTotalSizeMultiplier: 50,
-		// CompactionL0Trigger: 16,
 	}
 	db, err := leveldb.OpenFile(path, opts)
 	if _, iscorrupted := err.(*lvlerrors.ErrCorrupted); iscorrupted {
