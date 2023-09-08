@@ -1,4 +1,5 @@
 package leveldb
+
 import (
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/syndtr/goleveldb/leveldb"
