@@ -35,7 +35,6 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/filter"
 	"github.com/syndtr/goleveldb/leveldb/opt"
-	"github.com/syndtr/goleveldb/leveldb/storage"
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
@@ -150,17 +149,6 @@ func NewCustom(file string, namespace string, customize func(options *opt.Option
 	return ldb, nil
 }
 
-// NewCustom returns a wrapped LevelDB object with an in-memory storage.
-func NewInMemory() (*Database, error) {
-	db, err := leveldb.Open(storage.NewMemStorage(), nil)
-	if err != nil {
-		return nil, err
-	}
-	return &Database{
-		db: db,
-	}, nil
-}
-
 // configureOptions sets some default options, then runs the provided setter.
 func configureOptions(customizeFn func(*opt.Options)) *opt.Options {
 	// Set default options
@@ -231,12 +219,6 @@ func (db *Database) NewBatch() ethdb.Batch {
 // initial key (or after, if it does not exist).
 func (db *Database) NewIterator(prefix []byte, start []byte) ethdb.Iterator {
 	return db.db.NewIterator(bytesPrefixRange(prefix, start), nil)
-}
-
-// NewRangeIterator creates an over a subset of database content starting at
-// and ending at a particular key.
-func (db *Database) NewRangeIterator(rang *util.Range) ethdb.Iterator {
-	return db.db.NewIterator(rang, nil)
 }
 
 // Stat returns a particular internal stat of the database.

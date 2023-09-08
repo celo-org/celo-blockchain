@@ -72,9 +72,9 @@ type roundStateDBImpl struct {
 	rsRLPMeter      metrics.Meter // Meter for measuring the size of rs RLP-encoded data
 	rsRLPEncTimer   metrics.Timer // Timer measuring time required for rs RLP encoding
 	rsDbSaveTimer   metrics.Timer // Timer measuring rs DB write latency
-	rcvdRLPMeter    metrics.Meter // Meter for measuring the size of rcvd RLP-encoded data
-	rcvdRLPEncTimer metrics.Timer // Timer measuring time required for rcvd RLP encoding
-	rcvdDbSaveTimer metrics.Timer // Timer measuring rcvd DB write latency
+	rcvdRLPMeter    metrics.Meter // Meter for measuring the size of received consensus messages (rcvd) RLP-encoded data
+	rcvdRLPEncTimer metrics.Timer // Timer measuring time required for received consensus messages to be RLP encoded
+	rcvdDbSaveTimer metrics.Timer // Timer measuring DB write latency for received consensus messages
 
 	logger log.Logger // Contextual logger tracking the database path
 }
@@ -147,10 +147,12 @@ func newMemoryDB() (*leveldb.Database, error) {
 // also flushing its contents in case of a version mismatch.
 func newPersistentDB(path string, namespace string) (*leveldb.Database, error) {
 	db, err := leveldb.NewCustom(path, namespace, func(options *opt.Options) {
+		// increasing default values by a factor of 32 to decrease the number of
+		// compactions and overall disk operations, making a trade-off between
+		// high I/O usage and higher memory requirements in favor of the latter
 		options.BlockSize = 128 * opt.KiB
 		options.BlockCacheCapacity = 256 * opt.MiB
 		options.WriteBuffer = 128 * opt.MiB
-		options.CompactionTableSize = 10 * opt.MiB
 	})
 
 	if err != nil {
@@ -326,10 +328,11 @@ func (rsdb *roundStateDBImpl) UpdateLastRoundState(rs RoundState) error {
 	batch.Put(viewKey, entryBytes)
 
 	err = batch.Write()
+	rsdb.rsDbSaveTimer.UpdateSince(before)
+
 	if err != nil {
 		logger.Error("Failed to save roundState", "reason", "levelDB write", "err", err, "func")
 	}
-	rsdb.rsDbSaveTimer.UpdateSince(before)
 
 	return err
 }
