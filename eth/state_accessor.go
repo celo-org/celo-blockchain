@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -181,20 +180,11 @@ func (eth *Ethereum) celoStateAtBlock(block *types.Block, reexec uint64, base *s
 	}
 	// TODO EN: consider returning the vmRunner to not need to create multiple new runners
 	vmRunner := eth.blockchain.NewEVMRunner(nextBlock.Header(), statedb)
-	if random.IsRunning(vmRunner) {
-		author, err := eth.blockchain.Engine().Author(nextBlock.Header())
-		if err != nil {
-			return nil, err
-		}
-
-		err = random.RevealAndCommit(vmRunner, nextBlock.Randomness().Revealed, nextBlock.Randomness().Committed, author)
-		if err != nil {
-			return nil, err
-		}
-		// always true (EIP158)
-		statedb.IntermediateRoot(true)
+	err = core.ApplyBlockRandomnessTx(nextBlock, &vmRunner, statedb, eth.blockchain)
+	if err != nil {
+		return nil, err
 	}
-	return statedb, err
+	return statedb, nil
 }
 
 // stateAtTransaction returns the execution environment of a certain transaction.
