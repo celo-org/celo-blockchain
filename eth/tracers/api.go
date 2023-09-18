@@ -78,7 +78,8 @@ type Backend interface {
 	// StateAtBlock returns the state corresponding to the stateroot of the block.
 	// N.B: For executing transactions on block N, the required stateRoot is block N-1,
 	// so this method should be called with the parent.
-	StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, checkLive, preferDisk bool) (*state.StateDB, error)
+	// On Celo, this should also include the random commitment of the current block.
+	StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, checkLive, preferDisk bool, afterNextRandomCommit bool) (*state.StateDB, error)
 	StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, vm.EVMRunner, *state.StateDB, error)
 	NewEVMRunner(*types.Header, vm.StateDB) vm.EVMRunner
 }
@@ -382,7 +383,8 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 			}
 			// Prepare the statedb for tracing. Don't use the live database for
 			// tracing to avoid persisting state junks into the database.
-			statedb, err = api.backend.StateAtBlock(localctx, block, reexec, statedb, false, preferDisk)
+			// TODO EN: revisit if this should be true or false
+			statedb, err = api.backend.StateAtBlock(localctx, block, reexec, statedb, false, preferDisk, false)
 			if err != nil {
 				failed = err
 				break
@@ -535,7 +537,7 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 	if config != nil && config.Reexec != nil {
 		reexec = *config.Reexec
 	}
-	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false)
+	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false, true)
 	if err != nil {
 		return nil, err
 	}
@@ -603,7 +605,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	if config != nil && config.Reexec != nil {
 		reexec = *config.Reexec
 	}
-	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false)
+	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false, true)
 	if err != nil {
 		return nil, err
 	}
@@ -703,7 +705,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 	if config != nil && config.Reexec != nil {
 		reexec = *config.Reexec
 	}
-	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false)
+	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false, true)
 	if err != nil {
 		return nil, err
 	}
@@ -848,11 +850,12 @@ func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *
 
 	var sysCtx *core.SysContractCallCtx
 	if api.backend.ChainConfig().IsEspresso(block.Number()) {
+		// TODO EN: revisit if this should be the same or not
 		parent, err := api.blockByNumber(ctx, rpc.BlockNumber(blockNumber-1))
 		if err != nil {
 			return nil, err
 		}
-		sysStateDB, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false)
+		sysStateDB, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false, true)
 		if err != nil {
 			return nil, err
 		}
@@ -896,7 +899,7 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 	if config != nil && config.Reexec != nil {
 		reexec = *config.Reexec
 	}
-	statedb, err := api.backend.StateAtBlock(ctx, block, reexec, nil, true, false)
+	statedb, err := api.backend.StateAtBlock(ctx, block, reexec, nil, true, false, false)
 	if err != nil {
 		return nil, err
 	}

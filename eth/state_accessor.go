@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -159,6 +160,43 @@ func (eth *Ethereum) stateAtBlock(block *types.Block, reexec uint64, base *state
 	return statedb, nil
 }
 
+// Wraps `stateAtBlock` with the additional Celo-specific parameter afterNextRandomCommit.
+// This parameter executes the random commitment at the start of the next block,
+// since this is necessary for properly tracing transactions in the next block.
+func (eth *Ethereum) celoStateAtBlock(block *types.Block, reexec uint64, base *state.StateDB, checkLive bool, preferDisk bool, afterNextRandomCommit bool) (statedb *state.StateDB, err error) {
+	// TODO EN: need to revisit whether it's ok to use checkLive/preferDisk here
+	statedb, err = eth.stateAtBlock(block, reexec, base, checkLive, preferDisk)
+	if err != nil {
+		return nil, err
+	}
+
+	if (!afterNextRandomCommit) {
+		return statedb, nil
+	}
+	// Fetch next block's random commitment
+	nextBlockNum := block.NumberU64() + 1
+	nextBlock := eth.blockchain.GetBlockByNumber(nextBlockNum)
+	if nextBlock == nil {
+		return nil, fmt.Errorf("next block %d not found", nextBlockNum)
+	}
+	// TODO EN: consider returning the vmRunner to not need to create multiple new runners
+	vmRunner := eth.blockchain.NewEVMRunner(nextBlock.Header(), statedb)
+	if random.IsRunning(vmRunner) {
+		author, err := eth.blockchain.Engine().Author(nextBlock.Header())
+		if err != nil {
+			return nil, err
+		}
+
+		err = random.RevealAndCommit(vmRunner, nextBlock.Randomness().Revealed, nextBlock.Randomness().Committed, author)
+		if err != nil {
+			return nil, err
+		}
+		// always true (EIP158)
+		statedb.IntermediateRoot(true)
+	}
+	return statedb, err
+}
+
 // stateAtTransaction returns the execution environment of a certain transaction.
 func (eth *Ethereum) stateAtTransaction(block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, vm.EVMRunner, *state.StateDB, error) {
 	// Short circuit if it's genesis block.
@@ -172,7 +210,8 @@ func (eth *Ethereum) stateAtTransaction(block *types.Block, txIndex int, reexec 
 	}
 	// Lookup the statedb of parent block from the live database,
 	// otherwise regenerate it on the flight.
-	statedb, err := eth.stateAtBlock(parent, reexec, nil, true, false)
+	// Ensure that we get the state up to the random commitment in the current block
+	statedb, err := eth.celoStateAtBlock(parent, reexec, nil, true, false, true)
 	if err != nil {
 		return nil, vm.BlockContext{}, nil, nil, err
 	}
