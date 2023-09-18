@@ -383,8 +383,7 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 			}
 			// Prepare the statedb for tracing. Don't use the live database for
 			// tracing to avoid persisting state junks into the database.
-			// TODO EN: revisit if this should be true or false
-			statedb, err = api.backend.StateAtBlock(localctx, block, reexec, statedb, false, preferDisk, false)
+			statedb, err = api.backend.StateAtBlock(localctx, block, reexec, statedb, false, preferDisk, true)
 			if err != nil {
 				failed = err
 				break
@@ -850,7 +849,6 @@ func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *
 
 	var sysCtx *core.SysContractCallCtx
 	if api.backend.ChainConfig().IsEspresso(block.Number()) {
-		// TODO EN: revisit if this should be the same or not
 		parent, err := api.blockByNumber(ctx, rpc.BlockNumber(blockNumber-1))
 		if err != nil {
 			return nil, err
@@ -899,6 +897,8 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 	if config != nil && config.Reexec != nil {
 		reexec = *config.Reexec
 	}
+	// Since this is applied at the end of the requested block (often "latest"),
+	// do not commit the following block's randomness
 	statedb, err := api.backend.StateAtBlock(ctx, block, reexec, nil, true, false, false)
 	if err != nil {
 		return nil, err

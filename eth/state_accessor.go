@@ -163,7 +163,6 @@ func (eth *Ethereum) stateAtBlock(block *types.Block, reexec uint64, base *state
 // This parameter executes the random commitment at the start of the next block,
 // since this is necessary for properly tracing transactions in the next block.
 func (eth *Ethereum) celoStateAtBlock(block *types.Block, reexec uint64, base *state.StateDB, checkLive bool, preferDisk bool, afterNextRandomCommit bool) (statedb *state.StateDB, err error) {
-	// TODO EN: need to revisit whether it's ok to use checkLive/preferDisk here
 	statedb, err = eth.stateAtBlock(block, reexec, base, checkLive, preferDisk)
 	if err != nil {
 		return nil, err
@@ -178,7 +177,6 @@ func (eth *Ethereum) celoStateAtBlock(block *types.Block, reexec uint64, base *s
 	if nextBlock == nil {
 		return nil, fmt.Errorf("next block %d not found", nextBlockNum)
 	}
-	// TODO EN: consider returning the vmRunner to not need to create multiple new runners
 	vmRunner := eth.blockchain.NewEVMRunner(nextBlock.Header(), statedb)
 	err = core.ApplyBlockRandomnessTx(nextBlock, &vmRunner, statedb, eth.blockchain)
 	if err != nil {
