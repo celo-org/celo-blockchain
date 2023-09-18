@@ -204,7 +204,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipien
 	return applyTransaction(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, vmRunner, sysCtx)
 }
 
-func ApplyBlockRandomnessTx(block *types.Block, vmRunner *vm.EVMRunner, statedb *state.StateDB, bc *BlockChain) (error) {
+func ApplyBlockRandomnessTx(block *types.Block, vmRunner *vm.EVMRunner, statedb *state.StateDB, bc *BlockChain) error {
 	if !random.IsRunning(*vmRunner) {
 		return nil
 	}

@@ -169,7 +169,7 @@ func (eth *Ethereum) celoStateAtBlock(block *types.Block, reexec uint64, base *s
 		return nil, err
 	}
 
-	if (!afterNextRandomCommit) {
+	if !afterNextRandomCommit {
 		return statedb, nil
 	}
 	// Fetch next block's random commitment
