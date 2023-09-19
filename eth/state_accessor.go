@@ -172,7 +172,8 @@ func (eth *Ethereum) stateAtTransaction(block *types.Block, txIndex int, reexec 
 	}
 	// Lookup the statedb of parent block from the live database,
 	// otherwise regenerate it on the flight.
-	statedb, err := eth.stateAtBlock(parent, reexec, nil, true, false)
+	// Ensure that we get the state up to the random commitment in the current block
+	statedb, err := eth.celoStateAtBlock(parent, reexec, nil, true, false, true)
 	if err != nil {
 		return nil, vm.BlockContext{}, nil, nil, err
 	}
