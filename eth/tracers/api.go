@@ -275,7 +275,7 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 
 	// Celo addition, required for correct block randomness values when tracing.
 	// This is an optimization that prevents needing to regenerate and process
-	// all preceeding blocks for every single block when tracing on a full node;
+	// all preceding blocks for every single block when tracing on a full node;
 	// this is largely irrelevant when tracing on an archive node.
 	var baseStatedb *state.StateDB
 	if start.NumberU64() > 0 {
