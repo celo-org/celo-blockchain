@@ -79,7 +79,7 @@ type Backend interface {
 	// N.B: For executing transactions on block N, the required stateRoot is block N-1,
 	// so this method should be called with the parent.
 	// On Celo, this should also include the random commitment of the current block.
-	StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, checkLive, preferDisk bool, afterNextRandomCommit bool) (*state.StateDB, error)
+	StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, checkLive, preferDisk bool, commitRandomness bool) (*state.StateDB, error)
 	StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, vm.EVMRunner, *state.StateDB, error)
 	NewEVMRunner(*types.Header, vm.StateDB) vm.EVMRunner
 }

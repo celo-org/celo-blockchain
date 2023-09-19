@@ -8,16 +8,16 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 )
 
-// Wraps `stateAtBlock` with the additional Celo-specific parameter afterNextRandomCommit.
+// Wraps `stateAtBlock` with the additional Celo-specific parameter `commitRandomness`.
 // This parameter executes the random commitment at the start of the next block,
 // since this is necessary for properly tracing transactions in the next block.
-func (eth *Ethereum) celoStateAtBlock(block *types.Block, reexec uint64, base *state.StateDB, checkLive bool, preferDisk bool, afterNextRandomCommit bool) (statedb *state.StateDB, err error) {
+func (eth *Ethereum) celoStateAtBlock(block *types.Block, reexec uint64, base *state.StateDB, checkLive bool, preferDisk bool, commitRandomness bool) (statedb *state.StateDB, err error) {
 	statedb, err = eth.stateAtBlock(block, reexec, base, checkLive, preferDisk)
 	if err != nil {
 		return nil, err
 	}
 
-	if !afterNextRandomCommit {
+	if !commitRandomness {
 		return statedb, nil
 	}
 	// Fetch next block's random commitment
