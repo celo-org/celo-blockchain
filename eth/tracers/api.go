@@ -272,6 +272,23 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 	if threads > blocks {
 		threads = blocks
 	}
+
+	// Celo addition, required for correct block randomness values when tracing.
+	// This is an optimization that prevents needing to regenerate and process
+	// all preceeding blocks for every single block when tracing on a full node;
+	// this is largely irrelevant when tracing on an archive node.
+	var baseStatedb *state.StateDB
+	if start.NumberU64() > 0 {
+		previousBlock, err := api.blockByNumber(ctx, rpc.BlockNumber(start.NumberU64()-1))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get block state prior to start")
+		}
+		baseStatedb, err = api.backend.StateAtBlock(ctx, previousBlock, reexec, nil, false, false, false)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compute base statedb")
+		}
+	}
+
 	var (
 		pend     = new(sync.WaitGroup)
 		tasks    = make(chan *blockTraceTask, threads)
@@ -383,7 +400,12 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 			}
 			// Prepare the statedb for tracing. Don't use the live database for
 			// tracing to avoid persisting state junks into the database.
-			statedb, err = api.backend.StateAtBlock(localctx, block, reexec, statedb, false, preferDisk, true)
+			// N.B. Celo does not pass in the previous statedb as a `base`,
+			// as this persists the previous version with the next block's random commitment.
+			// Instead, it passes in `baseStatedb`, defined above, which commits
+			// the random commitment made by `Process` in (eth.stateAtBlock),
+			// but NOT the next block's commitment made in eth.celoStateAtBlock.
+			statedb, err = api.backend.StateAtBlock(localctx, block, reexec, baseStatedb, false, preferDisk, true)
 			if err != nil {
 				failed = err
 				break
