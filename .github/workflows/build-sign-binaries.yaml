@@ -17,6 +17,7 @@ jobs:
       tag: latest
       context: .
       file: Dockerfile.binaries
+      trivy: true
           
   Upload-Cloud-Storage:
     runs-on: ubuntu-latest

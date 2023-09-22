@@ -69,11 +69,12 @@ type TxPool struct {
 	mined        map[common.Hash][]*types.Transaction // mined transactions by block hash
 	clearIdx     uint64                               // earliest block nr that can contain mined tx info
 
-	homestead   bool // Fork indicator whether homestead has been activated
-	istanbul    bool // Fork indicator whether we are in the istanbul stage
-	donut       bool // Fork indicator whether Donut has been activated
-	espresso    bool // Fork indicator whether Espresso has been activated
-	gingerbread bool // Fork indicator whether Gingerbread has been activated
+	homestead     bool // Fork indicator whether homestead has been activated
+	istanbul      bool // Fork indicator whether we are in the istanbul stage
+	donut         bool // Fork indicator whether Donut has been activated
+	espresso      bool // Fork indicator whether Espresso has been activated
+	gingerbread   bool // Fork indicator whether Gingerbread has been activated
+	gingerbreadP2 bool // Fork indicator whether Gingerbread has been activated
 }
 
 // TxRelayBackend provides an interface to the mechanism that forwards transacions
@@ -376,9 +377,21 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	}
 
 	// CIP 57 deprecates full node incentives
-	gatewayFeeSet := !(tx.GatewayFee() == nil || tx.GatewayFee().Cmp(common.Big0) == 0)
-	if pool.gingerbread && (tx.GatewayFeeRecipient() != nil || gatewayFeeSet) {
+	if pool.gingerbread && tx.GatewaySet() {
 		return core.ErrGatewayFeeDeprecated
+	}
+
+	// Accept only legacy transactions until EIP-2718/2930 activates.
+	if !pool.espresso && tx.Type() != types.LegacyTxType {
+		return core.ErrTxTypeNotSupported
+	}
+	// Reject dynamic fee transactions until EIP-1559 activates.
+	if !pool.espresso && (tx.Type() == types.DynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxType) {
+		return core.ErrTxTypeNotSupported
+	}
+	// Reject celo dynamic fee v2 until gingerbreadP2
+	if !pool.gingerbreadP2 && tx.Type() == types.CeloDynamicFeeTxV2Type {
+		return core.ErrTxTypeNotSupported
 	}
 
 	// Validate the transaction sender and it's sig. Throw
@@ -390,6 +403,18 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	currentState := pool.currentState(ctx)
 	if n := currentState.GetNonce(from); n > tx.Nonce() {
 		return core.ErrNonceTooLow
+	}
+
+	// Sanity check for extremely large numbers
+	if tx.GasFeeCap().BitLen() > 256 {
+		return core.ErrFeeCapVeryHigh
+	}
+	if tx.GasTipCap().BitLen() > 256 {
+		return core.ErrTipVeryHigh
+	}
+	// Ensure gasFeeCap is greater than or equal to gasTipCap.
+	if tx.GasFeeCapIntCmp(tx.GasTipCap()) < 0 {
+		return core.ErrTipAboveFeeCap
 	}
 
 	// Transactions can't be negative. This may never happen

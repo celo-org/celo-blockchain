@@ -52,6 +52,8 @@ jobs:
       artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
       tag: ${{needs.Replace-Branch-Name.outputs.replaced-branch}}
       context: .
+      trivy: true
+
 
   Build-Container-geth-all-dev:
     uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
@@ -65,6 +67,7 @@ jobs:
       tag: ${{needs.Replace-Branch-Name.outputs.replaced-branch}}
       context: .
       file: Dockerfile.alltools
+      trivy: true
 
   Build-Container-geth-devopsre:
     uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
@@ -77,6 +80,7 @@ jobs:
       artifact-registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth
       tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
       context: .
+      trivy: true
 
   Build-Container-geth-all-devopsre:
     uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
@@ -90,6 +94,7 @@ jobs:
       tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
       context: .
       file: Dockerfile.alltools
+      trivy: true
 
   Build-Container-geth-celo-org:
     uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
@@ -102,6 +107,7 @@ jobs:
       artifact-registry: us-docker.pkg.dev/celo-org/us.gcr.io/geth
       tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
       context: .
+      trivy: true
 
   Build-Container-geth-all-celo-org:
     uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
@@ -115,6 +121,7 @@ jobs:
       tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
       context: .
       file: Dockerfile.alltools
+      trivy: true
 
   Add-Baklava-tag:
     if: startsWith(github.ref, 'refs/tags/v')

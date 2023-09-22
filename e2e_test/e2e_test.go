@@ -685,15 +685,6 @@ func runMochaTest(t *testing.T, add_args func(*env.AccountsConfig, *genesis.Conf
 	require.NoError(t, err)
 }
 
-func TestPrecompileWrappers(t *testing.T) {
-	add_args := func(ac *env.AccountsConfig, gc *genesis.Config, network test.Network) []string {
-		accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
-		privateKeyHex := fmt.Sprintf("0x%064x", accounts[0].Key.D)
-		return []string{"test-precompile-wrappers", "--signerkey=" + privateKeyHex}
-	}
-	runMochaTest(t, add_args)
-}
-
 func TestEthersJSCompatibility(t *testing.T) {
 	add_args := func(ac *env.AccountsConfig, gc *genesis.Config, network test.Network) []string {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)

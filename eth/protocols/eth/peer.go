@@ -173,12 +173,6 @@ func (p *Peer) markTransaction(hash common.Hash) {
 	p.knownTxs.Add(hash)
 }
 
-// Send writes an RLP-encoded message with the given code.
-// data should encode as an RLP list.
-func (p *Peer) Send(msgcode uint64, data interface{}) error {
-	return p2p.Send(p.rw, msgcode, data)
-}
-
 // SendTransactions sends transactions to the peer and includes the hashes
 // in its transaction hash set for future reference.
 //

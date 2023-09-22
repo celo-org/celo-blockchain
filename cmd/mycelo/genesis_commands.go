@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/internal/fileutils"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
@@ -44,19 +45,23 @@ var templateFlags = []cli.Flag{
 	},
 	cli.Int64Flag{
 		Name:  "forks.churrito",
-		Usage: "Optional flag to allow churrito fork overwritting (default: 0, disable: -1)",
+		Usage: "Optional flag to allow churrito fork overwriting (default: 0, disable: -1)",
 	},
 	cli.Int64Flag{
 		Name:  "forks.donut",
-		Usage: "Optional flag to allow donut fork overwritting (default: 0, disable: -1)",
+		Usage: "Optional flag to allow donut fork overwriting (default: 0, disable: -1)",
 	},
 	cli.Int64Flag{
 		Name:  "forks.espresso",
-		Usage: "Optional flag to allow espresso fork overwritting (default: 0, disable: -1)",
+		Usage: "Optional flag to allow espresso fork overwriting (default: 0, disable: -1)",
 	},
 	cli.Int64Flag{
 		Name:  "forks.gingerbread",
-		Usage: "Optional flag to allow gingerbread fork overwritting (default: 0, disable: -1)",
+		Usage: "Optional flag to allow gingerbread fork overwriting (default: 0, disable: -1)",
+	},
+	cli.Int64Flag{
+		Name:  "forks.gingerbreadp2",
+		Usage: "Optional flag to allow gingerbread p2 fork overwriting (default: 0, disable: -1)",
 	},
 }
 
@@ -135,6 +140,8 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 		} else {
 			gingerbreadBlock = big.NewInt(gingerbreadBlockNumber)
 		}
+	} else {
+		gingerbreadBlock = common.Big1
 	}
 
 	// Genesis config
@@ -181,7 +188,14 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 		}
 	}
 
-	genesisConfig.Hardforks.GingerbreadBlock = gingerbreadBlock
+	if ctx.IsSet("forks.gingerbreadp2") {
+		gingerbreadP2BlockNumber := ctx.Int64("forks.gingerbreadp2")
+		if gingerbreadP2BlockNumber < 0 {
+			genesisConfig.Hardforks.GingerbreadP2Block = nil
+		} else {
+			genesisConfig.Hardforks.GingerbreadP2Block = big.NewInt(gingerbreadP2BlockNumber)
+		}
+	}
 
 	return env, genesisConfig, nil
 }

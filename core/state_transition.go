@@ -89,6 +89,7 @@ type Message interface {
 	FeeCurrency() *common.Address
 	GatewayFeeRecipient() *common.Address
 	GatewayFee() *big.Int
+	GatewaySet() bool
 	Value() *big.Int
 
 	Nonce() uint64
@@ -101,7 +102,7 @@ type Message interface {
 }
 
 func CheckEthCompatibility(msg Message) error {
-	if msg.EthCompatible() && !(msg.FeeCurrency() == nil && msg.GatewayFeeRecipient() == nil && msg.GatewayFee().Sign() == 0) {
+	if msg.EthCompatible() && (msg.FeeCurrency() != nil || msg.GatewaySet()) {
 		return types.ErrEthCompatibleTransactionIsntCompatible
 	}
 	return nil
@@ -441,6 +442,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 	if err := CheckEthCompatibility(st.msg); err != nil {
 		return nil, err
+	}
+	if st.evm.ChainConfig().IsGingerbread(st.evm.Context.BlockNumber) && st.msg.GatewaySet() {
+		return nil, ErrGatewayFeeDeprecated
 	}
 
 	// Check clauses 1-2

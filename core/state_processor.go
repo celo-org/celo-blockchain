@@ -83,18 +83,9 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		}
 	}
 
-	if random.IsRunning(vmRunner) {
-		author, err := p.bc.Engine().Author(header)
-		if err != nil {
-			return nil, nil, 0, err
-		}
-
-		err = random.RevealAndCommit(vmRunner, block.Randomness().Revealed, block.Randomness().Committed, author)
-		if err != nil {
-			return nil, nil, 0, err
-		}
-		// always true (EIP158)
-		statedb.IntermediateRoot(true)
+	err := ApplyBlockRandomnessTx(block, &vmRunner, statedb, p.bc)
+	if err != nil {
+		return nil, nil, 0, err
 	}
 
 	var (
@@ -142,11 +133,12 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, gp *GasPool
 
 	// CIP 57 deprecates full node incentives
 	// Check that neither `GatewayFeeRecipient` nor `GatewayFee` are set, otherwise reject the transaction
-	if config.IsGingerbread(blockNumber) {
-		gatewayFeeSet := !(msg.GatewayFee() == nil || msg.GatewayFee().Cmp(common.Big0) == 0)
-		if msg.GatewayFeeRecipient() != nil || gatewayFeeSet {
-			return nil, ErrGatewayFeeDeprecated
-		}
+	if config.IsGingerbread(blockNumber) && msg.GatewaySet() {
+		return nil, ErrGatewayFeeDeprecated
+	}
+
+	if tx.Type() == types.CeloDynamicFeeTxV2Type && !config.IsGingerbreadP2(blockNumber) {
+		return nil, ErrTxTypeNotSupported
 	}
 
 	// Create a new context to be used in the EVM environment
@@ -210,4 +202,22 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipien
 	blockContext := NewEVMBlockContext(header, bc, txFeeRecipient)
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, config, cfg)
 	return applyTransaction(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, vmRunner, sysCtx)
+}
+
+func ApplyBlockRandomnessTx(block *types.Block, vmRunner *vm.EVMRunner, statedb *state.StateDB, bc *BlockChain) error {
+	if !random.IsRunning(*vmRunner) {
+		return nil
+	}
+	author, err := bc.Engine().Author(block.Header())
+	if err != nil {
+		return err
+	}
+
+	err = random.RevealAndCommit(*vmRunner, block.Randomness().Revealed, block.Randomness().Committed, author)
+	if err != nil {
+		return err
+	}
+	// always true (EIP158)
+	statedb.IntermediateRoot(true)
+	return nil
 }

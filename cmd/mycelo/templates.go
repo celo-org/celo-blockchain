@@ -50,7 +50,6 @@ func (e localEnv) createEnv(workdir string) (*env.Environment, error) {
 }
 
 func (e localEnv) createGenesisConfig(env *env.Environment, gingerbreadBlock *big.Int) (*genesis.Config, error) {
-
 	genesisConfig, err := genesis.CreateCommonGenesisConfig(env.Config.ChainID, env.Accounts().AdminAccount().Address, params.IstanbulConfig{
 		Epoch:          10,
 		ProposerPolicy: 2,

@@ -50,10 +50,11 @@ var (
 
 // Transaction types.
 const (
-	LegacyTxType         = iota
-	AccessListTxType     = 0x01
-	DynamicFeeTxType     = 0x02
-	CeloDynamicFeeTxType = 0x7c // Counting down
+	LegacyTxType           = iota
+	AccessListTxType       = 0x01
+	DynamicFeeTxType       = 0x02
+	CeloDynamicFeeTxType   = 0x7c // Counting down
+	CeloDynamicFeeTxV2Type = 0x7b
 )
 
 // Transaction is an Ethereum transaction.
@@ -207,6 +208,10 @@ func (tx *Transaction) decodeTyped(b []byte) (TxData, error) {
 		var inner CeloDynamicFeeTx
 		err := rlp.DecodeBytes(b[1:], &inner)
 		return &inner, err
+	case CeloDynamicFeeTxV2Type:
+		var inner CeloDynamicFeeTxV2
+		err := rlp.DecodeBytes(b[1:], &inner)
+		return &inner, err
 	default:
 		return nil, ErrTxTypeNotSupported
 	}
@@ -305,13 +310,7 @@ func (tx *Transaction) Nonce() uint64 { return tx.inner.nonce() }
 // To returns the recipient address of the transaction.
 // For contract-creation transactions, To returns nil.
 func (tx *Transaction) To() *common.Address {
-	// Copy the pointed-to address.
-	ito := tx.inner.to()
-	if ito == nil {
-		return nil
-	}
-	cpy := *ito
-	return &cpy
+	return copyAddressPtr(tx.inner.to())
 }
 
 // Cost returns value + gasprice * gaslimit + gatewayfee.
@@ -454,10 +453,14 @@ func (tx *Transaction) WithSignature(signer Signer, sig []byte) (*Transaction, e
 }
 
 // FeeCurrency returns the fee currency of the transaction. Nil implies paying in CELO.
-func (tx *Transaction) FeeCurrency() *common.Address { return tx.inner.feeCurrency() }
+func (tx *Transaction) FeeCurrency() *common.Address {
+	return copyAddressPtr(tx.inner.feeCurrency())
+}
 
 // GatewayFeeRecipient returns the address to the send the gateway fee to. Nil implies no recipient.
-func (tx *Transaction) GatewayFeeRecipient() *common.Address { return tx.inner.gatewayFeeRecipient() }
+func (tx *Transaction) GatewayFeeRecipient() *common.Address {
+	return copyAddressPtr(tx.inner.gatewayFeeRecipient())
+}
 
 // GatewayFee returns the fee that should be paid to the gateway fee recipient.
 // Will not return nil, but instead returns 0 if the underlying transction does not have a gatewayfee.
@@ -467,6 +470,11 @@ func (tx *Transaction) GatewayFee() *big.Int {
 	} else {
 		return big.NewInt(0)
 	}
+}
+
+// GatewaySet returns true if the gatewayFeeRecipient or the gatewayFee are set.
+func (tx *Transaction) GatewaySet() bool {
+	return tx.inner.gatewayFeeRecipient() != nil || (tx.inner.gatewayFee() != nil && tx.inner.gatewayFee().Sign() != 0)
 }
 
 // EthCompatible returns true iff the RLP form of the LegacyTx does not have the celo specific fields.
@@ -758,3 +766,15 @@ func (m Message) EthCompatible() bool                  { return m.ethCompatible 
 func (m Message) FeeCurrency() *common.Address         { return m.feeCurrency }
 func (m Message) GatewayFeeRecipient() *common.Address { return m.gatewayFeeRecipient }
 func (m Message) GatewayFee() *big.Int                 { return m.gatewayFee }
+func (m Message) GatewaySet() bool {
+	return m.gatewayFeeRecipient != nil || (m.gatewayFee != nil && m.gatewayFee.Sign() != 0)
+}
+
+// copyAddressPtr copies an address.
+func copyAddressPtr(a *common.Address) *common.Address {
+	if a == nil {
+		return nil
+	}
+	cpy := *a
+	return &cpy
+}
