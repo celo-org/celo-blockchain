@@ -16,17 +16,17 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Login at GCP Artifact Registry
-        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@jcortejoso/build-docker-composite-action
-        with:
-          workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
-          service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
-          artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
+      # - name: Login at GCP Artifact Registry
+      #   uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@jcortejoso/build-docker-composite-action
+      #   with:
+      #     workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
+      #     service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
+      #     artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
         timeout-minutes: 20
-        if: true
+        if: false
         with:
           limit-access-to-actor: true
 
@@ -40,6 +40,9 @@ jobs:
           dockerfile: Dockerfile.arm64
           push: ${{ fromJSON(true) }}
           load: ${{ fromJSON(false) }}
+          gcp-login:  ${{ fromJSON(true) }}
+          workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
+          service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
 
 
   # build-container-geth-all-sha:
