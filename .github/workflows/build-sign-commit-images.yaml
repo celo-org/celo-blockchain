@@ -23,6 +23,13 @@ jobs:
           service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
           artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 20
+        if: true
+        with:
+          limit-access-to-actor: true
+
       - name: Build and push container
         uses: celo-org/reusable-workflows/.github/actions/build-container@jcortejoso/build-docker-composite-action
         with:
@@ -33,13 +40,6 @@ jobs:
           dockerfile: Dockerfile.arm64
           push: ${{ fromJSON(true) }}
           load: ${{ fromJSON(false) }}
-
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 20
-        if: true
-        with:
-          limit-access-to-actor: true
 
 
   # build-container-geth-all-sha:
