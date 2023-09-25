@@ -12,17 +12,23 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Login at GCP Artifact Registry
+        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@jcortejoso/build-docker-composite-action
+        with:
+          workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
+          service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
+          artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
+
       - name: Build and push container
         uses: celo-org/reusable-workflows/.github/actions/build-container@jcortejoso/build-docker-composite-action
         with:
-          # platforms: linux/amd64,linux/arm64
           platforms: linux/arm64
           registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
           tag: ${{ github.sha }}
           context: .
-          dockerfile: Dockerfile.debian-build
-          push: ${{ fromJSON(false) }}
-          load: ${{ fromJSON(true) }}
+          dockerfile: Dockerfile.arm64
+          push: ${{ fromJSON(true) }}
+          load: ${{ fromJSON(false) }}
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
