@@ -4,7 +4,7 @@ RUN apt update && apt install -y build-essential git musl-dev linux-headers-arm6
 
 ADD . /go-ethereum
 RUN cd /go-ethereum && make geth-musl
-x
+
 # Pull Geth into a second stage deploy alpine container
 FROM alpine:latest
 ARG COMMIT_SHA
