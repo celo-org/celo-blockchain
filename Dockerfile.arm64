@@ -1,18 +1,15 @@
-FROM arm64v8/ubuntu:jammy as builder
+FROM golang:1.19-bookworm as builder
 
-RUN apt update && apt install gcc make musl-dev wget -y
-
-RUN wget https://go.dev/dl/go1.19.2.linux-arm64.tar.gz
-RUN rm -rf /usr/local/go && tar -C /usr/local -xzf go1.19.2.linux-arm64.tar.gz
-ENV PATH $PATH:/usr/local/go/bin
+RUN apt update && apt install -y build-essential git musl-dev linux-headers-arm64
 
 ADD . /go-ethereum
-WORKDIR /go-ethereum
-RUN make geth-musl
-
-FROM arm64v8/ubuntu:jammy
+RUN cd /go-ethereum && make geth-musl
+x
+# Pull Geth into a second stage deploy alpine container
+FROM alpine:latest
 ARG COMMIT_SHA
 
+RUN apk add --no-cache ca-certificates
 COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
 RUN echo $COMMIT_SHA > /version.txt
 ADD scripts/run_geth_in_docker.sh /
@@ -21,7 +18,7 @@ EXPOSE 8545 8546 30303 30303/udp
 ENTRYPOINT ["sh", "/run_geth_in_docker.sh"]
 
 # Add some metadata labels to help programatic image consumption
-ARG COMMIT=$COMMIT_SHA
+ARG COMMIT=""
 ARG VERSION=""
 ARG BUILDNUM=""
 
