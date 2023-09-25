@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Build and push container
-        uses: celo-org/reusable-workflows/.github/actions/build-container@acad167fbcad6277a36d88d6571495befc08486b
+        uses: celo-org/reusable-workflows/.github/actions/build-container@fc880ae8ac0e718ee3f3cee53fc62f034804045c
         with:
           platforms: linux/amd64,linux/arm64
           registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
