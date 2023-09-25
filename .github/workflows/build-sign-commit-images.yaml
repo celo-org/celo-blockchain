@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Build and push container
-        uses: celo-org/reusable-workflows/.github/actions/build-container@1964ffc7dad8eb92f4e1246ddab8297667ce048e
+        uses: celo-org/reusable-workflows/.github/actions/build-container@jcortejoso/build-docker-composite-action
         with:
           platforms: linux/amd64,linux/arm64
           registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
@@ -21,6 +21,7 @@ jobs:
           context: .
           dockerfile: Dockerfile.debian-build
           push: ${{ fromJSON(false) }}
+          load: ${{ fromJSON(false) }}
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
