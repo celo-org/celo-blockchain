@@ -7,57 +7,65 @@ on:
   workflow_dispatch:
 
 jobs:
-  # From Cloud Build trigger ff28b668-43bf-4c3a-8967-fbf6640fdf5f in celo-testnet
-  # https://console.cloud.google.com/cloud-build/triggers;region=global/edit/ff28b668-43bf-4c3a-8967-fbf6640fdf5f?project=celo-testnet&supportedpurview=project
-  Build-Container-geth-Anycommit:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
-    if: github.ref != 'refs/heads/master'
-    with:
-      workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
-      service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
-      artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
-      tag: testing
-      context: .
-      trivy: true
+  build-container-geth-sha:
+    runs-on: [self-hosted, blockchain, 8-cpu]
+    steps:
+      - uses: actions/checkout@v3
 
-  # From Cloud Build trigger ff28b668-43bf-4c3a-8967-fbf6640fdf5f in celo-testnet
-  # https://console.cloud.google.com/cloud-build/triggers;region=global/edit/ff28b668-43bf-4c3a-8967-fbf6640fdf5f?project=celo-testnet&supportedpurview=project
-  Build-Container-geth-all-Anycommit:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
-    if: github.ref != 'refs/heads/master'
-    with:
-      workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
-      service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
-      artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth-all
-      tag: testing
-      context: .
-      file: Dockerfile.alltools
-      trivy: true
+      - name: Build and push container
+        uses: celo-org/reusable-workflows/.github/actions/build-container@acad167fbcad6277a36d88d6571495befc08486b
+        with:
+          platforms: linux/amd64,linux/arm64
+          registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
+          tag: ${{ github.sha }}
+          context: .
+          dockerfile: Dockerfile.debian-build
+          push: false
 
-  # From Cloud Build trigger docker-branchname-tagged in celo-testnet
-  # https://console.cloud.google.com/cloud-build/triggers;region=global/edit/dcf76f6d-b05b-4289-bb3b-de3e9b62efa5?project=celo-testnet&supportedpurview=project
-  Build-Container-geth-master:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
-    if: github.ref == 'refs/heads/master'
-    with:
-      workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
-      service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
-      artifact-registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth
-      tag: master
-      context: .
-      trivy: true
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 20
+        if: true
+        with:
+          limit-access-to-actor: true
 
-  # From Cloud Build trigger docker-branchname-tagged in celo-testnet
-  # https://console.cloud.google.com/cloud-build/triggers;region=global/edit/dcf76f6d-b05b-4289-bb3b-de3e9b62efa5?project=celo-testnet&supportedpurview=project
-  Build-Container-geth-all-master:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
-    if: github.ref == 'refs/heads/master'
-    with:
-      workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
-      service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
-      artifact-registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-all
-      tag: master
-      context: .
-      file: Dockerfile.alltools
-      trivy: true
+
+  # build-container-geth-all-sha:
+  #   uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
+  #   if: github.ref != 'refs/heads/master'
+  #   with:
+  #     workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
+  #     service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
+  #     artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth-all
+  #     tag: testing
+  #     context: .
+  #     file: Dockerfile.alltools
+  #     trivy: true
+
+  # # From Cloud Build trigger docker-branchname-tagged in celo-testnet
+  # # https://console.cloud.google.com/cloud-build/triggers;region=global/edit/dcf76f6d-b05b-4289-bb3b-de3e9b62efa5?project=celo-testnet&supportedpurview=project
+  # build-container-geth-master:
+  #   uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
+  #   if: github.ref == 'refs/heads/master'
+  #   with:
+  #     workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
+  #     service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
+  #     artifact-registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth
+  #     tag: master
+  #     context: .
+  #     trivy: true
+
+  # # From Cloud Build trigger docker-branchname-tagged in celo-testnet
+  # # https://console.cloud.google.com/cloud-build/triggers;region=global/edit/dcf76f6d-b05b-4289-bb3b-de3e9b62efa5?project=celo-testnet&supportedpurview=project
+  # build-container-geth-all-master:
+  #   uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
+  #   if: github.ref == 'refs/heads/master'
+  #   with:
+  #     workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
+  #     service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
+  #     artifact-registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-all
+  #     tag: master
+  #     context: .
+  #     file: Dockerfile.alltools
+  #     trivy: true
 
