@@ -370,10 +370,6 @@ func (st *StackTrie) insert(key, value []byte) {
 //   - Then the <32 byte rlp-encoded value will be accessible in 'st.val'.
 //   - And the 'st.type' will be 'hashedNode' AGAIN
 //
-// 2. The rlp-encoded value was < 32 bytes
-//   - Then the <32 byte rlp-encoded value will be accessible in 'st.val'.
-//   - And the 'st.type' will be 'hashedNode' AGAIN
-//
 // This method will also:
 // set 'st.type' to hashedNode
 // clear 'st.key'
