@@ -301,8 +301,8 @@ func (w *ledgerDriver) ledgerVersion() ([3]byte, error) {
 //	------------------------+-------------------
 //	Public Key length       | 1 byte
 //	Uncompressed Public Key | arbitrary
-//	Ethereum address length | 1 byte
-//	Ethereum address        | 40 bytes hex ascii
+//	Celo address length | 1 byte
+//	Celo address        | 40 bytes hex ascii
 //	Chain code if requested | 32 bytes
 func (w *ledgerDriver) ledgerDerive(derivationPath []uint32, showOnWallet bool) (common.Address, error) {
 	// Flatten the derivation path into the Ledger request
