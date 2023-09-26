@@ -313,7 +313,7 @@ func (s *LesServer) capacityManagement() {
 	}
 }
 
-//This sends messages to light client peers whenever this light server updates gateway fee.
+// This sends messages to light client peers whenever this light server updates gateway fee.
 func (s *LesServer) BroadcastGatewayFeeInfo() error {
 	lightClientPeerNodes := s.peers.allPeers()
 	if s.handler.gatewayFee.Cmp(common.Big0) < 0 {

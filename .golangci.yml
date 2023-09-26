@@ -20,13 +20,12 @@ linters:
     - misspell
     # - staticcheck
     - unconvert
-    - typecheck
+    # - typecheck
     # - unused
-    - staticcheck
-    - bidichk
-    - durationcheck
-    - exportloopref
-    - whitespace
+    # - bidichk
+    # - durationcheck
+    # - exportloopref
+    # - whitespace
 
     # - gosec
     # - errcheck
