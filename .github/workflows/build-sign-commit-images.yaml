@@ -31,7 +31,6 @@ jobs:
           dockerfile: Dockerfile
           push: ${{ fromJSON(true) }}
           load: ${{ fromJSON(false) }}
-          gcp-login:  ${{ fromJSON(true) }}
 
   build-container-geth-arm-sha:
     runs-on: [self-hosted, blockchain, 8-cpu]
@@ -57,7 +56,6 @@ jobs:
           dockerfile: Dockerfile.arm64
           push: ${{ fromJSON(true) }}
           load: ${{ fromJSON(false) }}
-          gcp-login:  ${{ fromJSON(true) }}
 
   build-container-geth-amd-master:
     runs-on: [self-hosted, blockchain, 8-cpu]
@@ -84,7 +82,6 @@ jobs:
           dockerfile: Dockerfile
           push: ${{ fromJSON(true) }}
           load: ${{ fromJSON(false) }}
-          gcp-login:  ${{ fromJSON(true) }}
 
   build-container-geth-arm-master:
     runs-on: [self-hosted, blockchain, 8-cpu]
@@ -111,7 +108,6 @@ jobs:
           dockerfile: Dockerfile.arm64
           push: ${{ fromJSON(true) }}
           load: ${{ fromJSON(false) }}
-          gcp-login:  ${{ fromJSON(true) }}
 
   build-container-geth-all-master:
     runs-on: [self-hosted, blockchain, 8-cpu]
@@ -138,4 +134,3 @@ jobs:
           dockerfile: Dockerfile.alltools
           push: ${{ fromJSON(true) }}
           load: ${{ fromJSON(false) }}
-          gcp-login:  ${{ fromJSON(true) }}
