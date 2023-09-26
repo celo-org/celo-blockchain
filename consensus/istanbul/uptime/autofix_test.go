@@ -11,11 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func copy(b *builder) *builder {
+func copyBuilder(b *builder) *builder {
 	h := make([]*types.Header, len(b.headersAdded))
-	for i, hd := range b.headersAdded {
-		h[i] = hd
-	}
+	copy(h, b.headersAdded)
 	return &builder{
 		epoch:        b.epoch,
 		epochSize:    b.epochSize,
@@ -72,7 +70,7 @@ func TestAddOnFirstOfEpoch(t *testing.T) {
 		computeV:  computeV,
 		computeE:  computeE,
 	}
-	b2 := copy(b) // copy of builder, for the compute test
+	b2 := copyBuilder(b) // copy of builder, for the compute test
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{}}
 	af := NewAutoFixBuilder(b, provider)
@@ -107,7 +105,7 @@ func TestAddManyFirstOfEpoch(t *testing.T) {
 		computeV:  computeV,
 		computeE:  computeE,
 	}
-	b2 := copy(b) // copy of builder, for the compute test
+	b2 := copyBuilder(b) // copy of builder, for the compute test
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	last := header(105)
 	providerResult := []*types.Header{header(101), header(102), header(103), header(104), header(105)}
@@ -137,7 +135,7 @@ func TestContinueSequentialAdd(t *testing.T) {
 		computeV:     computeV,
 		computeE:     computeE,
 	}
-	b2 := copy(b) // copy of builder, for the compute test
+	b2 := copyBuilder(b) // copy of builder, for the compute test
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{}}
 	af := NewAutoFixBuilder(b, provider)
@@ -169,7 +167,7 @@ func TestSequentialAddFork(t *testing.T) {
 		computeV:     computeV,
 		computeE:     computeE,
 	}
-	b2 := copy(b) // copy of builder, for the compute test
+	b2 := copyBuilder(b) // copy of builder, for the compute test
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	last := header(103)
 	providerResult := []*types.Header{header(101), header(102), last}
@@ -204,7 +202,7 @@ func TestRewind(t *testing.T) {
 		computeV:     computeV,
 		computeE:     computeE,
 	}
-	b2 := copy(b) // copy of builder, for the compute test
+	b2 := copyBuilder(b) // copy of builder, for the compute test
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	last := header(102)
 	providerResult := []*types.Header{header(101), header(102)}
@@ -238,7 +236,7 @@ func TestDoNothing(t *testing.T) {
 		computeV:     computeV,
 		computeE:     computeE,
 	}
-	b2 := copy(b) // copy of builder, for the compute test
+	b2 := copyBuilder(b) // copy of builder, for the compute test
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{}}
 	af := NewAutoFixBuilder(b, provider)
@@ -268,7 +266,7 @@ func TestSameHeightRebuild(t *testing.T) {
 		computeV:     computeV,
 		computeE:     computeE,
 	}
-	b2 := copy(b) // copy of builder, for the compute test
+	b2 := copyBuilder(b) // copy of builder, for the compute test
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	providerResult := []*types.Header{header(101), header(102), last}
 	provider := &headers{t: t, epochSize: 100, reqs: []headersReq{
@@ -299,7 +297,7 @@ func TestAdvance(t *testing.T) {
 		computeV:     computeV,
 		computeE:     computeE,
 	}
-	b2 := copy(b)
+	b2 := copyBuilder(b)
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	last := header(106)
 	providerResult := []*types.Header{pivot, header(104), header(105), header(106)}
@@ -334,7 +332,7 @@ func TestAdvanceFork(t *testing.T) {
 		computeV:     computeV,
 		computeE:     computeE,
 	}
-	b2 := copy(b)
+	b2 := copyBuilder(b)
 	assert.True(t, istanbul.IsFirstBlockOfEpoch(101, 100))
 	last := header(106)
 	providerResult1 := []*types.Header{forkPivot, header(104), header(105), header(106)}

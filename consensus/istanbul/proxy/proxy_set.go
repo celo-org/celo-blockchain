@@ -29,7 +29,8 @@ import (
 // proxySet defines the set of proxies that the validator is aware of and
 // validator/proxy assignments.
 // WARNING:  None of this object's functions are threadsafe, so it's
-//           the user's responsibility to ensure that.
+//
+//	the user's responsibility to ensure that.
 type proxySet struct {
 	proxiesByID    map[enode.ID]*Proxy // all proxies known by this node, whether or not they are peered
 	valAssignments *valAssignments     // the mappings of proxy<->remote validators

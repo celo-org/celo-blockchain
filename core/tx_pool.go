@@ -1719,6 +1719,7 @@ func (pool *TxPool) demoteUnexecutables() {
 // For native token(CELO) as feeCurrency:
 //   - Pre-Espresso: it ensures balance >= GasPrice * gas + value + gatewayFee (1)
 //   - Post-Espresso: it ensures balance >= GasFeeCap * gas + value + gatewayFee (2)
+//
 // For non-native tokens(cUSD, cEUR, ...) as feeCurrency:
 //   - Pre-Espresso: it ensures balance > GasPrice * gas + gatewayFee (3)
 //   - Post-Espresso: it ensures balance >= GasFeeCap * gas + gatewayFee (4)
