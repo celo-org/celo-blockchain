@@ -11,7 +11,10 @@ ARG COMMIT_SHA
 
 RUN apt update &&\
     apt install -y ca-certificates &&\
-    rm -rf /var/cache/apt
+    rm -rf /var/cache/apt &&\
+    rm -rf /var/lib/apt/lists/* &&\
+    ln -sf /bin/bash /bin/sh
+
 COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
 RUN echo $COMMIT_SHA > /version.txt
 ADD scripts/run_geth_in_docker.sh /
