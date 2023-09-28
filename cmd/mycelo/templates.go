@@ -37,6 +37,7 @@ func (e localEnv) createEnv(workdir string) (*env.Environment, error) {
 			NumValidators:        3,
 			ValidatorsPerGroup:   1,
 			NumDeveloperAccounts: 10,
+			UseValidatorAsAdmin:  true,
 		},
 		ChainID: big.NewInt(1000 * (1 + rand.Int63n(9999))),
 	}
@@ -75,6 +76,7 @@ func (e loadtestEnv) createEnv(workdir string) (*env.Environment, error) {
 			NumValidators:        1,
 			ValidatorsPerGroup:   1,
 			NumDeveloperAccounts: 10000,
+			UseValidatorAsAdmin:  true,
 		},
 		ChainID: big.NewInt(9099000),
 	}
