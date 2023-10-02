@@ -331,6 +331,7 @@ func (pool *TxPool) setNewHead(head *types.Header) {
 	pool.donut = pool.config.IsDonut(next)
 	pool.espresso = pool.config.IsEspresso(next)
 	pool.gingerbread = pool.config.IsGingerbread(next)
+	pool.gingerbreadP2 = pool.config.IsGingerbread(next)
 }
 
 // Stop stops the light transaction pool
