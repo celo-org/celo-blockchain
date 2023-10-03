@@ -10,7 +10,7 @@ FROM debian:bookworm
 ARG COMMIT_SHA
 
 RUN apt update &&\
-    apt install -y ca-certificates &&\
+    apt install -y ca-certificates wget &&\
     rm -rf /var/cache/apt &&\
     rm -rf /var/lib/apt/lists/* &&\
     ln -sf /bin/bash /bin/sh
