@@ -7,7 +7,7 @@
 #
 # Once you are satisfied, build the image using
 # export COMMIT_SHA=$(git rev-parse HEAD)
-# docker build -f Dockerfile --build-arg COMMIT_SHA=$COMMIT_SHA -t gcr.io/celo-testnet/geth:$COMMIT_SHA .
+# docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile --build-arg COMMIT_SHA=$COMMIT_SHA -t gcr.io/celo-testnet/geth:$COMMIT_SHA .
 #
 # push the image to the cloud
 # docker push gcr.io/celo-testnet/geth:$COMMIT_SHA
@@ -15,18 +15,25 @@
 # To use this image for testing, modify GETH_NODE_DOCKER_IMAGE_TAG in celo-monorepo/.env file
 
 # Build Geth in a stock Go builder container
-FROM golang:1.17-alpine as builder
+FROM golang:1.19-bookworm as builder
 
-RUN apk add --no-cache make gcc musl-dev linux-headers git
+RUN headers_package="linux-headers-$(dpkg --print-architecture)" && \
+  apt update && \
+  apt install -y build-essential git musl-dev $headers_package
 
 ADD . /go-ethereum
 RUN cd /go-ethereum && make geth-musl
 
 # Pull Geth into a second stage deploy alpine container
-FROM alpine:latest
+FROM debian:bookworm
 ARG COMMIT_SHA
 
-RUN apk add --no-cache ca-certificates
+RUN apt update &&\
+    apt install -y ca-certificates wget &&\
+    rm -rf /var/cache/apt &&\
+    rm -rf /var/lib/apt/lists/* &&\
+    ln -sf /bin/bash /bin/sh
+
 COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
 RUN echo $COMMIT_SHA > /version.txt
 ADD scripts/run_geth_in_docker.sh /
