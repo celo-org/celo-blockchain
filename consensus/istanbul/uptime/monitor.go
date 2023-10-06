@@ -22,10 +22,7 @@ type Uptime struct {
 
 func (u *Uptime) Copy() *Uptime {
 	entriesCopy := make([]UptimeEntry, len(u.Entries))
-	for i := 0; i < len(u.Entries); i++ {
-		// UptimeEntry is not a pointer, copy.
-		entriesCopy[i] = u.Entries[i]
-	}
+	copy(entriesCopy, u.Entries)
 	return &Uptime{
 		// No need to copy the header
 		LatestHeader: u.LatestHeader,
