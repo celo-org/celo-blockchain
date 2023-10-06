@@ -25,7 +25,7 @@ ADD . /go-ethereum
 RUN cd /go-ethereum && make geth-musl
 
 # Pull Geth into a second stage deploy alpine container
-FROM debian:bookworm
+FROM debian:bookworm-slim
 ARG COMMIT_SHA
 
 RUN apt update &&\
