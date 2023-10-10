@@ -23,6 +23,10 @@ env:
   # repo.
   SYSTEM_CONTRACTS_PATH: "compiled-system-contracts"
 
+defaults:
+  run:
+    shell: /bin/bash
+
 jobs:
   prepare-system-contracts:
     name: Build celo-monorepo
@@ -145,12 +149,9 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
         cache: true
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
-      timeout-minutes: 20
-      if: true
-      with:
-        limit-access-to-actor: true
+    # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
+    - name: Configure git safe directories
+      run: git config --global --add safe.directory '*'
     - name: Run linter
       run: make lint
 
@@ -391,6 +392,8 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
         cache: true
+    - name: Configure git safe directories
+      run: git config --global --add safe.directory '*'
     - name: Restore system contracts
       uses: actions/download-artifact@v3
       with:
@@ -435,6 +438,8 @@ jobs:
         check-latest: false
         cache: true
         cache-dependency-path: geth/go.sum
+    - name: Configure git safe directories
+      run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
     - name: Get monorepo commit id
@@ -486,6 +491,8 @@ jobs:
         check-latest: false
         cache: true
         cache-dependency-path: geth/go.sum
+    - name: Configure git safe directories
+      run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
     - name: Get monorepo commit id
@@ -538,6 +545,8 @@ jobs:
         check-latest: false
         cache: true
         cache-dependency-path: geth/go.sum
+    - name: Configure git safe directories
+      run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
     - name: Get monorepo commit id
@@ -589,6 +598,8 @@ jobs:
         check-latest: false
         cache: true
         cache-dependency-path: geth/go.sum
+    - name: Configure git safe directories
+      run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
     - name: Get monorepo commit id
@@ -640,6 +651,8 @@ jobs:
         check-latest: false
         cache: true
         cache-dependency-path: geth/go.sum
+    - name: Configure git safe directories
+      run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
     - name: Get monorepo commit id
@@ -691,6 +704,8 @@ jobs:
         check-latest: false
         cache: true
         cache-dependency-path: geth/go.sum
+    - name: Configure git safe directories
+      run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
     - name: Get monorepo commit id
@@ -742,6 +757,8 @@ jobs:
         check-latest: false
         cache: true
         cache-dependency-path: geth/go.sum
+    - name: Configure git safe directories
+      run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
     - name: Get monorepo commit id
@@ -793,6 +810,8 @@ jobs:
         check-latest: false
         cache: true
         cache-dependency-path: geth/go.sum
+    - name: Configure git safe directories
+      run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
     - name: Get monorepo commit id
