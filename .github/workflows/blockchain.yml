@@ -93,28 +93,8 @@ jobs:
         name: system-contracts
         path: 'celo-monorepo/${{ env.CONTRACTS_BUILD_PATH }}'
 
-  go-modules:
-    name: Setup go
-    
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:a7e4ddccb82035929fb25d2ed218156cc852c24d
-      options: --user root
-
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
-    - name: Setup go
-      uses: actions/setup-go@v3
-      if: false
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        check-latest: false
-        cache: true
-
   check-imports:
     name: Check imports
-    needs: go-modules
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
@@ -141,7 +121,6 @@ jobs:
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:a7e4ddccb82035929fb25d2ed218156cc852c24d
       options: --user root
-    needs: go-modules
 
     steps:
     - name: Checkout repo
@@ -167,7 +146,6 @@ jobs:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:a7e4ddccb82035929fb25d2ed218156cc852c24d
       options: --user root
     needs:
-    - go-modules
     - prepare-system-contracts
 
     steps:
@@ -229,7 +207,6 @@ jobs:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:a7e4ddccb82035929fb25d2ed218156cc852c24d
       options: --user root
     needs:
-    - go-modules
     - prepare-system-contracts
 
     steps:
@@ -270,8 +247,6 @@ jobs:
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:a7e4ddccb82035929fb25d2ed218156cc852c24d
       options: --user root
-    needs:
-      - go-modules
 
     steps:
     - name: Checkout repo
@@ -283,6 +258,9 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
         cache: true
+    # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
+    - name: Configure git safe directories
+      run: git config --global --add safe.directory '*'
     - name: Run and compress executables
       run: |
         make all
@@ -304,7 +282,6 @@ jobs:
       pull-requests: write
 
     needs:
-    - go-modules
     - prepare-system-contracts
 
     steps:
@@ -389,7 +366,6 @@ jobs:
     timeout-minutes: 30
 
     needs:
-    - go-modules
     - prepare-system-contracts
 
     steps:
@@ -402,7 +378,8 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
         cache: true
-    - name: Configure git safe directories
+    # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
+        - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Restore system contracts
       uses: actions/download-artifact@v3
@@ -433,7 +410,6 @@ jobs:
       NODE_VERSION: 18
 
     needs:
-    - go-modules
     - prepare-system-contracts
 
     steps:
@@ -449,7 +425,8 @@ jobs:
         check-latest: false
         cache: true
         cache-dependency-path: geth/go.sum
-    - name: Configure git safe directories
+    # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
+        - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
@@ -488,7 +465,6 @@ jobs:
       NODE_VERSION: 18
 
     needs:
-    - go-modules
     - prepare-system-contracts
 
     steps:
@@ -504,7 +480,8 @@ jobs:
         check-latest: false
         cache: true
         cache-dependency-path: geth/go.sum
-    - name: Configure git safe directories
+    # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
+        - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
@@ -544,7 +521,6 @@ jobs:
       NODE_VERSION: 18
 
     needs:
-    - go-modules
     - prepare-system-contracts
 
     steps:
@@ -560,7 +536,8 @@ jobs:
         check-latest: false
         cache: true
         cache-dependency-path: geth/go.sum
-    - name: Configure git safe directories
+    # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
+        - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
@@ -599,7 +576,6 @@ jobs:
       NODE_VERSION: 18
 
     needs:
-    - go-modules
     - prepare-system-contracts
 
     steps:
@@ -615,7 +591,8 @@ jobs:
         check-latest: false
         cache: true
         cache-dependency-path: geth/go.sum
-    - name: Configure git safe directories
+    # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
+        - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
@@ -654,7 +631,6 @@ jobs:
       NODE_VERSION: 18
 
     needs:
-    - go-modules
     - prepare-system-contracts
 
     steps:
@@ -670,7 +646,8 @@ jobs:
         check-latest: false
         cache: true
         cache-dependency-path: geth/go.sum
-    - name: Configure git safe directories
+    # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
+        - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
@@ -709,7 +686,6 @@ jobs:
       NODE_VERSION: 18
 
     needs:
-    - go-modules
     - prepare-system-contracts
 
     steps:
@@ -725,7 +701,8 @@ jobs:
         check-latest: false
         cache: true
         cache-dependency-path: geth/go.sum
-    - name: Configure git safe directories
+    # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
+        - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
@@ -764,7 +741,6 @@ jobs:
       NODE_VERSION: 18
 
     needs:
-    - go-modules
     - prepare-system-contracts
 
     steps:
@@ -780,7 +756,8 @@ jobs:
         check-latest: false
         cache: true
         cache-dependency-path: geth/go.sum
-    - name: Configure git safe directories
+    # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
+        - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
@@ -819,7 +796,6 @@ jobs:
       NODE_VERSION: 18
 
     needs:
-    - go-modules
     - prepare-system-contracts
 
     steps:
@@ -835,7 +811,8 @@ jobs:
         check-latest: false
         cache: true
         cache-dependency-path: geth/go.sum
-    - name: Configure git safe directories
+    # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
+        - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
