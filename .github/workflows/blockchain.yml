@@ -25,7 +25,7 @@ env:
 
 defaults:
   run:
-    shell: /bin/bash
+    shell: bash
 
 jobs:
   prepare-system-contracts:
