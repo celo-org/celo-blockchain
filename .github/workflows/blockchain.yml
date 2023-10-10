@@ -167,11 +167,11 @@ jobs:
       run: make prepare-ethersjs-project
     - name: Run tests
       run: |
-        go install github.com/jstemmer/go-junit-report@latest
         CI=true go test -v -cover -coverprofile=coverage.out ./... | tee go-test.out
     - name: Generate test report
       if: always()
       run: |
+        go install github.com/jstemmer/go-junit-report@latest
         go-junit-report -set-exit-code < go-test.out | tee -a report.xml
     - name: Test summary
       id: unit-tests-summary
