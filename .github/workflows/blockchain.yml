@@ -168,6 +168,12 @@ jobs:
     - name: Run tests
       run: |
         CI=true go test -v -cover -coverprofile=coverage.out ./... | tee go-test.out
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      timeout-minutes: 20
+      if: true
+      with:
+        limit-access-to-actor: true
     - name: Generate test report
       if: always()
       run: |
