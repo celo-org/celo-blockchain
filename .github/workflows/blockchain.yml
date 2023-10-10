@@ -171,7 +171,7 @@ jobs:
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@v3
       timeout-minutes: 20
-      if: true
+      if: always()
       with:
         limit-access-to-actor: true
     - name: Generate test report
