@@ -379,7 +379,7 @@ jobs:
         check-latest: false
         cache: true
     # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
-        - name: Configure git safe directories
+    - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Restore system contracts
       uses: actions/download-artifact@v3
@@ -426,7 +426,7 @@ jobs:
         cache: true
         cache-dependency-path: geth/go.sum
     # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
-        - name: Configure git safe directories
+    - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
@@ -481,7 +481,7 @@ jobs:
         cache: true
         cache-dependency-path: geth/go.sum
     # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
-        - name: Configure git safe directories
+    - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
@@ -537,7 +537,7 @@ jobs:
         cache: true
         cache-dependency-path: geth/go.sum
     # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
-        - name: Configure git safe directories
+    - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
@@ -592,7 +592,7 @@ jobs:
         cache: true
         cache-dependency-path: geth/go.sum
     # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
-        - name: Configure git safe directories
+    - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
@@ -647,7 +647,7 @@ jobs:
         cache: true
         cache-dependency-path: geth/go.sum
     # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
-        - name: Configure git safe directories
+    - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
@@ -702,7 +702,7 @@ jobs:
         cache: true
         cache-dependency-path: geth/go.sum
     # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
-        - name: Configure git safe directories
+    - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
@@ -757,7 +757,7 @@ jobs:
         cache: true
         cache-dependency-path: geth/go.sum
     # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
-        - name: Configure git safe directories
+    - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
@@ -812,7 +812,7 @@ jobs:
         cache: true
         cache-dependency-path: geth/go.sum
     # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
-        - name: Configure git safe directories
+    - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
