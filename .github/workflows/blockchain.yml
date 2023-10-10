@@ -68,6 +68,7 @@ jobs:
     - name: Conditionally setup Node.js
       if: steps.celo-monorepo-cache.outputs.cache-hit != 'true'
       uses: actions/setup-node@v3
+      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -465,6 +466,7 @@ jobs:
           celo-monorepo-cache-
     - name: Setup Node.js
       uses: actions/setup-node@v3
+      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -519,6 +521,7 @@ jobs:
           celo-monorepo-cache-
     - name: Setup Node.js
       uses: actions/setup-node@v3
+      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -574,6 +577,7 @@ jobs:
           celo-monorepo-cache-
     - name: Setup Node.js
       uses: actions/setup-node@v3
+      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -628,6 +632,7 @@ jobs:
           celo-monorepo-cache-
     - name: Setup Node.js
       uses: actions/setup-node@v3
+      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -682,6 +687,7 @@ jobs:
           celo-monorepo-cache-
     - name: Setup Node.js
       uses: actions/setup-node@v3
+      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -736,6 +742,7 @@ jobs:
           celo-monorepo-cache-
     - name: Setup Node.js
       uses: actions/setup-node@v3
+      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -790,6 +797,7 @@ jobs:
           celo-monorepo-cache-
     - name: Setup Node.js
       uses: actions/setup-node@v3
+      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -844,6 +852,7 @@ jobs:
           celo-monorepo-cache-
     - name: Setup Node.js
       uses: actions/setup-node@v3
+      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
