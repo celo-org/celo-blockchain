@@ -168,13 +168,13 @@ jobs:
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@v3
       timeout-minutes: 20
-      if: always()
+      if: false
       with:
         limit-access-to-actor: true
     - name: Run tests
       run: |
         go install github.com/jstemmer/go-junit-report@latest
-        CI=true go test -v -cover -coverprofile=coverage.out ./... | tee go-test.out
+        CI=true HOME=~ go test -v -cover -coverprofile=coverage.out ./... | tee go-test.out
     - name: Generate test report
       if: always()
       run: |
