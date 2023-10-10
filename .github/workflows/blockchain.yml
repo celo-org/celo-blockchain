@@ -29,6 +29,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
     env:
       NODE_VERSION: 18
       PYTHON_VERSION: '3.9'
@@ -93,6 +94,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
 
     steps:
     - name: Checkout repo
@@ -111,6 +113,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
 
     steps:
     - name: Checkout repo
@@ -130,6 +133,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
     needs: go-modules
 
     steps:
@@ -150,6 +154,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
     needs:
     - go-modules
     - prepare-system-contracts
@@ -210,6 +215,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
     needs:
     - go-modules
     - prepare-system-contracts
@@ -250,6 +256,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
     needs:
       - go-modules
 
@@ -277,6 +284,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
     # Needed to publish the summary PR comment
     permissions:
       pull-requests: write
@@ -329,6 +337,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
 
     needs:
     - build-and-store-binaries
@@ -360,6 +369,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
     timeout-minutes: 30
 
     needs:
@@ -398,6 +408,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
     timeout-minutes: 30
     env:
       NODE_VERSION: 18
@@ -448,6 +459,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
     timeout-minutes: 30
     env:
       NODE_VERSION: 18
@@ -499,6 +511,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
     timeout-minutes: 30
     env:
       NODE_VERSION: 18
@@ -549,6 +562,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
     timeout-minutes: 30
     env:
       NODE_VERSION: 18
@@ -599,6 +613,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
     timeout-minutes: 30
     env:
       NODE_VERSION: 18
@@ -649,6 +664,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
     timeout-minutes: 30
     env:
       NODE_VERSION: 18
@@ -699,6 +715,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
     timeout-minutes: 30
     env:
       NODE_VERSION: 18
@@ -749,6 +766,7 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+      options: --user root
     timeout-minutes: 30
     env:
       NODE_VERSION: 18
