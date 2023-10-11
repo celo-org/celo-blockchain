@@ -18,12 +18,10 @@ package utils
 
 import (
 	"os"
-	"os/user"
 	"testing"
 )
 
 func TestPathExpansion(t *testing.T) {
-	user, _ := user.Current()
 	tests := map[string]string{
 		"/home/someuser/tmp": "/home/someuser/tmp",
 		"~/tmp":              os.Getenv("HOME") + "/tmp",
