@@ -16,8 +16,8 @@ concurrency:
 
 env:
   # Increment these to force cache rebuilding
-  SYSTEM_CONTRACTS_CACHE_VERSION: 3
-  CHECKOUT_MONOREPO_CACHE_VERSION: 7
+  SYSTEM_CONTRACTS_CACHE_VERSION: 4
+  CHECKOUT_MONOREPO_CACHE_VERSION: 8
   GO_VERSION: '1.18'
   # Location where compiled system contracts are stored under the root of this
   # repo.
@@ -33,11 +33,10 @@ jobs:
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       # Update image at https://github.com/celo-org/infrastructure/blob/master/terraform/root-modules/gcp/integration-tests-gke/files/github-arc/Dockerfiles/Dockerfile-blockchain
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
     env:
       NODE_VERSION: 18
-      PYTHON_VERSION: '3.9'
       CONTRACTS_BUILD_PATH: packages/protocol/build
 
     steps:
@@ -66,18 +65,12 @@ jobs:
         path: celo-monorepo
         ref: ${{ env.MONOREPO_COMMIT }}
     - name: Conditionally setup Node.js
-      if: steps.celo-monorepo-cache.outputs.cache-hit != 'true' && false
+      if: steps.celo-monorepo-cache.outputs.cache-hit != 'true'
       uses: actions/setup-node@v3
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
         cache-dependency-path: celo-monorepo/yarn.lock
-    # Python is required for node-gyp rebuild
-    - name: Conditionally setup python
-      if: steps.celo-monorepo-cache.outputs.cache-hit != 'true' && false
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
     - name: Conditionally build monorepo
       if: steps.celo-monorepo-cache.outputs.cache-hit != 'true'
       run: |
@@ -98,7 +91,7 @@ jobs:
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
 
     steps:
@@ -119,7 +112,7 @@ jobs:
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
 
     steps:
@@ -143,7 +136,7 @@ jobs:
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
     needs:
     - prepare-system-contracts
@@ -210,7 +203,7 @@ jobs:
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
     needs:
     - prepare-system-contracts
@@ -251,7 +244,7 @@ jobs:
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
 
     steps:
@@ -281,7 +274,7 @@ jobs:
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
     # Needed to publish the summary PR comment
     permissions:
@@ -334,7 +327,7 @@ jobs:
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
 
     needs:
@@ -367,7 +360,7 @@ jobs:
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
     timeout-minutes: 30
 
@@ -409,7 +402,7 @@ jobs:
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
     timeout-minutes: 30
     env:
@@ -448,7 +441,6 @@ jobs:
           celo-monorepo-cache-
     - name: Setup Node.js
       uses: actions/setup-node@v3
-      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -464,7 +456,7 @@ jobs:
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
     timeout-minutes: 30
     env:
@@ -503,7 +495,6 @@ jobs:
           celo-monorepo-cache-
     - name: Setup Node.js
       uses: actions/setup-node@v3
-      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -520,7 +511,7 @@ jobs:
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
     timeout-minutes: 30
     env:
@@ -559,7 +550,6 @@ jobs:
           celo-monorepo-cache-
     - name: Setup Node.js
       uses: actions/setup-node@v3
-      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -575,7 +565,7 @@ jobs:
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
     timeout-minutes: 30
     env:
@@ -614,7 +604,6 @@ jobs:
           celo-monorepo-cache-
     - name: Setup Node.js
       uses: actions/setup-node@v3
-      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -630,7 +619,7 @@ jobs:
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
     timeout-minutes: 30
     env:
@@ -669,7 +658,6 @@ jobs:
           celo-monorepo-cache-
     - name: Setup Node.js
       uses: actions/setup-node@v3
-      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -685,7 +673,7 @@ jobs:
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
     timeout-minutes: 30
     env:
@@ -724,7 +712,6 @@ jobs:
           celo-monorepo-cache-
     - name: Setup Node.js
       uses: actions/setup-node@v3
-      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -740,7 +727,7 @@ jobs:
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
     timeout-minutes: 30
     env:
@@ -779,7 +766,6 @@ jobs:
           celo-monorepo-cache-
     - name: Setup Node.js
       uses: actions/setup-node@v3
-      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -795,7 +781,7 @@ jobs:
     
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:922be46db44b8cef03746a4f67ffbf58e2eca572
+      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
     timeout-minutes: 30
     env:
@@ -834,7 +820,6 @@ jobs:
           celo-monorepo-cache-
     - name: Setup Node.js
       uses: actions/setup-node@v3
-      if: false
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
