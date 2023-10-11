@@ -10,7 +10,7 @@ on:
     branches:
       - master
 
-concurrency: 
+concurrency:
   group: blockchain-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
@@ -41,7 +41,7 @@ jobs:
 
     steps:
     - name: Checkout celo-blockchain repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         path: geth
     - name: Get monorepo commit
@@ -59,7 +59,7 @@ jobs:
     # If there is a cached version, there is no need to rebuild it
     - name: Conditionally checkout monorepo
       if: steps.celo-monorepo-cache.outputs.cache-hit != 'true'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: celo-org/celo-monorepo
         path: celo-monorepo
@@ -86,20 +86,34 @@ jobs:
         name: system-contracts
         path: 'celo-monorepo/${{ env.CONTRACTS_BUILD_PATH }}'
 
+  go-modules:
+    name: Setup go
+    runs-on: [self-hosted, blockchain, 8-cpu]
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+    - name: Setup go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: false
+        cache: true
+
   check-imports:
     name: Check imports
-    
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
-
+    needs: 
+    - go-modules
+    
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Setup golang
-      uses: actions/setup-go@v3
-      if: false
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -109,18 +123,18 @@ jobs:
 
   lint:
     name: Lint code
-    
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
+    needs: 
+    - go-modules
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Setup golang
-      uses: actions/setup-go@v3
-      if: false
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -133,20 +147,20 @@ jobs:
 
   unit-tests:
     name: Unit tests
-    
+
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
     needs:
+    - go-modules
     - prepare-system-contracts
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Setup golang
-      uses: actions/setup-go@v3
-      if: false
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -200,20 +214,20 @@ jobs:
   race:
     name: Data race detector
     if: ${{ github.ref == 'refs/heads/master' || contains(github.ref, 'release') }}
-    
+
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
     needs:
+    - go-modules
     - prepare-system-contracts
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Setup golang
-      uses: actions/setup-go@v3
-      if: false
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -241,18 +255,19 @@ jobs:
 
   build-and-store-binaries:
     name: Build and store binaries
-    
+
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
+    needs:
+    - go-modules
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Setup golang
-      uses: actions/setup-go@v3
-      if: false
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -271,7 +286,7 @@ jobs:
 
   istanbul-e2e-coverage:
     name: Istanbul consensus coverage
-    
+
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
@@ -281,14 +296,14 @@ jobs:
       pull-requests: write
 
     needs:
+    - go-modules
     - prepare-system-contracts
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Setup golang
-      uses: actions/setup-go@v3
-      if: false
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -324,21 +339,21 @@ jobs:
 
   lightest-sync-test:
     name: Lightest sync test
-    
+
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
       options: --user root
 
     needs:
+    - go-modules
     - build-and-store-binaries
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Setup golang
-      uses: actions/setup-go@v3
-      if: false
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -357,7 +372,7 @@ jobs:
 
   e2e-benchmarks:
     name: End-to-end benchmarks
-    
+
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
@@ -365,14 +380,14 @@ jobs:
     timeout-minutes: 30
 
     needs:
+    - go-modules
     - prepare-system-contracts
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Setup golang
-      uses: actions/setup-go@v3
-      if: false
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -399,7 +414,7 @@ jobs:
 
   end-to-end-blockchain-parameters-test:
     name: End-to-end blockchain parameters test
-    
+
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
@@ -409,16 +424,16 @@ jobs:
       NODE_VERSION: 18
 
     needs:
+    - go-modules
     - prepare-system-contracts
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         path: geth
     - name: Setup golang
-      uses: actions/setup-go@v3
-      if: false
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -453,7 +468,7 @@ jobs:
 
   end-to-end-governance-test:
     name: End-to-end governance test
-    
+
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
@@ -463,16 +478,16 @@ jobs:
       NODE_VERSION: 18
 
     needs:
+    - go-modules
     - prepare-system-contracts
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         path: geth
     - name: Setup golang
-      uses: actions/setup-go@v3
-      if: false
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -508,7 +523,7 @@ jobs:
 
   end-to-end-sync-test:
     name: End-to-end sync test
-    
+
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
@@ -518,16 +533,16 @@ jobs:
       NODE_VERSION: 18
 
     needs:
+    - go-modules
     - prepare-system-contracts
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         path: geth
     - name: Setup golang
-      uses: actions/setup-go@v3
-      if: false
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -562,7 +577,7 @@ jobs:
 
   end-to-end-slashing-test:
     name: End-to-end slashing test
-    
+
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
@@ -572,16 +587,16 @@ jobs:
       NODE_VERSION: 18
 
     needs:
+    - go-modules
     - prepare-system-contracts
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         path: geth
     - name: Setup golang
-      uses: actions/setup-go@v3
-      if: false
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -616,7 +631,7 @@ jobs:
 
   end-to-end-transfers-test:
     name: End-to-end transfers test
-    
+
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
@@ -626,16 +641,16 @@ jobs:
       NODE_VERSION: 18
 
     needs:
+    - go-modules
     - prepare-system-contracts
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         path: geth
     - name: Setup golang
-      uses: actions/setup-go@v3
-      if: false
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -670,7 +685,7 @@ jobs:
 
   end-to-end-validator-order-test:
     name: End-to-end validator order test
-    
+
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
@@ -680,16 +695,16 @@ jobs:
       NODE_VERSION: 18
 
     needs:
+    - go-modules
     - prepare-system-contracts
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         path: geth
     - name: Setup golang
-      uses: actions/setup-go@v3
-      if: false
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -724,7 +739,7 @@ jobs:
 
   end-to-end-cip35-eth-compatibility-test:
     name: End-to-end CIP35-eth compatibility test
-    
+
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
@@ -734,16 +749,16 @@ jobs:
       NODE_VERSION: 18
 
     needs:
+    - go-modules
     - prepare-system-contracts
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         path: geth
     - name: Setup golang
-      uses: actions/setup-go@v3
-      if: false
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -778,7 +793,7 @@ jobs:
 
   end-to-end-replica-test:
     name: End-to-end replica test
-    
+
     runs-on: ['self-hosted', 'org', '8-cpu']
     container:
       image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
@@ -788,16 +803,16 @@ jobs:
       NODE_VERSION: 18
 
     needs:
+    - go-modules
     - prepare-system-contracts
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         path: geth
     - name: Setup golang
-      uses: actions/setup-go@v3
-      if: false
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
