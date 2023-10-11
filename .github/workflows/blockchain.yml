@@ -44,6 +44,9 @@ jobs:
       uses: actions/checkout@v4
       with:
         path: geth
+    # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
+    - name: Configure git safe directories
+      run: git config --global --add safe.directory '*'
     - name: Get monorepo commit
       run: echo "MONOREPO_COMMIT=$(cat ./geth/monorepo_commit)" >> $GITHUB_ENV
     - name: Get monorepo commit id
