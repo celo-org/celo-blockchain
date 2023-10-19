@@ -18,6 +18,7 @@ import (
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/ethclient"
 	"github.com/celo-org/celo-blockchain/internal/ethapi"
+	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"github.com/celo-org/celo-blockchain/rpc"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/stretchr/testify/assert"
@@ -446,4 +447,103 @@ func prepareTransaction(txArgs ethapi.TransactionArgs, senderKey *ecdsa.PrivateK
 		return nil, err
 	}
 	return signed, nil
+}
+
+func TestTransferERC20(t *testing.T) {
+	ac := test.AccountConfig(1, 3)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	node := network[0] // validator node
+	client := node.WsClient
+	devAccounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+	sender := devAccounts[0]
+	recipient := devAccounts[1]
+	gateWayFeeRecipient := devAccounts[2]
+
+	// Get datum to set GasPrice/MaxFeePerGas/MaxPriorityFeePerGas to sensible values
+	header, err := network[0].WsClient.HeaderByNumber(ctx, common.Big1)
+	require.NoError(t, err)
+	datum := header.BaseFee
+	stableTokenAddress := env.MustProxyAddressFor("StableToken")
+	intrinsicGas := hexutil.Uint64(config.IntrinsicGasForAlternativeFeeCurrency + 21000)
+
+	testCases := []struct {
+		name        string
+		txArgs      *ethapi.TransactionArgs
+		expectedErr error
+	}{
+		{
+			name: "Celo transfer with fee currency",
+			txArgs: &ethapi.TransactionArgs{
+				To:                   &recipient.Address,
+				Value:                (*hexutil.Big)(new(big.Int).SetInt64(oneCelo)),
+				MaxFeePerGas:         (*hexutil.Big)(datum.Mul(datum, new(big.Int).SetInt64(4))),
+				MaxPriorityFeePerGas: (*hexutil.Big)(datum),
+				Gas:                  &intrinsicGas,
+				FeeCurrency:          &stableTokenAddress,
+			},
+			expectedErr: nil,
+		},
+	}
+
+	// Get feeHandlerAddress
+	var backend *eth.EthAPIBackend = network[0].Eth.APIBackend
+	var lastestBlockNum rpc.BlockNumber = (rpc.BlockNumber)(backend.CurrentBlock().Header().Number.Int64())
+	state, header, err := backend.StateAndHeaderByNumber(ctx, lastestBlockNum)
+	require.NoError(t, err)
+	caller := backend.NewEVMRunner(header, state)
+	feeHandlerAddress, err := contracts.GetRegisteredAddress(caller, config.FeeHandlerId)
+	require.NoError(t, err)
+	require.NotEqual(t, common.ZeroAddress, feeHandlerAddress, "feeHandlerAddress must not be zero address.")
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			watcher := test.NewBalanceWatcher(client, []common.Address{sender.Address, recipient.Address, gateWayFeeRecipient.Address, node.Address, feeHandlerAddress})
+			blockNum, err := client.BlockNumber(ctx)
+			require.NoError(t, err)
+			signer := types.MakeSigner(devAccounts[0].ChainConfig, new(big.Int).SetUint64(blockNum))
+			tx, err := prepareTransaction(*tc.txArgs, sender.Key, sender.Address, signer, client, true)
+			require.NoError(t, err)
+			err = client.SendTransaction(ctx, tx)
+			if tc.expectedErr != nil {
+				// Once the error is checked, there's nothing more to do
+				if err == nil || err.Error() != tc.expectedErr.Error() {
+					t.Error("Expected error", tc.expectedErr, "got", err)
+				}
+				return
+			}
+
+			require.NoError(t, err, "SendTransaction failed", "tx", *tx)
+			err = network.AwaitTransactions(ctx, tx)
+			require.NoError(t, err)
+			watcher.Update()
+			receipt, _ := client.TransactionReceipt(ctx, tx.Hash())
+
+			// Check events
+			// Transfer event id
+			transferEvent := common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")
+
+			require.Equal(t, 2, len(receipt.Logs))
+
+			require.Equal(t, transferEvent, receipt.Logs[0].Topics[0])
+			require.Equal(t, sender.Address.Hash(), receipt.Logs[0].Topics[1])
+			require.Equal(t, feeHandlerAddress, common.BytesToAddress(receipt.Logs[0].Topics[2].Bytes()))
+
+			require.Equal(t, transferEvent, receipt.Logs[1].Topics[0])
+			require.Equal(t, sender.Address.Hash(), receipt.Logs[1].Topics[1])
+			require.Equal(t, node.Address.Hash(), receipt.Logs[1].Topics[2])
+
+			// Check value goes to recipient
+			expected := tx.Value()
+			actual := watcher.Delta(recipient.Address)
+			assert.Equal(t, expected, actual, "Recipient's balance increase unexpected", "expected", expected.Int64(), "actual", actual.Int64())
+		})
+	}
 }
