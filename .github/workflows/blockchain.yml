@@ -30,11 +30,14 @@ defaults:
 jobs:
   prepare-system-contracts:
     name: Build celo-monorepo
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      # Update image at https://github.com/celo-org/infrastructure/blob/master/terraform/root-modules/gcp/integration-tests-gke/files/github-arc/Dockerfiles/Dockerfile-blockchain
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    ## Uncommend if you want to run in org-runners or github's runners.
+    ## Remind to also replace in other jobs
+    # runs-on: ['self-hosted', 'org', '8-cpu']
+    # container:
+    #   # Update image at https://github.com/celo-org/infrastructure/blob/master/terraform/root-modules/gcp/integration-tests-gke/files/github-arc/Dockerfiles/Dockerfile-blockchain
+    #   image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
+    #   options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     env:
       NODE_VERSION: 18
       CONTRACTS_BUILD_PATH: packages/protocol/build
@@ -91,8 +94,7 @@ jobs:
 
   go-modules:
     name: Setup go
-    runs-on: [self-hosted, blockchain, 8-cpu]
-
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     steps:
     - name: Checkout repo
       uses: actions/checkout@v4
@@ -105,10 +107,7 @@ jobs:
 
   check-imports:
     name: Check imports
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     needs: 
     - go-modules
     
@@ -126,10 +125,7 @@ jobs:
 
   lint:
     name: Lint code
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     needs: 
     - go-modules
 
@@ -150,11 +146,7 @@ jobs:
 
   unit-tests:
     name: Unit tests
-
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     needs:
     - go-modules
     - prepare-system-contracts
@@ -217,11 +209,7 @@ jobs:
   race:
     name: Data race detector
     if: ${{ github.ref == 'refs/heads/master' || contains(github.ref, 'release') }}
-
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     needs:
     - go-modules
     - prepare-system-contracts
@@ -258,11 +246,7 @@ jobs:
 
   build-and-store-binaries:
     name: Build and store binaries
-
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     needs:
     - go-modules
 
@@ -289,11 +273,7 @@ jobs:
 
   istanbul-e2e-coverage:
     name: Istanbul consensus coverage
-
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     # Needed to publish the summary PR comment
     permissions:
       pull-requests: write
@@ -342,11 +322,7 @@ jobs:
 
   lightest-sync-test:
     name: Lightest sync test
-
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
 
     needs:
     - go-modules
@@ -375,11 +351,7 @@ jobs:
 
   e2e-benchmarks:
     name: End-to-end benchmarks
-
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
 
     needs:
@@ -417,11 +389,7 @@ jobs:
 
   end-to-end-blockchain-parameters-test:
     name: End-to-end blockchain parameters test
-
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
     env:
       NODE_VERSION: 18
@@ -471,11 +439,7 @@ jobs:
 
   end-to-end-governance-test:
     name: End-to-end governance test
-
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
     env:
       NODE_VERSION: 18
@@ -526,11 +490,7 @@ jobs:
 
   end-to-end-sync-test:
     name: End-to-end sync test
-
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
     env:
       NODE_VERSION: 18
@@ -580,11 +540,7 @@ jobs:
 
   end-to-end-slashing-test:
     name: End-to-end slashing test
-
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
     env:
       NODE_VERSION: 18
@@ -634,11 +590,7 @@ jobs:
 
   end-to-end-transfers-test:
     name: End-to-end transfers test
-
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
     env:
       NODE_VERSION: 18
@@ -688,11 +640,7 @@ jobs:
 
   end-to-end-validator-order-test:
     name: End-to-end validator order test
-
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
     env:
       NODE_VERSION: 18
@@ -742,11 +690,7 @@ jobs:
 
   end-to-end-cip35-eth-compatibility-test:
     name: End-to-end CIP35-eth compatibility test
-
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
     env:
       NODE_VERSION: 18
@@ -796,11 +740,7 @@ jobs:
 
   end-to-end-replica-test:
     name: End-to-end replica test
-
-    runs-on: ['self-hosted', 'org', '8-cpu']
-    container:
-      image: us-west1-docker.pkg.dev/devopsre/actions-runner-controller/blockchain:latest
-      options: --user root
+    runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
     env:
       NODE_VERSION: 18
