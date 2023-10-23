@@ -17,6 +17,7 @@
 package eth
 
 import (
+	"fmt"
 	"math"
 	"math/big"
 	"math/rand"
@@ -534,5 +535,41 @@ func testGetBlockReceipts(t *testing.T, protocol uint) {
 		ReceiptsPacket: receipts,
 	}); err != nil {
 		t.Errorf("receipts mismatch: %v", err)
+	}
+}
+
+func BenchmarkAnswerGetBlockBodiesQuery(b *testing.B) {
+	backend := newTestBackend(maxBodiesServe + 15)
+	defer backend.close()
+
+	for _, n_blocks := range []int{1, 10, 100} {
+		// Collect the hashes to request, and the response to expect
+		var (
+			hashes []common.Hash
+			seen   = make(map[int64]bool)
+		)
+
+		rand.Seed(0)
+
+		for {
+			num := rand.Int63n(int64(backend.chain.CurrentBlock().NumberU64()))
+
+			if !seen[num] {
+				seen[num] = true
+
+				block := backend.chain.GetBlockByNumber(uint64(num))
+				hashes = append(hashes, block.Hash())
+
+				if len(hashes) >= n_blocks {
+					name := fmt.Sprintf("GetBlockBodies-%d", n_blocks)
+					b.Run(name, func(b *testing.B) {
+						for n := 0; n < b.N; n++ {
+							answerGetBlockBodiesQuery(backend, GetBlockBodiesPacket(hashes), nil)
+						}
+					})
+					break
+				}
+			}
+		}
 	}
 }
