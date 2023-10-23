@@ -397,8 +397,8 @@ func TestTxEthCompatible(t *testing.T) {
 }
 
 // toCELO converter assuming that feeCurrency is always nil
-func toCELOMockFn(amount *big.Int, feeCurrency *common.Address) *big.Int {
-	return amount
+func toCELOMockFn(amount *big.Int, feeCurrency *common.Address) (*big.Int, error) {
+	return amount, nil
 }
 
 func TestTransactionPriceNonceSortLegacy(t *testing.T) {

@@ -387,14 +387,18 @@ func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
 }
 
 // totalFees computes total consumed fees in CELO. Block transactions and receipts have to have the same order.
-func totalFees(block *types.Block, receipts []*types.Receipt, baseFeeFn func(*common.Address) *big.Int, toCELO func(*big.Int, *common.Address) *big.Int, espresso bool) *big.Float {
+func totalFees(block *types.Block, receipts []*types.Receipt, baseFeeFn func(*common.Address) *big.Int, toCELO types.ToCELOFn, espresso bool) *big.Float {
 	feesWei := new(big.Int)
 	for i, tx := range block.Transactions() {
 		var basefee *big.Int
 		if espresso {
 			basefee = baseFeeFn(tx.FeeCurrency())
 		}
-		fee := toCELO(new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), tx.EffectiveGasTipValue(basefee)), tx.FeeCurrency())
+		fee, err := toCELO(new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), tx.EffectiveGasTipValue(basefee)), tx.FeeCurrency())
+		if err != nil {
+			log.Error("totalFees: Could not convert fees for tx", "tx", tx, "err", err)
+			continue
+		}
 		feesWei.Add(feesWei, fee)
 	}
 	return new(big.Float).Quo(new(big.Float).SetInt(feesWei), new(big.Float).SetInt(big.NewInt(params.Ether)))
@@ -402,19 +406,19 @@ func totalFees(block *types.Block, receipts []*types.Receipt, baseFeeFn func(*co
 
 // createConversionFunctions creates a function to convert any currency to Celo and a function to get the gas price minimum for that currency.
 // Both functions internally cache their results.
-func createConversionFunctions(sysCtx *core.SysContractCallCtx, chain *core.BlockChain, header *types.Header, state *state.StateDB) (func(feeCurrency *common.Address) *big.Int, func(amount *big.Int, feeCurrency *common.Address) *big.Int) {
+func createConversionFunctions(sysCtx *core.SysContractCallCtx, chain *core.BlockChain, header *types.Header, state *state.StateDB) (func(feeCurrency *common.Address) *big.Int, types.ToCELOFn) {
 	vmRunner := chain.NewEVMRunner(header, state)
 	currencyManager := currency.NewManager(vmRunner)
 
 	baseFeeFn := func(feeCurrency *common.Address) *big.Int {
 		return sysCtx.GetGasPriceMinimum(feeCurrency)
 	}
-	toCeloFn := func(amount *big.Int, feeCurrency *common.Address) *big.Int {
+	toCeloFn := func(amount *big.Int, feeCurrency *common.Address) (*big.Int, error) {
 		curr, err := currencyManager.GetCurrency(feeCurrency)
 		if err != nil {
-			log.Error("toCeloFn: could not get currency", "err", err)
+			return nil, fmt.Errorf("toCeloFn: %w", err)
 		}
-		return curr.ToCELO(amount)
+		return curr.ToCELO(amount), nil
 	}
 
 	return baseFeeFn, toCeloFn
