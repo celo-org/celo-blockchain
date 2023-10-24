@@ -52,20 +52,6 @@ func DebitFeesNative(evm *vm.EVM, address common.Address, amount *big.Int, feeCu
 		return nil
 	}
 
-	// Imitate the sender and do an approve & transfer from him
-
-	// Approve is a paid mutator transaction binding the contract method 0x095ea7b3.
-	//
-	// Solidity: function approve(address spender, uint256 amount) returns(bool)
-	// approveSelector := hexutil.MustDecode("0x095ea7b3")
-	// approveData := common.GetEncodedAbi(approveSelector, [][]byte{common.AddressToAbi(tmpAddress), common.AmountToAbi(amount)})
-
-	// TransferFrom is a paid mutator transaction binding the contract method 0x23b872dd.
-	//
-	// Solidity: function transferFrom(address from, address to, uint256 amount) returns(bool)
-	// transferFromSelector := hexutil.MustDecode("0x23b872dd")
-	// transferFromData := common.GetEncodedAbi(transferFromSelector, [][]byte{})
-
 	// Transfer is a paid mutator transaction binding the contract method 0xa9059cbb.
 	//
 	// Solidity: function transfer(address to, uint256 amount) returns(bool)
@@ -75,12 +61,6 @@ func DebitFeesNative(evm *vm.EVM, address common.Address, amount *big.Int, feeCu
 	// create account ref
 	caller := vm.AccountRef(address)
 
-	// do EVM calls
-	// _, leftoverGas, err := evm.Call(caller, *feeCurrency, approveData, maxGasForDebitNativeTransactions, big.NewInt(0))
-	// if err != nil {
-	// 	return err
-	// }
-	// gasUsed := maxGasForDebitGasFeesTransactions - leftoverGas
 	_, leftoverGas, err := evm.Call(caller, *feeCurrency, transferData, maxGasForDebitNativeTransactions, big.NewInt(0))
 	gasUsed := maxGasForCreditNativeTransactions - leftoverGas
 	log.Trace("debitGasFees called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
@@ -129,24 +109,6 @@ func CreditFeesNative(
 	feeCurrency *common.Address) error {
 	// create account ref
 	caller := vm.AccountRef(tmpAddress)
-
-	// totalApprove := big.NewInt(0).Add(big.NewInt(0).Add(refund, tipTxFee), baseTxFee)
-	// Approve is a paid mutator transaction binding the contract method 0x095ea7b3.
-	//
-	// Solidity: function approve(address spender, uint256 amount) returns(bool)
-	// approveSelector := hexutil.MustDecode("0x095ea7b3")
-	// approveData := common.GetEncodedAbi(approveSelector, [][]byte{common.AddressToAbi(tmpAddress), common.AmountToAbi(totalApprove)})
-
-	// _, leftoverGas, err := evm.Call(caller, *feeCurrency, approveData, maxGasForDebitNativeTransactions, big.NewInt(0))
-	// if err != nil {
-	// 	return err
-	// }
-	// gasUsed := maxGasForDebitGasFeesTransactions - leftoverGas
-	// TransferFrom is a paid mutator transaction binding the contract method 0x23b872dd.
-	//
-	// Solidity: function transferFrom(address from, address to, uint256 amount) returns(bool)
-	// transferFromSelector := hexutil.MustDecode("0x23b872dd")
-	// transferFromData := common.GetEncodedAbi(transferFromSelector, [][]byte{})
 
 	// Transfer is a paid mutator transaction binding the contract method 0xa9059cbb.
 	//
