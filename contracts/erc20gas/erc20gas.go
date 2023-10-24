@@ -13,6 +13,12 @@ import (
 const (
 	maxGasForDebitGasFeesTransactions  uint64 = 1 * n.Million
 	maxGasForCreditGasFeesTransactions uint64 = 1 * n.Million
+	maxGasForDebitNativeTransactions   uint64 = 1 * n.Million
+	maxGasForCreditNativeTransactions  uint64 = 1 * n.Million
+)
+
+var (
+	tmpAddress = common.HexToAddress("0xce106a5")
 )
 
 func DebitFees(evm *vm.EVM, address common.Address, amount *big.Int, feeCurrency *common.Address) error {
@@ -37,6 +43,46 @@ func DebitFees(evm *vm.EVM, address common.Address, amount *big.Int, feeCurrency
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
 	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, maxGasForDebitGasFeesTransactions, big.NewInt(0))
 	gasUsed := maxGasForDebitGasFeesTransactions - leftoverGas
+	log.Trace("debitGasFees called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	return err
+}
+
+func DebitFeesNative(evm *vm.EVM, address common.Address, amount *big.Int, feeCurrency *common.Address) error {
+	if amount.Cmp(big.NewInt(0)) == 0 {
+		return nil
+	}
+
+	// Imitate the sender and do an approve & transfer from him
+
+	// Approve is a paid mutator transaction binding the contract method 0x095ea7b3.
+	//
+	// Solidity: function approve(address spender, uint256 amount) returns(bool)
+	// approveSelector := hexutil.MustDecode("0x095ea7b3")
+	// approveData := common.GetEncodedAbi(approveSelector, [][]byte{common.AddressToAbi(tmpAddress), common.AmountToAbi(amount)})
+
+	// TransferFrom is a paid mutator transaction binding the contract method 0x23b872dd.
+	//
+	// Solidity: function transferFrom(address from, address to, uint256 amount) returns(bool)
+	// transferFromSelector := hexutil.MustDecode("0x23b872dd")
+	// transferFromData := common.GetEncodedAbi(transferFromSelector, [][]byte{})
+
+	// Transfer is a paid mutator transaction binding the contract method 0xa9059cbb.
+	//
+	// Solidity: function transfer(address to, uint256 amount) returns(bool)
+	transferSelector := hexutil.MustDecode("0xa9059cbb")
+	transferData := common.GetEncodedAbi(transferSelector, [][]byte{common.AddressToAbi(tmpAddress), common.AmountToAbi(amount)})
+
+	// create account ref
+	caller := vm.AccountRef(address)
+
+	// do EVM calls
+	// _, leftoverGas, err := evm.Call(caller, *feeCurrency, approveData, maxGasForDebitNativeTransactions, big.NewInt(0))
+	// if err != nil {
+	// 	return err
+	// }
+	// gasUsed := maxGasForDebitGasFeesTransactions - leftoverGas
+	_, leftoverGas, err := evm.Call(caller, *feeCurrency, transferData, maxGasForDebitNativeTransactions, big.NewInt(0))
+	gasUsed := maxGasForCreditNativeTransactions - leftoverGas
 	log.Trace("debitGasFees called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 	return err
 }
@@ -67,5 +113,67 @@ func CreditFees(
 	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, maxGasForCreditGasFeesTransactions, big.NewInt(0))
 	gasUsed := maxGasForCreditGasFeesTransactions - leftoverGas
 	log.Trace("creditGas called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	return err
+}
+
+func CreditFeesNative(
+	evm *vm.EVM,
+	from common.Address,
+	feeRecipient common.Address,
+	gatewayFeeRecipient *common.Address,
+	feeHandler common.Address,
+	refund *big.Int,
+	tipTxFee *big.Int,
+	gatewayFee *big.Int,
+	baseTxFee *big.Int,
+	feeCurrency *common.Address) error {
+	// create account ref
+	caller := vm.AccountRef(tmpAddress)
+
+	// totalApprove := big.NewInt(0).Add(big.NewInt(0).Add(refund, tipTxFee), baseTxFee)
+	// Approve is a paid mutator transaction binding the contract method 0x095ea7b3.
+	//
+	// Solidity: function approve(address spender, uint256 amount) returns(bool)
+	// approveSelector := hexutil.MustDecode("0x095ea7b3")
+	// approveData := common.GetEncodedAbi(approveSelector, [][]byte{common.AddressToAbi(tmpAddress), common.AmountToAbi(totalApprove)})
+
+	// _, leftoverGas, err := evm.Call(caller, *feeCurrency, approveData, maxGasForDebitNativeTransactions, big.NewInt(0))
+	// if err != nil {
+	// 	return err
+	// }
+	// gasUsed := maxGasForDebitGasFeesTransactions - leftoverGas
+	// TransferFrom is a paid mutator transaction binding the contract method 0x23b872dd.
+	//
+	// Solidity: function transferFrom(address from, address to, uint256 amount) returns(bool)
+	// transferFromSelector := hexutil.MustDecode("0x23b872dd")
+	// transferFromData := common.GetEncodedAbi(transferFromSelector, [][]byte{})
+
+	// Transfer is a paid mutator transaction binding the contract method 0xa9059cbb.
+	//
+	// Solidity: function transfer(address to, uint256 amount) returns(bool)
+	transferSelector := hexutil.MustDecode("0xa9059cbb")
+	transfer1Data := common.GetEncodedAbi(transferSelector, [][]byte{common.AddressToAbi(from), common.AmountToAbi(refund)})
+	transfer2Data := common.GetEncodedAbi(transferSelector, [][]byte{common.AddressToAbi(feeRecipient), common.AmountToAbi(tipTxFee)})
+	transfer3Data := common.GetEncodedAbi(transferSelector, [][]byte{common.AddressToAbi(feeHandler), common.AmountToAbi(baseTxFee)})
+
+	// do EVM calls
+	_, leftoverGas, err := evm.Call(caller, *feeCurrency, transfer1Data, maxGasForCreditNativeTransactions, big.NewInt(0))
+	if err != nil {
+		return err
+	}
+	gasUsed := maxGasForDebitNativeTransactions - leftoverGas
+	_, leftoverGas, err = evm.Call(caller, *feeCurrency, transfer2Data, maxGasForCreditNativeTransactions, big.NewInt(0))
+	if err != nil {
+		return err
+	}
+	gasUsed = gasUsed - leftoverGas
+	_, leftoverGas, err = evm.Call(caller, *feeCurrency, transfer3Data, maxGasForCreditNativeTransactions, big.NewInt(0))
+	if err != nil {
+		return err
+	}
+	gasUsed = gasUsed - leftoverGas
+
+	log.Trace("debitGasFees called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+
 	return err
 }

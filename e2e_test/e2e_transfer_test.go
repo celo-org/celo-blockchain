@@ -526,15 +526,15 @@ func TestTransferERC20(t *testing.T) {
 			watcher.Update()
 			receipt, _ := client.TransactionReceipt(ctx, tx.Hash())
 
-			require.Equal(t, 2, len(receipt.Logs))
-			eventTo := common.BytesToAddress(receipt.Logs[0].Topics[2].Bytes())
+			require.Equal(t, 4, len(receipt.Logs))
+			eventTo := common.BytesToAddress(receipt.Logs[3].Topics[2].Bytes())
 			require.Equal(t, feeHandlerAddress, eventTo)
 
-			// fmt.Println("feendler", env.MustProxyAddressFor("FeeHandler"))
-			// fmt.Println("Logs", receipt.Logs)
-			// for i := 0; i < len(receipt.Logs); i++ {
-			// 	fmt.Println("log ", i, receipt.Logs[i])
-			// }
+			fmt.Println("feendler", env.MustProxyAddressFor("FeeHandler"))
+			fmt.Println("Logs", receipt.Logs)
+			for i := 0; i < len(receipt.Logs); i++ {
+				fmt.Println("log ", i, receipt.Logs[i])
+			}
 			// require.Error(t, err)
 		})
 	}

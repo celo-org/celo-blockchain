@@ -358,7 +358,7 @@ func (st *StateTransition) debitFee(from common.Address, feeCurrency *common.Add
 		st.state.SubBalance(from, effectiveFee)
 		return nil
 	} else {
-		return erc20gas.DebitFees(st.evm, from, effectiveFee, feeCurrency)
+		return erc20gas.DebitFeesNative(st.evm, from, effectiveFee, feeCurrency)
 	}
 }
 
@@ -583,7 +583,7 @@ func (st *StateTransition) distributeTxFees() error {
 		st.state.AddBalance(st.evm.Context.Coinbase, tipTxFee)
 		st.state.AddBalance(from, refund)
 	} else {
-		if err = erc20gas.CreditFees(st.evm, from, st.evm.Context.Coinbase, gatewayFeeRecipient, feeHandlerAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
+		if err = erc20gas.CreditFeesNative(st.evm, from, st.evm.Context.Coinbase, gatewayFeeRecipient, feeHandlerAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
 			log.Error("Error crediting", "from", from, "coinbase", st.evm.Context.Coinbase, "gateway", gatewayFeeRecipient, "feeHandler", feeHandlerAddress)
 			return err
 		}
