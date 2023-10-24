@@ -9,7 +9,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  Replace-Branch-Name:
+  # Extracts the branch name when branch=release* and exports as an output
+  replace-branch-name:
     runs-on: ubuntu-latest
     # Map a step output to a job output
     outputs:
@@ -21,7 +22,8 @@ jobs:
           branch_name=$(echo ${{ github.ref_name }} | sed 's/\///' )
           echo "value=${branch_name}" >> $GITHUB_OUTPUT
 
-  Replace-Tag-V:
+  # Extracts the tag if tag=v* and exports as an output
+  replace-tag-v:
     runs-on: ubuntu-latest
     # Map a step output to a job output
     outputs:
@@ -41,84 +43,99 @@ jobs:
           echo "MAJOR=${semver[0]}" >> $GITHUB_OUTPUT
           echo "MAJOR_MINOR=${semver[0]}.${semver[1]}" >> $GITHUB_OUTPUT
 
-  Build-Container-geth-dev:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
+  build-container-geth-dev:
+    # 818f62a82d689ec6d7e84005ba8f7dcaea1415ff is main at Oct 24th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@818f62a82d689ec6d7e84005ba8f7dcaea1415ff
     if: startsWith(github.ref, 'refs/heads/release')
     needs:
-      - Replace-Branch-Name
+      - replace-branch-name
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
       service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
-      tag: ${{needs.Replace-Branch-Name.outputs.replaced-branch}}
+      tag: ${{ needs.replace-branch-name.outputs.replaced-branch }}
+      platforms: linux/amd64,linux/arm64
       context: .
+      file: Dockerfile
       trivy: true
 
 
-  Build-Container-geth-all-dev:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
+  build-container-geth-all-dev:
+    # 818f62a82d689ec6d7e84005ba8f7dcaea1415ff is main at Oct 24th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@818f62a82d689ec6d7e84005ba8f7dcaea1415ff
     if: startsWith(github.ref, 'refs/heads/release')
     needs:
-      - Replace-Branch-Name
+      - replace-branch-name
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
       service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth-all
-      tag: ${{needs.Replace-Branch-Name.outputs.replaced-branch}}
+      tag: ${{ needs.replace-branch-name.outputs.replaced-branch }}
+      platforms: linux/amd64,linux/arm64
       context: .
       file: Dockerfile.alltools
       trivy: true
 
-  Build-Container-geth-devopsre:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
+  build-container-geth-devopsre:
+    # 818f62a82d689ec6d7e84005ba8f7dcaea1415ff is main at Oct 24th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@818f62a82d689ec6d7e84005ba8f7dcaea1415ff
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
-      - Replace-Tag-V
+      - replace-tag-v
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
       service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth
-      tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
+      tag: ${{ needs.replace-tag-v.outputs.replaced-tag }}
+      platforms: linux/amd64,linux/arm64
       context: .
+      file: Dockerfile
       trivy: true
 
-  Build-Container-geth-all-devopsre:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
+  build-container-geth-all-devopsre:
+    # 818f62a82d689ec6d7e84005ba8f7dcaea1415ff is main at Oct 24th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@818f62a82d689ec6d7e84005ba8f7dcaea1415ff
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
-      - Replace-Tag-V
+      - replace-tag-v
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
       service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-all
-      tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
+      tag: ${{ needs.replace-tag-v.outputs.replaced-tag }}
+      platforms: linux/amd64,linux/arm64
       context: .
       file: Dockerfile.alltools
       trivy: true
 
-  Build-Container-geth-celo-org:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
+  build-container-geth-celo-org:
+    # 818f62a82d689ec6d7e84005ba8f7dcaea1415ff is main at Oct 24th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@818f62a82d689ec6d7e84005ba8f7dcaea1415ff
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
-      - Replace-Tag-V
+      - replace-tag-v
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
       service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-docker.pkg.dev/celo-org/us.gcr.io/geth
-      tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
+      tag: ${{ needs.replace-tag-v.outputs.replaced-tag }}
+      platforms: linux/amd64,linux/arm64
       context: .
+      file: Dockerfile
       trivy: true
 
-  Build-Container-geth-all-celo-org:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.8
+  build-container-geth-all-celo-org:
+    # 818f62a82d689ec6d7e84005ba8f7dcaea1415ff is main at Oct 24th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@818f62a82d689ec6d7e84005ba8f7dcaea1415ff
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
-      - Replace-Tag-V
+      - replace-tag-v
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
       service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-docker.pkg.dev/celo-org/us.gcr.io/geth-all
-      tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
+      tag: ${{ needs.replace-tag-v.outputs.replaced-tag }}
+      platforms: linux/amd64,linux/arm64
       context: .
       file: Dockerfile.alltools
       trivy: true
@@ -127,37 +144,37 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/add-docker-tag.yaml
     needs:
-      - Replace-Tag-V
-      - Build-Container-devopsre
-      - Build-Container-all-devopsre
-      - Build-Container-celo-org
-      - Build-Container-all-celo-org
+      - replace-tag-v
+      - build-container-geth-dev
+      - build-container-geth-all-dev
+      - build-container-geth-dev
+      - build-container-geth-all-dev
     with:
-      origin-tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
+      origin-tag: ${{ needs.replace-tag-v.outputs.replaced-tag }}
       destination-tag: baklava
 
   Add-Major-tag:
     if: startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/add-docker-tag.yaml
     needs:
-      - Replace-Tag-V
-      - Build-Container-devopsre
-      - Build-Container-all-devopsre
-      - Build-Container-celo-org
-      - Build-Container-all-celo-org
+      - replace-tag-v
+      - build-container-geth-dev
+      - build-container-geth-all-dev
+      - build-container-geth-dev
+      - build-container-geth-all-dev
     with:
-      origin-tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
-      destination-tag: ${{needs.Replace-Tag-V.outputs.major}}
+      origin-tag: ${{ needs.replace-tag-v.outputs.replaced-tag }}
+      destination-tag: ${{ needs.replace-tag-v.outputs.major }}
 
   Add-Major-Minor-tag:
     if: startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/add-docker-tag.yaml
     needs:
-      - Replace-Tag-V
-      - Build-Container-devopsre
-      - Build-Container-all-devopsre
-      - Build-Container-celo-org
-      - Build-Container-all-celo-org
+      - replace-tag-v
+      - build-container-geth-dev
+      - build-container-geth-all-dev
+      - build-container-geth-dev
+      - build-container-geth-all-dev
     with:
-      origin-tag: ${{needs.Replace-Tag-V.outputs.replaced-tag}}
-      destination-tag: ${{needs.Replace-Tag-V.outputs.major-minor}}
+      origin-tag: ${{ needs.replace-tag-v.outputs.replaced-tag }}
+      destination-tag: ${{ needs.replace-tag-v.outputs.major-minor }}

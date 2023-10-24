@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Login at GCP Artifact Registry
-        # 9817fca8d235a679e56bdcc72c31dfc548413805 is master at Sep 28, 2023
+        # 9817fca8d235a679e56bdcc72c31dfc548413805 is main at Sep 28, 2023
         uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@9817fca8d235a679e56bdcc72c31dfc548413805
         with:
           workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
