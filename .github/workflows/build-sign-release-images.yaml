@@ -3,23 +3,26 @@ name: Build and Sign Blockchain Release Images
 on:
   push:
     branches:
-      - 'release/[0-9]+.[0-9]+'
+      # Matches i.e: release/1.9.x
+      - 'release/[0-9]+.[0-9]+.x'
+      - 'jcortejoso/[0-9]+.[0-9]+.x'
     tags:        
       - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
 
 jobs:
-  # Extracts the branch name when branch=release* and exports as an output
+  # Extracts the branch name when branch=release/* and exports as an output
   replace-branch-name:
     runs-on: ubuntu-latest
     # Map a step output to a job output
     outputs:
       replaced-branch: ${{ steps.replace.outputs.value }}
-    if: startsWith(github.ref, 'refs/heads/release')
+    if: startsWith(github.ref, 'refs/heads/jcortejoso')
     steps:
       - id: replace
         run: |
           branch_name=$(echo ${{ github.ref_name }} | sed 's/\///' )
+          echo "replace-branch-name output: value=${branch_name}"
           echo "value=${branch_name}" >> $GITHUB_OUTPUT
 
   # Extracts the tag if tag=v* and exports as an output
@@ -40,20 +43,22 @@ jobs:
         run: |
           version=${{ steps.replace.outputs.value }}
           semver=( ${version//./ } )
+          echo "replace-tag-v output: MAJOR=${semver[0]}"
+          echo "replace-tag-v output: MAJOR_MINOR=${semver[0]}.${semver[1]}"
           echo "MAJOR=${semver[0]}" >> $GITHUB_OUTPUT
           echo "MAJOR_MINOR=${semver[0]}.${semver[1]}" >> $GITHUB_OUTPUT
 
   build-container-geth-dev:
     # 818f62a82d689ec6d7e84005ba8f7dcaea1415ff is main at Oct 24th 2023
     uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@818f62a82d689ec6d7e84005ba8f7dcaea1415ff
-    if: startsWith(github.ref, 'refs/heads/release')
+    if: startsWith(github.ref, 'refs/heads/jcortejoso')
     needs:
       - replace-branch-name
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
       service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
-      tag: ${{ needs.replace-branch-name.outputs.replaced-branch }}
+      tag: jcortejoso-${{ needs.replace-branch-name.outputs.replaced-branch }}
       platforms: linux/amd64,linux/arm64
       context: .
       file: Dockerfile
@@ -63,14 +68,14 @@ jobs:
   build-container-geth-all-dev:
     # 818f62a82d689ec6d7e84005ba8f7dcaea1415ff is main at Oct 24th 2023
     uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@818f62a82d689ec6d7e84005ba8f7dcaea1415ff
-    if: startsWith(github.ref, 'refs/heads/release')
+    if: startsWith(github.ref, 'refs/heads/jcortejoso')
     needs:
       - replace-branch-name
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
       service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth-all
-      tag: ${{ needs.replace-branch-name.outputs.replaced-branch }}
+      tag: jcortejoso-${{ needs.replace-branch-name.outputs.replaced-branch }}
       platforms: linux/amd64,linux/arm64
       context: .
       file: Dockerfile.alltools
