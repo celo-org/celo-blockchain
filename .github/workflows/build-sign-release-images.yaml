@@ -49,8 +49,8 @@ jobs:
           echo "MAJOR_MINOR=${semver[0]}.${semver[1]}" >> $GITHUB_OUTPUT
 
   build-container-geth-dev:
-    # 818f62a82d689ec6d7e84005ba8f7dcaea1415ff is main at Oct 24th 2023
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@818f62a82d689ec6d7e84005ba8f7dcaea1415ff
+    # f37b4d553e57883caf330adf624d194abe00bc39 is main at Oct 24th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@f37b4d553e57883caf330adf624d194abe00bc39
     if: startsWith(github.ref, 'refs/heads/jcortejoso')
     needs:
       - replace-branch-name
@@ -66,8 +66,8 @@ jobs:
 
 
   build-container-geth-all-dev:
-    # 818f62a82d689ec6d7e84005ba8f7dcaea1415ff is main at Oct 24th 2023
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@818f62a82d689ec6d7e84005ba8f7dcaea1415ff
+    # f37b4d553e57883caf330adf624d194abe00bc39 is main at Oct 24th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@f37b4d553e57883caf330adf624d194abe00bc39
     if: startsWith(github.ref, 'refs/heads/jcortejoso')
     needs:
       - replace-branch-name
@@ -82,8 +82,8 @@ jobs:
       trivy: true
 
   build-container-geth-devopsre:
-    # 818f62a82d689ec6d7e84005ba8f7dcaea1415ff is main at Oct 24th 2023
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@818f62a82d689ec6d7e84005ba8f7dcaea1415ff
+    # f37b4d553e57883caf330adf624d194abe00bc39 is main at Oct 24th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@f37b4d553e57883caf330adf624d194abe00bc39
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
       - replace-tag-v
@@ -98,8 +98,8 @@ jobs:
       trivy: true
 
   build-container-geth-all-devopsre:
-    # 818f62a82d689ec6d7e84005ba8f7dcaea1415ff is main at Oct 24th 2023
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@818f62a82d689ec6d7e84005ba8f7dcaea1415ff
+    # f37b4d553e57883caf330adf624d194abe00bc39 is main at Oct 24th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@f37b4d553e57883caf330adf624d194abe00bc39
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
       - replace-tag-v
@@ -114,8 +114,8 @@ jobs:
       trivy: true
 
   build-container-geth-celo-org:
-    # 818f62a82d689ec6d7e84005ba8f7dcaea1415ff is main at Oct 24th 2023
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@818f62a82d689ec6d7e84005ba8f7dcaea1415ff
+    # f37b4d553e57883caf330adf624d194abe00bc39 is main at Oct 24th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@f37b4d553e57883caf330adf624d194abe00bc39
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
       - replace-tag-v
@@ -130,8 +130,8 @@ jobs:
       trivy: true
 
   build-container-geth-all-celo-org:
-    # 818f62a82d689ec6d7e84005ba8f7dcaea1415ff is main at Oct 24th 2023
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@818f62a82d689ec6d7e84005ba8f7dcaea1415ff
+    # f37b4d553e57883caf330adf624d194abe00bc39 is main at Oct 24th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@f37b4d553e57883caf330adf624d194abe00bc39
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
       - replace-tag-v
