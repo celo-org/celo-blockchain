@@ -39,7 +39,7 @@ jobs:
       - id: replace
         run: |
           # Transform from `refs/tags/jcv1.9.0` to `1.9.0`
-          version=$(echo ${{ github.ref_name }} | sed 's!refs/tags/jcv!!')
+          version=$(echo ${{ github.ref_name }} | sed 's!jcv!!')
           echo "value=${version}" >> $GITHUB_OUTPUT
       - id: major-minor
         run: |
