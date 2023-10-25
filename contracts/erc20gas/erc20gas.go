@@ -1,20 +1,18 @@
 package erc20gas
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contracts/internal/n"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/log"
 )
 
 const (
 	maxGasForDebitGasFeesTransactions  uint64 = 1 * n.Million
 	maxGasForCreditGasFeesTransactions uint64 = 1 * n.Million
-	maxGasForDebitNativeTransactions   uint64 = 1 * n.Million
-	maxGasForCreditNativeTransactions  uint64 = 1 * n.Million
 )
 
 var (
@@ -43,11 +41,11 @@ func DebitFees(evm *vm.EVM, address common.Address, amount *big.Int, feeCurrency
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
 	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, maxGasForDebitGasFeesTransactions, big.NewInt(0))
 	gasUsed := maxGasForDebitGasFeesTransactions - leftoverGas
-	log.Trace("debitGasFees called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	fmt.Println("debitGasFees called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 	return err
 }
 
-func DebitFeesNative(evm *vm.EVM, address common.Address, amount *big.Int, feeCurrency *common.Address) error {
+func DebitFeesNew(evm *vm.EVM, address common.Address, amount *big.Int, feeCurrency *common.Address) error {
 	if amount.Cmp(big.NewInt(0)) == 0 {
 		return nil
 	}
@@ -67,9 +65,9 @@ func DebitFeesNative(evm *vm.EVM, address common.Address, amount *big.Int, feeCu
 	// create account ref
 	caller := vm.AccountRef(address)
 
-	_, leftoverGas, err := evm.Call(caller, *feeCurrency, transferData, maxGasForDebitNativeTransactions, big.NewInt(0))
-	gasUsed := maxGasForCreditNativeTransactions - leftoverGas
-	log.Trace("debitGasFees called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	_, leftoverGas, err := evm.Call(caller, *feeCurrency, transferData, maxGasForDebitGasFeesTransactions, big.NewInt(0))
+	gasUsed := maxGasForDebitGasFeesTransactions - leftoverGas
+	fmt.Println("DebitFeesNew called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 	return err
 }
 
@@ -98,11 +96,11 @@ func CreditFees(
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
 	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, maxGasForCreditGasFeesTransactions, big.NewInt(0))
 	gasUsed := maxGasForCreditGasFeesTransactions - leftoverGas
-	log.Trace("creditGas called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	fmt.Println("creditGas called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 	return err
 }
 
-func CreditFeesNative(
+func CreditFeesNew(
 	evm *vm.EVM,
 	from common.Address,
 	feeRecipient common.Address,
@@ -132,23 +130,21 @@ func CreditFeesNative(
 	transfer3Data := common.GetEncodedAbi(transferSelector, [][]byte{common.AddressToAbi(feeHandler), common.AmountToAbi(baseTxFee)})
 
 	// do EVM calls
-	_, leftoverGas, err := evm.Call(caller, *feeCurrency, transfer1Data, maxGasForCreditNativeTransactions, big.NewInt(0))
+	_, leftoverGas, err := evm.Call(caller, *feeCurrency, transfer1Data, maxGasForCreditGasFeesTransactions, big.NewInt(0))
 	if err != nil {
 		return err
 	}
-	gasUsed := maxGasForDebitNativeTransactions - leftoverGas
-	_, leftoverGas, err = evm.Call(caller, *feeCurrency, transfer2Data, maxGasForCreditNativeTransactions, big.NewInt(0))
+	_, leftoverGas, err = evm.Call(caller, *feeCurrency, transfer2Data, leftoverGas, big.NewInt(0))
 	if err != nil {
 		return err
 	}
-	gasUsed = gasUsed - leftoverGas
-	_, leftoverGas, err = evm.Call(caller, *feeCurrency, transfer3Data, maxGasForCreditNativeTransactions, big.NewInt(0))
+	_, leftoverGas, err = evm.Call(caller, *feeCurrency, transfer3Data, leftoverGas, big.NewInt(0))
 	if err != nil {
 		return err
 	}
-	gasUsed = gasUsed - leftoverGas
+	gasUsed := maxGasForCreditGasFeesTransactions - leftoverGas
 
-	log.Trace("debitGasFees called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	fmt.Println("creditFeesNew called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 
 	return err
 }

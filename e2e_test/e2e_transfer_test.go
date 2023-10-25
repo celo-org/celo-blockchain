@@ -531,11 +531,12 @@ func TestTransferERC20(t *testing.T) {
 			require.Equal(t, feeHandlerAddress, eventTo)
 
 			fmt.Println("feendler", env.MustProxyAddressFor("FeeHandler"))
+			// fmt.Println("Gas", receipt.GasUsed)
 			fmt.Println("Logs", receipt.Logs)
 			for i := 0; i < len(receipt.Logs); i++ {
 				fmt.Println("log ", i, receipt.Logs[i])
 			}
-			// require.Error(t, err)
+			require.Error(t, err)
 		})
 	}
 }
