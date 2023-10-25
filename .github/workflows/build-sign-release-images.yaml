@@ -5,9 +5,9 @@ on:
     branches:
       # Matches i.e: release/1.9.x
       - 'release/[0-9]+.[0-9]+.x'
-      - 'jcortejoso/[0-9]+.[0-9]+.x'
     tags:        
       - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'jcv[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
 
 jobs:
@@ -17,11 +17,12 @@ jobs:
     # Map a step output to a job output
     outputs:
       replaced-branch: ${{ steps.replace.outputs.value }}
-    if: startsWith(github.ref, 'refs/heads/jcortejoso')
+    if: startsWith(github.ref, 'refs/heads/release')
     steps:
       - id: replace
         run: |
-          branch_name=$(echo ${{ github.ref_name }} | sed 's/\///' )
+          # Transform from `refs/heads/release/1.9.x` to `release-1.9`
+          branch_name=$(echo ${{ github.ref_name }} | sed 's!refs/heads/!!' | sed 's!/!-!' | sed 's!\.x!!')
           echo "replace-branch-name output: value=${branch_name}"
           echo "value=${branch_name}" >> $GITHUB_OUTPUT
 
@@ -33,14 +34,17 @@ jobs:
       replaced-tag: ${{ steps.replace.outputs.value }}
       major: ${{ steps.major-minor.outputs.MAJOR }}
       major-minor: ${{ steps.major-minor.outputs.MAJOR_MINOR }}
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/jcv')
     steps:
       - id: replace
         run: |
-          version=$(echo ${{ github.ref_name }} | sed 's/^v//' )
+          # Transform from `refs/tags/jcv1.9.0` to `1.9.0`
+          version=$(echo ${{ github.ref_name }} | sed 's!refs/tags/jcv!!')
           echo "value=${version}" >> $GITHUB_OUTPUT
       - id: major-minor
         run: |
+          # Extracts the major and major-minor versions
+          # I.e: 1.9.0 -> MAJOR=1, MAJOR_MINOR=1.9
           version=${{ steps.replace.outputs.value }}
           semver=( ${version//./ } )
           echo "replace-tag-v output: MAJOR=${semver[0]}"
@@ -49,16 +53,16 @@ jobs:
           echo "MAJOR_MINOR=${semver[0]}.${semver[1]}" >> $GITHUB_OUTPUT
 
   build-container-geth-dev:
-    # d978270318e3db7192d642f1f4a13915afec7c66 is main at Oct 24th 2023
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@d978270318e3db7192d642f1f4a13915afec7c66
-    if: startsWith(github.ref, 'refs/heads/jcortejoso')
+    # 7b956940a337e987289a6788c5a562a3e1e5c2ab is main at Oct 25th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@7b956940a337e987289a6788c5a562a3e1e5c2ab
+    if: startsWith(github.ref, 'refs/heads/release')
     needs:
       - replace-branch-name
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
       service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
-      tag: jcortejoso-${{ needs.replace-branch-name.outputs.replaced-branch }}
+      tag: ${{ needs.replace-branch-name.outputs.replaced-branch }}
       platforms: linux/amd64,linux/arm64
       context: .
       file: Dockerfile
@@ -66,25 +70,25 @@ jobs:
 
 
   build-container-geth-all-dev:
-    # d978270318e3db7192d642f1f4a13915afec7c66 is main at Oct 24th 2023
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@d978270318e3db7192d642f1f4a13915afec7c66
-    if: startsWith(github.ref, 'refs/heads/jcortejoso')
+    # 7b956940a337e987289a6788c5a562a3e1e5c2ab is main at Oct 25th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@7b956940a337e987289a6788c5a562a3e1e5c2ab
+    if: startsWith(github.ref, 'refs/heads/release')
     needs:
       - replace-branch-name
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
       service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth-all
-      tag: jcortejoso-${{ needs.replace-branch-name.outputs.replaced-branch }}
+      tag: ${{ needs.replace-branch-name.outputs.replaced-branch }}
       platforms: linux/amd64,linux/arm64
       context: .
       file: Dockerfile.alltools
       trivy: true
 
   build-container-geth-devopsre:
-    # d978270318e3db7192d642f1f4a13915afec7c66 is main at Oct 24th 2023
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@d978270318e3db7192d642f1f4a13915afec7c66
-    if: startsWith(github.ref, 'refs/tags/v')
+    # 7b956940a337e987289a6788c5a562a3e1e5c2ab is main at Oct 25th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@7b956940a337e987289a6788c5a562a3e1e5c2ab
+    if: startsWith(github.ref, 'refs/tags/jcv') && false
     needs:
       - replace-tag-v
     with:
@@ -98,9 +102,9 @@ jobs:
       trivy: true
 
   build-container-geth-all-devopsre:
-    # d978270318e3db7192d642f1f4a13915afec7c66 is main at Oct 24th 2023
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@d978270318e3db7192d642f1f4a13915afec7c66
-    if: startsWith(github.ref, 'refs/tags/v')
+    # 7b956940a337e987289a6788c5a562a3e1e5c2ab is main at Oct 25th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@7b956940a337e987289a6788c5a562a3e1e5c2ab
+    if: startsWith(github.ref, 'refs/tags/jcv') && false
     needs:
       - replace-tag-v
     with:
@@ -114,39 +118,39 @@ jobs:
       trivy: true
 
   build-container-geth-celo-org:
-    # d978270318e3db7192d642f1f4a13915afec7c66 is main at Oct 24th 2023
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@d978270318e3db7192d642f1f4a13915afec7c66
-    if: startsWith(github.ref, 'refs/tags/v')
+    # 7b956940a337e987289a6788c5a562a3e1e5c2ab is main at Oct 25th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@7b956940a337e987289a6788c5a562a3e1e5c2ab
+    if: startsWith(github.ref, 'refs/tags/jcv')
     needs:
       - replace-tag-v
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
       service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-docker.pkg.dev/celo-org/us.gcr.io/geth
-      tag: ${{ needs.replace-tag-v.outputs.replaced-tag }}
+      tag: jcv-${{ needs.replace-tag-v.outputs.replaced-tag }}
       platforms: linux/amd64,linux/arm64
       context: .
       file: Dockerfile
       trivy: true
 
   build-container-geth-all-celo-org:
-    # d978270318e3db7192d642f1f4a13915afec7c66 is main at Oct 24th 2023
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@d978270318e3db7192d642f1f4a13915afec7c66
-    if: startsWith(github.ref, 'refs/tags/v')
+    # 7b956940a337e987289a6788c5a562a3e1e5c2ab is main at Oct 25th 2023
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@7b956940a337e987289a6788c5a562a3e1e5c2ab
+    if: startsWith(github.ref, 'refs/tags/jcv')
     needs:
       - replace-tag-v
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
       service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-docker.pkg.dev/celo-org/us.gcr.io/geth-all
-      tag: ${{ needs.replace-tag-v.outputs.replaced-tag }}
+      tag: jcv-${{ needs.replace-tag-v.outputs.replaced-tag }}
       platforms: linux/amd64,linux/arm64
       context: .
       file: Dockerfile.alltools
       trivy: true
 
-  Add-Baklava-tag:
-    if: startsWith(github.ref, 'refs/tags/v')
+  add-baklava-tag:
+    if: startsWith(github.ref, 'refs/tags/jcv')
     uses: ./.github/workflows/add-docker-tag.yaml
     needs:
       - replace-tag-v
@@ -156,10 +160,10 @@ jobs:
       - build-container-geth-all-dev
     with:
       origin-tag: ${{ needs.replace-tag-v.outputs.replaced-tag }}
-      destination-tag: baklava
+      destination-tag: jcv-baklava
 
-  Add-Major-tag:
-    if: startsWith(github.ref, 'refs/tags/v')
+  add-major-tag:
+    if: startsWith(github.ref, 'refs/tags/jcv')
     uses: ./.github/workflows/add-docker-tag.yaml
     needs:
       - replace-tag-v
@@ -171,8 +175,8 @@ jobs:
       origin-tag: ${{ needs.replace-tag-v.outputs.replaced-tag }}
       destination-tag: ${{ needs.replace-tag-v.outputs.major }}
 
-  Add-Major-Minor-tag:
-    if: startsWith(github.ref, 'refs/tags/v')
+  add-major-minor-tag:
+    if: startsWith(github.ref, 'refs/tags/jcv')
     uses: ./.github/workflows/add-docker-tag.yaml
     needs:
       - replace-tag-v
@@ -181,5 +185,5 @@ jobs:
       - build-container-geth-dev
       - build-container-geth-all-dev
     with:
-      origin-tag: ${{ needs.replace-tag-v.outputs.replaced-tag }}
-      destination-tag: ${{ needs.replace-tag-v.outputs.major-minor }}
+      origin-tag: jcv-${{ needs.replace-tag-v.outputs.replaced-tag }}
+      destination-tag: jcv-${{ needs.replace-tag-v.outputs.major-minor }}
