@@ -52,6 +52,12 @@ func DebitFeesNative(evm *vm.EVM, address common.Address, amount *big.Int, feeCu
 		return nil
 	}
 
+	// Run only primary evm.Call() with tracer
+	if evm.GetDebug() {
+		evm.SetDebug(false)
+		defer func() { evm.SetDebug(true) }()
+	}
+
 	// Transfer is a paid mutator transaction binding the contract method 0xa9059cbb.
 	//
 	// Solidity: function transfer(address to, uint256 amount) returns(bool)
@@ -107,6 +113,13 @@ func CreditFeesNative(
 	gatewayFee *big.Int,
 	baseTxFee *big.Int,
 	feeCurrency *common.Address) error {
+
+	// Run only primary evm.Call() with tracer
+	if evm.GetDebug() {
+		evm.SetDebug(false)
+		defer func() { evm.SetDebug(true) }()
+	}
+
 	// create account ref
 	caller := vm.AccountRef(tmpAddress)
 
