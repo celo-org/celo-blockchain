@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-container-blockchain-binaries:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@1e4de01c8a4c8271b1a9599c72894684386d63cd
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.12.3
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
       service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
