@@ -16,14 +16,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Login at GCP Artifact Registry
-        # 9817fca8d235a679e56bdcc72c31dfc548413805 is master at Sep 28, 2023
-        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@9817fca8d235a679e56bdcc72c31dfc548413805
+        # v1.12.3 is main at Oct 26, 2023
+        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v1.12.3
         with:
           workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
           service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
           artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
       - name: Build and push container
-        uses: celo-org/reusable-workflows/.github/actions/build-container@9817fca8d235a679e56bdcc72c31dfc548413805
+        uses: celo-org/reusable-workflows/.github/actions/build-container@v1.12.3
         with:
           platforms: linux/amd64,linux/arm64
           registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
@@ -43,13 +43,13 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Login at GCP Artifact Registry
-        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@9817fca8d235a679e56bdcc72c31dfc548413805
+        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v1.12.3
         with:
           workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
           service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
           artifact-registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth
       - name: Build and push container
-        uses: celo-org/reusable-workflows/.github/actions/build-container@9817fca8d235a679e56bdcc72c31dfc548413805
+        uses: celo-org/reusable-workflows/.github/actions/build-container@v1.12.3
         with:
           platforms: linux/amd64,linux/arm64
           registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
@@ -69,13 +69,13 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Login at GCP Artifact Registry
-        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@9817fca8d235a679e56bdcc72c31dfc548413805
+        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v1.12.3
         with:
           workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
           service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
           artifact-registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-all
       - name: Build and push container
-        uses: celo-org/reusable-workflows/.github/actions/build-container@9817fca8d235a679e56bdcc72c31dfc548413805
+        uses: celo-org/reusable-workflows/.github/actions/build-container@v1.12.3
         with:
           platforms: linux/amd64,linux/arm64
           registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth-all

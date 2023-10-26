@@ -27,7 +27,7 @@ on:
         type: string
 
 jobs:
-  Add-Tag:
+  add-tag:
     runs-on: ubuntu-latest
     permissions:
       contents: 'read'
