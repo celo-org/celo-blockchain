@@ -14,7 +14,7 @@ jobs:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
       service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-xgo-builder
-      tag: latest
+      tag: ${{ github.sha }}
       platforms: linux/amd64
       context: .
       file: Dockerfile.binaries
@@ -60,8 +60,7 @@ jobs:
       - name: 'Go Run all-tools'
         run: |
           docker run --rm \
-            \
-              -v $(pwd)/build/bin:/build \
+            -v $(pwd)/build/bin:/build \
             -v $(pwd)/build/archives:/archives \
             -v $(pwd):/go/src/github.com/celo-org/celo-blockchain \
             --env BUILD_TARGETS=$_BUILD_TARGETS \
