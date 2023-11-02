@@ -162,6 +162,8 @@ var (
 		utils.ProxyEnodeURLPairsFlag,
 		utils.LegacyProxyEnodeURLPairsFlag,
 		utils.ProxyAllowPrivateIPFlag,
+		utils.CeloFeeCurrencyDefault,
+		utils.CeloFeeCurrencyLimits,
 	}
 
 	rpcFlags = []cli.Flag{

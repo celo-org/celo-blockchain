@@ -171,6 +171,8 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.MiningEnabledFlag,
 			utils.MinerValidatorFlag,
 			utils.MinerExtraDataFlag,
+			utils.CeloFeeCurrencyDefault,
+			utils.CeloFeeCurrencyLimits,
 		},
 	},
 	{
