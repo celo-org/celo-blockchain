@@ -41,12 +41,13 @@ import (
 type blockState struct {
 	signer types.Signer
 
-	state      *state.StateDB   // apply state changes here
-	tcount     int              // tx count in cycle
-	gasPool    *core.GasPool    // available gas used to pack transactions
-	bytesBlock *core.BytesBlock // available bytes used to pack transactions
-	gasLimit   uint64
-	sysCtx     *core.SysContractCallCtx
+	state        *state.StateDB    // apply state changes here
+	tcount       int               // tx count in cycle
+	gasPool      *core.GasPool     // available gas used to pack transactions
+	bytesBlock   *core.BytesBlock  // available bytes used to pack transactions
+	multiGasPool core.MultiGasPool // available gas to pay for with currency
+	gasLimit     uint64
+	sysCtx       *core.SysContractCallCtx
 
 	header         *types.Header
 	txs            []*types.Transaction
@@ -112,6 +113,20 @@ func prepareBlock(w *worker) (*blockState, error) {
 		txFeeRecipient: txFeeRecipient,
 	}
 	b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
+
+	whitelist, err := currency.CurrencyWhitelist(vmRunner)
+	if err != nil {
+		log.Warn("Can't fetch currency whitelist", "error", err, "block", header.Number.Uint64())
+		whitelist = []common.Address{}
+	}
+
+	b.multiGasPool = core.NewMultiGasPool(
+		b.gasLimit,
+		whitelist,
+		w.config.FeeCurrencyDefault,
+		w.config.FeeCurrencyLimits,
+	)
+
 	if w.chainConfig.IsGingerbread(header.Number) {
 		header.GasLimit = b.gasLimit
 		header.Difficulty = big.NewInt(0)
@@ -250,6 +265,17 @@ loop:
 		if tx == nil {
 			break
 		}
+		// Short-circuit if the transaction is using more gas allocated for the
+		// given fee currency.
+		if b.multiGasPool.PoolFor(tx.FeeCurrency()).Gas() < tx.Gas() {
+			log.Trace(
+				"Skipping transaction which requires more gas than is left in the pool",
+				"hash", tx.Hash(), "gas", b.multiGasPool.PoolFor(tx.FeeCurrency()).Gas(),
+				"txgas", tx.Gas(),
+			)
+			txs.Pop()
+			continue
+		}
 		// Short-circuit if the transaction requires more gas than we have in the pool.
 		// If we didn't short-circuit here, we would get core.ErrGasLimitReached below.
 		// Short-circuiting here saves us the trouble of checking the GPM and so on when the tx can't be included
@@ -321,6 +347,18 @@ loop:
 					return err
 				}
 			}
+
+			err = b.multiGasPool.PoolFor(tx.FeeCurrency()).SubGas(tx.Gas())
+			// Should never happen as we check it above
+			if err != nil {
+				log.Warn(
+					"Unexpectedly reached limit for fee currency",
+					"hash", tx.Hash(), "gas", b.multiGasPool.PoolFor(tx.FeeCurrency()).Gas(),
+					"txgas", tx.Gas(),
+				)
+				return err
+			}
+
 			txs.Shift()
 
 		default:

@@ -43,8 +43,10 @@ type Backend interface {
 
 // Config is the configuration parameters of mining.
 type Config struct {
-	Validator common.Address `toml:",omitempty"` // Public address for block signing and randomness (default = first account)
-	ExtraData hexutil.Bytes  `toml:",omitempty"` // Block extra data set by the miner
+	Validator          common.Address             `toml:",omitempty"` // Public address for block signing and randomness (default = first account)
+	ExtraData          hexutil.Bytes              `toml:",omitempty"` // Block extra data set by the miner
+	FeeCurrencyDefault float64                    // Default fraction of block gas limit
+	FeeCurrencyLimits  map[common.Address]float64 // Fee currency-to-limit fraction mapping
 }
 
 // Miner creates blocks and searches for proof-of-work values.
