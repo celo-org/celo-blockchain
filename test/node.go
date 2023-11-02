@@ -26,6 +26,7 @@ import (
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/eth/tracers"
 	"github.com/celo-org/celo-blockchain/ethclient"
+	"github.com/celo-org/celo-blockchain/miner"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"github.com/celo-org/celo-blockchain/mycelo/genesis"
 	"github.com/celo-org/celo-blockchain/node"
@@ -85,6 +86,9 @@ var (
 			ProposerPolicy:              istanbul.ShuffledRoundRobin,
 			DefaultLookbackWindow:       3,
 			BlockPeriod:                 0,
+		},
+		Miner: miner.Config{
+			FeeCurrencyDefault: 0.9,
 		},
 	}
 )
