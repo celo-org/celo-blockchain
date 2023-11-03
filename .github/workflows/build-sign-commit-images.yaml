@@ -21,7 +21,7 @@ jobs:
         with:
           workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
           service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
-          artifact-registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
+          docker-gcp-registries: us-west1-docker.pkg.dev
       - name: Build and push container
         uses: celo-org/reusable-workflows/.github/actions/build-container@v1.12.3
         with:
@@ -47,12 +47,12 @@ jobs:
         with:
           workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
           service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
-          artifact-registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth
+          docker-gcp-registries: us-west1-docker.pkg.dev
       - name: Build and push container
         uses: celo-org/reusable-workflows/.github/actions/build-container@v1.12.3
         with:
           platforms: linux/amd64,linux/arm64
-          registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
+          registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth
           tag: master
           context: .
           dockerfile: Dockerfile
@@ -73,12 +73,12 @@ jobs:
         with:
           workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
           service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
-          artifact-registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-all
+          docker-gcp-registries: us-west1-docker.pkg.dev
       - name: Build and push container
         uses: celo-org/reusable-workflows/.github/actions/build-container@v1.12.3
         with:
           platforms: linux/amd64,linux/arm64
-          registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth-all
+          registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-all
           tag: master
           context: .
           dockerfile: Dockerfile.alltools
