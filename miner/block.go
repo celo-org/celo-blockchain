@@ -114,19 +114,6 @@ func prepareBlock(w *worker) (*blockState, error) {
 	}
 	b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
 
-	whitelist, err := currency.CurrencyWhitelist(vmRunner)
-	if err != nil {
-		log.Warn("Can't fetch currency whitelist", "error", err, "block", header.Number.Uint64())
-		whitelist = []common.Address{}
-	}
-
-	b.multiGasPool = core.NewMultiGasPool(
-		b.gasLimit,
-		whitelist,
-		w.config.FeeCurrencyDefault,
-		w.config.FeeCurrencyLimits,
-	)
-
 	if w.chainConfig.IsGingerbread(header.Number) {
 		header.GasLimit = b.gasLimit
 		header.Difficulty = big.NewInt(0)
@@ -141,6 +128,13 @@ func prepareBlock(w *worker) (*blockState, error) {
 		b.bytesBlock = new(core.BytesBlock).SetLimit(params.MaxTxDataPerBlock)
 	}
 	b.sysCtx = core.NewSysContractCallCtx(header, state.Copy(), w.chain)
+
+	b.multiGasPool = core.NewMultiGasPool(
+		b.gasLimit,
+		b.sysCtx.GetWhitelistedCurrencies(),
+		w.config.FeeCurrencyDefault,
+		w.config.FeeCurrencyLimits,
+	)
 
 	// Play our part in generating the random beacon.
 	if w.isRunning() && random.IsRunning(vmRunner) {
@@ -269,9 +263,9 @@ loop:
 		// given fee currency.
 		if b.multiGasPool.PoolFor(tx.FeeCurrency()).Gas() < tx.Gas() {
 			log.Trace(
-				"Skipping transaction which requires more gas than is left in the pool",
-				"hash", tx.Hash(), "gas", b.multiGasPool.PoolFor(tx.FeeCurrency()).Gas(),
-				"txgas", tx.Gas(),
+				"Skipping transaction which requires more gas than is left in the pool for a specific fee currency",
+				"currency", tx.FeeCurrency(), "tx hash", tx.Hash(),
+				"gas", b.multiGasPool.PoolFor(tx.FeeCurrency()).Gas(), "txgas", tx.Gas(),
 			)
 			txs.Pop()
 			continue
