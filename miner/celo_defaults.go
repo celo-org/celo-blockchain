@@ -15,6 +15,6 @@ var DefaultFeeCurrencyLimits = map[uint64]map[common.Address]float64{
 	params.MainnetNetworkId: {
 		cUSD_TOKEN:  0.9,
 		cEUR_TOKEN:  0.5,
-		cREAL_TOKEN: 0.1,
+		cREAL_TOKEN: 0.5,
 	},
 }
