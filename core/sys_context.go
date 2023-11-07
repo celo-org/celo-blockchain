@@ -75,7 +75,7 @@ func (sc *SysContractCallCtx) GetIntrinsicGasForAlternativeFeeCurrency() uint64 
 
 // GetWhitelistedCurrencies retrieves intrinsic gas for non-native fee currencies.
 func (sc *SysContractCallCtx) GetWhitelistedCurrencies() []common.Address {
-	whitelist := make([]common.Address, len(sc.whitelistedCurrencies))
+	whitelist := make([]common.Address, 0, len(sc.whitelistedCurrencies))
 
 	for c := range sc.whitelistedCurrencies {
 		whitelist = append(whitelist, c)
