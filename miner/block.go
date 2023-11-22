@@ -342,13 +342,22 @@ loop:
 				}
 			}
 
-			err = b.multiGasPool.PoolFor(tx.FeeCurrency()).SubGas(tx.Gas())
+			if len(b.receipts) == 0 {
+				// this shouldn't happen as if there was no error on commitTransaction
+				// a new receipt gets added
+				log.Warn("Unexpectedly empty receipts list")
+				return fmt.Errorf("No new receipts added for tx %s", tx.Hash())
+			}
+
+			receipt := b.receipts[len(b.receipts)-1]
+
+			err = b.multiGasPool.PoolFor(tx.FeeCurrency()).SubGas(receipt.GasUsed)
 			// Should never happen as we check it above
 			if err != nil {
 				log.Warn(
 					"Unexpectedly reached limit for fee currency",
 					"hash", tx.Hash(), "gas", b.multiGasPool.PoolFor(tx.FeeCurrency()).Gas(),
-					"txgas", tx.Gas(),
+					"tx gas used", receipt.GasUsed,
 				)
 				return err
 			}
