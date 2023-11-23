@@ -307,7 +307,10 @@ loop:
 		// Start executing the transaction
 		b.state.Prepare(tx.Hash(), b.tcount)
 
+		availableGas := b.gasPool.Gas()
 		logs, err := b.commitTransaction(w, tx, txFeeRecipient)
+		gasUsed := availableGas - b.gasPool.Gas()
+
 		switch {
 		case errors.Is(err, core.ErrGasLimitReached):
 			// Pop the current out-of-gas transaction without shifting in the next from the account
@@ -342,22 +345,13 @@ loop:
 				}
 			}
 
-			if len(b.receipts) == 0 {
-				// this shouldn't happen as if there was no error on commitTransaction
-				// a new receipt gets added
-				log.Warn("Unexpectedly empty receipts list")
-				return fmt.Errorf("No new receipts added for tx %s", tx.Hash())
-			}
-
-			receipt := b.receipts[len(b.receipts)-1]
-
-			err = b.multiGasPool.PoolFor(tx.FeeCurrency()).SubGas(receipt.GasUsed)
+			err = b.multiGasPool.PoolFor(tx.FeeCurrency()).SubGas(gasUsed)
 			// Should never happen as we check it above
 			if err != nil {
 				log.Warn(
 					"Unexpectedly reached limit for fee currency",
 					"hash", tx.Hash(), "gas", b.multiGasPool.PoolFor(tx.FeeCurrency()).Gas(),
-					"tx gas used", receipt.GasUsed,
+					"tx gas used", gasUsed,
 				)
 				return err
 			}
