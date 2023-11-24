@@ -10,9 +10,37 @@ import (
 
 type CurrencyCmpFn func(*big.Int, *common.Address, *big.Int, *common.Address) int
 
-// IsCheaper returns true if tx1 is cheaper than tx2 (GasPrice with currency comparison)
-func (cc CurrencyCmpFn) IsCheaper(tx1, tx2 *types.Transaction) bool {
-	return cc(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency()) < 0
+func (cc CurrencyCmpFn) GasTipCapCmp(tx, other *types.Transaction) int {
+	return cc(tx.GasTipCap(), tx.FeeCurrency(), other.GasTipCap(), other.FeeCurrency())
+}
+
+// EffectiveGasTipCmp returns the same comparison result as Transaction.EffectiveGasTipCmp
+// but taking into account the exchange rate comparison of the CurrencyCmpFn.
+// Each baseFee is expressed in each tx's currency.
+func (cc CurrencyCmpFn) EffectiveGasTipCmp(tx, other *types.Transaction, baseFeeA, baseFeeB *big.Int) int {
+	return cc(tx.EffectiveGasTipValue(baseFeeA), tx.FeeCurrency(), other.EffectiveGasTipValue(baseFeeB), other.FeeCurrency())
+}
+
+func (cc CurrencyCmpFn) GasFeeCapCmp(a, b *types.Transaction) int {
+	return cc(a.GasFeeCap(), a.FeeCurrency(), b.GasFeeCap(), b.FeeCurrency())
+}
+
+// Cmp returns the same comparison as the priceHeap comparison but taking into account
+// the exchange rate comparison of the CurrencyCmpFn.
+// Each baseFee is expressed in each tx's currency.
+func (cc CurrencyCmpFn) Cmp(a, b *types.Transaction, baseFeeA, baseFeeB *big.Int) int {
+	if baseFeeA != nil && baseFeeB != nil {
+		// Compare effective tips if baseFee is specified
+		if c := cc.EffectiveGasTipCmp(a, b, baseFeeA, baseFeeB); c != 0 {
+			return c
+		}
+	}
+	// Compare fee caps if baseFee is not specified or effective tips are equal
+	if c := cc.GasFeeCapCmp(a, b); c != 0 {
+		return c
+	}
+	// Compare tips if effective tips and fee caps are equal
+	return cc.GasTipCapCmp(a, b)
 }
 
 // multiCurrencyPriceHeap is a heap.Interface implementation over transactions
@@ -34,8 +62,10 @@ func newMultiCurrencyPriceHeap(currencyCmp CurrencyCmpFn, gpm GasPriceMinimums) 
 
 		// inner state
 
-		nativeCurrencyHeap: &priceHeap{},
-		currencyHeaps:      make(map[common.Address]*priceHeap),
+		nativeCurrencyHeap: &priceHeap{}, // Not initializing the basefee
+		// since it gets updated as soon as the node starts, and
+		// tx pool tests (upstream) assume baseFee == nil
+		currencyHeaps: make(map[common.Address]*priceHeap),
 	}
 }
 
@@ -79,11 +109,18 @@ func (h *multiCurrencyPriceHeap) cheapestTxs() []*types.Transaction {
 	return txs
 }
 
+// IsCheaper returs true iff tx1 effective gas price <= tx2's
+func (h *multiCurrencyPriceHeap) IsCheaper(tx1, tx2 *types.Transaction) bool {
+	baseFee1 := h.getHeapFor(tx1).baseFee
+	baseFee2 := h.getHeapFor(tx2).baseFee
+	return h.currencyCmp.Cmp(tx1, tx2, baseFee1, baseFee2) <= 0
+}
+
 func (h *multiCurrencyPriceHeap) cheapestTx() *types.Transaction {
 	txs := h.cheapestTxs()
 	var cheapestTx *types.Transaction
 	for _, tx := range txs {
-		if cheapestTx == nil || h.currencyCmp.IsCheaper(tx, cheapestTx) {
+		if cheapestTx == nil || h.IsCheaper(tx, cheapestTx) {
 			cheapestTx = tx
 		}
 	}
