@@ -696,10 +696,11 @@ func (l *txPricedList) Underpriced(tx *types.Transaction) bool {
 }
 
 func (l *txPricedList) underpricedForMulti(h *multiCurrencyPriceHeap, tx *types.Transaction) bool {
-	underpriced := l.underpricedFor(h.nativeCurrencyHeap, tx)
+	// Has to be underpriced for ALL heaps to be underpriced for the whole pool.
+	underpriced := l.underpricedFor(h.nativeCurrencyHeap, tx, h.IsCheaper)
 	for _, sh := range h.currencyHeaps {
-		if l.underpricedFor(sh, tx) {
-			underpriced = true
+		if !l.underpricedFor(sh, tx, h.IsCheaper) {
+			underpriced = false
 		}
 	}
 	return underpriced
@@ -707,7 +708,7 @@ func (l *txPricedList) underpricedForMulti(h *multiCurrencyPriceHeap, tx *types.
 
 // underpricedFor checks whether a transaction is cheaper than (or as cheap as) the
 // lowest priced (remote) transaction in the given heap.
-func (l *txPricedList) underpricedFor(h *priceHeap, tx *types.Transaction) bool {
+func (l *txPricedList) underpricedFor(h *priceHeap, tx *types.Transaction, isCheaper func(tx1, tx2 *types.Transaction) bool) bool {
 	// Discard stale price points if found at the heap start
 	for len(h.list) > 0 {
 		head := h.list[0]
@@ -724,7 +725,7 @@ func (l *txPricedList) underpricedFor(h *priceHeap, tx *types.Transaction) bool 
 	}
 	// If the remote transaction is even cheaper than the
 	// cheapest one tracked locally, reject it.
-	return h.cmp(h.list[0], tx) >= 0
+	return isCheaper(tx, h.list[0])
 }
 
 // Discard finds a number of most underpriced transactions, removes them from the
