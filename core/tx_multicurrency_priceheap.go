@@ -19,6 +19,9 @@ func (cc CurrencyCmpFn) GasTipCapCmp(tx, other *types.Transaction) int {
 	return cc(tx.GasTipCap(), tx.FeeCurrency(), other.GasTipCap(), other.FeeCurrency())
 }
 
+// EffectiveGasTipCmp returns the same comparison result as Transaction.EffectiveGasTipCmp
+// but taking into account the exchange rate comparison of the CurrencyCmpFn.
+// Each baseFee is expressed in each tx's currency.
 func (cc CurrencyCmpFn) EffectiveGasTipCmp(tx, other *types.Transaction, baseFeeA, baseFeeB *big.Int) int {
 	if baseFeeA == nil && baseFeeB == nil {
 		return cc.GasTipCapCmp(tx, other)
@@ -30,6 +33,9 @@ func (cc CurrencyCmpFn) GasFeeCapCmp(a, b *types.Transaction) int {
 	return cc(a.GasFeeCap(), a.FeeCurrency(), b.GasFeeCap(), b.FeeCurrency())
 }
 
+// Cmp returns the same comparison as the priceHeap comparison but taking into account
+// the exchange rate comparison of the CurrencyCmpFn.
+// Each baseFee is expressed in each tx's currency.
 func (cc CurrencyCmpFn) Cmp(a, b *types.Transaction, baseFeeA, baseFeeB *big.Int) int {
 	if baseFeeA != nil || baseFeeB != nil {
 		// Compare effective tips if baseFee is specified
