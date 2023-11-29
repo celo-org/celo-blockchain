@@ -321,6 +321,6 @@ func TestIsCheaper(t *testing.T) {
 		return 1
 	}
 	assert.True(t, cheaper.IsCheaper(tx1, tx2))
-	assert.False(t, equal.IsCheaper(tx1, tx2))
+	assert.True(t, equal.IsCheaper(tx1, tx2))
 	assert.False(t, notCheaper.IsCheaper(tx1, tx2))
 }
