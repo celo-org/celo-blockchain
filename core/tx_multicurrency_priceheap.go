@@ -37,7 +37,7 @@ func (cc CurrencyCmpFn) GasFeeCapCmp(a, b *types.Transaction) int {
 // the exchange rate comparison of the CurrencyCmpFn.
 // Each baseFee is expressed in each tx's currency.
 func (cc CurrencyCmpFn) Cmp(a, b *types.Transaction, baseFeeA, baseFeeB *big.Int) int {
-	if baseFeeA != nil || baseFeeB != nil {
+	if baseFeeA != nil && baseFeeB != nil {
 		// Compare effective tips if baseFee is specified
 		if c := cc.EffectiveGasTipCmp(a, b, baseFeeA, baseFeeB); c != 0 {
 			return c
@@ -70,9 +70,9 @@ func newMultiCurrencyPriceHeap(currencyCmp CurrencyCmpFn, gpm GasPriceMinimums) 
 
 		// inner state
 
-		nativeCurrencyHeap: &priceHeap{
-			baseFee: gpm.GetNativeGPM(),
-		},
+		nativeCurrencyHeap: &priceHeap{}, // Not initializing the basefee
+		// since it gets updated as soon as the node starts, and
+		// tx pool tests (upstream) assume baseFee == nil
 		currencyHeaps: make(map[common.Address]*priceHeap),
 	}
 }
