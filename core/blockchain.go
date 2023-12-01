@@ -50,9 +50,10 @@ import (
 )
 
 var (
-	headBlockGauge     = metrics.NewRegisteredGauge("chain/head/block", nil)
-	headHeaderGauge    = metrics.NewRegisteredGauge("chain/head/header", nil)
-	headFastBlockGauge = metrics.NewRegisteredGauge("chain/head/receipt", nil)
+	headBlockGauge       = metrics.NewRegisteredGauge("chain/head/block", nil)
+	headHeaderGauge      = metrics.NewRegisteredGauge("chain/head/header", nil)
+	headFastBlockGauge   = metrics.NewRegisteredGauge("chain/head/receipt", nil)
+	headBlockGasPriceMin = metrics.NewRegisteredGauge("chain/head/gasprice", nil)
 
 	accountReadTimer   = metrics.NewRegisteredTimer("chain/account/reads", nil)
 	accountHashTimer   = metrics.NewRegisteredTimer("chain/account/hashes", nil)
@@ -476,6 +477,8 @@ func (bc *BlockChain) loadLastState() error {
 	}
 	log.Debug(fmt.Sprintf("Loading Last State: %v", currentHeader.Number))
 	bc.hc.SetCurrentHeader(currentHeader)
+	// Update the head block gas price minimum
+	headBlockGasPriceMin.Update(currentHeader.BaseFee.Int64())
 
 	// Restore the last known head fast block
 	bc.currentFastBlock.Store(currentBlock)
