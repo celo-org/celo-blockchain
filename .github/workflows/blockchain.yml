@@ -39,7 +39,7 @@ jobs:
     #   options: --user root
     runs-on: ["8-cpu","self-hosted","blockchain"]
     env:
-      NODE_VERSION: 18
+      NODE_VERSION: 18.18
       CONTRACTS_BUILD_PATH: packages/protocol/build
 
     steps:
@@ -431,12 +431,6 @@ jobs:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
         cache-dependency-path: celo-monorepo/yarn.lock
-
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
-      timeout-minutes: 30
-      with:
-        limit-access-to-actor: true
 
     - name: Run e2e test
       run: |
