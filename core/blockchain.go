@@ -478,7 +478,9 @@ func (bc *BlockChain) loadLastState() error {
 	log.Debug(fmt.Sprintf("Loading Last State: %v", currentHeader.Number))
 	bc.hc.SetCurrentHeader(currentHeader)
 	// Update the head block gas price minimum
-	headBlockGasPriceMin.Update(currentHeader.BaseFee.Int64())
+	if (currentHeader.BaseFee != nil) {
+		headBlockGasPriceMin.Update(currentHeader.BaseFee.Int64())
+	}
 
 	// Restore the last known head fast block
 	bc.currentFastBlock.Store(currentBlock)
