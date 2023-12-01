@@ -477,8 +477,8 @@ func (bc *BlockChain) loadLastState() error {
 	}
 	log.Debug(fmt.Sprintf("Loading Last State: %v", currentHeader.Number))
 	bc.hc.SetCurrentHeader(currentHeader)
-	// Update the head block gas price minimum
-	if (currentHeader.BaseFee != nil) {
+	// Update the head block gas price minimum (after EIP-1559)
+	if currentHeader.BaseFee != nil {
 		headBlockGasPriceMin.Update(currentHeader.BaseFee.Int64())
 	}
 
