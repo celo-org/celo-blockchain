@@ -307,7 +307,7 @@ func TestIsCheaper_FwdFields(t *testing.T) {
 		assert.Equal(t, curr2, *c2)
 		return -1
 	}
-	assert.True(t, cmp.IsCheaper(tx1, tx2))
+	assert.True(t, cmp.Cmp(tx1, tx2, nil, nil) <= 0)
 }
 
 func TestIsCheaper(t *testing.T) {
@@ -322,9 +322,9 @@ func TestIsCheaper(t *testing.T) {
 	var notCheaper CurrencyCmpFn = func(p1 *big.Int, c1 *common.Address, p2 *big.Int, c2 *common.Address) int {
 		return 1
 	}
-	assert.True(t, cheaper.IsCheaper(tx1, tx2))
-	assert.True(t, equal.IsCheaper(tx1, tx2))
-	assert.False(t, notCheaper.IsCheaper(tx1, tx2))
+	assert.True(t, cheaper.Cmp(tx1, tx2, nil, nil) <= 0)
+	assert.True(t, equal.Cmp(tx1, tx2, nil, nil) <= 0)
+	assert.False(t, notCheaper.Cmp(tx1, tx2, nil, nil) <= 0)
 }
 
 // TestMulticurrencyUnderpriced tests that the underpriced method from pricedList functions
