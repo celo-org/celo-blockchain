@@ -10,11 +10,6 @@ import (
 
 type CurrencyCmpFn func(*big.Int, *common.Address, *big.Int, *common.Address) int
 
-// IsCheaper returns true if tx1 is cheaper (or equal) than tx2 (GasPrice with currency comparison)
-func (cc CurrencyCmpFn) IsCheaper(tx1, tx2 *types.Transaction) bool {
-	return cc.Cmp(tx1, tx2, nil, nil) <= 0
-}
-
 func (cc CurrencyCmpFn) GasTipCapCmp(tx, other *types.Transaction) int {
 	return cc(tx.GasTipCap(), tx.FeeCurrency(), other.GasTipCap(), other.FeeCurrency())
 }
@@ -128,7 +123,7 @@ func (h *multiCurrencyPriceHeap) cheapestTx() *types.Transaction {
 	txs := h.cheapestTxs()
 	var cheapestTx *types.Transaction
 	for _, tx := range txs {
-		if cheapestTx == nil || h.currencyCmp.IsCheaper(tx, cheapestTx) {
+		if cheapestTx == nil || h.IsCheaper(tx, cheapestTx) {
 			cheapestTx = tx
 		}
 	}
