@@ -22,6 +22,8 @@ env:
   # Location where compiled system contracts are stored under the root of this
   # repo.
   SYSTEM_CONTRACTS_PATH: "compiled-system-contracts"
+  # Used for celo-monorepo
+  NODE_VERSION: 18.18
 
 defaults:
   run:
@@ -39,7 +41,6 @@ jobs:
     #   options: --user root
     runs-on: ["8-cpu","self-hosted","blockchain"]
     env:
-      NODE_VERSION: 18
       CONTRACTS_BUILD_PATH: packages/protocol/build
 
     steps:
@@ -391,8 +392,6 @@ jobs:
     name: End-to-end blockchain parameters test
     runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
-    env:
-      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -431,6 +430,7 @@ jobs:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
         cache-dependency-path: celo-monorepo/yarn.lock
+
     - name: Run e2e test
       run: |
         export E2E_TESTS_FORCE_USE_MYCELO=true
@@ -441,8 +441,6 @@ jobs:
     name: End-to-end governance test
     runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
-    env:
-      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -492,8 +490,6 @@ jobs:
     name: End-to-end sync test
     runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
-    env:
-      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -542,8 +538,6 @@ jobs:
     name: End-to-end slashing test
     runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
-    env:
-      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -592,8 +586,6 @@ jobs:
     name: End-to-end transfers test
     runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
-    env:
-      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -642,8 +634,6 @@ jobs:
     name: End-to-end validator order test
     runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
-    env:
-      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -692,8 +682,6 @@ jobs:
     name: End-to-end CIP35-eth compatibility test
     runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
-    env:
-      NODE_VERSION: 18
 
     needs:
     - go-modules
@@ -742,8 +730,6 @@ jobs:
     name: End-to-end replica test
     runs-on: ["8-cpu","self-hosted","blockchain"]
     timeout-minutes: 30
-    env:
-      NODE_VERSION: 18
 
     needs:
     - go-modules
