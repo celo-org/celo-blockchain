@@ -41,12 +41,13 @@ import (
 type blockState struct {
 	signer types.Signer
 
-	state      *state.StateDB   // apply state changes here
-	tcount     int              // tx count in cycle
-	gasPool    *core.GasPool    // available gas used to pack transactions
-	bytesBlock *core.BytesBlock // available bytes used to pack transactions
-	gasLimit   uint64
-	sysCtx     *core.SysContractCallCtx
+	state        *state.StateDB    // apply state changes here
+	tcount       int               // tx count in cycle
+	gasPool      *core.GasPool     // available gas used to pack transactions
+	bytesBlock   *core.BytesBlock  // available bytes used to pack transactions
+	multiGasPool core.MultiGasPool // available gas to pay for with currency
+	gasLimit     uint64
+	sysCtx       *core.SysContractCallCtx
 
 	header         *types.Header
 	txs            []*types.Transaction
@@ -112,6 +113,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 		txFeeRecipient: txFeeRecipient,
 	}
 	b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
+
 	if w.chainConfig.IsGingerbread(header.Number) {
 		header.GasLimit = b.gasLimit
 		header.Difficulty = big.NewInt(0)
@@ -126,6 +128,13 @@ func prepareBlock(w *worker) (*blockState, error) {
 		b.bytesBlock = new(core.BytesBlock).SetLimit(params.MaxTxDataPerBlock)
 	}
 	b.sysCtx = core.NewSysContractCallCtx(header, state.Copy(), w.chain)
+
+	b.multiGasPool = core.NewMultiGasPool(
+		b.gasLimit,
+		b.sysCtx.GetWhitelistedCurrencies(),
+		w.config.FeeCurrencyDefault,
+		w.config.FeeCurrencyLimits,
+	)
 
 	// Play our part in generating the random beacon.
 	if w.isRunning() && random.IsRunning(vmRunner) {
@@ -250,6 +259,17 @@ loop:
 		if tx == nil {
 			break
 		}
+		// Short-circuit if the transaction is using more gas allocated for the
+		// given fee currency.
+		if b.multiGasPool.PoolFor(tx.FeeCurrency()).Gas() < tx.Gas() {
+			log.Trace(
+				"Skipping transaction which requires more gas than is left in the pool for a specific fee currency",
+				"currency", tx.FeeCurrency(), "tx hash", tx.Hash(),
+				"gas", b.multiGasPool.PoolFor(tx.FeeCurrency()).Gas(), "txgas", tx.Gas(),
+			)
+			txs.Pop()
+			continue
+		}
 		// Short-circuit if the transaction requires more gas than we have in the pool.
 		// If we didn't short-circuit here, we would get core.ErrGasLimitReached below.
 		// Short-circuiting here saves us the trouble of checking the GPM and so on when the tx can't be included
@@ -287,7 +307,10 @@ loop:
 		// Start executing the transaction
 		b.state.Prepare(tx.Hash(), b.tcount)
 
+		availableGas := b.gasPool.Gas()
 		logs, err := b.commitTransaction(w, tx, txFeeRecipient)
+		gasUsed := availableGas - b.gasPool.Gas()
+
 		switch {
 		case errors.Is(err, core.ErrGasLimitReached):
 			// Pop the current out-of-gas transaction without shifting in the next from the account
@@ -321,6 +344,18 @@ loop:
 					return err
 				}
 			}
+
+			err = b.multiGasPool.PoolFor(tx.FeeCurrency()).SubGas(gasUsed)
+			// Should never happen as we check it above
+			if err != nil {
+				log.Warn(
+					"Unexpectedly reached limit for fee currency",
+					"hash", tx.Hash(), "gas", b.multiGasPool.PoolFor(tx.FeeCurrency()).Gas(),
+					"tx gas used", gasUsed,
+				)
+				return err
+			}
+
 			txs.Shift()
 
 		default:

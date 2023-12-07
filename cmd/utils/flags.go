@@ -421,6 +421,16 @@ var (
 		Name:  "miner.extradata",
 		Usage: "Block extra data set by the miner (default = client version)",
 	}
+	CeloFeeCurrencyDefault = cli.Float64Flag{
+		Name:  "celo.feecurrency.default",
+		Usage: "Default fraction of block gas limit available for TXs paid with a whitelisted alternative currency",
+		Value: 0.5,
+	}
+	CeloFeeCurrencyLimits = cli.StringFlag{
+		Name:  "celo.feecurrency.limits",
+		Usage: "Comma separated currency address-to-block percentage mappings (<address>=<fraction>)",
+	}
+
 	// Account settings
 
 	UnlockedAccountFlag = cli.StringFlag{
@@ -1432,6 +1442,37 @@ func setMiner(ctx *cli.Context, cfg *miner.Config) {
 	}
 	if ctx.GlobalIsSet(MinerExtraDataFlag.Name) {
 		cfg.ExtraData = []byte(ctx.GlobalString(MinerExtraDataFlag.Name))
+	}
+
+	cfg.FeeCurrencyDefault = ctx.GlobalFloat64(CeloFeeCurrencyDefault.Name)
+
+	defaultLimits, ok := miner.DefaultFeeCurrencyLimits[getNetworkId(ctx)]
+	if !ok {
+		defaultLimits = make(map[common.Address]float64)
+	}
+
+	cfg.FeeCurrencyLimits = defaultLimits
+
+	if ctx.GlobalIsSet(CeloFeeCurrencyLimits.Name) {
+		feeCurrencyLimits := ctx.GlobalString(CeloFeeCurrencyLimits.Name)
+
+		for _, entry := range strings.Split(feeCurrencyLimits, ",") {
+			parts := strings.Split(entry, "=")
+			if len(parts) != 2 {
+				Fatalf("Invalid fee currency limits entry: %s", entry)
+			}
+			var address common.Address
+			if err := address.UnmarshalText([]byte(parts[0])); err != nil {
+				Fatalf("Invalid fee currency address hash %s: %v", parts[0], err)
+			}
+
+			fraction, err := strconv.ParseFloat(parts[1], 64)
+			if err != nil {
+				Fatalf("Invalid block limit fraction %s: %v", parts[1], err)
+			}
+
+			cfg.FeeCurrencyLimits[address] = fraction
+		}
 	}
 }
 

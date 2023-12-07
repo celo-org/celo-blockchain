@@ -73,6 +73,17 @@ func (sc *SysContractCallCtx) GetIntrinsicGasForAlternativeFeeCurrency() uint64 
 	return sc.nonCeloCurrencyIntrinsicGas
 }
 
+// GetWhitelistedCurrencies retrieves intrinsic gas for non-native fee currencies.
+func (sc *SysContractCallCtx) GetWhitelistedCurrencies() []common.Address {
+	whitelist := make([]common.Address, 0, len(sc.whitelistedCurrencies))
+
+	for c := range sc.whitelistedCurrencies {
+		whitelist = append(whitelist, c)
+	}
+
+	return whitelist
+}
+
 // IsWhitelisted indicates if the fee currency is whitelisted, or it's native token(CELO).
 func (sc *SysContractCallCtx) IsWhitelisted(feeCurrency *common.Address) bool {
 	if feeCurrency == nil {
