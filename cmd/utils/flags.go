@@ -423,7 +423,7 @@ var (
 	}
 	CeloFeeCurrencyDefault = cli.Float64Flag{
 		Name:  "celo.feecurrency.default",
-		Usage: "Default fraction of block gas limit available for TXs paid with a whitelisted currency",
+		Usage: "Default fraction of block gas limit available for TXs paid with a whitelisted alternative currency",
 		Value: 0.5,
 	}
 	CeloFeeCurrencyLimits = cli.StringFlag{
