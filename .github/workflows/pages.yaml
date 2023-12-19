@@ -6,7 +6,7 @@ on:
     branches:
       - master
 env:
-  GO_VERSION: '1.17.5'
+  GO_VERSION: '1.18'
   CELO_BLOCKCHAIN_PATH: 'celo-blockchain'
   GO_ETHEREUM_PATH: 'go-ethereum'
 
