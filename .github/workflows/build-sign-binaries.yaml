@@ -66,9 +66,9 @@ jobs:
         with:
           limit-access-to-actor: true
 
-      - name: 'Go Run all-tools'
+      - name: 'Debug Run all-tools'
         run: |
-          docker run --rm \
+          echo docker run --rm \
             -v $(pwd)/build/bin:/build \
             -v $(pwd)/build/archives:/archives \
             -v $(pwd):/go/src/github.com/celo-org/celo-blockchain \
