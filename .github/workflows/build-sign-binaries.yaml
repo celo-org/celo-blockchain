@@ -62,6 +62,7 @@ jobs:
       - name: tmate
         uses: mxschmitt/action-tmate@v3
         timeout-minutes: 30
+        if: false
         with:
           limit-access-to-actor: true
 
@@ -80,7 +81,7 @@ jobs:
             --env CLOUDBUILD=True \
             --env CI=True \
             --entrypoint /bin/sh \
-            us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-xgo-builder:${{ github.sha }} \
+            $IMAGE \
               -c "go run build/ci.go xgo --alltools -- -targets=$BUILD_TARGETS -v -dest /build"
 
       - name: 'Go Run xgo-archive'
@@ -98,7 +99,7 @@ jobs:
             --env CLOUDBUILD=True \
             --env CI=True \
             --entrypoint /bin/sh \
-            us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-xgo-builder:${{ github.sha }} \
+            $IMAGE \
               -c "go run build/ci.go xgo-archive -targets=$BUILD_TARGETS -in /build -out /archives"
 
       - name: 'Upload to storage bucket'
