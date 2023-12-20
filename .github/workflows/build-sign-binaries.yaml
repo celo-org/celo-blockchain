@@ -5,7 +5,6 @@ on:
     branches:
       - master
       - 'release/[0-9]+.[0-9]+.x'
-      - jcortejoso/test-ci
   workflow_dispatch:
 
 jobs:
@@ -58,31 +57,6 @@ jobs:
         run: |
           timestamp=$(date +%s)
           echo "COMMIT_TIMESTAMP=${timestamp}" >> $GITHUB_ENV
-      
-      - name: tmate
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 30
-        if: false
-        with:
-          limit-access-to-actor: true
-
-      - name: 'Debug Run all-tools'
-        run: |
-          echo docker run --rm \
-            -v $(pwd)/build/bin:/build \
-            -v $(pwd)/build/archives:/archives \
-            -v $(pwd):/go/src/github.com/celo-org/celo-blockchain \
-            --env BUILD_TARGETS=$_BUILD_TARGETS \
-            --env TAG_NAME=$TAG_NAME \
-            --env BRANCH_NAME=$BRANCH_NAME \
-            --env REPO_NAME=$REPO_NAME \
-            --env COMMIT_SHA=$COMMIT_SHA \
-            --env COMMIT_TIMESTAMP=${{ env.COMMIT_TIMESTAMP }} \
-            --env CLOUDBUILD=True \
-            --env CI=True \
-            --entrypoint /bin/sh \
-            $IMAGE \
-              -c "go run build/ci.go xgo --alltools -- -targets=$BUILD_TARGETS -v -dest /build"
 
       - name: 'Go Run xgo-archive'
         run: |
