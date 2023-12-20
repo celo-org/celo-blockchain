@@ -41,7 +41,7 @@
 # In the CI flow these are then uploaded to cloud storage as artefacts.
 
 # Build Geth binaries in the xgo builder container
-FROM techknowlogick/xgo:go-1.16.x
+FROM techknowlogick/xgo:go-1.19.x
 # techknowlogic/xgo is a fork of karalabe/xgo updated to ubunut-18, it is more maintained
 # by the community and allows us to backport mingw in order to build for windows
 # See discussion in PR celo-blockchain#<number> about downsides of this image
