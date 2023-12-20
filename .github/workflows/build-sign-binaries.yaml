@@ -5,20 +5,21 @@ on:
     branches:
       - master
       - 'release/[0-9]+.[0-9]+.x'
+      - jcortejoso/test-ci
   workflow_dispatch:
 
 jobs:
   build-container-blockchain-binaries:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.12.3
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v1.13.1
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
       service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
       artifact-registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-xgo-builder
-      tag: ${{ github.sha }}
+      tags: ${{ github.sha }}
       platforms: linux/amd64
       context: .
       file: Dockerfile.binaries
-      trivy: true
+      trivy: false
           
   upload-cloud-storage:
     runs-on: ubuntu-latest
@@ -33,6 +34,7 @@ jobs:
       BRANCH_NAME: ${{ github.ref_name }}
       REPO_NAME: ${{ github.repository }}
       COMMIT_SHA: ${{ github.sha }}
+      IMAGE: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-xgo-builder:${{ github.sha }}
 
     steps:
       - name: 'Checkout'
@@ -56,6 +58,12 @@ jobs:
         run: |
           timestamp=$(date +%s)
           echo "COMMIT_TIMESTAMP=${timestamp}" >> $GITHUB_ENV
+      
+      - name: tmate
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 30
+        with:
+          limit-access-to-actor: true
 
       - name: 'Go Run all-tools'
         run: |
@@ -72,7 +80,7 @@ jobs:
             --env CLOUDBUILD=True \
             --env CI=True \
             --entrypoint /bin/sh \
-            us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-xgo-builder:$COMMIT_SHA \
+            us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-xgo-builder:${{ github.sha }} \
               -c "go run build/ci.go xgo --alltools -- -targets=$BUILD_TARGETS -v -dest /build"
 
       - name: 'Go Run xgo-archive'
@@ -90,7 +98,7 @@ jobs:
             --env CLOUDBUILD=True \
             --env CI=True \
             --entrypoint /bin/sh \
-            us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-xgo-builder:$COMMIT_SHA \
+            us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-xgo-builder:${{ github.sha }} \
               -c "go run build/ci.go xgo-archive -targets=$BUILD_TARGETS -in /build -out /archives"
 
       - name: 'Upload to storage bucket'
