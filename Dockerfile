@@ -17,12 +17,16 @@
 # Build Geth in a stock Go builder container
 FROM golang:1.19-bookworm as builder
 
-RUN headers_package="linux-headers-$(dpkg --print-architecture)" && \
-  apt update && \
-  apt install -y build-essential git musl-dev $headers_package
-
 ADD . /go-ethereum
-RUN cd /go-ethereum && make geth-musl
+
+RUN apt update && \
+    cd /go-ethereum && \
+    platform="$(dpkg --print-architecture)" && \
+    case "$platform" in \
+      "amd64") apt install -y build-essential git linux-headers-$platform && make geth ;; \
+      "arm64") apt install -y build-essential git linux-headers-$platform musl-dev && make geth-musl ;; \
+      *) echo "Unsupported platform: $platform" && exit 1 ;; \
+    esac
 
 # Pull Geth into a second stage deploy alpine container
 FROM debian:bookworm-slim
