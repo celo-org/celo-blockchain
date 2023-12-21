@@ -28,7 +28,7 @@ RUN apt update && \
       *) echo "Unsupported platform: $platform" && exit 1 ;; \
     esac
 
-# Pull Geth into a second stage deploy alpine container
+# Using debian:bookworm-slim as the base image for the final
 FROM debian:bookworm-slim
 ARG COMMIT_SHA
 
