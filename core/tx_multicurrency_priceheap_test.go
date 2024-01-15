@@ -101,11 +101,14 @@ func TestMultiPushPop(t *testing.T) {
 	c1 := curr(1)
 	c2 := curr(2)
 
+	// BaseFee per currency
 	gpm := map[common.Address]*big.Int{
-		*c1: big.NewInt(10),
-		*c2: big.NewInt(20),
+		*c1:                big.NewInt(10),
+		*c2:                big.NewInt(1),
+		common.ZeroAddress: big.NewInt(150), // celo currency base fee
 	}
 	var cmp CurrencyCmpFn = func(p1 *big.Int, cc1 *common.Address, p2 *big.Int, cc2 *common.Address) int {
+		// currency1 = x10, currency2 = x100, currency nil (or other) = x1
 		var val1 int = int(p1.Int64())
 		var val2 int = int(p2.Int64())
 		if common.AreEqualAddresses(cc1, c1) {
@@ -123,34 +126,35 @@ func TestMultiPushPop(t *testing.T) {
 		return val1 - val2
 	}
 	m := newMultiCurrencyPriceHeap(cmp, gpm)
-	m.Push(txC(100, c1)) // 1000
-	m.Push(txC(250, c1)) // 2500
-	m.Push(txC(50, c1))  // 500
-	m.Push(txC(200, c1)) // 2000
-	m.Push(txC(75, c1))  // 750
+	m.UpdateFeesAndCurrencies(cmp, gpm)
+	m.Push(txC(100, c1)) // 100 * 10 - 10 * 10 = 900 (substracting basefee x currencyValue)
+	m.Push(txC(250, c1)) // 2500 - 10 * 10 = 2400
+	m.Push(txC(50, c1))  // 500 - 100 = 400
+	m.Push(txC(200, c1)) // 2000 - 100 = 1900
+	m.Push(txC(75, c1))  // 750 - 100 = 650
 
-	m.Push(txC(9, c2))  // 900
-	m.Push(txC(26, c2)) // 2600
-	m.Push(txC(4, c2))  // 400
-	m.Push(txC(21, c2)) // 2100
-	m.Push(txC(7, c2))  // 700
+	m.Push(txC(9, c2))  // 900 - 1 * 100 = 800
+	m.Push(txC(26, c2)) // 2600 - 100 = 2500
+	m.Push(txC(4, c2))  // 400 - 100 = 300
+	m.Push(txC(21, c2)) // 2100 - 100 = 2000
+	m.Push(txC(7, c2))  // 700 - 100 = 600
 
-	m.Push(tx(1100)) // 1100
-	m.Push(tx(2700)) // 2700
-	m.Push(tx(560))  // 560
-	m.Push(tx(2150)) // 2150
-	m.Push(tx(750))  // 750
+	m.Push(tx(1100)) // 1100 - 150 = 950
+	m.Push(tx(2700)) // 2700 - 150 = 2550
+	m.Push(tx(560))  // 560 - 150 = 410
+	m.Push(tx(2150)) // 2150 - 150 = 2000
+	m.Push(tx(750))  // 750 - 150 = 600
 
 	assert.Equal(t, 15, m.Len())
 	tm := m.Pop()
 	assert.Equal(t, 14, m.Len())
-	// 400
+	// 300
 	assert.Equal(t, big.NewInt(4), tm.GasPrice())
 	assert.Equal(t, c2, tm.FeeCurrency())
 
 	tm2 := m.Pop()
 	assert.Equal(t, 13, m.Len())
-	// 500
+	// 400
 	assert.Equal(t, big.NewInt(50), tm2.GasPrice())
 	assert.Equal(t, c1, tm2.FeeCurrency())
 
