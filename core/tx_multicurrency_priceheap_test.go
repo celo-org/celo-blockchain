@@ -127,7 +127,7 @@ func TestMultiPushPop(t *testing.T) {
 	}
 	m := newMultiCurrencyPriceHeap(cmp, gpm)
 	m.UpdateFeesAndCurrencies(cmp, gpm)
-	m.Push(txC(100, c1)) // 100 * 10 - 10 * 10 = 900 (substracting basefee x currencyValue)
+	m.Push(txC(100, c1)) // 100 * 10 - 10 * 10 = 900 (subtracting basefee x currencyValue)
 	m.Push(txC(250, c1)) // 2500 - 10 * 10 = 2400
 	m.Push(txC(50, c1))  // 500 - 100 = 400
 	m.Push(txC(200, c1)) // 2000 - 100 = 1900
@@ -210,7 +210,7 @@ func TestMultiAddInit(t *testing.T) {
 	}
 	m := newMultiCurrencyPriceHeap(cmp, gpm)
 	m.UpdateFeesAndCurrencies(cmp, gpm)
-	m.Add(txC(100, c1)) // 100 * 10 - 10 * 10 = 900 (substracting basefee x currencyValue)
+	m.Add(txC(100, c1)) // 100 * 10 - 10 * 10 = 900 (subtracting basefee x currencyValue)
 	m.Add(txC(250, c1)) // 2500 - 10 * 10 = 2400
 	m.Add(txC(50, c1))  // 500 - 100 = 400
 	m.Add(txC(200, c1)) // 2000 - 100 = 1900
