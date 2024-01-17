@@ -382,22 +382,26 @@ func TestMulticurrencyUnderpriced(t *testing.T) {
 	curr1 := common.HexToAddress("aaaa1")
 	rate1, _ := currency.NewExchangeRate(common.Big1, common.Big1)
 	curr2 := common.HexToAddress("aaaa2")
-
-	rate2, _ := currency.NewExchangeRate(common.Big1, common.Big1)
+	rate2, _ := currency.NewExchangeRate(common.Big1, common.Big2)
+	curr3 := common.HexToAddress("aaaa3")
+	rate3, _ := currency.NewExchangeRate(common.Big1, common.Big3)
 	all.Add(txC(5, &curr1), false)
-	all.Add(txC(2, nil), false)
-	all.Add(txC(4, &curr2), false)
+	all.Add(txC(3, nil), false)
+	all.Add(txC(1, &curr2), false)
+	all.Add(txC(2, &curr2), false)
 	all.Add(txC(6, nil), false)
+	all.Add(txC(1, &curr3), false)
 
 	currCache := map[common.Address]*currency.Currency{
 		curr1: currency.NewCurrency(curr1, *rate1),
 		curr2: currency.NewCurrency(curr2, *rate2),
+		curr3: currency.NewCurrency(curr3, *rate3),
 	}
 	cm := currency.NewCacheOnlyManager(currCache)
 	ctx := txPoolContext{
 		&SysContractCallCtx{
-			whitelistedCurrencies: map[common.Address]struct{}{curr1: {}, curr2: {}},
-			gasPriceMinimums:      map[common.Address]*big.Int{curr1: nil, curr2: nil},
+			whitelistedCurrencies: map[common.Address]struct{}{curr1: {}, curr2: {}, curr3: {}},
+			gasPriceMinimums:      map[common.Address]*big.Int{curr1: nil, curr2: nil, curr3: nil},
 		},
 		cm,
 		nil,
