@@ -274,6 +274,48 @@ func TestMultiAddInit(t *testing.T) {
 	assert.Equal(t, c2, tm5.FeeCurrency())
 }
 
+func TestCmp(t *testing.T) {
+	curr1 := common.HexToAddress("abc1")
+	ex1, _ := currency.NewExchangeRate(common.Big1, common.Big2) // 1 of curr1 is 2 celos
+	curr2 := common.HexToAddress("abc2")
+	ex2, _ := currency.NewExchangeRate(common.Big1, common.Big3) // 1 of curr2 is 3 celos
+	rates := make(map[common.Address]*currency.Currency)
+	rates[curr1] = currency.NewCurrency(curr1, *ex1)
+	rates[curr2] = currency.NewCurrency(curr2, *ex2)
+	var fn CurrencyCmpFn = func(p1 *big.Int, c1 *common.Address, p2 *big.Int, c2 *common.Address) int {
+		if c1 == nil || c2 == nil {
+			t.Fatal()
+		}
+		var c1Obj, c2Obj *currency.Currency
+		c1Obj = rates[*c1]
+		c2Obj = rates[*c2]
+		if c1Obj == nil || c2Obj == nil {
+			t.Fatal()
+		}
+		return c1Obj.CmpToCurrency(p1, p2, c2Obj)
+	}
+
+	// Same currency, No basefees
+	assert.Equal(t, 0, fn.Cmp(txC(1, &curr1), txC(1, &curr1), nil, nil))
+	assert.Equal(t, 1, fn.Cmp(txC(3, &curr2), txC(2, &curr2), nil, nil))
+	assert.Equal(t, -1, fn.Cmp(txC(3, &curr2), txC(4, &curr2), nil, nil))
+
+	// Diff currencies, No basefees
+	assert.Equal(t, -1, fn.Cmp(txC(1, &curr1), txC(1, &curr2), nil, nil))
+	assert.Equal(t, 1, fn.Cmp(txC(1, &curr2), txC(1, &curr1), nil, nil))
+	assert.Equal(t, 0, fn.Cmp(txC(3, &curr1), txC(2, &curr2), nil, nil))
+
+	// Same currency, with basefee
+	assert.Equal(t, 0, fn.Cmp(txC(10, &curr1), txC(10, &curr1), common.Big2, common.Big2))
+	assert.Equal(t, 1, fn.Cmp(txC(9, &curr1), txC(8, &curr1), common.Big2, common.Big2))
+	assert.Equal(t, -1, fn.Cmp(txC(5, &curr1), txC(6, &curr1), common.Big3, common.Big3))
+
+	// Diff currencies, with basefee
+	assert.Equal(t, 0, fn.Cmp(txC(6, &curr1), txC(4, &curr2), common.Big3, common.Big2))
+	assert.Equal(t, 1, fn.Cmp(txC(6, &curr1), txC(4, &curr2), common.Big2, common.Big2))
+	assert.Equal(t, -1, fn.Cmp(txC(6, &curr1), txC(4, &curr2), common.Big3, common.Big1))
+}
+
 func TestClear(t *testing.T) {
 	c := curr(1)
 	gpm := map[common.Address]*big.Int{
@@ -337,9 +379,10 @@ func TestIsCheaper(t *testing.T) {
 // properly when handling many different currencies.
 func TestMulticurrencyUnderpriced(t *testing.T) {
 	all := newTxLookup()
-	curr1 := common.HexToAddress("curr1")
+	curr1 := common.HexToAddress("aaaa1")
 	rate1, _ := currency.NewExchangeRate(common.Big1, common.Big1)
-	curr2 := common.HexToAddress("curr2")
+	curr2 := common.HexToAddress("aaaa2")
+
 	rate2, _ := currency.NewExchangeRate(common.Big1, common.Big1)
 	all.Add(txC(5, &curr1), false)
 	all.Add(txC(2, nil), false)
