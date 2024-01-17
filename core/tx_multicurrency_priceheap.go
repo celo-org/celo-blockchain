@@ -18,9 +18,6 @@ func (cc CurrencyCmpFn) GasTipCapCmp(tx, other *types.Transaction) int {
 // but taking into account the exchange rate comparison of the CurrencyCmpFn.
 // Each baseFee is expressed in each tx's currency.
 func (cc CurrencyCmpFn) EffectiveGasTipCmp(tx, other *types.Transaction, baseFeeA, baseFeeB *big.Int) int {
-	if baseFeeA == nil && baseFeeB == nil {
-		return cc.GasTipCapCmp(tx, other)
-	}
 	return cc(tx.EffectiveGasTipValue(baseFeeA), tx.FeeCurrency(), other.EffectiveGasTipValue(baseFeeB), other.FeeCurrency())
 }
 
