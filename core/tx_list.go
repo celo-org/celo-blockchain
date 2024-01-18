@@ -696,27 +696,29 @@ func (l *txPricedList) Underpriced(tx *types.Transaction) bool {
 }
 
 func (l *txPricedList) underpricedForMulti(h *multiCurrencyPriceHeap, tx *types.Transaction) bool {
-	// Has to be underpriced for ALL heaps to be underpriced for the whole pool.
-	if !l.underpricedFor(h.nativeCurrencyHeap, tx, h.IsCheaper) {
-		// Check Len after calling underpricedFor since it might prune entries
-		if h.nativeCurrencyHeap.Len() > 0 {
+	// wellpriced returns if, after pruning, tx is above minimum price
+	// compared to the top of the heap (minimum priced tx in heap)
+	wellpriced := func(heap *priceHeap) bool {
+		l.prune(heap)
+		return heap.Len() > 0 && !h.IsCheaper(tx, heap.list[0])
+	}
+
+	// If tx is wellpriced for at least one heap, then it is not underpriced
+	if wellpriced(h.nativeCurrencyHeap) {
+		return false
+	}
+	for _, sh := range h.currencyHeaps {
+		if wellpriced(sh) {
 			return false
 		}
 	}
-	for _, sh := range h.currencyHeaps {
-		if !l.underpricedFor(sh, tx, h.IsCheaper) {
-			// Check Len after calling underpricedFor since it might prune entries
-			if sh.Len() > 0 {
-				return false
-			}
-		}
-	}
+	// While this impl. is returning true when all heaps are empty (h.Len() == 0), that border
+	// case is managed on invokation of this fn.
 	return true
 }
 
-// underpricedFor checks whether a transaction is cheaper than (or as cheap as) the
-// lowest priced (remote) transaction in the given heap.
-func (l *txPricedList) underpricedFor(h *priceHeap, tx *types.Transaction, isCheaper func(tx1, tx2 *types.Transaction) bool) bool {
+// prune discards from the top of the heap txs that are no longer in the pool
+func (l *txPricedList) prune(h *priceHeap) {
 	// Discard stale price points if found at the heap start
 	for len(h.list) > 0 {
 		head := h.list[0]
@@ -727,13 +729,6 @@ func (l *txPricedList) underpricedFor(h *priceHeap, tx *types.Transaction, isChe
 		}
 		break
 	}
-	// Check if the transaction is underpriced or not
-	if len(h.list) == 0 {
-		return false // There is no remote transaction at all.
-	}
-	// If the remote transaction is even cheaper than the
-	// cheapest one tracked locally, reject it.
-	return isCheaper(tx, h.list[0])
 }
 
 // Discard finds a number of most underpriced transactions, removes them from the
