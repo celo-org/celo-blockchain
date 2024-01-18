@@ -419,3 +419,116 @@ func TestMulticurrencyUnderpriced(t *testing.T) {
 	assert.True(t, pricedList.Underpriced(txC(2, nil)))
 	assert.True(t, pricedList.Underpriced(txC(1, nil)))
 }
+
+func Test_txPricedList_Underpriced(t *testing.T) {
+	curr1 := common.HexToAddress("aaaa1")
+	rate1, _ := currency.NewExchangeRate(common.Big1, common.Big1)
+	curr2 := common.HexToAddress("aaaa2")
+	rate2, _ := currency.NewExchangeRate(common.Big1, common.Big2)
+	curr3 := common.HexToAddress("aaaa3")
+	rate3, _ := currency.NewExchangeRate(common.Big1, common.Big3)
+	currCache := map[common.Address]*currency.Currency{
+		curr1: currency.NewCurrency(curr1, *rate1),
+		curr2: currency.NewCurrency(curr2, *rate2),
+		curr3: currency.NewCurrency(curr3, *rate3),
+	}
+	currencyManager := currency.NewCacheOnlyManager(currCache)
+	txPoolCtx := txPoolContext{
+		&SysContractCallCtx{
+			whitelistedCurrencies: map[common.Address]struct{}{curr1: {}, curr2: {}, curr3: {}},
+			gasPriceMinimums:      map[common.Address]*big.Int{curr1: nil, curr2: nil, curr3: nil},
+		},
+		currencyManager,
+		nil,
+	}
+	ctxVal := atomic.Value{}
+	ctxVal.Store(txPoolCtx)
+
+	type addTx struct {
+		tx    *types.Transaction
+		local bool
+	}
+	type testCase struct {
+		desc     string
+		newTx    *types.Transaction
+		expected bool
+	}
+	tests := []struct {
+		name        string
+		existingTxs []addTx
+		cases       []testCase
+	}{
+		{
+			name:        "Empty tx list",
+			existingTxs: []addTx{},
+			cases: []testCase{
+				{
+					desc:     "Normal tx",
+					newTx:    tx(5),
+					expected: false,
+				},
+				{
+					desc:     "Celo tx",
+					newTx:    txC(5, &curr2),
+					expected: false,
+				},
+			},
+		},
+		{
+			name: "Single tx in list",
+			existingTxs: []addTx{
+				{txC(5, &curr2), false},
+			},
+			cases: []testCase{
+				{
+					desc:     "Underpriced normal transaction",
+					newTx:    tx(10),
+					expected: true,
+				},
+				{
+					desc:     "Accepted normal transaction",
+					newTx:    tx(11),
+					expected: false,
+				},
+				{
+					desc:     "Underpriced celo transaction",
+					newTx:    txC(5, &curr2),
+					expected: true,
+				},
+				{
+					desc:     "Accepted celo transaction",
+					newTx:    txC(6, &curr2),
+					expected: false,
+				},
+				{
+					desc:     "Underpriced celo transaction with different currency",
+					newTx:    txC(3, &curr3),
+					expected: true,
+				},
+				{
+					desc:     "Accepted celo transaction with different currency",
+					newTx:    txC(4, &curr3),
+					expected: false,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			all := newTxLookup()
+
+			for _, tx := range tt.existingTxs {
+				all.Add(tx.tx, tx.local)
+			}
+
+			pricedList := newTxPricedList(all, &ctxVal, 1024)
+			pricedList.Reheap()
+
+			for _, tc := range tt.cases {
+				if got := pricedList.Underpriced(tc.newTx); got != tc.expected {
+					t.Errorf("%s: txPricedList.Underpriced() = %v, want %v", tc.desc, got, tc.expected)
+				}
+			}
+		})
+	}
+}
