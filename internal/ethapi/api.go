@@ -706,36 +706,39 @@ func (s *PublicBlockChainAPI) GetHeaderByHash(ctx context.Context, hash common.H
 //     only the transaction hash is returned.
 func (s *PublicBlockChainAPI) GetBlockByNumber(ctx context.Context, number rpc.BlockNumber, fullTx bool) (map[string]interface{}, error) {
 	block, err := s.b.BlockByNumber(ctx, number)
-	if block != nil && err == nil {
-		response, err := s.rpcMarshalBlock(ctx, block, true, fullTx)
-
-		if err == nil {
+	if block == nil || err != nil {
+		return nil, err
+	}
+	response, err := s.rpcMarshalBlock(ctx, block, true, fullTx)
+	if err == nil {
+		if s.b.RPCEthCompatibility() {
 			addEthCompatibilityFields(ctx, response, s.b, block)
-			if number == rpc.PendingBlockNumber {
-				// Pending blocks need to nil out a few fields
-				for _, field := range []string{"hash", "nonce", "miner"} {
-					response[field] = nil
-				}
+		}
+		if number == rpc.PendingBlockNumber {
+			// Pending blocks need to nil out a few fields
+			for _, field := range []string{"hash", "nonce", "miner"} {
+				response[field] = nil
 			}
 		}
-		return response, err
 	}
-	return nil, err
+	return response, err
 }
 
 // GetBlockByHash returns the requested block. When fullTx is true all transactions in the block are returned in full
 // detail, otherwise only the transaction hash is returned.
 func (s *PublicBlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Hash, fullTx bool) (map[string]interface{}, error) {
 	block, err := s.b.BlockByHash(ctx, hash)
-	if block != nil {
-		result, err := s.rpcMarshalBlock(ctx, block, true, fullTx)
-		if err != nil {
-			return nil, err
-		}
-		addEthCompatibilityFields(ctx, result, s.b, block)
-		return result, nil
+	if block == nil {
+		return nil, err
 	}
-	return nil, err
+	result, err := s.rpcMarshalBlock(ctx, block, true, fullTx)
+	if err != nil {
+		return nil, err
+	}
+	if s.b.RPCEthCompatibility() {
+		addEthCompatibilityFields(ctx, result, s.b, block)
+	}
+	return result, nil
 }
 
 // addEthCompatibilityFields seeks to work around the incompatibility of celo
@@ -743,27 +746,28 @@ func (s *PublicBlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Ha
 // rpc response that ethers.js depends upon.
 // See https://github.com/celo-org/celo-blockchain/issues/1945
 func addEthCompatibilityFields(ctx context.Context, response map[string]interface{}, b Backend, block *types.Block) {
-	isGingerbread := b.ChainConfig().IsGingerbread(block.Number())
-	if !b.RPCEthCompatibility() {
-		if !isGingerbread {
-			delete(response, "gasLimit")
-		}
-		return
-	}
-
 	header := block.Header()
-	if !isGingerbread {
-		// Before Gingerbread, the header did not include the gasLimit, so we have to manually add it for eth-compatible RPC responses.
-		hash := header.Hash()
-		numhash := rpc.BlockNumberOrHash{
-			BlockHash: &hash,
-		}
-		gasLimit, err := b.GetRealBlockGasLimit(ctx, numhash)
-		if err != nil {
-			log.Debug("Not adding gasLimit to RPC response, failed to retrieve it", "block", header.Number.Uint64(), "err", err)
+	if !b.ChainConfig().IsGingerbread(block.Number()) {
+		// Before Gingerbread, the header did not include the gasLimit, now we manually add it for old blocks.
+		var gasLimit uint64
+		var err error
+
+		// For mainnet, alfajores and baklava we have a set of hardcoded values derived from historical state that we can use.
+		v := params.PreGingerbreadNetworkGasLimits[b.ChainConfig().ChainID.Uint64()]
+		if v != nil {
+			gasLimit = v.Limit(header.Number)
 		} else {
-			response["gasLimit"] = hexutil.Uint64(gasLimit)
+			// If no hardcoded limits are available for this network then we will try to look up the gas limit in the state.
+			hash := header.Hash()
+			numhash := rpc.BlockNumberOrHash{
+				BlockHash: &hash,
+			}
+			gasLimit, err = b.GetRealBlockGasLimit(ctx, numhash)
+			if err != nil {
+				log.Debug("Failed to retrieve gas limit for RPC block response, zero gas limit will be returned", "block", header.Number.Uint64(), "err", err)
+			}
 		}
+		response["gasLimit"] = hexutil.Uint64(gasLimit)
 	}
 
 	if header.BaseFee != nil {
