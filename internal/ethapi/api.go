@@ -1152,7 +1152,6 @@ func RPCMarshalHeader(head *types.Header) map[string]interface{} {
 		"miner":            head.Coinbase,
 		"extraData":        hexutil.Bytes(head.Extra),
 		"size":             hexutil.Uint64(head.Size()),
-		"gasLimit":         hexutil.Uint64(head.GasLimit),
 		"gasUsed":          hexutil.Uint64(head.GasUsed),
 		"timestamp":        hexutil.Uint64(head.Time),
 		"transactionsRoot": head.TxHash,
@@ -1166,6 +1165,11 @@ func RPCMarshalHeader(head *types.Header) map[string]interface{} {
 		result["sha3Uncles"] = head.UncleHash
 		result["uncles"] = []interface{}{}
 		result["mixHash"] = head.MixDigest
+	}
+
+	// Before the gingerbread hardfork gas limit was not part of the block header.
+	if head.GasLimit > 0 {
+		result["gasLimit"] = hexutil.Uint64(head.GasLimit)
 	}
 
 	if head.BaseFee != nil {
