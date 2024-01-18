@@ -335,29 +335,6 @@ func TestClear(t *testing.T) {
 	assert.Nil(t, m.Pop())
 }
 
-func TestIsCheaper_FwdFields(t *testing.T) {
-	curr1 := common.BigToAddress(big.NewInt(123))
-	price1 := big.NewInt(100)
-	curr2 := common.BigToAddress(big.NewInt(123))
-	price2 := big.NewInt(200)
-	tx1 := types.NewTx(&types.LegacyTx{
-		GasPrice:    price1,
-		FeeCurrency: &curr1,
-	})
-	tx2 := types.NewTx(&types.LegacyTx{
-		GasPrice:    price2,
-		FeeCurrency: &curr2,
-	})
-	var cmp CurrencyCmpFn = func(p1 *big.Int, c1 *common.Address, p2 *big.Int, c2 *common.Address) int {
-		assert.Equal(t, price1, p1)
-		assert.Equal(t, price2, p2)
-		assert.Equal(t, curr1, *c1)
-		assert.Equal(t, curr2, *c2)
-		return -1
-	}
-	assert.True(t, cmp.Cmp(tx1, tx2, nil, nil) <= 0)
-}
-
 func TestIsCheaper(t *testing.T) {
 	tx1 := types.NewTx(&types.LegacyTx{})
 	tx2 := types.NewTx(&types.LegacyTx{})
@@ -378,49 +355,6 @@ func TestIsCheaper(t *testing.T) {
 // TestMulticurrencyUnderpriced tests that the underpriced method from pricedList functions
 // properly when handling many different currencies.
 func TestMulticurrencyUnderpriced(t *testing.T) {
-	all := newTxLookup()
-	curr1 := common.HexToAddress("aaaa1")
-	rate1, _ := currency.NewExchangeRate(common.Big1, common.Big1)
-	curr2 := common.HexToAddress("aaaa2")
-	rate2, _ := currency.NewExchangeRate(common.Big1, common.Big2)
-	curr3 := common.HexToAddress("aaaa3")
-	rate3, _ := currency.NewExchangeRate(common.Big1, common.Big3)
-	all.Add(txC(5, &curr1), false)
-	all.Add(txC(3, nil), false)
-	all.Add(txC(1, &curr2), false)
-	all.Add(txC(2, &curr2), false)
-	all.Add(txC(6, nil), false)
-	all.Add(txC(1, &curr3), false)
-
-	currCache := map[common.Address]*currency.Currency{
-		curr1: currency.NewCurrency(curr1, *rate1),
-		curr2: currency.NewCurrency(curr2, *rate2),
-		curr3: currency.NewCurrency(curr3, *rate3),
-	}
-	cm := currency.NewCacheOnlyManager(currCache)
-	ctx := txPoolContext{
-		&SysContractCallCtx{
-			whitelistedCurrencies: map[common.Address]struct{}{curr1: {}, curr2: {}, curr3: {}},
-			gasPriceMinimums:      map[common.Address]*big.Int{curr1: nil, curr2: nil, curr3: nil},
-		},
-		cm,
-		nil,
-	}
-	ctxVal := atomic.Value{}
-	ctxVal.Store(ctx)
-	pricedList := newTxPricedList(all, &ctxVal, 1024)
-
-	pricedList.Reheap()
-
-	assert.False(t, pricedList.Underpriced(txC(6, nil)))
-	assert.False(t, pricedList.Underpriced(txC(5, nil)))
-	assert.False(t, pricedList.Underpriced(txC(4, nil)))
-	assert.False(t, pricedList.Underpriced(txC(3, nil)))
-	assert.True(t, pricedList.Underpriced(txC(2, nil)))
-	assert.True(t, pricedList.Underpriced(txC(1, nil)))
-}
-
-func Test_txPricedList_Underpriced(t *testing.T) {
 	curr1 := common.HexToAddress("aaaa1")
 	rate1, _ := currency.NewExchangeRate(common.Big1, common.Big1)
 	curr2 := common.HexToAddress("aaaa2")
@@ -459,7 +393,7 @@ func Test_txPricedList_Underpriced(t *testing.T) {
 		cases       []testCase
 	}{
 		{
-			name:        "Empty tx list",
+			name:        "Empty tx list (Never underpriced)",
 			existingTxs: []addTx{},
 			cases: []testCase{
 				{
@@ -509,6 +443,34 @@ func Test_txPricedList_Underpriced(t *testing.T) {
 					desc:     "Accepted celo transaction with different currency",
 					newTx:    txC(4, &curr3),
 					expected: false,
+				},
+			},
+		},
+		{
+			name: "Many txs from Many currencies",
+			existingTxs: []addTx{
+				{txC(3, nil), false}, // Cheapest native currency: 3
+				{txC(6, nil), false},
+				{txC(5, &curr1), false}, // Cheapest curr1: 5
+				{txC(2, &curr2), false}, // Cheapest curr2: 4
+				{txC(2, &curr2), false},
+				{txC(1, &curr3), false}, // Cheapest curr3: 3
+			},
+			cases: []testCase{
+				{
+					desc:     "Accepted cheapest curr1",
+					newTx:    txC(4, &curr1),
+					expected: false,
+				},
+				{
+					desc:     "Underpriced native",
+					newTx:    tx(3),
+					expected: true,
+				},
+				{
+					desc:     "Underpriced curr2",
+					newTx:    txC(1, &curr2),
+					expected: true,
 				},
 			},
 		},
