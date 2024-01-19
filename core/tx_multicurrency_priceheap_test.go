@@ -335,7 +335,34 @@ func TestClear(t *testing.T) {
 	assert.Nil(t, m.Pop())
 }
 
+func TestIsCheaper_FwdFields(t *testing.T) {
+	// Tests that the CurrencyCmpFn receives the
+	// proper fields for comparison in a gas fee cap cmp
+	curr1 := common.BigToAddress(big.NewInt(123))
+	price1 := big.NewInt(100)
+	curr2 := common.BigToAddress(big.NewInt(123))
+	price2 := big.NewInt(200)
+	tx1 := types.NewTx(&types.LegacyTx{
+		GasPrice:    price1,
+		FeeCurrency: &curr1,
+	})
+	tx2 := types.NewTx(&types.LegacyTx{
+		GasPrice:    price2,
+		FeeCurrency: &curr2,
+	})
+	var cmp CurrencyCmpFn = func(p1 *big.Int, c1 *common.Address, p2 *big.Int, c2 *common.Address) int {
+		assert.Equal(t, price1, p1)
+		assert.Equal(t, price2, p2)
+		assert.Equal(t, curr1, *c1)
+		assert.Equal(t, curr2, *c2)
+		return -1
+	}
+	assert.True(t, cmp.Cmp(tx1, tx2, nil, nil) == -1)
+}
+
 func TestIsCheaper(t *testing.T) {
+	// Tests that the result of the currency comparison function is
+	// properly being returned in the tx comparison function
 	tx1 := types.NewTx(&types.LegacyTx{})
 	tx2 := types.NewTx(&types.LegacyTx{})
 	var cheaper CurrencyCmpFn = func(p1 *big.Int, c1 *common.Address, p2 *big.Int, c2 *common.Address) int {
