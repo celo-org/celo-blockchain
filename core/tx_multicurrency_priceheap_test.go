@@ -447,7 +447,85 @@ func TestMulticurrencyUnderpriced(t *testing.T) {
 			},
 		},
 		{
-			name: "Many txs from Many currencies",
+			name: "Mixed existing transactions",
+			existingTxs: []addTx{
+				{tx(3), false},
+				{txC(5, &curr1), false},
+			},
+			cases: []testCase{
+				{
+					desc:     "Accepted native",
+					newTx:    tx(4),
+					expected: false,
+				},
+				{
+					desc:     "Underpriced native",
+					newTx:    tx(3),
+					expected: true,
+				},
+				{
+					desc:     "Accepted cheapest curr1",
+					newTx:    txC(5, &curr1),
+					expected: false,
+				},
+				{
+					desc:     "Underpriced curr1",
+					newTx:    txC(3, &curr1),
+					expected: true,
+				},
+				{
+					desc:     "Accepted cheapest curr3",
+					newTx:    txC(2, &curr3),
+					expected: false,
+				},
+				{
+					desc:     "Underpriced curr3",
+					newTx:    txC(1, &curr3),
+					expected: true,
+				},
+			},
+		},
+		{
+			name: "Multiple existing transactions",
+			existingTxs: []addTx{
+				{tx(3), false},
+				{tx(5), false},
+			},
+			cases: []testCase{
+				{
+					desc:     "Accepted native",
+					newTx:    tx(4),
+					expected: false,
+				},
+				{
+					desc:     "Underpriced native",
+					newTx:    tx(3),
+					expected: true,
+				},
+				{
+					desc:     "Accepted cheapest curr1",
+					newTx:    txC(5, &curr1),
+					expected: false,
+				},
+				{
+					desc:     "Underpriced curr1",
+					newTx:    txC(3, &curr1),
+					expected: true,
+				},
+				{
+					desc:     "Accepted cheapest curr3",
+					newTx:    txC(2, &curr3),
+					expected: false,
+				},
+				{
+					desc:     "Underpriced curr3",
+					newTx:    txC(1, &curr3),
+					expected: true,
+				},
+			},
+		},
+		{
+			name: "Many txs from many currencies",
 			existingTxs: []addTx{
 				{txC(3, nil), false}, // Cheapest native currency: 3
 				{txC(6, nil), false},
