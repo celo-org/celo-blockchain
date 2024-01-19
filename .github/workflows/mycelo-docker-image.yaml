@@ -33,7 +33,6 @@ jobs:
           tags: mycelo:latest
           load: true
           build-args: GETH_COMMIT={{ github.sha }}
-          trivy: true
       - name: Check docker images
         run: docker images
       - name: Generate genesis.json using mycelo image
