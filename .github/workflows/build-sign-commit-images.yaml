@@ -16,22 +16,23 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Login at GCP Artifact Registry
-        # v1.12.3 is main at Oct 26, 2023
-        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v1.12.3
+        # v1.14.2 is main at Oct 26, 2023
+        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v1.14.2
         with:
           workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
           service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
           docker-gcp-registries: us-west1-docker.pkg.dev
       - name: Build and push container
-        uses: celo-org/reusable-workflows/.github/actions/build-container@v1.12.3
+        uses: celo-org/reusable-workflows/.github/actions/build-container@v1.14.2
         with:
           platforms: linux/amd64,linux/arm64
           registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
-          tag: ${{ github.sha }}
+          tags: ${{ github.sha }}
           context: .
           dockerfile: Dockerfile
           push: ${{ fromJSON(true) }}
           load: ${{ fromJSON(false) }}
+          trivy: ${{ fromJSON(true) }}
 
   build-container-geth-master:
     runs-on: [self-hosted, blockchain, 8-cpu]
@@ -43,21 +44,22 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Login at GCP Artifact Registry
-        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v1.12.3
+        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v1.14.2
         with:
           workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
           service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
           docker-gcp-registries: us-west1-docker.pkg.dev
       - name: Build and push container
-        uses: celo-org/reusable-workflows/.github/actions/build-container@v1.12.3
+        uses: celo-org/reusable-workflows/.github/actions/build-container@v1.14.2
         with:
           platforms: linux/amd64,linux/arm64
           registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth
-          tag: master
+          tags: master
           context: .
           dockerfile: Dockerfile
           push: ${{ fromJSON(true) }}
           load: ${{ fromJSON(false) }}
+          trivy: ${{ fromJSON(true) }}
 
   build-container-geth-all-master:
     runs-on: [self-hosted, blockchain, 8-cpu]
@@ -69,18 +71,19 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Login at GCP Artifact Registry
-        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v1.12.3
+        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v1.14.2
         with:
           workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
           service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
           docker-gcp-registries: us-west1-docker.pkg.dev
       - name: Build and push container
-        uses: celo-org/reusable-workflows/.github/actions/build-container@v1.12.3
+        uses: celo-org/reusable-workflows/.github/actions/build-container@v1.14.2
         with:
           platforms: linux/amd64,linux/arm64
           registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-all
-          tag: master
+          tags: master
           context: .
           dockerfile: Dockerfile.alltools
           push: ${{ fromJSON(true) }}
           load: ${{ fromJSON(false) }}
+          trivy: ${{ fromJSON(true) }}
