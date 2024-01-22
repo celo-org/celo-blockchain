@@ -752,10 +752,11 @@ func addEthCompatibilityFields(ctx context.Context, response map[string]interfac
 		var gasLimit uint64
 		var err error
 
-		// For mainnet, alfajores and baklava we have a set of hardcoded values derived from historical state that we can use.
-		v := params.PreGingerbreadNetworkGasLimits[b.ChainConfig().ChainID.Uint64()]
-		if v != nil {
-			gasLimit = v.Limit(header.Number)
+		// For mainnet, alfajores and baklava we have a set of hardcoded values derived from historical state that we can
+		// use, note ChainID might be unset, so we need to account for that.
+		chainId := b.ChainConfig().ChainID
+		if chainId != nil && params.PreGingerbreadNetworkGasLimits[chainId.Uint64()] != nil {
+			gasLimit = params.PreGingerbreadNetworkGasLimits[chainId.Uint64()].Limit(header.Number)
 		} else {
 			// If no hardcoded limits are available for this network then we will try to look up the gas limit in the state.
 			hash := header.Hash()
