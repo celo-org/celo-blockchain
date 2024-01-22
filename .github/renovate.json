@@ -1,0 +1,24 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "local>celo-org/.github:renovate-config"
+  ],
+  "packageRules": [
+    {
+      "enabled": false,
+      "groupName": "everything",
+      "matchManagers": ["gomod", "dockerfile", "docker-compose"],
+      "matchPackagePatterns": ["*"],
+      "separateMajorMinor": false
+    },
+    {
+      "groupName": "github-actions",
+      "matchManagers": ["github-actions"],
+      "matchPackagePatterns": ["*"],
+      "separateMajorMinor": false
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true
+  }
+}
