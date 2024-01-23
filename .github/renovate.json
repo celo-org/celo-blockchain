@@ -10,12 +10,6 @@
       "matchManagers": ["gomod", "dockerfile", "docker-compose"],
       "matchPackagePatterns": ["*"],
       "separateMajorMinor": false
-    },
-    {
-      "groupName": "github-actions",
-      "matchManagers": ["github-actions"],
-      "matchPackagePatterns": ["*"],
-      "separateMajorMinor": false
     }
   ],
   "vulnerabilityAlerts": {
