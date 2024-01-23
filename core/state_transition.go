@@ -188,6 +188,7 @@ func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation b
 	// This gas is used for charging user for one `debitFrom` transaction to deduct their balance in
 	// non-native currency and two `creditTo` transactions, one covers for the  miner fee in
 	// non-native currency at the end and the other covers for the user refund at the end.
+	// is this called twice?
 	// A user might or might not have a gas refund at the end and even if they do the gas refund might
 	// be smaller than maxGasForDebitAndCreditTransactions. We still decide to deduct and do the refund
 	// since it makes the mining fee more consistent with respect to the gas fee. Otherwise, we would
@@ -348,6 +349,11 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, feeCurrency *c
 
 func (st *StateTransition) debitFee(from common.Address, feeCurrency *common.Address) (err error) {
 	effectiveFee := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
+	log.Error("Before debit",
+		"st.msg.Gas()", st.msg.Gas(),
+		"st.gasPrice", st.gasPrice,
+	)
+
 	// If GatewayFeeRecipient is unspecified, the gateway fee value is ignore and the sender is not charged.
 	if st.msg.GatewayFeeRecipient() != nil {
 		effectiveFee.Add(effectiveFee, st.msg.GatewayFee())
@@ -358,6 +364,10 @@ func (st *StateTransition) debitFee(from common.Address, feeCurrency *common.Add
 		st.state.SubBalance(from, effectiveFee)
 		return nil
 	} else {
+		log.Error("Before debit",
+		"from", from,
+		"effectiveFee", effectiveFee,
+		"feeCurrency", feeCurrency)
 		return erc20gas.DebitFees(st.evm, from, effectiveFee, feeCurrency)
 	}
 }
@@ -583,8 +593,31 @@ func (st *StateTransition) distributeTxFees() error {
 		st.state.AddBalance(st.evm.Context.Coinbase, tipTxFee)
 		st.state.AddBalance(from, refund)
 	} else {
+		log.Error("Error crediting - before", "from", from,
+			"st.evm.Context.Coinbase", st.evm.Context.Coinbase,
+			"gatewayFeeRecipient", gatewayFeeRecipient,
+			"feeHandlerAddress", feeHandlerAddress,
+			"refund", refund,
+			"tipTxFee", tipTxFee,
+			"st.msg.GatewayFee()", st.msg.GatewayFee(),
+			"baseTxFee", baseTxFee,
+			"feeCurrency", feeCurrency)
+
 		if err = erc20gas.CreditFees(st.evm, from, st.evm.Context.Coinbase, gatewayFeeRecipient, feeHandlerAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
-			log.Error("Error crediting", "from", from, "coinbase", st.evm.Context.Coinbase, "gateway", gatewayFeeRecipient, "feeHandler", feeHandlerAddress)
+			// log.Error("Error crediting", "from", from, "coinbase", st.evm.Context.Coinbase, "gateway", gatewayFeeRecipient, "feeHandler", feeHandlerAddress)
+			
+			log.Error("Error crediting - after", "from", from,
+			"st.evm.Context.Coinbase", st.evm.Context.Coinbase,
+			"gatewayFeeRecipient", gatewayFeeRecipient,
+			"feeHandlerAddress", feeHandlerAddress,
+			"refund", refund,
+			"tipTxFee", tipTxFee,
+			"st.msg.GatewayFee()", st.msg.GatewayFee(),
+			"baseTxFee", baseTxFee,
+			"feeCurrency", feeCurrency,
+			"error", err)
+
+
 			return err
 		}
 
