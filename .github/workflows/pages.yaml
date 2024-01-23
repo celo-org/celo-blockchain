@@ -15,19 +15,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout celo-blockchain
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: ${{ env.CELO_BLOCKCHAIN_PATH }}
 
       - name: Checkout go-ethereum
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: ${{ env.GO_ETHEREUM_PATH }}
           repository: ethereum/go-ethereum
           ref: eae3b1946a276ac099e0018fc792d9e8c3bfda6d
 
       - name: Setup golang
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           check-latest: false
@@ -91,7 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout celo-blockchain
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Build pages directory
         run: |
@@ -99,7 +99,7 @@ jobs:
           touch /tmp/pages/.nojekyll
 
       - name: Restore forkdiff index.html output
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: forkdiff-output
           path: /tmp/pages/index.html

@@ -73,7 +73,7 @@ jobs:
         ref: ${{ env.MONOREPO_COMMIT }}
     - name: Conditionally setup Node.js
       if: steps.celo-monorepo-cache.outputs.cache-hit != 'true'
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -100,7 +100,7 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
     - name: Setup go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -116,7 +116,7 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
     - name: Setup golang
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -134,7 +134,7 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
     - name: Setup golang
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -156,13 +156,13 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
     - name: Setup golang
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
         cache: true
     - name: Restore system contracts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: system-contracts
         path: ${{ env.SYSTEM_CONTRACTS_PATH }}
@@ -219,13 +219,13 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
     - name: Setup golang
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
         cache: true
     - name: Restore system contracts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: system-contracts
         path: ${{ env.SYSTEM_CONTRACTS_PATH }}
@@ -255,7 +255,7 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
     - name: Setup golang
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -287,7 +287,7 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
     - name: Setup golang
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -295,7 +295,7 @@ jobs:
     - name: Prepare ethersjs project
       run: make prepare-ethersjs-project
     - name: Restore system contracts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: system-contracts
         path: ${{ env.SYSTEM_CONTRACTS_PATH }}
@@ -333,13 +333,13 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
     - name: Setup golang
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
         cache: true
     - name: Download pre-built binaries
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: binaries
         path: ./build/bin
@@ -363,7 +363,7 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
     - name: Setup golang
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -372,7 +372,7 @@ jobs:
     - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Restore system contracts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: system-contracts
         path: ${{ env.SYSTEM_CONTRACTS_PATH }}
@@ -403,7 +403,7 @@ jobs:
       with:
         path: geth
     - name: Setup golang
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -425,7 +425,7 @@ jobs:
         restore-keys: |
           celo-monorepo-cache-
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -452,7 +452,7 @@ jobs:
       with:
         path: geth
     - name: Setup golang
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -474,7 +474,7 @@ jobs:
         restore-keys: |
           celo-monorepo-cache-
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -501,7 +501,7 @@ jobs:
       with:
         path: geth
     - name: Setup golang
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -523,7 +523,7 @@ jobs:
         restore-keys: |
           celo-monorepo-cache-
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -549,7 +549,7 @@ jobs:
       with:
         path: geth
     - name: Setup golang
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -571,7 +571,7 @@ jobs:
         restore-keys: |
           celo-monorepo-cache-
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -597,7 +597,7 @@ jobs:
       with:
         path: geth
     - name: Setup golang
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -619,7 +619,7 @@ jobs:
         restore-keys: |
           celo-monorepo-cache-
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -645,7 +645,7 @@ jobs:
       with:
         path: geth
     - name: Setup golang
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -667,7 +667,7 @@ jobs:
         restore-keys: |
           celo-monorepo-cache-
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -693,7 +693,7 @@ jobs:
       with:
         path: geth
     - name: Setup golang
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -715,7 +715,7 @@ jobs:
         restore-keys: |
           celo-monorepo-cache-
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -741,7 +741,7 @@ jobs:
       with:
         path: geth
     - name: Setup golang
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: false
@@ -763,7 +763,7 @@ jobs:
         restore-keys: |
           celo-monorepo-cache-
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
