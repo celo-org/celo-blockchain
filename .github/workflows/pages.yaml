@@ -27,7 +27,7 @@ jobs:
           ref: eae3b1946a276ac099e0018fc792d9e8c3bfda6d
 
       - name: Setup golang
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           check-latest: false
