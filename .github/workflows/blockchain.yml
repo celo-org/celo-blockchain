@@ -57,7 +57,7 @@ jobs:
       run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
     - name: Restore celo-monorepo cache
       id: celo-monorepo-cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: celo-monorepo
         key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
@@ -418,7 +418,7 @@ jobs:
       run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
     - name: Restore celo-monorepo cache
       id: celo-monorepo-cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: celo-monorepo
         key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
@@ -467,7 +467,7 @@ jobs:
       run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
     - name: Restore celo-monorepo cache
       id: celo-monorepo-cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: celo-monorepo
         key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
@@ -516,7 +516,7 @@ jobs:
       run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
     - name: Restore celo-monorepo cache
       id: celo-monorepo-cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: celo-monorepo
         key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
@@ -564,7 +564,7 @@ jobs:
       run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
     - name: Restore celo-monorepo cache
       id: celo-monorepo-cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: celo-monorepo
         key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
@@ -612,7 +612,7 @@ jobs:
       run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
     - name: Restore celo-monorepo cache
       id: celo-monorepo-cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: celo-monorepo
         key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
@@ -660,7 +660,7 @@ jobs:
       run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
     - name: Restore celo-monorepo cache
       id: celo-monorepo-cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: celo-monorepo
         key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
@@ -708,7 +708,7 @@ jobs:
       run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
     - name: Restore celo-monorepo cache
       id: celo-monorepo-cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: celo-monorepo
         key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
@@ -756,7 +756,7 @@ jobs:
       run: echo "MONOREPO_COMMIT_ID=${{ hashFiles('./geth/monorepo_commit') }}" >> $GITHUB_ENV
     - name: Restore celo-monorepo cache
       id: celo-monorepo-cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: celo-monorepo
         key: celo-monorepo-cache-${{ env.MONOREPO_COMMIT_ID }}-${{ env.CHECKOUT_MONOREPO_CACHE_VERSION }}
