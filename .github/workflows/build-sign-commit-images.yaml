@@ -14,7 +14,7 @@ jobs:
       id-token: write
       security-events: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Login at GCP Artifact Registry
         # v1.14.2 is main at Oct 26, 2023
         uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v1.14.2
@@ -42,7 +42,7 @@ jobs:
       id-token: write
       security-events: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Login at GCP Artifact Registry
         uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v1.14.2
         with:
@@ -69,7 +69,7 @@ jobs:
       id-token: write
       security-events: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Login at GCP Artifact Registry
         uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v1.14.2
         with:

@@ -15,12 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout celo-blockchain
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: ${{ env.CELO_BLOCKCHAIN_PATH }}
 
       - name: Checkout go-ethereum
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: ${{ env.GO_ETHEREUM_PATH }}
           repository: ethereum/go-ethereum
@@ -91,7 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout celo-blockchain
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Build pages directory
         run: |
