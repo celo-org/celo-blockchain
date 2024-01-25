@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -38,6 +39,35 @@ func init() {
 
 	// This disables all logging which in general we want, because there is a lot
 	log.Root().SetHandler(log.DiscardHandler())
+}
+func TestSubscribeLogs(t *testing.T) {
+	ac := test.AccountConfig(3, 2)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, network[0])
+	require.NoError(t, err)
+
+	ch := make(chan types.Log)
+	network[0].WsClient.SubscribeFilterLogs(ctx, celo.FilterQuery{
+		FromBlock: big.NewInt(0),
+		ToBlock:   big.NewInt(1000),
+	}, ch)
+	for {
+		<-ch
+	}
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
 }
 
 // This test starts a network submits a transaction and waits for the whole
