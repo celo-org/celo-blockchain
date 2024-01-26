@@ -359,8 +359,9 @@ func (b *LesApiBackend) GasPriceMinimumForHeader(ctx context.Context, currencyAd
 	}
 	// The gasPriceMinimum (celo or alternative currency) of a specific block, is the one at the beginning of the block,
 	// not the end of it (the state_root of the header is the a state resulted of applying the block). So, the state to
-	// be used, MUST be the state result of the parent block
-	state, parent, err := b.StateAndHeaderByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockHash: &header.ParentHash})
+	// be used, MUST be the state result of the parent block unleess this is the genesis block.
+	h := header.ParentOrGenesisHash()
+	state, parent, err := b.StateAndHeaderByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockHash: &h})
 	if err != nil {
 		return nil, err
 	}
@@ -374,8 +375,9 @@ func (b *LesApiBackend) RealGasPriceMinimumForHeader(ctx context.Context, curren
 	}
 	// The gasPriceMinimum (celo or alternative currency) of a specific block, is the one at the beginning of the block,
 	// not the end of it (the state_root of the header is the a state resulted of applying the block). So, the state to
-	// be used, MUST be the state result of the parent block
-	state, parent, err := b.StateAndHeaderByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockHash: &header.ParentHash})
+	// be used, MUST be the state result of the parent block unleess this is the genesis block.
+	h := header.ParentOrGenesisHash()
+	state, parent, err := b.StateAndHeaderByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockHash: &h})
 	if err != nil {
 		return nil, err
 	}
