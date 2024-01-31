@@ -723,7 +723,7 @@ func TestEthersJSCompatibilityDisableAfterGingerbread(t *testing.T) {
 	}
 	require.Equal(t, result["sha3Uncles"], "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347")
 
-	// Turn off compatibility and check fields are not present
+	// Turn off compatibility and check fields are still present
 	ec.RPCEthCompatibility = false
 	network, shutdown, err = test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -741,7 +741,7 @@ func TestEthersJSCompatibilityDisableAfterGingerbread(t *testing.T) {
 	_, ok := result["gasLimit"]
 	assert.True(t, ok, "gasLimit field must be present on RPC block after Gingerbread")
 	_, ok = result["baseFeePerGas"]
-	assert.True(t, ok, "baseFeePerGas field must be present on RPC block")
+	assert.True(t, ok, "baseFeePerGas field must be present on RPC block after Gingerbread")
 }
 
 // This test checks the functionality of the configuration to enable/disable
