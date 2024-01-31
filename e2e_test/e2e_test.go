@@ -733,9 +733,10 @@ func TestEthersJSCompatibilityDisableAfterGingerbread(t *testing.T) {
 	defer cancel()
 
 	result = make(map[string]interface{})
-	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "0x0", true)
 	require.NoError(t, err)
 
+	fmt.Printf("baseFee %v\n", result["baseFeePerGas"])
 	// After Gingerbread, gasLimit should be returned directly from the header, even if
 	// RPCEthCompatibility is off, since it is now part of the header hash.
 	_, ok := result["gasLimit"]
