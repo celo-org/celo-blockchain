@@ -162,7 +162,7 @@ jobs:
         check-latest: false
         cache: true
     - name: Restore system contracts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: system-contracts
         path: ${{ env.SYSTEM_CONTRACTS_PATH }}
@@ -225,7 +225,7 @@ jobs:
         check-latest: false
         cache: true
     - name: Restore system contracts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: system-contracts
         path: ${{ env.SYSTEM_CONTRACTS_PATH }}
@@ -295,7 +295,7 @@ jobs:
     - name: Prepare ethersjs project
       run: make prepare-ethersjs-project
     - name: Restore system contracts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: system-contracts
         path: ${{ env.SYSTEM_CONTRACTS_PATH }}
@@ -339,7 +339,7 @@ jobs:
         check-latest: false
         cache: true
     - name: Download pre-built binaries
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: binaries
         path: ./build/bin
@@ -372,7 +372,7 @@ jobs:
     - name: Configure git safe directories
       run: git config --global --add safe.directory '*'
     - name: Restore system contracts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: system-contracts
         path: ${{ env.SYSTEM_CONTRACTS_PATH }}
