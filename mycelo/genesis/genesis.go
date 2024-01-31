@@ -1,7 +1,6 @@
 package genesis
 
 import (
-	"errors"
 	"math/big"
 	"time"
 
@@ -21,18 +20,7 @@ var genesisMsgHash = common.HexToHash("ecc833a7747eaa8327335e8e0c6b6d8aa3a38d006
 
 // CreateCommonGenesisConfig generates a config starting point which templates can then customize further
 func CreateCommonGenesisConfig(chainID *big.Int, adminAccountAddress common.Address, istanbulConfig params.IstanbulConfig, gingerbreadBlock *big.Int) (*Config, error) {
-	baseOpCodeBlock := gingerbreadBlock
-	if gingerbreadBlock == nil {
-		baseOpCodeBlock = common.Big0
-	} else {
-		// The gasPriceMinimum contract requires the gingerbread block activation, but
-		// zero is to deactivate the if that reads the baseFee from the header. So we
-		// need to have gingerbread activation block bigger than zero
-		if gingerbreadBlock.Uint64() == 0 {
-			return nil, errors.New("gingerbread must be bigger than zero")
-		}
-	}
-	genesisConfig := BaseConfig(baseOpCodeBlock)
+	genesisConfig := BaseConfig(gingerbreadBlock)
 	genesisConfig.ChainID = chainID
 	genesisConfig.GenesisTimestamp = uint64(time.Now().Unix())
 	genesisConfig.Istanbul = istanbulConfig
