@@ -6,3 +6,6 @@ tests/testdata
 
 /crypto/bls/bls-zexe/bls/target
 /crypto/bls/bls-zexe/target
+
+# Ignore generated credentials from google-github-actions/auth
+gha-creds-*.json
