@@ -88,7 +88,7 @@ jobs:
         yarn run build:sol
     - name: Upload built system contracts
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: system-contracts
         path: 'celo-monorepo/${{ env.CONTRACTS_BUILD_PATH }}'
@@ -240,7 +240,7 @@ jobs:
         trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
         go test -p 1 -v -race ./... | tee /tmp/test-results/go-test.out
     - name: Upload test report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: data-race-detector-report
         path: /tmp/test-results
@@ -267,7 +267,7 @@ jobs:
       run: |
         make all
     - name: Upload binaries
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: binaries
         path: ./build/bin
@@ -383,7 +383,7 @@ jobs:
         trap "grep -E 'goos: |^goarch: |^pkg: |^cpu: |^Benchmark' /tmp/bench-results/go-bench.out > /tmp/bench-results/go-bench-results.txt" EXIT
         go test ./e2e_test -run Bench -bench . | tee /tmp/bench-results/go-bench.out
     - name: Upload results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: e2e-benchmarks
         path: /tmp/bench-results

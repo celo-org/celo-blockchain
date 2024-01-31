@@ -75,7 +75,7 @@ jobs:
           args: -repo=/github/workspace/${{ env.CELO_BLOCKCHAIN_PATH }} -upstream-repo=/github/workspace/${{ env.GO_ETHEREUM_PATH }} -fork=/github/workspace/${{ env.CELO_BLOCKCHAIN_PATH }}/.github/fork.yaml -out=/github/workspace/index.html
 
       - name: Upload forkdiff index.html
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: forkdiff-output
           path: ./index.html
