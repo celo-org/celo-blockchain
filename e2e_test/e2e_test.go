@@ -792,3 +792,92 @@ func TestEthersJSCompatibilityDisableBeforeGingerbread(t *testing.T) {
 		assert.Falsef(t, ok, "%s field should not be present on RPC block before Gingerbread", field)
 	}
 }
+
+// Initially we could not retrieve the eth compatibility fields (gasLimit &
+// baseFee) on the genesis block because our logic dictated that the effective
+// base fee and gas limit for a block were the ones set in the previous block
+// (because those values are required by the vm before processing a block).
+// There was no special case to handle the genesis block. We now have a special
+// case to handle the genesis block which returns the values retrieved from the
+// state at the genesis block.
+func TestEthCompatibilityFieldsOnGenesisBlock(t *testing.T) {
+	ac := test.AccountConfig(1, 1)
+	// Gingerbread needs to be disabled for this test to be meaningful (since
+	// gingerbread added gasLimt & baseFee fields to the block)
+	var gingerbreadBlock *big.Int = nil
+
+	// Fist we test without eth compatibility to ensure that the setting has an effect.
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	ec.RPCEthCompatibility = false
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	block, err := network[0].WsClient.BlockByNumber(ctx, big.NewInt(0))
+	require.NoError(t, err)
+
+	var nilBigInt *big.Int
+	require.Equal(t, nilBigInt, block.BaseFee())
+	require.Equal(t, uint64(0), block.GasLimit())
+
+	// Now we with eth compatility enabled and see that gasLimit and baseFee
+	// are returned on the block.
+	gc, ec, err = test.BuildConfig(ac, gingerbreadBlock)
+	ec.RPCEthCompatibility = true
+	require.NoError(t, err)
+	network, shutdown, err = test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	block, err = network[0].WsClient.BlockByNumber(ctx, big.NewInt(0))
+	require.NoError(t, err)
+
+	require.NotEqual(t, nilBigInt, block.BaseFee())
+	require.Greater(t, block.BaseFee().Uint64(), uint64(0))
+	require.Greater(t, block.GasLimit(), uint64(0))
+}
+
+// Initially we were not able to set the gingerbread activation block to be the genesis block, this test checks that it's possible.
+func TestSettingGingerbreadOnGenesisBlock(t *testing.T) {
+	ac := test.AccountConfig(1, 1)
+
+	// Fist we test without gingerbread to ensure that setting the gingerbread
+	// actually has an effect.
+	var gingerbreadBlock *big.Int = nil
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	ec.RPCEthCompatibility = false
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	block, err := network[0].WsClient.BlockByNumber(ctx, big.NewInt(0))
+	require.NoError(t, err)
+
+	var nilBigInt *big.Int
+	require.Equal(t, nilBigInt, block.BaseFee())
+	require.Equal(t, uint64(0), block.GasLimit())
+
+	// Now we check that setting the gingerbread block at genesis causes gasLimit and baseFee to be set on the block.
+	gingerbreadBlock = big.NewInt(0)
+	gc, ec, err = test.BuildConfig(ac, gingerbreadBlock)
+	ec.RPCEthCompatibility = false
+	require.NoError(t, err)
+	network, shutdown, err = test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	block, err = network[0].WsClient.BlockByNumber(ctx, big.NewInt(0))
+	require.NoError(t, err)
+
+	require.NotEqual(t, nilBigInt, block.BaseFee())
+	require.Greater(t, block.BaseFee().Uint64(), uint64(0))
+	require.Greater(t, block.GasLimit(), uint64(0))
+}
