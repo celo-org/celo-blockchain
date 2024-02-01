@@ -362,8 +362,9 @@ func (b *EthAPIBackend) GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.
 	}
 	// The gasLimit of a specific block, is the one at the beginning of the block,
 	// not the end of it (the state_root of the header is the a state resulted of applying the block). So, the state to
-	// be used, MUST be the state result of the parent block
-	state, parent, err := b.StateAndHeaderByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockHash: &header.ParentHash})
+	// be used, MUST be the state result of the parent block unless this is the genesis block.
+	h := header.ParentOrGenesisHash()
+	state, parent, err := b.StateAndHeaderByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockHash: &h})
 	if err != nil {
 		log.Warn("Cannot create evmCaller to get blockGasLimit", "err", err)
 		return params.DefaultGasLimit
@@ -382,8 +383,9 @@ func (b *EthAPIBackend) GetRealBlockGasLimit(ctx context.Context, blockNrOrHash 
 	}
 	// The gasLimit of a specific block, is the one at the beginning of the block,
 	// not the end of it (the state_root of the header is the a state resulted of applying the block). So, the state to
-	// be used, MUST be the state result of the parent block
-	state, parent, err := b.StateAndHeaderByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockHash: &header.ParentHash})
+	// be used, MUST be the state result of the parent block unless this is the genesis block.
+	h := header.ParentOrGenesisHash()
+	state, parent, err := b.StateAndHeaderByNumberOrHash(ctx, rpc.BlockNumberOrHash{BlockHash: &h})
 	if err != nil {
 		return 0, fmt.Errorf("EthApiBackend failed to retrieve state for block gas limit for block %v: %w", blockNrOrHash, err)
 	}
