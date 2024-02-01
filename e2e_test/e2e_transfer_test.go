@@ -468,7 +468,7 @@ func TestTransferERC20(t *testing.T) {
 	gateWayFeeRecipient := devAccounts[2]
 
 	// Get datum to set GasPrice/MaxFeePerGas/MaxPriorityFeePerGas to sensible values
-	header, err := network[0].WsClient.HeaderByNumber(ctx, common.Big1)
+	header, err := network[0].WsClient.HeaderByNumber(ctx, nil)
 	require.NoError(t, err)
 	datum := header.BaseFee
 	stableTokenAddress := env.MustProxyAddressFor("StableToken")
