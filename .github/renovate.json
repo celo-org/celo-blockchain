@@ -7,7 +7,7 @@
     {
       "enabled": false,
       "groupName": "everything",
-      "matchManagers": ["gomod", "dockerfile", "docker-compose"],
+      "matchManagers": ["gomod", "dockerfile", "docker-compose", "npm"],
       "matchPackagePatterns": ["*"],
       "separateMajorMinor": false
     }
