@@ -44,7 +44,7 @@ func init() {
 // network to process the transaction.
 func TestSendCelo(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
-	gingerbreadBlock := common.Big1
+	gingerbreadBlock := common.Big0
 	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
@@ -70,7 +70,7 @@ func TestSendCelo(t *testing.T) {
 // and can be useful for debugging these traces.
 func TestTraceSendCeloViaGoldToken(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
-	gingerbreadBlock := common.Big1
+	gingerbreadBlock := common.Big0
 	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
@@ -107,7 +107,7 @@ func TestTraceSendCeloViaGoldToken(t *testing.T) {
 // Use the callTracer to trace a native CELO transfer.
 func TestCallTraceTransactionNativeTransfer(t *testing.T) {
 	ac := test.AccountConfig(1, 2)
-	gingerbreadBlock := common.Big1
+	gingerbreadBlock := common.Big0
 	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
@@ -145,7 +145,7 @@ func TestCallTraceTransactionNativeTransfer(t *testing.T) {
 // Use the prestateTracer to trace a native CELO transfer.
 func TestPrestateTransactionNativeTransfer(t *testing.T) {
 	ac := test.AccountConfig(1, 2)
-	gingerbreadBlock := common.Big1
+	gingerbreadBlock := common.Big0
 	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
@@ -183,7 +183,7 @@ func TestSingleNodeNetworkManyTxs(t *testing.T) {
 	iterations := 5
 	txsPerIteration := 5
 	ac := test.AccountConfig(1, 1)
-	gingerbreadBlock := common.Big1
+	gingerbreadBlock := common.Big0
 	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	gc.Istanbul.Epoch = uint64(iterations) * 50 // avoid the epoch for this test
@@ -209,7 +209,7 @@ func TestSingleNodeNetworkManyTxs(t *testing.T) {
 // We previously had an open bug for this https://github.com/celo-org/celo-blockchain/issues/1574
 func TestEpochBlockMarshaling(t *testing.T) {
 	accounts := test.AccountConfig(1, 0)
-	gingerbreadBlock := common.Big1
+	gingerbreadBlock := common.Big0
 	gc, ec, err := test.BuildConfig(accounts, gingerbreadBlock)
 	require.NoError(t, err)
 
@@ -239,7 +239,7 @@ func TestEpochBlockMarshaling(t *testing.T) {
 // validators are shut down, when they restart the network is able to continue.
 func TestStartStopValidators(t *testing.T) {
 	ac := test.AccountConfig(4, 2)
-	gingerbreadBlock := common.Big1
+	gingerbreadBlock := common.Big0
 	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, _, err := test.NewNetwork(ac, gc, ec)
@@ -376,7 +376,7 @@ func TestStartStopValidators(t *testing.T) {
 // trace block code was the source of the concurrent map access.
 func TestBlockTracingConcurrentMapAccess(t *testing.T) {
 	ac := test.AccountConfig(1, 2)
-	gingerbreadBlock := common.Big1
+	gingerbreadBlock := common.Big0
 	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
@@ -427,7 +427,7 @@ func TestBlockTracingConcurrentMapAccess(t *testing.T) {
 // Helpful for debugging issues in TestBlockTracingConcurrentMapAccess.
 func TestBlockTracingSequentialAccess(t *testing.T) {
 	ac := test.AccountConfig(1, 2)
-	gingerbreadBlock := common.Big1
+	gingerbreadBlock := common.Big0
 	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
@@ -462,7 +462,7 @@ type rpcCustomTransaction struct {
 // price by the tx, which could be less than the feeCap (as in this example)
 func TestRPCDynamicTxGasPriceWithBigFeeCap(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
-	gingerbreadBlock := common.Big1
+	gingerbreadBlock := common.Big0
 	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
@@ -503,7 +503,7 @@ func TestRPCDynamicTxGasPriceWithBigFeeCap(t *testing.T) {
 // GasPriceMinimum contract
 func TestRPCDynamicTxGasPriceWithState(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
-	gingerbreadBlock := common.Big1
+	gingerbreadBlock := common.Big0
 	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	ec.TxLookupLimit = 0
@@ -578,7 +578,7 @@ func TestRPCDynamicTxGasPriceWithoutStateForAlternativeCurrencyAfterGingerbread(
 func testRPCDynamicTxGasPriceWithoutState(t *testing.T, afterGingerbread, alternativeCurrency bool) {
 	var gingerbreadBlock *big.Int
 	if afterGingerbread {
-		gingerbreadBlock = common.Big1
+		gingerbreadBlock = common.Big0
 	}
 	cusdAddress := common.HexToAddress("0xd008")
 	ac := test.AccountConfig(3, 2)
@@ -655,7 +655,7 @@ func pruneStateOfBlock(ctx context.Context, node *test.Node, blockNumber *big.In
 
 func runMochaTest(t *testing.T, add_args func(*env.AccountsConfig, *genesis.Config, test.Network) []string) {
 	ac := test.AccountConfig(1, 1)
-	gingerbreadBlock := common.Big1
+	gingerbreadBlock := common.Big0
 	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
@@ -701,7 +701,7 @@ func TestEthersJSCompatibility(t *testing.T) {
 // returning the 'gasLimit' and 'baseFeePerGas' fields on RPC blocks.
 func TestEthersJSCompatibilityDisableAfterGingerbread(t *testing.T) {
 	ac := test.AccountConfig(1, 1)
-	gingerbreadBlock := common.Big1
+	gingerbreadBlock := common.Big0
 	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 
@@ -723,7 +723,7 @@ func TestEthersJSCompatibilityDisableAfterGingerbread(t *testing.T) {
 	}
 	require.Equal(t, result["sha3Uncles"], "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347")
 
-	// Turn off compatibility and check fields are not present
+	// Turn off compatibility and check fields are still present
 	ec.RPCEthCompatibility = false
 	network, shutdown, err = test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -733,7 +733,7 @@ func TestEthersJSCompatibilityDisableAfterGingerbread(t *testing.T) {
 	defer cancel()
 
 	result = make(map[string]interface{})
-	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "latest", true)
+	err = network[0].WsClient.GetRPCClient().CallContext(ctx, &result, "eth_getBlockByNumber", "0x0", true)
 	require.NoError(t, err)
 
 	// After Gingerbread, gasLimit should be returned directly from the header, even if
@@ -741,7 +741,7 @@ func TestEthersJSCompatibilityDisableAfterGingerbread(t *testing.T) {
 	_, ok := result["gasLimit"]
 	assert.True(t, ok, "gasLimit field must be present on RPC block after Gingerbread")
 	_, ok = result["baseFeePerGas"]
-	assert.True(t, ok, "baseFeePerGas field must be present on RPC block")
+	assert.True(t, ok, "baseFeePerGas field must be present on RPC block after Gingerbread")
 }
 
 // This test checks the functionality of the configuration to enable/disable
@@ -791,4 +791,93 @@ func TestEthersJSCompatibilityDisableBeforeGingerbread(t *testing.T) {
 		_, ok := result[field]
 		assert.Falsef(t, ok, "%s field should not be present on RPC block before Gingerbread", field)
 	}
+}
+
+// Initially we could not retrieve the eth compatibility fields (gasLimit &
+// baseFee) on the genesis block because our logic dictated that the effective
+// base fee and gas limit for a block were the ones set in the previous block
+// (because those values are required by the vm before processing a block).
+// There was no special case to handle the genesis block. We now have a special
+// case to handle the genesis block which returns the values retrieved from the
+// state at the genesis block.
+func TestEthCompatibilityFieldsOnGenesisBlock(t *testing.T) {
+	ac := test.AccountConfig(1, 1)
+	// Gingerbread needs to be disabled for this test to be meaningful (since
+	// gingerbread added gasLimt & baseFee fields to the block)
+	var gingerbreadBlock *big.Int = nil
+
+	// Fist we test without eth compatibility to ensure that the setting has an effect.
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	ec.RPCEthCompatibility = false
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	block, err := network[0].WsClient.BlockByNumber(ctx, big.NewInt(0))
+	require.NoError(t, err)
+
+	var nilBigInt *big.Int
+	require.Equal(t, nilBigInt, block.BaseFee())
+	require.Equal(t, uint64(0), block.GasLimit())
+
+	// Now we with eth compatility enabled and see that gasLimit and baseFee
+	// are returned on the block.
+	gc, ec, err = test.BuildConfig(ac, gingerbreadBlock)
+	ec.RPCEthCompatibility = true
+	require.NoError(t, err)
+	network, shutdown, err = test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	block, err = network[0].WsClient.BlockByNumber(ctx, big.NewInt(0))
+	require.NoError(t, err)
+
+	require.NotEqual(t, nilBigInt, block.BaseFee())
+	require.Greater(t, block.BaseFee().Uint64(), uint64(0))
+	require.Greater(t, block.GasLimit(), uint64(0))
+}
+
+// Initially we were not able to set the gingerbread activation block to be the genesis block, this test checks that it's possible.
+func TestSettingGingerbreadOnGenesisBlock(t *testing.T) {
+	ac := test.AccountConfig(1, 1)
+
+	// Fist we test without gingerbread to ensure that setting the gingerbread
+	// actually has an effect.
+	var gingerbreadBlock *big.Int = nil
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	ec.RPCEthCompatibility = false
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	block, err := network[0].WsClient.BlockByNumber(ctx, big.NewInt(0))
+	require.NoError(t, err)
+
+	var nilBigInt *big.Int
+	require.Equal(t, nilBigInt, block.BaseFee())
+	require.Equal(t, uint64(0), block.GasLimit())
+
+	// Now we check that setting the gingerbread block at genesis causes gasLimit and baseFee to be set on the block.
+	gingerbreadBlock = big.NewInt(0)
+	gc, ec, err = test.BuildConfig(ac, gingerbreadBlock)
+	ec.RPCEthCompatibility = false
+	require.NoError(t, err)
+	network, shutdown, err = test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+
+	block, err = network[0].WsClient.BlockByNumber(ctx, big.NewInt(0))
+	require.NoError(t, err)
+
+	require.NotEqual(t, nilBigInt, block.BaseFee())
+	require.Greater(t, block.BaseFee().Uint64(), uint64(0))
+	require.Greater(t, block.GasLimit(), uint64(0))
 }

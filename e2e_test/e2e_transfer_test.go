@@ -36,7 +36,7 @@ const (
 // - validator account has tip fee added.
 func TestTransferCELO(t *testing.T) {
 	ac := test.AccountConfig(1, 3)
-	gingerbreadBlock := common.Big1
+	gingerbreadBlock := common.Big0
 	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
@@ -53,7 +53,7 @@ func TestTransferCELO(t *testing.T) {
 	gateWayFeeRecipient := devAccounts[2]
 
 	// Get datum to set GasPrice/MaxFeePerGas/MaxPriorityFeePerGas to sensible values
-	header, err := network[0].WsClient.HeaderByNumber(ctx, common.Big1)
+	header, err := network[0].WsClient.HeaderByNumber(ctx, nil)
 	require.NoError(t, err)
 	datum := header.BaseFee
 
@@ -274,7 +274,7 @@ func TestTransferCELOPreGingerbread(t *testing.T) {
 	gateWayFeeRecipient := devAccounts[2]
 
 	// Get datum to set GasPrice/MaxFeePerGas/MaxPriorityFeePerGas to sensible values
-	header, err := network[0].WsClient.HeaderByNumber(ctx, common.Big1)
+	header, err := network[0].WsClient.HeaderByNumber(ctx, nil)
 	require.NoError(t, err)
 	datum, err := network[0].Eth.APIBackend.GasPriceMinimumForHeader(ctx, nil, header)
 	require.NoError(t, err)
@@ -451,7 +451,7 @@ func prepareTransaction(txArgs ethapi.TransactionArgs, senderKey *ecdsa.PrivateK
 
 func TestTransferERC20(t *testing.T) {
 	ac := test.AccountConfig(1, 3)
-	gingerbreadBlock := common.Big1
+	gingerbreadBlock := common.Big0
 	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
@@ -468,7 +468,7 @@ func TestTransferERC20(t *testing.T) {
 	gateWayFeeRecipient := devAccounts[2]
 
 	// Get datum to set GasPrice/MaxFeePerGas/MaxPriorityFeePerGas to sensible values
-	header, err := network[0].WsClient.HeaderByNumber(ctx, common.Big1)
+	header, err := network[0].WsClient.HeaderByNumber(ctx, nil)
 	require.NoError(t, err)
 	datum := header.BaseFee
 	stableTokenAddress := env.MustProxyAddressFor("StableToken")

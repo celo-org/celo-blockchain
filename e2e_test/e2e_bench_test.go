@@ -18,7 +18,7 @@ func BenchmarkNet100EmptyBlocks(b *testing.B) {
 		b.Run(fmt.Sprintf("%dNodes", n), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				ac := test.AccountConfig(n, 0)
-				gingerbreadBlock := common.Big1
+				gingerbreadBlock := common.Big0
 				gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 				require.NoError(b, err)
 				network, shutdown, err := test.NewNetwork(ac, gc, ec)
@@ -44,7 +44,7 @@ func BenchmarkNet1000Txs(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 
 				ac := test.AccountConfig(n, n)
-				gingerbreadBlock := common.Big1
+				gingerbreadBlock := common.Big0
 				gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
 				require.NoError(b, err)
 				accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
