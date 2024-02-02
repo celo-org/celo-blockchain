@@ -153,6 +153,11 @@ func NewManager(vmRunner vm.EVMRunner) *CurrencyManager {
 	return newManager(GetExchangeRate, vmRunner)
 }
 
+// NewCacheOnlyManager creates a cache-full currency manager. TESTING PURPOSES ONLY
+func NewCacheOnlyManager(currencyCache map[common.Address]*Currency) *CurrencyManager {
+	return &CurrencyManager{currencyCache: currencyCache}
+}
+
 func newManager(_getExchangeRate func(vm.EVMRunner, *common.Address) (*ExchangeRate, error), vmRunner vm.EVMRunner) *CurrencyManager {
 	return &CurrencyManager{
 		vmRunner:         vmRunner,
