@@ -176,6 +176,51 @@ var (
 			},
 		)
 	TestRules = TestChainConfig.Rules(new(big.Int))
+
+	mainnetGasLimits = &GasLimits{
+		changes: []LimitChange{
+			{big.NewInt(0), 20e6},
+			{big.NewInt(3317), 10e6},
+			{big.NewInt(3251772), 13e6},
+			{big.NewInt(6137285), 20e6},
+			{big.NewInt(13562578), 50e6},
+			{big.NewInt(14137511), 13e6},
+			{big.NewInt(21355415), 32e6},
+		},
+	}
+
+	alfajoresGasLimits = &GasLimits{
+		changes: []LimitChange{
+			{big.NewInt(0), 20e6},
+			{big.NewInt(912), 10e6},
+			{big.NewInt(1392355), 130e6},
+			{big.NewInt(1507905), 13e6},
+			{big.NewInt(4581182), 20e6},
+			{big.NewInt(11143973), 35e6},
+		},
+	}
+
+	baklavaGasLimits = &GasLimits{
+		changes: []LimitChange{
+			{big.NewInt(0), 20e6},
+			{big.NewInt(1230), 10e6},
+			{big.NewInt(1713181), 130e6},
+			{big.NewInt(1945003), 13e6},
+			{big.NewInt(15158971), 20e6},
+		},
+	}
+
+	// This is a hardcoded set of gas limit changes derived from historical
+	// state. They allow non archive nodes to return the gas limit for blocks
+	// before gingerbread (where we added gas limit to the block header).
+	// Additionally they ensure that archive nodes return the correct value at
+	// the beginning of the chain, before the blockchain parameters contract
+	// was deployed and activated.
+	PreGingerbreadNetworkGasLimits = map[uint64]*GasLimits{
+		MainnetNetworkId:   mainnetGasLimits,
+		AlfajoresNetworkId: alfajoresGasLimits,
+		BaklavaNetworkId:   baklavaGasLimits,
+	}
 )
 
 // TrustedCheckpoint represents a set of post-processed trie roots (CHT and
