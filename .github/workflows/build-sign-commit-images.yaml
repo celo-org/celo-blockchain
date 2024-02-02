@@ -31,7 +31,6 @@ jobs:
           context: .
           dockerfile: Dockerfile
           push: ${{ fromJSON(true) }}
-          load: ${{ fromJSON(false) }}
           trivy: ${{ fromJSON(true) }}
 
   build-container-geth-master:
@@ -58,7 +57,6 @@ jobs:
           context: .
           dockerfile: Dockerfile
           push: ${{ fromJSON(true) }}
-          load: ${{ fromJSON(false) }}
           trivy: ${{ fromJSON(true) }}
 
   build-container-geth-all-master:
@@ -85,5 +83,4 @@ jobs:
           context: .
           dockerfile: Dockerfile.alltools
           push: ${{ fromJSON(true) }}
-          load: ${{ fromJSON(false) }}
           trivy: ${{ fromJSON(true) }}
