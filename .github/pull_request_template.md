@@ -15,6 +15,6 @@ _An explanation of how the changes were tested or an explanation as to why they 
 
 - Fixes #[issue number here]
 
-### Backwards compatibility
+### Backward compatibility
 
 _Brief explanation of why these changes are/are not backwards compatible._
