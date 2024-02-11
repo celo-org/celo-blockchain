@@ -1,9 +1,9 @@
 # Contributing
 
-Thank you for considering making a contribution to the Celo community!
+Thank you for considering contributing to the Celo community!
 Everyone is encouraged to contribute, even the smallest fixes are welcome.
 
-If you'd like to contribute to Celo, please fork, fix, commit and send a
+If you'd like to contribute to Celo, please fork, fix, commit, and send a
 pull request for the maintainers to review.
 
 If you wish to submit more complex changes, please sync with a core developer first.
