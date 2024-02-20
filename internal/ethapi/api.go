@@ -1014,6 +1014,9 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 	// also fail with gas limit B, which may not be the case if the gas price is non-zero,
 	// depending on the account's balance.
 	args.GasPrice = nil
+	// If a fee tip or fee cap are passed, those will override the gas price, so zero them out as well.
+	args.MaxFeePerGas = nil
+	args.MaxPriorityFeePerGas = nil
 	// Create a helper to check if a gas allowance results in an executable transaction
 	executable := func(gas uint64) (bool, *core.ExecutionResult, error) {
 		args.Gas = (*hexutil.Uint64)(&gas)
