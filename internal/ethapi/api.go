@@ -1438,6 +1438,12 @@ func AccessList(ctx context.Context, b Backend, blockNrOrHash rpc.BlockNumberOrH
 	// Retrieve the precompiles since they don't need to be added to the access list
 	precompiles := vm.ActivePrecompiles(b.ChainConfig().Rules(header.Number))
 
+	// Create SysContractCallCtx
+	var sysCtx *core.SysContractCallCtx
+	if b.ChainConfig().IsEspresso(header.Number) {
+		sysCtx = core.NewSysContractCallCtx(header, db, b)
+	}
+
 	// Create an initial tracer
 	prevTracer := vm.NewAccessListTracer(nil, args.from(), to, precompiles)
 	if args.AccessList != nil {
@@ -1478,7 +1484,7 @@ func AccessList(ctx context.Context, b Backend, blockNrOrHash rpc.BlockNumberOrH
 			return nil, 0, nil, err
 		}
 		vmRunner := b.NewEVMRunner(header, statedb)
-		res, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), vmRunner, nil)
+		res, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), vmRunner, sysCtx)
 		if err != nil {
 			return nil, 0, nil, fmt.Errorf("failed to apply transaction: %v err: %v", args.toTransaction(false).Hash(), err)
 		}
