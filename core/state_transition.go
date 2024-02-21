@@ -514,7 +514,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		st.refundGas(params.RefundQuotientEIP3529)
 	}
 
-	err = st.distributeTxFees()
+	err = st.creditTxFees()
 	if err != nil {
 		return nil, err
 	}
@@ -525,8 +525,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}, nil
 }
 
-// distributeTxFees calculates the amounts and recipients of transaction fees and credits the accounts.
-func (st *StateTransition) distributeTxFees() error {
+// creditTxFees calculates the amounts and recipients of transaction fees and credits the accounts.
+func (st *StateTransition) creditTxFees() error {
 	// Run only primary evm.Call() with tracer
 	if st.evm.GetDebug() {
 		st.evm.SetDebug(false)
@@ -569,7 +569,7 @@ func (st *StateTransition) distributeTxFees() error {
 		baseTxFee = new(big.Int)
 	}
 
-	log.Trace("distributeTxFees", "from", from, "refund", refund, "feeCurrency", st.msg.FeeCurrency(),
+	log.Trace("creditTxFees", "from", from, "refund", refund, "feeCurrency", st.msg.FeeCurrency(),
 		"gatewayFeeRecipient", *gatewayFeeRecipient, "gatewayFee", st.msg.GatewayFee(),
 		"coinbaseFeeRecipient", st.evm.Context.Coinbase, "coinbaseFee", tipTxFee,
 		"feeHandler", feeHandlerAddress, "communityFundFee", baseTxFee)
