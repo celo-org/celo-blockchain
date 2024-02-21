@@ -87,6 +87,7 @@ func (cfg *Config) ChainConfig() *params.ChainConfig {
 		EspressoBlock:      cfg.Hardforks.EspressoBlock,
 		GingerbreadBlock:   cfg.Hardforks.GingerbreadBlock,
 		GingerbreadP2Block: cfg.Hardforks.GingerbreadP2Block,
+		HForkBlock:         cfg.Hardforks.HForkBlock,
 
 		Istanbul: &params.IstanbulConfig{
 			Epoch:          cfg.Istanbul.Epoch,
@@ -105,6 +106,7 @@ type HardforkConfig struct {
 	EspressoBlock      *big.Int `json:"espressoBlock"`
 	GingerbreadBlock   *big.Int `json:"gingerbreadBlock"`
 	GingerbreadP2Block *big.Int `json:"gingerbreadP2Block"`
+	HForkBlock         *big.Int `json:"hforkBlock"`
 }
 
 // MultiSigParameters are the initial configuration parameters for a MultiSig contract

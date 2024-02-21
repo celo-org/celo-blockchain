@@ -67,6 +67,8 @@ var (
 		EspressoBlock:       big.NewInt(11838440),
 		GingerbreadBlock:    big.NewInt(21616000),
 		GingerbreadP2Block:  big.NewInt(21616000),
+		HForkBlock:          nil, // TBD
+
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -94,6 +96,8 @@ var (
 		EspressoBlock:       big.NewInt(9195000),
 		GingerbreadBlock:    big.NewInt(18785000),
 		GingerbreadP2Block:  big.NewInt(19157000),
+		HForkBlock:          nil, // TBD
+
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -121,6 +125,8 @@ var (
 		EspressoBlock:       big.NewInt(9472000),
 		GingerbreadBlock:    big.NewInt(19814000),
 		GingerbreadP2Block:  big.NewInt(19814000),
+		HForkBlock:          nil, // TBD
+
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -153,6 +159,7 @@ var (
 		EspressoBlock:      big.NewInt(0),
 		GingerbreadBlock:   big.NewInt(0),
 		GingerbreadP2Block: big.NewInt(0),
+		HForkBlock:         big.NewInt(0),
 
 		Istanbul: &IstanbulConfig{
 			Epoch:          30000,
@@ -305,6 +312,7 @@ type ChainConfig struct {
 	EspressoBlock      *big.Int `json:"espressoBlock,omitempty"`      // Espresso switch block (nil = no fork, 0 = already activated)
 	GingerbreadBlock   *big.Int `json:"gingerbreadBlock,omitempty"`   // Gingerbread switch block (nil = no fork, 0 = already activated)
 	GingerbreadP2Block *big.Int `json:"gingerbreadP2Block,omitempty"` // GingerbreadP2 switch block (nil = no fork, 0 = already activated)
+	HForkBlock         *big.Int `json:"hforkBlock,omitempty"`         // HFork switch block (nil = no fork, 0 = already activated)
 
 	Istanbul *IstanbulConfig `json:"istanbul,omitempty"`
 	// This does not belong here but passing it to every function is not possible since that breaks
@@ -347,7 +355,7 @@ func (c *ChainConfig) String() string {
 	} else {
 		engine = "MockEngine"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v Churrito: %v, Donut: %v, Espresso: %v, Gingerbread: %v, Gingerbread P2: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v Churrito: %v, Donut: %v, Espresso: %v, Gingerbread: %v, Gingerbread P2: %v, HForkBlock: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -367,6 +375,7 @@ func (c *ChainConfig) String() string {
 		c.EspressoBlock,
 		c.GingerbreadBlock,
 		c.GingerbreadP2Block,
+		c.HForkBlock,
 		engine,
 	)
 }
@@ -455,6 +464,10 @@ func (c *ChainConfig) IsGingerbreadP2(num *big.Int) bool {
 	return isForked(c.GingerbreadP2Block, num)
 }
 
+func (c *ChainConfig) IsHFork(num *big.Int) bool {
+	return isForked(c.HForkBlock, num)
+}
+
 // CheckCompatible checks whether scheduled fork transitions have been imported
 // with a mismatching chain configuration.
 func (c *ChainConfig) CheckCompatible(newcfg *ChainConfig, height uint64) *ConfigCompatError {
@@ -496,6 +509,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "espressoBlock", block: c.EspressoBlock},
 		{name: "gingerbreadBlock", block: c.GingerbreadBlock},
 		{name: "gingerbreadP2Block", block: c.GingerbreadP2Block},
+		{name: "hforkBlock", block: c.HForkBlock},
 	} {
 		if lastFork.name != "" {
 			// Next one must be higher number
@@ -575,6 +589,9 @@ func (c *ChainConfig) checkCeloCompatible(newcfg *ChainConfig, head *big.Int) *C
 	}
 	if isForkIncompatible(c.GingerbreadP2Block, newcfg.GingerbreadP2Block, head) {
 		return newCompatError("Gingerbread p2 fork block", c.GingerbreadP2Block, newcfg.GingerbreadP2Block)
+	}
+	if isForkIncompatible(c.HForkBlock, newcfg.HForkBlock, head) {
+		return newCompatError("HFork block", c.HForkBlock, newcfg.HForkBlock)
 	}
 	return nil
 }
@@ -692,6 +709,8 @@ func (c *ChainConfig) OverrideChainIdConfig(chainId *big.Int) *ChainConfig {
 func (c *ChainConfig) DisableGingerbread() *ChainConfig {
 	c.GingerbreadBlock = nil
 	c.GingerbreadP2Block = nil
+	// Since gingerbread is disabled disable following forks as well
+	c.HForkBlock = nil
 	return c
 }
 
@@ -714,6 +733,7 @@ func (c *ChainConfig) DeepCopy() *ChainConfig {
 		EspressoBlock:       copyBigIntOrNil(c.EspressoBlock),
 		GingerbreadBlock:    copyBigIntOrNil(c.GingerbreadBlock),
 		GingerbreadP2Block:  copyBigIntOrNil(c.GingerbreadP2Block),
+		HForkBlock:          copyBigIntOrNil(c.HForkBlock),
 
 		Istanbul: &IstanbulConfig{
 			Epoch:          c.Istanbul.Epoch,
