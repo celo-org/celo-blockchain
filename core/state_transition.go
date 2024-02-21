@@ -347,6 +347,9 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, feeCurrency *c
 }
 
 func (st *StateTransition) debitFee(from common.Address, feeCurrency *common.Address) (err error) {
+	if st.evm.Config.SkipDebitCredit {
+		return nil
+	}
 	effectiveFee := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 	// If GatewayFeeRecipient is unspecified, the gateway fee value is ignore and the sender is not charged.
 	if st.msg.GatewayFeeRecipient() != nil {
@@ -527,6 +530,10 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 // creditTxFees calculates the amounts and recipients of transaction fees and credits the accounts.
 func (st *StateTransition) creditTxFees() error {
+	if st.evm.Config.SkipDebitCredit {
+		return nil
+	}
+
 	// Run only primary evm.Call() with tracer
 	if st.evm.GetDebug() {
 		st.evm.SetDebug(false)
