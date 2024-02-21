@@ -184,6 +184,7 @@ func (es *EventSystem) subscribe(sub *subscription) *Subscription {
 	return &Subscription{ID: sub.id, f: sub, es: es}
 }
 
+// TODO(Alec)
 // SubscribeLogs creates a subscription that will write all logs matching the
 // given criteria to the given logs channel. Default value for the from and to
 // block is "latest". If the fromBlock > toBlock an error is returned.

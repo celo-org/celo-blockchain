@@ -249,6 +249,76 @@ func (api *PublicFilterAPI) NewHeads(ctx context.Context) (*rpc.Subscription, er
 	return rpcSub, nil
 }
 
+// TODO(Alec)
+func (api *PublicFilterAPI) MergedLogs(ctx context.Context, crit FilterCriteria) (*rpc.Subscription, error) {
+	notifier, supported := rpc.NotifierFromContext(ctx)
+	if !supported {
+		return &rpc.Subscription{}, rpc.ErrNotificationsUnsupported
+	}
+
+	var (
+		rpcSub      = notifier.CreateSubscription()
+		matchedLogs = make(chan []*types.Log)
+	)
+
+	migrationBlock := big.NewInt(500) // last block of cel1, migrationBlock + 1 is first block of cel2
+
+	// TODO(Alec) handle cases where FromBlock and ToBlock are negative or nil
+	// TODO(Alec) there seems to be a mismatch between the interpretation of nil From blocks in the
+	// FilterQuery type definition and how they're handled by SubscribeLogs.
+	// TODO(Alec) assuming FromBlock and ToBlock are inclusive
+
+	queries := [2]ethereum.FilterQuery{
+		ethereum.FilterQuery(crit),
+	}
+	if queries[0].FromBlock.Cmp(queries[0].ToBlock) > 0 {
+		return nil, fmt.Errorf("invalid from and to block combination: from > to") // Error copied from SubscribeLogs
+	}
+	if queries[0].FromBlock.Cmp(migrationBlock) <= 0 {
+		if queries[0].ToBlock.Cmp(migrationBlock) > 0 {
+			queries = [2]ethereum.FilterQuery{
+				{
+					FromBlock: queries[0].FromBlock,
+					ToBlock:   migrationBlock,
+				},
+				{
+					FromBlock: migrationBlock.Add(migrationBlock, big.NewInt(1)),
+					ToBlock:   queries[0].ToBlock,
+				},
+			}
+		}
+	}
+
+	go func() {
+		for _, query := range queries {
+			logsSub, err := api.events.SubscribeLogs(query, matchedLogs)
+			if err != nil {
+				log.Error("Error returned from SubscribeLogs", err)
+				// TODO(Alec) what else do we need to do here?
+				return
+			}
+
+			for {
+				select {
+				case logs := <-matchedLogs:
+					for _, log := range logs {
+						notifier.Notify(rpcSub.ID, &log) // TODO(Alec) maybe you can send an error through here
+					}
+					// TODO(Alec) how can we break this loop when matchedLogs is empty to continue to next query?
+				case <-rpcSub.Err(): // client send an unsubscribe request
+					logsSub.Unsubscribe()
+					return
+				case <-notifier.Closed(): // connection dropped
+					logsSub.Unsubscribe()
+					return
+				}
+			}
+		}
+	}()
+
+	return rpcSub, nil
+}
+
 // Logs creates a subscription that fires for all new log that match the given filter criteria.
 func (api *PublicFilterAPI) Logs(ctx context.Context, crit FilterCriteria) (*rpc.Subscription, error) {
 	notifier, supported := rpc.NotifierFromContext(ctx)

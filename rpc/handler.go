@@ -316,6 +316,7 @@ func (h *handler) handleCallMsg(ctx *callProc, msg *jsonrpcMessage) *jsonrpcMess
 
 // handleCall processes method calls.
 func (h *handler) handleCall(cp *callProc, msg *jsonrpcMessage) *jsonrpcMessage {
+	// TODO(Alec) line between two wordls
 	if msg.isSubscribe() {
 		return h.handleSubscribe(cp, msg)
 	}

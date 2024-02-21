@@ -59,7 +59,7 @@ type callback struct {
 }
 
 func (r *serviceRegistry) registerName(name string, rcvr interface{}) error {
-	rcvrVal := reflect.ValueOf(rcvr)
+	rcvrVal := reflect.ValueOf(rcvr) // 1
 	if name == "" {
 		return fmt.Errorf("no service name for type %s", rcvrVal.Type().String())
 	}
@@ -180,6 +180,7 @@ func (c *callback) makeArgTypes() {
 	}
 }
 
+// TODO(Alec) This is where RPC method is actually called
 // call invokes the callback.
 func (c *callback) call(ctx context.Context, method string, args []reflect.Value) (res interface{}, errRes error) {
 	// Create the argument slice.

@@ -40,6 +40,42 @@ func init() {
 	// This disables all logging which in general we want, because there is a lot
 	log.Root().SetHandler(log.DiscardHandler())
 }
+
+func TestSubscribeMergedLogs(t *testing.T) {
+	ac := test.AccountConfig(1, 2)
+	gingerbreadBlock := common.Big1
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*300)
+	defer cancel()
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCeloViaGoldToken(ctx, accounts[1].Address, 1, network[0])
+	require.NoError(t, err)
+
+	ch := make(chan types.Log)
+	c, err := rpc.DialContext(ctx, network[0].WSEndpoint())
+	require.NoError(t, err)
+	c.EthSubscribe(ctx, ch, "mergedLogs", map[string]interface{}{
+		"fromBlock": hexutil.EncodeBig(big.NewInt(0)),
+		"toBlock":   hexutil.EncodeBig(big.NewInt(1000)),
+	})
+
+	for len(ch) > 0 {
+		log := <-ch
+		fmt.Println(log)
+	}
+
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+}
+
 func TestSubscribeLogs(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
 	gingerbreadBlock := common.Big1
@@ -62,11 +98,42 @@ func TestSubscribeLogs(t *testing.T) {
 		FromBlock: big.NewInt(0),
 		ToBlock:   big.NewInt(1000),
 	}, ch)
-	for {
+	for len(ch) > 0 {
 		<-ch
 	}
 	// Wait for the whole network to process the transaction.
 	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+}
+
+// TODO(Alec)
+func TestMigrateDataDir(t *testing.T) {
+	ac := test.AccountConfig(1, 2)
+	gingerbreadBlock := big.NewInt(20)
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	require.NoError(t, err)
+	// gc.Hardforks = genesis.HardforkConfig{
+	// 	ChurritoBlock:      big.NewInt(5),
+	// 	DonutBlock:         big.NewInt(10),
+	// 	EspressoBlock:      big.NewInt(15),
+	// 	GingerbreadBlock:   gingerbreadBlock,
+	// 	GingerbreadP2Block: big.NewInt(25),
+	// }
+	network, _, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	// defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*100)
+	defer cancel()
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	// Send one celo from external account 0 to 1 via node 0.
+	tx, err := accounts[0].SendCelo(ctx, accounts[1].Address, 1, network[0])
+	require.NoError(t, err)
+
+	err = network.AwaitTransactions(ctx, tx)
+	require.NoError(t, err)
+	err = network.AwaitBlock(ctx, 30)
 	require.NoError(t, err)
 }
 
