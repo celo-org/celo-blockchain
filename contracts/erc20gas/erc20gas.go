@@ -1,8 +1,10 @@
 package erc20gas
 
 import (
+	"fmt"
 	"math/big"
 
+	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contracts/internal/n"
@@ -35,9 +37,15 @@ func DebitFees(evm *vm.EVM, address common.Address, amount *big.Int, feeCurrency
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, maxGasForDebitGasFeesTransactions, big.NewInt(0))
+	ret, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, maxGasForDebitGasFeesTransactions, big.NewInt(0))
 	gasUsed := maxGasForDebitGasFeesTransactions - leftoverGas
 	log.Trace("debitGasFees called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	if err != nil {
+		revertReason, err2 := abi.UnpackRevert(ret)
+		if err2 == nil {
+			return fmt.Errorf("DebitFees reverted: %s", revertReason)
+		}
+	}
 	return err
 }
 
@@ -64,8 +72,14 @@ func CreditFees(
 
 	rootCaller := vm.AccountRef(common.HexToAddress("0x0"))
 	// The caller was already charged for the cost of this operation via IntrinsicGas.
-	_, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, maxGasForCreditGasFeesTransactions, big.NewInt(0))
+	ret, leftoverGas, err := evm.Call(rootCaller, *feeCurrency, transactionData, maxGasForCreditGasFeesTransactions, big.NewInt(0))
 	gasUsed := maxGasForCreditGasFeesTransactions - leftoverGas
 	log.Trace("creditGas called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	if err != nil {
+		revertReason, err2 := abi.UnpackRevert(ret)
+		if err2 == nil {
+			return fmt.Errorf("CreditFees reverted: %s", revertReason)
+		}
+	}
 	return err
 }
