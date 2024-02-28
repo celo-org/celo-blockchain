@@ -442,3 +442,16 @@ func (ma *MixedcaseAddress) ValidChecksum() bool {
 func (ma *MixedcaseAddress) Original() string {
 	return ma.original
 }
+
+func AreSameAddress(a, b *Address) bool {
+	// both are nil or point to the same address
+	if a == b {
+		return true
+	}
+	// if only one is nil
+	if a == nil || b == nil {
+		return false
+	}
+	// if they point to the same
+	return *a == *b
+}
