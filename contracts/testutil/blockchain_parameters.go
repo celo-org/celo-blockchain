@@ -53,8 +53,7 @@ func NewWhitelistMock() *WhitelistMock {
 }
 
 func (bp *WhitelistMock) GetWhitelist() []common.Address {
-	ok := common.HexToAddress("02")
-	return []common.Address{ok}
+	return []common.Address{common.HexToAddress("02"), common.HexToAddress("05")}
 }
 
 type TokenMock struct {

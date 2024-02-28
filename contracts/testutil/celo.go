@@ -31,6 +31,7 @@ func NewCeloMock() CeloMock {
 	celo.Runner.RegisterContract(common.HexToAddress("0x03"), celo.Whitelist)
 
 	celo.Runner.RegisterContract(common.HexToAddress("0x02"), celo.Token)
+	celo.Runner.RegisterContract(common.HexToAddress("0x05"), celo.Token)
 
 	return celo
 }
