@@ -3,6 +3,7 @@ package testutil
 import (
 	"math/big"
 
+	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/contracts/config"
 )
@@ -37,4 +38,37 @@ func (bp *BlockchainParametersMock) GetUptimeLookbackWindow() *big.Int {
 }
 func (bp *BlockchainParametersMock) IntrinsicGasForAlternativeFeeCurrency() *big.Int {
 	return bp.IntrinsicGasForAlternativeFeeCurrencyValue
+}
+
+type WhitelistMock struct {
+	ContractMock
+}
+
+func NewWhitelistMock() *WhitelistMock {
+	mock := &WhitelistMock{}
+
+	contract := NewContractMock(abis.FeeCurrency, mock)
+	mock.ContractMock = contract
+	return mock
+}
+
+func (bp *WhitelistMock) GetWhitelist() []common.Address {
+	ok := common.HexToAddress("02")
+	return []common.Address{ok}
+}
+
+type TokenMock struct {
+	ContractMock
+}
+
+func NewTokenMock() *TokenMock {
+	mock := &TokenMock{}
+
+	contract := NewContractMock(abis.ERC20, mock)
+	mock.ContractMock = contract
+	return mock
+}
+
+func (bp *TokenMock) BalanceOf(addr common.Address) *big.Int {
+	return big.NewInt(1_000_000_000_000_000)
 }
