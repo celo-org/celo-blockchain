@@ -8,6 +8,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contracts/internal/n"
+	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 )
@@ -17,14 +18,34 @@ const (
 	maxGasForCreditGasFeesTransactions uint64 = 1 * n.Million
 )
 
+var (
+	// Recalculate with `cast sig 'debitGasFees(address from, uint256 value)'`
+	debitGasFeesSelector = hexutil.MustDecode("0x58cf9672")
+	// Recalculate with `cast sig 'creditGasFees(address,address,address,address,uint256,uint256,uint256,uint256)'`
+	creditGasFeesSelector = hexutil.MustDecode("0x6a30b253")
+)
+
+// Returns nil if debit is possible, used in tx pool validation
+func TryDebitFees(tx *types.Transaction, from common.Address, currentVMRunner vm.EVMRunner) error {
+	cost := new(big.Int).SetUint64(tx.Gas())
+	cost.Mul(cost, tx.GasFeeCap())
+
+	// The following code is similar to DebitFees, but that function does not work on a vm.EVMRunner,
+	// so we have to adapt it instead of reusing.
+	transactionData := common.GetEncodedAbi(debitGasFeesSelector, [][]byte{common.AddressToAbi(from), common.AmountToAbi(cost)})
+
+	ret, err := currentVMRunner.ExecuteAndDiscardChanges(*tx.FeeCurrency(), transactionData, maxGasForDebitGasFeesTransactions, common.Big0)
+	if err != nil {
+		revertReason, err2 := abi.UnpackRevert(ret)
+		if err2 == nil {
+			return fmt.Errorf("TryDebitFees reverted: %s", revertReason)
+		}
+	}
+	return err
+}
+
 func DebitFees(evm *vm.EVM, address common.Address, amount *big.Int, feeCurrency *common.Address) error {
-	// Function is "debitGasFees(address from, uint256 value)"
-	// selector is first 4 bytes of keccak256 of "debitGasFees(address,uint256)"
-	// Source:
-	// pip3 install pyethereum
-	// python3 -c 'from ethereum.utils import sha3; print(sha3("debitGasFees(address,uint256)")[0:4].hex())'
-	functionSelector := hexutil.MustDecode("0x58cf9672")
-	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
+	transactionData := common.GetEncodedAbi(debitGasFeesSelector, [][]byte{common.AddressToAbi(address), common.AmountToAbi(amount)})
 
 	// Run only primary evm.Call() with tracer
 	if evm.GetDebug() {
@@ -57,9 +78,7 @@ func CreditFees(
 	gatewayFee *big.Int,
 	baseTxFee *big.Int,
 	feeCurrency *common.Address) error {
-	// Function is "creditGasFees(address,address,address,address,uint256,uint256,uint256,uint256)"
-	functionSelector := hexutil.MustDecode("0x6a30b253")
-	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(from), common.AddressToAbi(feeRecipient), common.AddressToAbi(*gatewayFeeRecipient), common.AddressToAbi(feeHandler), common.AmountToAbi(refund), common.AmountToAbi(tipTxFee), common.AmountToAbi(gatewayFee), common.AmountToAbi(baseTxFee)})
+	transactionData := common.GetEncodedAbi(creditGasFeesSelector, [][]byte{common.AddressToAbi(from), common.AddressToAbi(feeRecipient), common.AddressToAbi(*gatewayFeeRecipient), common.AddressToAbi(feeHandler), common.AmountToAbi(refund), common.AmountToAbi(tipTxFee), common.AmountToAbi(gatewayFee), common.AmountToAbi(baseTxFee)})
 
 	// Run only primary evm.Call() with tracer
 	if evm.GetDebug() {
