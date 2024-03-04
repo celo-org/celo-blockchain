@@ -69,3 +69,6 @@ issues:
     - path: cmd/faucet/
       linters:
         - deadcode
+    - path: core/tx_pool_test.go
+      linters:
+        - goconst
