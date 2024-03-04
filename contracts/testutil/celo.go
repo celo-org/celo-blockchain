@@ -9,8 +9,8 @@ type CeloMock struct {
 	Runner               *MockEVMRunner
 	Registry             *RegistryMock
 	BlockchainParameters *BlockchainParametersMock
-	Whitelist            *WhitelistMock
-	Token                *TokenMock
+	FeeCurrencyWhitelist *FeeCurrencyWhitelistMock
+	ERC20Token           *ERC20TokenMock
 }
 
 func NewCeloMock() CeloMock {
@@ -18,8 +18,8 @@ func NewCeloMock() CeloMock {
 		Runner:               NewMockEVMRunner(),
 		Registry:             NewRegistryMock(),
 		BlockchainParameters: NewBlockchainParametersMock(),
-		Whitelist:            NewWhitelistMock(),
-		Token:                NewTokenMock(),
+		FeeCurrencyWhitelist: NewWhitelistMock(),
+		ERC20Token:           NewTokenMock(),
 	}
 
 	celo.Runner.RegisterContract(config.RegistrySmartContractAddress, celo.Registry)
@@ -28,10 +28,10 @@ func NewCeloMock() CeloMock {
 	celo.Runner.RegisterContract(common.HexToAddress("0x01"), celo.BlockchainParameters)
 
 	celo.Registry.AddContract(config.FeeCurrencyWhitelistRegistryId, common.HexToAddress("0x03"))
-	celo.Runner.RegisterContract(common.HexToAddress("0x03"), celo.Whitelist)
+	celo.Runner.RegisterContract(common.HexToAddress("0x03"), celo.FeeCurrencyWhitelist)
 
-	celo.Runner.RegisterContract(common.HexToAddress("0x02"), celo.Token)
-	celo.Runner.RegisterContract(common.HexToAddress("0x05"), celo.Token)
+	celo.Runner.RegisterContract(common.HexToAddress("0x02"), celo.ERC20Token)
+	celo.Runner.RegisterContract(common.HexToAddress("0x05"), celo.ERC20Token)
 
 	return celo
 }

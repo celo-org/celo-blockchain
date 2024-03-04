@@ -40,34 +40,34 @@ func (bp *BlockchainParametersMock) IntrinsicGasForAlternativeFeeCurrency() *big
 	return bp.IntrinsicGasForAlternativeFeeCurrencyValue
 }
 
-type WhitelistMock struct {
+type FeeCurrencyWhitelistMock struct {
 	ContractMock
 }
 
-func NewWhitelistMock() *WhitelistMock {
-	mock := &WhitelistMock{}
+func NewWhitelistMock() *FeeCurrencyWhitelistMock {
+	mock := &FeeCurrencyWhitelistMock{}
 
 	contract := NewContractMock(abis.FeeCurrency, mock)
 	mock.ContractMock = contract
 	return mock
 }
 
-func (bp *WhitelistMock) GetWhitelist() []common.Address {
+func (bp *FeeCurrencyWhitelistMock) GetWhitelist() []common.Address {
 	return []common.Address{common.HexToAddress("02"), common.HexToAddress("05")}
 }
 
-type TokenMock struct {
+type ERC20TokenMock struct {
 	ContractMock
 }
 
-func NewTokenMock() *TokenMock {
-	mock := &TokenMock{}
+func NewTokenMock() *ERC20TokenMock {
+	mock := &ERC20TokenMock{}
 
 	contract := NewContractMock(abis.ERC20, mock)
 	mock.ContractMock = contract
 	return mock
 }
 
-func (bp *TokenMock) BalanceOf(addr common.Address) *big.Int {
+func (bp *ERC20TokenMock) BalanceOf(addr common.Address) *big.Int {
 	return big.NewInt(1_000_000_000_000_000)
 }
