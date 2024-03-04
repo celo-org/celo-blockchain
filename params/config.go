@@ -184,7 +184,7 @@ var (
 			{big.NewInt(3251772), 13e6},
 			{big.NewInt(6137285), 20e6},
 			{big.NewInt(13562578), 50e6},
-			{big.NewInt(14137511), 13e6},
+			{big.NewInt(14137511), 20e6},
 			{big.NewInt(21355415), 32e6},
 		},
 	}
