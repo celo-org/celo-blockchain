@@ -18,9 +18,6 @@ const (
 )
 
 func DebitFees(evm *vm.EVM, address common.Address, amount *big.Int, feeCurrency *common.Address) error {
-	if amount.Cmp(big.NewInt(0)) == 0 {
-		return nil
-	}
 	// Function is "debitGasFees(address from, uint256 value)"
 	// selector is first 4 bytes of keccak256 of "debitGasFees(address,uint256)"
 	// Source:
