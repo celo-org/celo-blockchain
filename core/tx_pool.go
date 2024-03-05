@@ -1718,27 +1718,20 @@ func (pool *TxPool) demoteUnexecutables() {
 // ValidateTransactorBalanceCoversTx validates transactor has enough funds to cover transaction cost, the rules are consistent with state_transition.
 //
 // For native token(CELO) as feeCurrency:
-//   - Pre-Espresso: it ensures balance >= GasPrice * gas + value + gatewayFee (1)
-//   - Post-Espresso: it ensures balance >= GasFeeCap * gas + value + gatewayFee (2)
+//   - it ensures balance >= GasFeeCap * gas + value + gatewayFee (2)
 //
 // For non-native tokens(cUSD, cEUR, ...) as feeCurrency:
 //   - It executes a static call on debitGasFees, implicitly ensuring balance >= GasFeeCap * gas and that `from` is not on the token's block list
 func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Address, currentState *state.StateDB, currentVMRunner vm.EVMRunner, espresso bool) error {
 	if tx.FeeCurrency() == nil {
 		balance := currentState.GetBalance(from)
-		var cost *big.Int
 
-		if espresso {
-			// cost = GasFeeCap * gas + value + gatewayFee, as in (2)
-			cost = new(big.Int).SetUint64(tx.Gas())
-			cost.Mul(cost, tx.GasFeeCap())
-			cost.Add(cost, tx.Value())
-			if tx.GatewayFeeRecipient() != nil {
-				cost.Add(cost, tx.GatewayFee())
-			}
-		} else {
-			// cost = GasPrice * gas + value + gatewayFee, as in (1)
-			cost = tx.Cost()
+		// cost = GasFeeCap * gas + value + gatewayFee, as in (2)
+		cost := new(big.Int).SetUint64(tx.Gas())
+		cost.Mul(cost, tx.GasFeeCap())
+		cost.Add(cost, tx.Value())
+		if tx.GatewayFeeRecipient() != nil {
+			cost.Add(cost, tx.GatewayFee())
 		}
 
 		if balance.Cmp(cost) < 0 {
