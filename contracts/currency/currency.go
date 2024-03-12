@@ -37,7 +37,7 @@ const (
 
 var (
 	medianRateMethod   = contracts.NewRegisteredContractMethod(config.SortedOraclesRegistryId, abis.SortedOracles, "medianRate", maxGasForMedianRate)
-	getWhitelistMethod = contracts.NewRegisteredContractMethod(config.FeeCurrencyWhitelistRegistryId, abis.FeeCurrency, "getWhitelist", maxGasForGetWhiteList)
+	getWhitelistMethod = contracts.NewRegisteredContractMethod(config.FeeCurrencyWhitelistRegistryId, abis.FeeCurrencyWhitelist, "getWhitelist", maxGasForGetWhiteList)
 	getBalanceMethod   = contracts.NewMethod(abis.ERC20, "balanceOf", maxGasToReadErc20Balance)
 )
 

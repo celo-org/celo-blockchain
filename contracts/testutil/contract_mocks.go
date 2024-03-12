@@ -3,6 +3,7 @@ package testutil
 import (
 	"math/big"
 
+	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/contracts/config"
 )
@@ -37,4 +38,40 @@ func (bp *BlockchainParametersMock) GetUptimeLookbackWindow() *big.Int {
 }
 func (bp *BlockchainParametersMock) IntrinsicGasForAlternativeFeeCurrency() *big.Int {
 	return bp.IntrinsicGasForAlternativeFeeCurrencyValue
+}
+
+type FeeCurrencyWhitelistMock struct {
+	ContractMock
+}
+
+func NewWhitelistMock() *FeeCurrencyWhitelistMock {
+	mock := &FeeCurrencyWhitelistMock{}
+
+	contract := NewContractMock(abis.FeeCurrencyWhitelist, mock)
+	mock.ContractMock = contract
+	return mock
+}
+
+func (bp *FeeCurrencyWhitelistMock) GetWhitelist() []common.Address {
+	return []common.Address{common.HexToAddress("02"), common.HexToAddress("05")}
+}
+
+type ERC20TokenMock struct {
+	ContractMock
+}
+
+func NewTokenMock() *ERC20TokenMock {
+	mock := &ERC20TokenMock{}
+
+	contract := NewContractMock(abis.FeeCurrency, mock)
+	mock.ContractMock = contract
+	return mock
+}
+
+func (bp *ERC20TokenMock) BalanceOf(addr common.Address) *big.Int {
+	return big.NewInt(1_000_000_000_000_000)
+}
+
+func (bp *ERC20TokenMock) DebitGasFees(from common.Address, value *big.Int) {
+	// Does not return anything
 }

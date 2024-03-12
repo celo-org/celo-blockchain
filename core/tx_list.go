@@ -316,7 +316,7 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 		var newGasFeeCap, newGasTipCap *big.Int
 
 		// Short circuit conversion if both are the same currency
-		if old.FeeCurrency() == tx.FeeCurrency() {
+		if common.AreSameAddress(old.FeeCurrency(), tx.FeeCurrency()) {
 			if old.GasFeeCapCmp(tx) >= 0 || old.GasTipCapCmp(tx) >= 0 {
 				return false, nil
 			}
