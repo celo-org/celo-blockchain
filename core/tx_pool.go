@@ -1723,23 +1723,22 @@ func (pool *TxPool) demoteUnexecutables() {
 // For non-native tokens(cUSD, cEUR, ...) as feeCurrency:
 //   - It executes a static call on debitGasFees, implicitly ensuring balance >= GasFeeCap * gas and that `from` is not on the token's block list
 func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Address, currentState *state.StateDB, currentVMRunner vm.EVMRunner, espresso bool) error {
-	if tx.FeeCurrency() == nil {
-		balance := currentState.GetBalance(from)
-
-		// cost = GasFeeCap * gas + value
-		cost := new(big.Int).SetUint64(tx.Gas())
-		cost.Mul(cost, tx.GasFeeCap())
-		cost.Add(cost, tx.Value())
-
-		if balance.Cmp(cost) < 0 {
-			log.Debug("ValidateTransactorBalanceCoversTx: insufficient CELO funds",
-				"from", from, "Transaction cost", cost, "to", tx.To(),
-				"gas", tx.Gas(), "gas price", tx.GasPrice(), "nonce", tx.Nonce(),
-				"value", tx.Value(), "fee currency", tx.FeeCurrency(), "balance", balance)
-			return ErrInsufficientFunds
-		}
-	} else {
+	if tx.FeeCurrency() != nil {
 		return erc20gas.TryDebitFees(tx, from, currentVMRunner)
+	}
+	balance := currentState.GetBalance(from)
+
+	// cost = GasFeeCap * gas + value
+	cost := new(big.Int).SetUint64(tx.Gas())
+	cost.Mul(cost, tx.GasFeeCap())
+	cost.Add(cost, tx.Value())
+
+	if balance.Cmp(cost) < 0 {
+		log.Debug("ValidateTransactorBalanceCoversTx: insufficient CELO funds",
+			"from", from, "Transaction cost", cost, "to", tx.To(),
+			"gas", tx.Gas(), "gas price", tx.GasPrice(), "nonce", tx.Nonce(),
+			"value", tx.Value(), "fee currency", tx.FeeCurrency(), "balance", balance)
+		return ErrInsufficientFunds
 	}
 
 	return nil
