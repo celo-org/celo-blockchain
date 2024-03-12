@@ -78,7 +78,26 @@ func CreditFees(
 	gatewayFee *big.Int,
 	baseTxFee *big.Int,
 	feeCurrency *common.Address) error {
-	transactionData := common.GetEncodedAbi(creditGasFeesSelector, [][]byte{common.AddressToAbi(from), common.AddressToAbi(feeRecipient), common.AddressToAbi(*gatewayFeeRecipient), common.AddressToAbi(feeHandler), common.AmountToAbi(refund), common.AmountToAbi(tipTxFee), common.AmountToAbi(gatewayFee), common.AmountToAbi(baseTxFee)})
+
+	// The fee recipient is the validator building the block.
+	// If the coinbase is not set for any reason, send the amount to the fee handler instead.
+	if feeRecipient == common.ZeroAddress {
+		feeRecipient = feeHandler
+	}
+
+	transactionData := common.GetEncodedAbi(
+		creditGasFeesSelector,
+		[][]byte{
+			common.AddressToAbi(from),
+			common.AddressToAbi(feeRecipient),
+			common.AddressToAbi(*gatewayFeeRecipient),
+			common.AddressToAbi(feeHandler),
+			common.AmountToAbi(refund),
+			common.AmountToAbi(tipTxFee),
+			common.AmountToAbi(gatewayFee),
+			common.AmountToAbi(baseTxFee),
+		},
+	)
 
 	// Run only primary evm.Call() with tracer
 	if evm.GetDebug() {
