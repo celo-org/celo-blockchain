@@ -254,11 +254,9 @@ type txList struct {
 	strict bool         // Whether nonces are strictly continuous or not
 	txs    *txSortedMap // Heap indexed sorted hash map of the transactions
 
-	nativecostcap       *big.Int                    // Price of the highest costing transaction paid with native fees (reset only if exceeds balance)
-	feecaps             map[common.Address]*big.Int // Price of the highest costing transaction per fee currency (reset only if exceeds balance)
-	nativegaspricefloor *big.Int                    // Lowest gas price minimum in the native currency
-	gaspricefloors      map[common.Address]*big.Int // Lowest gas price minimum per currency (reset only if it is below the gpm)
-	gascap              uint64                      // Gas limit of the highest spending transaction (reset only if exceeds block limit)
+	nativecostcap *big.Int                    // Price of the highest costing transaction paid with native fees (reset only if exceeds balance)
+	feecaps       map[common.Address]*big.Int // Price of the highest costing transaction per fee currency (reset only if exceeds balance)
+	gascap        uint64                      // Gas limit of the highest spending transaction (reset only if exceeds block limit)
 
 	ctx *atomic.Value // transaction pool context
 }
@@ -267,13 +265,11 @@ type txList struct {
 // gapped, sortable transaction lists.
 func newTxList(strict bool, ctx *atomic.Value) *txList {
 	return &txList{
-		ctx:                 ctx,
-		strict:              strict,
-		txs:                 newTxSortedMap(),
-		nativecostcap:       new(big.Int),
-		feecaps:             make(map[common.Address]*big.Int),
-		nativegaspricefloor: nil,
-		gaspricefloors:      make(map[common.Address]*big.Int),
+		ctx:           ctx,
+		strict:        strict,
+		txs:           newTxSortedMap(),
+		nativecostcap: new(big.Int),
+		feecaps:       make(map[common.Address]*big.Int),
 	}
 }
 
@@ -316,7 +312,7 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 		var newGasFeeCap, newGasTipCap *big.Int
 
 		// Short circuit conversion if both are the same currency
-		if common.AreSameAddress(old.FeeCurrency(), tx.FeeCurrency()) {
+		if common.AreEqualAddresses(old.DenominatedFeeCurrency(), tx.DenominatedFeeCurrency()) {
 			if old.GasFeeCapCmp(tx) >= 0 || old.GasTipCapCmp(tx) >= 0 {
 				return false, nil
 			}
@@ -328,16 +324,16 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 			// Convert old values into tx fee currency
 			var err error
 			txCtx := l.ctx.Load().(txPoolContext)
-			if oldGasFeeCap, err = toCELO(old.GasFeeCap(), old.FeeCurrency(), &txCtx); err != nil {
+			if oldGasFeeCap, err = toCELO(old.GasFeeCap(), old.DenominatedFeeCurrency(), &txCtx); err != nil {
 				return false, nil
 			}
-			if oldGasTipCap, err = toCELO(old.GasTipCap(), old.FeeCurrency(), &txCtx); err != nil {
+			if oldGasTipCap, err = toCELO(old.GasTipCap(), old.DenominatedFeeCurrency(), &txCtx); err != nil {
 				return false, nil
 			}
-			if newGasFeeCap, err = toCELO(tx.GasFeeCap(), tx.FeeCurrency(), &txCtx); err != nil {
+			if newGasFeeCap, err = toCELO(tx.GasFeeCap(), tx.DenominatedFeeCurrency(), &txCtx); err != nil {
 				return false, nil
 			}
-			if newGasTipCap, err = toCELO(tx.GasTipCap(), tx.FeeCurrency(), &txCtx); err != nil {
+			if newGasTipCap, err = toCELO(tx.GasTipCap(), tx.DenominatedFeeCurrency(), &txCtx); err != nil {
 				return false, nil
 			}
 
@@ -366,16 +362,10 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 		if cost := tx.Cost(); l.nativecostcap.Cmp(cost) < 0 {
 			l.nativecostcap = cost
 		}
-		if gasPrice := tx.GasPrice(); l.nativegaspricefloor == nil || l.nativegaspricefloor.Cmp(gasPrice) > 0 {
-			l.nativegaspricefloor = gasPrice
-		}
 	} else {
-		fee := tx.Fee()
+		fee := tx.FeeInCurrency()
 		if oldFee, ok := l.feecaps[*feeCurrency]; !ok || oldFee.Cmp(fee) < 0 {
 			l.feecaps[*feeCurrency] = fee
-		}
-		if gasFloor, ok := l.gaspricefloors[*feeCurrency]; !ok || gasFloor.Cmp(tx.GasPrice()) > 0 {
-			l.gaspricefloors[*feeCurrency] = tx.GasPrice()
 		}
 		if value := tx.Value(); l.nativecostcap.Cmp(value) < 0 {
 			l.nativecostcap = value
@@ -436,8 +426,15 @@ func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*
 			return tx.Cost().Cmp(nativeCostLimit) > 0 || tx.Gas() > gasLimit || txCtx.celoGasPriceMinimumFloor.Cmp(tx.GasPrice()) > 0
 		} else {
 			feeLimit := feeLimits[*feeCurrency]
-			fee := tx.Fee()
+			fee := tx.FeeInCurrency()
 			log.Trace("Transaction Filter", "hash", tx.Hash(), "Fee currency", tx.FeeCurrency(), "Value", tx.Value(), "Cost Limit", feeLimit, "Gas", tx.Gas(), "Gas Limit", gasLimit)
+
+			if tx.Type() == types.CeloDenominatedTxType {
+				// Celo denominated tx fee is over maxFeeInFeeCurrency
+				if txCtx.CmpValues(tx.Fee(), nil, tx.MaxFeeInFeeCurrency(), tx.FeeCurrency()) > 0 {
+					return true
+				}
+			}
 
 			// If any of the following is true, the transaction is invalid
 			// The fees are greater than or equal to the balance in the currency
@@ -445,7 +442,7 @@ func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*
 				// The value of the tx is greater than the native balance of the account
 				tx.Value().Cmp(nativeCostLimit) > 0 ||
 				// The gas price is smaller that the gasPriceMinimumFloor
-				txCtx.CmpValues(txCtx.celoGasPriceMinimumFloor, nil, tx.GasPrice(), tx.FeeCurrency()) > 0 ||
+				txCtx.CmpValues(txCtx.celoGasPriceMinimumFloor, nil, tx.GasPrice(), tx.DenominatedFeeCurrency()) > 0 ||
 				// The gas used is greater than the gas limit
 				tx.Gas() > gasLimit
 		}

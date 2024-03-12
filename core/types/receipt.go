@@ -176,7 +176,7 @@ func (r *Receipt) DecodeRLP(s *rlp.Stream) error {
 			return errEmptyTypedReceipt
 		}
 		r.Type = b[0]
-		if r.Type == AccessListTxType || r.Type == DynamicFeeTxType || r.Type == CeloDynamicFeeTxType || r.Type == CeloDynamicFeeTxV2Type {
+		if r.Type == AccessListTxType || r.Type == DynamicFeeTxType || r.Type == CeloDynamicFeeTxType || r.Type == CeloDynamicFeeTxV2Type || r.Type == CeloDenominatedTxType {
 			var dec receiptRLP
 			if err := rlp.DecodeBytes(b[1:], &dec); err != nil {
 				return err
@@ -351,6 +351,9 @@ func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 		rlp.Encode(w, data)
 	case CeloDynamicFeeTxV2Type:
 		w.WriteByte(CeloDynamicFeeTxV2Type)
+		rlp.Encode(w, data)
+	case CeloDenominatedTxType:
+		w.WriteByte(CeloDenominatedTxType)
 		rlp.Encode(w, data)
 	default:
 		// For unsupported types, write nothing. Since this is for

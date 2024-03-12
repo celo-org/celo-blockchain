@@ -55,6 +55,7 @@ const (
 	DynamicFeeTxType       = 0x02
 	CeloDynamicFeeTxType   = 0x7c // Counting down
 	CeloDynamicFeeTxV2Type = 0x7b
+	CeloDenominatedTxType  = 0x7a
 )
 
 // Transaction is an Ethereum transaction.
@@ -100,8 +101,9 @@ type TxData interface {
 	feeCurrency() *common.Address
 	gatewayFeeRecipient() *common.Address
 	gatewayFee() *big.Int
-	// Whether this is an ethereum-compatible transaction (i.e. with FeeCurrency, GatewayFeeRecipient and GatewayFee omitted)
+	// Whether this is an ethereum-compatible transaction (i.e. with FeeCurrency, MaxFeeInFeeCurrency, GatewayFeeRecipient and GatewayFee omitted)
 	ethCompatible() bool
+	maxFeeInFeeCurrency() *big.Int
 }
 
 // EncodeRLP implements rlp.Encoder
@@ -210,6 +212,10 @@ func (tx *Transaction) decodeTyped(b []byte) (TxData, error) {
 		return &inner, err
 	case CeloDynamicFeeTxV2Type:
 		var inner CeloDynamicFeeTxV2
+		err := rlp.DecodeBytes(b[1:], &inner)
+		return &inner, err
+	case CeloDenominatedTxType:
+		var inner CeloDenominatedTx
 		err := rlp.DecodeBytes(b[1:], &inner)
 		return &inner, err
 	default:
@@ -480,9 +486,22 @@ func (tx *Transaction) GatewaySet() bool {
 // EthCompatible returns true iff the RLP form of the LegacyTx does not have the celo specific fields.
 func (tx *Transaction) EthCompatible() bool { return tx.inner.ethCompatible() }
 
+// MaxFeeInFeeCurrency returns the max fee in the fee_currency for celo denominated txs.
+func (tx *Transaction) MaxFeeInFeeCurrency() *big.Int { return tx.inner.maxFeeInFeeCurrency() }
+
 // Fee calculates the fess paid by the transaction include the gateway fee.
 func (tx *Transaction) Fee() *big.Int {
 	return Fee(tx.inner.gasPrice(), tx.inner.gas(), tx.GatewayFee())
+}
+
+// FeeInCurrency return Fee() denominated in the FeeCurrency of the transaction.
+func (tx *Transaction) FeeInCurrency() *big.Int {
+	// not declaring this method in TxData since it's a specific for just one type,
+	// to avoid cluttering it with more methods.
+	if tx.Type() == CeloDenominatedTxType {
+		return tx.MaxFeeInFeeCurrency()
+	}
+	return tx.Fee()
 }
 
 // Fee calculates the transaction fee (gasLimit * gasPrice + gatewayFee)
@@ -493,10 +512,22 @@ func Fee(gasPrice *big.Int, gasLimit uint64, gatewayFee *big.Int) *big.Int {
 
 // CheckEthCompatibility checks that the Celo-only fields are nil-or-0 if EthCompatible is true
 func (tx *Transaction) CheckEthCompatibility() error {
-	if tx.EthCompatible() && !(tx.FeeCurrency() == nil && tx.GatewayFeeRecipient() == nil && tx.GatewayFee().Sign() == 0) {
+	if tx.EthCompatible() &&
+		!(tx.FeeCurrency() == nil && tx.GatewayFeeRecipient() == nil && tx.GatewayFee().Sign() == 0 && tx.MaxFeeInFeeCurrency() == nil) {
 		return ErrEthCompatibleTransactionIsntCompatible
 	}
 	return nil
+}
+
+// DenominatedFeeCurrency returns in which currency the fields GasPrice, GasTipCap, GasFeeCap, etc are
+// denominated in
+func (tx *Transaction) DenominatedFeeCurrency() *common.Address {
+	// not declaring this method in TxData since it's a specific for just one type,
+	// to avoid cluttering it with more methods.
+	if tx.Type() == CeloDenominatedTxType {
+		return nil
+	}
+	return tx.FeeCurrency()
 }
 
 // Transactions implements DerivableList for transactions.

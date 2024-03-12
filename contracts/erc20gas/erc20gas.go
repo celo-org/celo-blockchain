@@ -27,9 +27,12 @@ var (
 
 // Returns nil if debit is possible, used in tx pool validation
 func TryDebitFees(tx *types.Transaction, from common.Address, currentVMRunner vm.EVMRunner) error {
-	cost := new(big.Int).SetUint64(tx.Gas())
-	cost.Mul(cost, tx.GasFeeCap())
-
+	var cost *big.Int
+	if tx.Type() == types.CeloDenominatedTxType {
+		cost = tx.MaxFeeInFeeCurrency()
+	} else {
+		cost = tx.Fee()
+	}
 	// The following code is similar to DebitFees, but that function does not work on a vm.EVMRunner,
 	// so we have to adapt it instead of reusing.
 	transactionData := common.GetEncodedAbi(debitGasFeesSelector, [][]byte{common.AddressToAbi(from), common.AmountToAbi(cost)})

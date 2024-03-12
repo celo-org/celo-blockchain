@@ -1313,9 +1313,9 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		result.TransactionIndex = (*hexutil.Uint64)(&index)
 	}
 	// Celo specifics
-	if tx.Type() == types.LegacyTxType || tx.Type() == types.CeloDynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxV2Type {
+	if tx.Type() == types.LegacyTxType || tx.Type() == types.CeloDynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxV2Type || tx.Type() == types.CeloDenominatedTxType {
 		result.FeeCurrency = tx.FeeCurrency()
-		if tx.Type() != types.CeloDynamicFeeTxV2Type {
+		if tx.Type() == types.LegacyTxType || tx.Type() == types.CeloDynamicFeeTxType {
 			result.GatewayFeeRecipient = tx.GatewayFeeRecipient()
 			result.GatewayFee = (*hexutil.Big)(tx.GatewayFee())
 		}
@@ -1326,7 +1326,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		al := tx.AccessList()
 		result.Accesses = &al
 		result.ChainID = (*hexutil.Big)(tx.ChainId())
-	case types.DynamicFeeTxType, types.CeloDynamicFeeTxType, types.CeloDynamicFeeTxV2Type:
+	case types.DynamicFeeTxType, types.CeloDynamicFeeTxType, types.CeloDynamicFeeTxV2Type, types.CeloDenominatedTxType:
 		al := tx.AccessList()
 		result.Accesses = &al
 		result.ChainID = (*hexutil.Big)(tx.ChainId())
@@ -1335,7 +1335,12 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		// if the transaction has been mined, compute the effective gas price
 		// if blockHash != (common.Hash{}) { // This is from upstream (check the function comment above).
 		if inABlock {
-			baseFee, err := baseFeeFn(tx.FeeCurrency())
+			var currency *common.Address = tx.FeeCurrency()
+			// Celo Denominated txs are denominated in celo
+			if tx.Type() == types.CeloDenominatedTxType {
+				currency = nil
+			}
+			baseFee, err := baseFeeFn(currency)
 			if err == nil {
 				// price = min(tip, gasFeeCap - baseFee) + baseFee
 				price := math.BigMin(new(big.Int).Add(tx.GasTipCap(), baseFee), tx.GasFeeCap())
@@ -1667,12 +1672,12 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 		fields["effectiveGasPrice"] = hexutil.Uint64(tx.GasPrice().Uint64())
 	} else {
 		// var gasPrice *big.Int = new(big.Int)
-		if tx.Type() == types.DynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxV2Type {
+		if tx.Type() == types.DynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxV2Type || tx.Type() == types.CeloDenominatedTxType {
 			header, err := s.b.HeaderByHash(ctx, blockHash)
 			if err != nil {
 				return nil, err
 			}
-			gasPriceMinimum, err := s.b.GasPriceMinimumForHeader(ctx, tx.FeeCurrency(), header)
+			gasPriceMinimum, err := s.b.GasPriceMinimumForHeader(ctx, tx.DenominatedFeeCurrency(), header)
 			if err == nil {
 				fields["effectiveGasPrice"] = hexutil.Uint64(new(big.Int).Add(gasPriceMinimum, tx.EffectiveGasTipValue(gasPriceMinimum)).Uint64())
 			}
