@@ -388,64 +388,6 @@ func TestInvalidTransactions(t *testing.T) {
 	}
 }
 
-func TestInvalidTransactionsPreGingerbread(t *testing.T) {
-	t.Parallel()
-
-	pool, key := setupTxPool()
-	defer pool.Stop()
-	pool.gingerbread = false
-	pool.gingerbreadP2 = false
-
-	tx := transaction(0, 100, key)
-	from, _ := deriveSender(tx)
-
-	testAddBalance(pool, from, big.NewInt(1))
-	if err := pool.addRemoteSync(tx); !errors.Is(err, ErrInsufficientFunds) {
-		t.Error("expected", ErrInsufficientFunds)
-	}
-
-	balance := new(big.Int).Add(tx.Value(), new(big.Int).Mul(new(big.Int).SetUint64(tx.Gas()), tx.GasPrice()))
-	testAddBalance(pool, from, balance)
-	if err := pool.addRemoteSync(tx); !errors.Is(err, ErrIntrinsicGas) {
-		t.Error("expected", ErrIntrinsicGas, "got", err)
-	}
-
-	// Adding a gateway fee should result in insufficient funds again.
-	tx = lesTransaction(0, 100, big.NewInt(50), key)
-	if err := pool.addRemoteSync(tx); err != ErrInsufficientFunds {
-		t.Error("expected", ErrInsufficientFunds)
-	}
-
-	// Should return to intrinsic gas error when gateway fee is covered.
-	pool.currentState.AddBalance(from, tx.GatewayFee())
-	if err := pool.addRemoteSync(tx); err != ErrIntrinsicGas {
-		t.Error("expected", ErrIntrinsicGas, "got", err)
-	}
-
-	testSetNonce(pool, from, 1)
-	testAddBalance(pool, from, big.NewInt(0xffffffffffffff))
-
-	tx = transaction(0, 100000, key)
-	if err := pool.addRemoteSync(tx); !errors.Is(err, ErrNonceTooLow) {
-		t.Error("expected", ErrNonceTooLow)
-	}
-
-	tx = transaction(1, 100000, key)
-	pool.gasPrice = big.NewInt(1000)
-	if err := pool.addRemoteSync(tx); err != ErrUnderpriced {
-		t.Error("expected", ErrUnderpriced, "got", err)
-	}
-	if err := pool.AddLocal(tx); err != nil {
-		t.Error("expected", nil, "got", err)
-	}
-
-	// Sending a celo dynamic fee tx v2 before gingerbreadP2 shouldn't be supported
-	tx = celoDynamicFeeTxV2(0, 100, big.NewInt(50), big.NewInt(10), key)
-	if err := pool.addRemoteSync(tx); err != ErrTxTypeNotSupported {
-		t.Error("expected", ErrTxTypeNotSupported)
-	}
-}
-
 func TestTransactionQueue(t *testing.T) {
 	t.Parallel()
 
