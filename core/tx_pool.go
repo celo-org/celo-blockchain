@@ -1718,7 +1718,7 @@ func (pool *TxPool) demoteUnexecutables() {
 // ValidateTransactorBalanceCoversTx validates transactor has enough funds to cover transaction cost, the rules are consistent with state_transition.
 //
 // For native token(CELO) as feeCurrency:
-//   - it ensures balance >= GasFeeCap * gas + value + gatewayFee (2)
+//   - it ensures balance >= GasFeeCap * gas + value
 //
 // For non-native tokens(cUSD, cEUR, ...) as feeCurrency:
 //   - It executes a static call on debitGasFees, implicitly ensuring balance >= GasFeeCap * gas and that `from` is not on the token's block list
@@ -1726,13 +1726,10 @@ func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Addres
 	if tx.FeeCurrency() == nil {
 		balance := currentState.GetBalance(from)
 
-		// cost = GasFeeCap * gas + value + gatewayFee, as in (2)
+		// cost = GasFeeCap * gas + value
 		cost := new(big.Int).SetUint64(tx.Gas())
 		cost.Mul(cost, tx.GasFeeCap())
 		cost.Add(cost, tx.Value())
-		if tx.GatewayFeeRecipient() != nil {
-			cost.Add(cost, tx.GatewayFee())
-		}
 
 		if balance.Cmp(cost) < 0 {
 			log.Debug("ValidateTransactorBalanceCoversTx: insufficient CELO funds",
