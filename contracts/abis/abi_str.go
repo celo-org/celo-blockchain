@@ -119,7 +119,7 @@ const ERC20Str = `[
 }]`
 
 // This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/FeeCurrency.json
-const FeeCurrencyStr = `[
+const FeeCurrencyWhitelistStr = `[
 	{
 		"constant": true,
 		"inputs": [],
@@ -749,4 +749,44 @@ const ValidatorsStr = `[
 		"stateMutability": "view",
 		"type": "function"
 	}
+]`
+
+const FeeCurrencyStr = `[
+	{
+		"constant": true,
+		"inputs": [
+			{
+				"name": "who",
+				"type": "address"
+			}
+		],
+		"name": "balanceOf",
+		"outputs": [
+			{
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+		{
+			"internalType": "address",
+			"name": "from",
+			"type": "address"
+		},
+		{
+			"internalType": "uint256",
+			"name": "value",
+			"type": "uint256"
+		}
+		],
+		"name": "debitGasFees",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+  }
 ]`

@@ -47,7 +47,7 @@ type FeeCurrencyWhitelistMock struct {
 func NewWhitelistMock() *FeeCurrencyWhitelistMock {
 	mock := &FeeCurrencyWhitelistMock{}
 
-	contract := NewContractMock(abis.FeeCurrency, mock)
+	contract := NewContractMock(abis.FeeCurrencyWhitelist, mock)
 	mock.ContractMock = contract
 	return mock
 }
@@ -63,11 +63,15 @@ type ERC20TokenMock struct {
 func NewTokenMock() *ERC20TokenMock {
 	mock := &ERC20TokenMock{}
 
-	contract := NewContractMock(abis.ERC20, mock)
+	contract := NewContractMock(abis.FeeCurrency, mock)
 	mock.ContractMock = contract
 	return mock
 }
 
 func (bp *ERC20TokenMock) BalanceOf(addr common.Address) *big.Int {
 	return big.NewInt(1_000_000_000_000_000)
+}
+
+func (bp *ERC20TokenMock) DebitGasFees(from common.Address, value *big.Int) {
+	// Does not return anything
 }
