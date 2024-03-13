@@ -69,6 +69,7 @@ func setDefaults(cfg *Config) {
 			EspressoBlock:       new(big.Int),
 			GingerbreadBlock:    new(big.Int),
 			GingerbreadP2Block:  new(big.Int),
+			HForkBlock:          new(big.Int),
 		}
 	}
 	if cfg.Time == nil {

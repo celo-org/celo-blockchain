@@ -238,14 +238,9 @@ var (
 	}
 
 	// Hard fork activation overrides
-	OverrideGingerbreadFlag = cli.Uint64Flag{
-		Name:  "override.gingerbread",
-		Usage: "Manually specify the gingerbread fork block, overriding the bundled setting",
-	}
-
-	OverrideGingerbreadP2Flag = cli.Uint64Flag{
-		Name:  "override.gingerbreadp2",
-		Usage: "Manually specify the gingerbread p2 fork block, overriding the bundled setting",
+	OverrideHForkFlag = cli.Uint64Flag{
+		Name:  "override.hfork",
+		Usage: "Manually specify the hfork block, overriding the bundled setting",
 	}
 
 	BloomFilterSizeFlag = cli.Uint64Flag{
