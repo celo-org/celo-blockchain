@@ -86,10 +86,12 @@ type Message interface {
 	GasTipCap() *big.Int
 	Gas() uint64
 
-	// FeeCurrency specifies the currency for gas and gateway fees.
+	// FeeCurrency specifies the currency from which to pay for the fees
 	// nil correspond to Celo Gold (native currency).
 	// All other values should correspond to ERC20 contract addresses extended to be compatible with gas payments.
 	FeeCurrency() *common.Address
+	// MaxFeeInFeeCurrency Set iff it's a celo denominated tx. Maximum value of fees when converted to FeeCurrency.
+	MaxFeeInFeeCurrency() *big.Int
 	GatewayFeeRecipient() *common.Address
 	GatewayFee() *big.Int
 	GatewaySet() bool

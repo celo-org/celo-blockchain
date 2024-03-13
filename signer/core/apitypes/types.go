@@ -101,10 +101,10 @@ func (args SendTxArgs) String() string {
 }
 
 func (args SendTxArgs) CheckEthCompatibility() error {
-	return args.ToTransaction(false).CheckEthCompatibility()
+	return args.ToTransaction().CheckEthCompatibility()
 }
 
-func (args *SendTxArgs) ToTransaction(isGingerbreadP2 bool) *types.Transaction {
+func (args *SendTxArgs) ToTransaction() *types.Transaction {
 	// Upstream refactored this method to copy what txArgs.ToTransaction is doing in
 	// bb1f7ebf203f40dae714a3b8445918cfcfc9a7db in order to be able to compile the code to
 	// WebAssembly. Duplicating this logic right now does not seem to be worth it for celo
@@ -135,5 +135,5 @@ func (args *SendTxArgs) ToTransaction(isGingerbreadP2 bool) *types.Transaction {
 		to := args.To.Address()
 		txArgs.To = &to
 	}
-	return txArgs.ToTransaction(isGingerbreadP2)
+	return txArgs.ToTransaction()
 }

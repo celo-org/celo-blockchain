@@ -713,6 +713,7 @@ type Message struct {
 	gasFeeCap           *big.Int
 	gasTipCap           *big.Int
 	feeCurrency         *common.Address
+	maxFeeInFeeCurrency *big.Int
 	gatewayFeeRecipient *common.Address
 	gatewayFee          *big.Int
 	data                []byte
@@ -723,7 +724,7 @@ type Message struct {
 
 func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int,
 	gasLimit uint64, gasPrice, gasFeeCap, gasTipCap *big.Int,
-	feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int,
+	feeCurrency *common.Address, maxFeeInFeeCurrency *big.Int, gatewayFeeRecipient *common.Address, gatewayFee *big.Int,
 	data []byte, accessList AccessList, ethCompatible, isFake bool) Message {
 	m := Message{
 		from:       from,
@@ -740,6 +741,7 @@ func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *b
 
 		// Celo specific fields
 		feeCurrency:         feeCurrency,
+		maxFeeInFeeCurrency: maxFeeInFeeCurrency,
 		gatewayFeeRecipient: gatewayFeeRecipient,
 		gatewayFee:          gatewayFee,
 		ethCompatible:       ethCompatible,
@@ -766,6 +768,7 @@ func (tx *Transaction) AsMessage(s Signer, baseFee *big.Int) (Message, error) {
 
 		// Celo specific fields
 		feeCurrency:         tx.FeeCurrency(),
+		maxFeeInFeeCurrency: tx.MaxFeeInFeeCurrency(),
 		gatewayFeeRecipient: tx.GatewayFeeRecipient(),
 		gatewayFee:          new(big.Int),
 		ethCompatible:       tx.EthCompatible(),
@@ -801,6 +804,7 @@ func (m Message) Fee() *big.Int {
 
 func (m Message) EthCompatible() bool                  { return m.ethCompatible }
 func (m Message) FeeCurrency() *common.Address         { return m.feeCurrency }
+func (m Message) MaxFeeInFeeCurrency() *big.Int        { return m.maxFeeInFeeCurrency }
 func (m Message) GatewayFeeRecipient() *common.Address { return m.gatewayFeeRecipient }
 func (m Message) GatewayFee() *big.Int                 { return m.gatewayFee }
 func (m Message) GatewaySet() bool {

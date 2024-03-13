@@ -831,6 +831,7 @@ func (m callMsg) GasPrice() *big.Int                   { return m.CallMsg.GasPri
 func (m callMsg) GasFeeCap() *big.Int                  { return m.CallMsg.GasFeeCap }
 func (m callMsg) GasTipCap() *big.Int                  { return m.CallMsg.GasTipCap }
 func (m callMsg) FeeCurrency() *common.Address         { return m.CallMsg.FeeCurrency }
+func (m callMsg) MaxFeeInFeeCurrency() *big.Int        { return m.CallMsg.MaxFeeInFeeCurrency }
 func (m callMsg) GatewayFeeRecipient() *common.Address { return m.CallMsg.GatewayFeeRecipient }
 func (m callMsg) GatewaySet() bool {
 	return m.CallMsg.GatewayFeeRecipient != nil || (m.CallMsg.GatewayFee != nil && m.CallMsg.GatewayFee.Sign() != 0)
