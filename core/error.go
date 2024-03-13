@@ -128,7 +128,7 @@ var (
 	// ErrDenominatedNoCurrency is returned when a celo-denominated transaction has no fee currency set
 	ErrDenominatedNoCurrency = errors.New("celo denominated tx has no fee currency")
 
-	// ErrDenominatedLowMaxFee is returned when the pool rejects a transaction that, with the current exchange rate,
+	// ErrDenominatedLowMaxFee is returned when a celo denominated transaction, with the current exchange rate,
 	// the MaxFeeInFeeCurrency cannot cover the tx.Fee()
 	ErrDenominatedLowMaxFee = errors.New("celo denominated tx MaxFeeInCurrency cannot cover gas fee costs")
 )
