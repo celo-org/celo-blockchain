@@ -494,16 +494,6 @@ func (tx *Transaction) Fee() *big.Int {
 	return Fee(tx.inner.gasPrice(), tx.inner.gas(), tx.GatewayFee())
 }
 
-// FeeInCurrency return Fee() denominated in the FeeCurrency of the transaction.
-func (tx *Transaction) FeeInCurrency() *big.Int {
-	// not declaring this method in TxData since it's a specific for just one type,
-	// to avoid cluttering it with more methods.
-	if tx.Type() == CeloDenominatedTxType {
-		return tx.MaxFeeInFeeCurrency()
-	}
-	return tx.Fee()
-}
-
 // Fee calculates the transaction fee (gasLimit * gasPrice + gatewayFee)
 func Fee(gasPrice *big.Int, gasLimit uint64, gatewayFee *big.Int) *big.Int {
 	gasFee := new(big.Int).Mul(gasPrice, big.NewInt(int64(gasLimit)))

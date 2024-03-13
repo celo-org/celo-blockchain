@@ -288,6 +288,17 @@ func (l *txList) FeeCurrencies() []common.Address {
 	return feeCurrencies
 }
 
+func toCURRENCY(celoAmount *big.Int, feeCurrency *common.Address, txCtx *txPoolContext) (*big.Int, error) {
+	if feeCurrency == nil {
+		return celoAmount, nil
+	}
+	currency, err := txCtx.GetCurrency(feeCurrency)
+	if err != nil {
+		return nil, err
+	}
+	return currency.FromCELO(celoAmount), nil
+}
+
 func toCELO(amount *big.Int, feeCurrency *common.Address, txCtx *txPoolContext) (*big.Int, error) {
 	if feeCurrency == nil {
 		return amount, nil
@@ -305,6 +316,7 @@ func toCELO(amount *big.Int, feeCurrency *common.Address, txCtx *txPoolContext) 
 // If the new transaction is accepted into the list, the lists' cost, gas and
 // gasPriceMinimum thresholds are also potentially updated.
 func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Transaction) {
+	txCtx := l.ctx.Load().(txPoolContext)
 	// If there's an older better transaction, abort
 	old := l.txs.Get(tx.Nonce())
 	if old != nil {
@@ -323,7 +335,6 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 		} else {
 			// Convert old values into tx fee currency
 			var err error
-			txCtx := l.ctx.Load().(txPoolContext)
 			if oldGasFeeCap, err = toCELO(old.GasFeeCap(), old.DenominatedFeeCurrency(), &txCtx); err != nil {
 				return false, nil
 			}
@@ -363,7 +374,16 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 			l.nativecostcap = cost
 		}
 	} else {
-		fee := tx.FeeInCurrency()
+		var fee *big.Int = tx.Fee()
+		if tx.Type() == types.CeloDenominatedTxType {
+			var err error
+			fee, err = toCURRENCY(fee, feeCurrency, &txCtx)
+			if err != nil {
+				log.Error("Can't get rate for currency: ", "currency", feeCurrency.Hex())
+				// Can't get rate, don't accept tx
+				return false, nil
+			}
+		}
 		if oldFee, ok := l.feecaps[*feeCurrency]; !ok || oldFee.Cmp(fee) < 0 {
 			l.feecaps[*feeCurrency] = fee
 		}
@@ -426,12 +446,19 @@ func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*
 			return tx.Cost().Cmp(nativeCostLimit) > 0 || tx.Gas() > gasLimit || txCtx.celoGasPriceMinimumFloor.Cmp(tx.GasPrice()) > 0
 		} else {
 			feeLimit := feeLimits[*feeCurrency]
-			fee := tx.FeeInCurrency()
+			var fee *big.Int = tx.Fee()
 			log.Trace("Transaction Filter", "hash", tx.Hash(), "Fee currency", tx.FeeCurrency(), "Value", tx.Value(), "Cost Limit", feeLimit, "Gas", tx.Gas(), "Gas Limit", gasLimit)
 
 			if tx.Type() == types.CeloDenominatedTxType {
+				var err error
+				fee, err = toCURRENCY(fee, feeCurrency, &txCtx)
+				if err != nil {
+					log.Error("Can't get rate for currency: ", "currency", feeCurrency.Hex())
+					// Can't get rate, remove tx
+					return true
+				}
 				// Celo denominated tx fee is over maxFeeInFeeCurrency
-				if txCtx.CmpValues(tx.Fee(), nil, tx.MaxFeeInFeeCurrency(), tx.FeeCurrency()) > 0 {
+				if fee.Cmp(tx.MaxFeeInFeeCurrency()) > 0 {
 					return true
 				}
 			}

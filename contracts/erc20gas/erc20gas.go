@@ -7,6 +7,7 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/contracts/internal/n"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -27,15 +28,17 @@ var (
 
 // Returns nil if debit is possible, used in tx pool validation
 func TryDebitFees(tx *types.Transaction, from common.Address, currentVMRunner vm.EVMRunner) error {
-	var cost *big.Int
+	var fee *big.Int = tx.Fee()
 	if tx.Type() == types.CeloDenominatedTxType {
-		cost = tx.MaxFeeInFeeCurrency()
-	} else {
-		cost = tx.Fee()
+		rate, err := currency.GetExchangeRate(currentVMRunner, tx.FeeCurrency())
+		if err != nil {
+			return err
+		}
+		fee = rate.FromBase(fee)
 	}
 	// The following code is similar to DebitFees, but that function does not work on a vm.EVMRunner,
 	// so we have to adapt it instead of reusing.
-	transactionData := common.GetEncodedAbi(debitGasFeesSelector, [][]byte{common.AddressToAbi(from), common.AmountToAbi(cost)})
+	transactionData := common.GetEncodedAbi(debitGasFeesSelector, [][]byte{common.AddressToAbi(from), common.AmountToAbi(fee)})
 
 	ret, err := currentVMRunner.ExecuteAndDiscardChanges(*tx.FeeCurrency(), transactionData, maxGasForDebitGasFeesTransactions, common.Big0)
 	if err != nil {
