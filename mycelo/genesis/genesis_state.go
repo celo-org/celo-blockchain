@@ -49,6 +49,8 @@ func newDeployment(genesisConfig *Config, accounts *env.AccountsConfig, buildPat
 
 	adminAddress := accounts.AdminAccount().Address
 
+	logger.Error("admin privkey", "key", accounts.AdminAccount().PrivateKey)
+
 	logger.Info("New deployment", "admin_address", adminAddress.Hex())
 	return &deployContext{
 		genesisConfig: genesisConfig,
