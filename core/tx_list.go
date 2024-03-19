@@ -288,7 +288,7 @@ func (l *txList) FeeCurrencies() []common.Address {
 	return feeCurrencies
 }
 
-func toCURRENCY(celoAmount *big.Int, feeCurrency *common.Address, txCtx *txPoolContext) (*big.Int, error) {
+func toCurrency(celoAmount *big.Int, feeCurrency *common.Address, txCtx *txPoolContext) (*big.Int, error) {
 	if feeCurrency == nil {
 		return celoAmount, nil
 	}
@@ -377,9 +377,9 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 		var fee *big.Int = tx.Fee()
 		if tx.Type() == types.CeloDenominatedTxType {
 			var err error
-			fee, err = toCURRENCY(fee, feeCurrency, &txCtx)
+			fee, err = toCurrency(fee, feeCurrency, &txCtx)
 			if err != nil {
-				log.Error("Can't get rate for currency: ", "currency", feeCurrency.Hex())
+				log.Error("Can't get rate for currency: ", "currency", feeCurrency.Hex(), "err", err)
 				// Can't get rate, don't accept tx
 				return false, nil
 			}
@@ -451,9 +451,9 @@ func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*
 
 			if tx.Type() == types.CeloDenominatedTxType {
 				var err error
-				fee, err = toCURRENCY(fee, feeCurrency, &txCtx)
+				fee, err = toCurrency(fee, feeCurrency, &txCtx)
 				if err != nil {
-					log.Error("Can't get rate for currency: ", "currency", feeCurrency.Hex())
+					log.Error("Can't get rate for currency: ", "currency", feeCurrency.Hex(), "err", err)
 					// Can't get rate, remove tx
 					return true
 				}

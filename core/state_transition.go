@@ -74,7 +74,7 @@ type StateTransition struct {
 	vmRunner        vm.EVMRunner
 	gasPriceMinimum *big.Int
 	sysCtx          *SysContractCallCtx
-	exchangeRate    currency.ExchangeRate
+	erc20FeeDebited *big.Int
 }
 
 // Message represents a message sent to a contract.
@@ -386,6 +386,7 @@ func (st *StateTransition) debitFee(from common.Address, feeCurrency *common.Add
 			// Celo denominated tx
 			currencyFee = feeCurrencyRate.FromBase(effectiveFee)
 		}
+		st.erc20FeeDebited = currencyFee
 		return erc20gas.DebitFees(st.evm, from, currencyFee, feeCurrency)
 	}
 }
@@ -576,15 +577,25 @@ func (st *StateTransition) creditTxFees(feeCurrencyRate *currency.ExchangeRate) 
 	}
 
 	// Determine the refund and transaction fee to be distributed.
-	var refund *big.Int = new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
+	refund := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
 	gasUsed := new(big.Int).SetUint64(st.gasUsed())
 	totalTxFee := new(big.Int).Mul(gasUsed, st.gasPrice)
 	from := st.msg.From()
 
 	// Divide the transaction into a base (the minimum transaction fee) and tip (any extra, or min(max tip, feecap - GPM) if espresso).
-	var baseTxFee *big.Int = new(big.Int).Mul(gasUsed, st.gasPriceMinimum)
+	baseTxFee := new(big.Int).Mul(gasUsed, st.gasPriceMinimum)
 	// No need to do effectiveTip calculation, because st.gasPrice == effectiveGasPrice, and effectiveTip = effectiveGasPrice - baseTxFee
-	var tipTxFee *big.Int = new(big.Int).Sub(totalTxFee, baseTxFee)
+	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
+
+	if st.msg.MaxFeeInFeeCurrency() != nil {
+		// Celo Denominated
+		tipTxFee = feeCurrencyRate.FromBase(tipTxFee)
+		baseTxFee = feeCurrencyRate.FromBase(baseTxFee)
+		totalTxFee = feeCurrencyRate.FromBase(totalTxFee)
+		refund.Sub(st.erc20FeeDebited, totalTxFee)
+		// No need to exchange gateway fee since it's it's deprecated on G fork,
+		// and MaxFeeInFeeCurrency can only be present in H fork (which implies G fork)
+	}
 
 	feeCurrency := st.msg.FeeCurrency()
 
@@ -611,14 +622,6 @@ func (st *StateTransition) creditTxFees(feeCurrencyRate *currency.ExchangeRate) 
 		baseTxFee = new(big.Int)
 	}
 
-	if st.msg.MaxFeeInFeeCurrency() != nil {
-		// Celo Denominated
-		refund = feeCurrencyRate.FromBase(refund)
-		tipTxFee = feeCurrencyRate.FromBase(tipTxFee)
-		baseTxFee = feeCurrencyRate.FromBase(baseTxFee)
-		// No need to exchange gateway fee since it's it's deprecated on G fork,
-		// and MaxFeeInFeeCurrency can only be present in H fork (which implies G fork)
-	}
 	log.Trace("creditTxFees", "from", from, "refund", refund, "feeCurrency", st.msg.FeeCurrency(),
 		"gatewayFeeRecipient", *gatewayFeeRecipient, "gatewayFee", st.msg.GatewayFee(),
 		"coinbaseFeeRecipient", st.evm.Context.Coinbase, "coinbaseFee", tipTxFee,

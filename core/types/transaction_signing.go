@@ -173,8 +173,8 @@ type Signer interface {
 type hforkSigner struct{ gingerbreadSigner }
 
 // NewHForkSigner returns a signer that accepts
-// - CIP-XX celo denominated fee transactions
-// - CIP-XX celo dynamic fee transactions v2
+// - CIP-66 celo denominated fee transactions
+// - CIP-64 celo dynamic fee transactions v2
 // - CIP-42 celo dynamic fee transactions
 // - EIP-1559 dynamic fee transactions
 // - EIP-2930 access list transactions,

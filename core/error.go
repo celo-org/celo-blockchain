@@ -123,12 +123,12 @@ var (
 	ErrGatewayFeeDeprecated = errors.New("gateway fee is deprecated")
 
 	// ErrDenominatedNoMax is returned when a transaction containing a fee currency has no maxFeeInFeeCurrency set.
-	ErrDenominatedNoMax = errors.New("denominated tx has no maxFeeInFeeCurrency")
+	ErrDenominatedNoMax = errors.New("CELO denominated tx has no maxFeeInFeeCurrency")
 
 	// ErrDenominatedNoCurrency is returned when a celo-denominated transaction has no fee currency set
-	ErrDenominatedNoCurrency = errors.New("celo denominated tx has no fee currency")
+	ErrDenominatedNoCurrency = errors.New("CELO denominated tx has no fee currency")
 
 	// ErrDenominatedLowMaxFee is returned when a celo denominated transaction, with the current exchange rate,
 	// the MaxFeeInFeeCurrency cannot cover the tx.Fee()
-	ErrDenominatedLowMaxFee = errors.New("celo denominated tx MaxFeeInCurrency cannot cover gas fee costs")
+	ErrDenominatedLowMaxFee = errors.New("CELO denominated tx MaxFeeInCurrency cannot cover gas fee costs")
 )
