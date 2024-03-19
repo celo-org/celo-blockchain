@@ -42,7 +42,7 @@ jobs:
       - name: Login at GCP Artifact Registry
         uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v2.0.1
         with:
-          workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
+          workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
           service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
           docker-gcp-registries: us-west1-docker.pkg.dev
       - name: Build and push container
