@@ -53,8 +53,7 @@ jobs:
           echo "MAJOR_MINOR=${semver[0]}.${semver[1]}" >> $GITHUB_OUTPUT
 
   build-container-geth-dev:
-    # v2.0 is main at Feb 2 2024
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.1
     if: startsWith(github.ref, 'refs/heads/release')
     needs:
       - replace-branch-name
@@ -70,6 +69,7 @@ jobs:
 
   build-container-geth-all-dev:
     uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.1
     if: startsWith(github.ref, 'refs/heads/release')
     needs:
       - replace-branch-name
@@ -84,7 +84,7 @@ jobs:
       trivy: true
 
   build-container-geth-devopsre:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.1
     if: startsWith(github.ref, 'refs/tags/v') && false
     needs:
       - replace-tag-v
@@ -99,7 +99,7 @@ jobs:
       trivy: true
 
   build-container-geth-all-devopsre:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.1
     if: startsWith(github.ref, 'refs/tags/v') && false
     needs:
       - replace-tag-v
@@ -114,14 +114,14 @@ jobs:
       trivy: true
 
   build-container-geth-celo-org:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.1
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
       - replace-tag-v
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
       service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
-      artifact-registry: us-docker.pkg.dev/celo-org/us.gcr.io/geth
+      artifact-registry: us.gcr.io/celo-org/geth
       tags: ${{ needs.replace-tag-v.outputs.replaced-tag }}
       platforms: linux/amd64,linux/arm64
       context: .
@@ -129,14 +129,14 @@ jobs:
       trivy: true
 
   build-container-geth-all-celo-org:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.1
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
       - replace-tag-v
     with:
       workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
       service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
-      artifact-registry: us-docker.pkg.dev/celo-org/us.gcr.io/geth-all
+      artifact-registry: us.gcr.io/celo-org/geth-all
       tags: ${{ needs.replace-tag-v.outputs.replaced-tag }}
       platforms: linux/amd64,linux/arm64
       context: .
@@ -146,32 +146,78 @@ jobs:
   # TODO(): The next worfklows assume that the latest pushed is effectively the latest tag
   # This can be problematic for cases when have multiple active release branches (i.e: 1.9.x and 1.10.x) and 
   # we tag a new release on 1.9.x, the latest pushed for bakalva and 1 tags will be 1.9.x and not 1.10.x
-  add-baklava-tag:
-    if: startsWith(github.ref, 'refs/tags/v')
+  add-baklava-geth-tag:
     uses: ./.github/workflows/add-docker-tag.yaml
     needs:
       - replace-tag-v
       - build-container-geth-celo-org
     with:
-      origin-tag: ${{ needs.replace-tag-v.outputs.replaced-tag }}
-      destination-tag: v-baklava
+      source-image: us.gcr.io/celo-org/geth:${{ needs.replace-tag-v.outputs.replaced-tag }}
+      destination-image: us.gcr.io/celo-org/geth:baklava
 
-  add-major-tag:
-    if: startsWith(github.ref, 'refs/tags/v')
+  add-baklava-geth-all-tag:
     uses: ./.github/workflows/add-docker-tag.yaml
     needs:
       - replace-tag-v
       - build-container-geth-celo-org
     with:
-      origin-tag: ${{ needs.replace-tag-v.outputs.replaced-tag }}
-      destination-tag: ${{ needs.replace-tag-v.outputs.major }}
+      source-image: us.gcr.io/celo-org/geth-all:${{ needs.replace-tag-v.outputs.replaced-tag }}
+      destination-image: us.gcr.io/celo-org/geth-all:baklava
 
-  add-major-minor-tag:
-    if: startsWith(github.ref, 'refs/tags/v')
+  add-mainnet-geth-tag:
     uses: ./.github/workflows/add-docker-tag.yaml
     needs:
       - replace-tag-v
       - build-container-geth-celo-org
     with:
-      origin-tag: ${{ needs.replace-tag-v.outputs.replaced-tag }}
-      destination-tag: ${{ needs.replace-tag-v.outputs.major-minor }}
+      source-image: us.gcr.io/celo-org/geth:${{ needs.replace-tag-v.outputs.replaced-tag }}
+      destination-image: us.gcr.io/celo-org/geth:mainnet
+
+  add-mainnet-geth-all-tag:
+    uses: ./.github/workflows/add-docker-tag.yaml
+    needs:
+      - replace-tag-v
+      - build-container-geth-celo-org
+    with:
+      source-image: us.gcr.io/celo-org/geth-all:${{ needs.replace-tag-v.outputs.replaced-tag }}
+      destination-image: us.gcr.io/celo-org/geth-all:mainnet
+
+  add-major-geth-tag:
+    if: github.ref == 'refs/heads/master'
+    uses: ./.github/workflows/add-docker-tag.yaml
+    needs:
+      - replace-tag-v
+      - build-container-geth-celo-org
+    with:
+      source-image: us.gcr.io/celo-org/geth:${{ needs.replace-tag-v.outputs.replaced-tag }}
+      destination-image: us.gcr.io/celo-org/geth:${{ needs.replace-tag-v.outputs.major }}
+
+  add-major-geth-all-tag:
+    if: github.ref == 'refs/heads/master'
+    uses: ./.github/workflows/add-docker-tag.yaml
+    needs:
+      - replace-tag-v
+      - build-container-geth-celo-org
+    with:
+      source-image: us.gcr.io/celo-org/geth-all:${{ needs.replace-tag-v.outputs.replaced-tag }}
+      destination-image: us.gcr.io/celo-org/geth-all:${{ needs.replace-tag-v.outputs.major }}
+
+  add-minor-geth-tag:
+    if: github.ref == 'refs/heads/master'
+    uses: ./.github/workflows/add-docker-tag.yaml
+    needs:
+      - replace-tag-v
+      - build-container-geth-celo-org
+    with:
+      source-image: us.gcr.io/celo-org/geth:${{ needs.replace-tag-v.outputs.replaced-tag }}
+      destination-image: us.gcr.io/celo-org/geth:${{ needs.replace-tag-v.outputs.major-minor }}
+
+  add-minor-geth-all-tag:
+    if: github.ref == 'refs/heads/master'
+    uses: ./.github/workflows/add-docker-tag.yaml
+    needs:
+      - replace-tag-v
+      - build-container-geth-celo-org
+    with:
+      source-image: us.gcr.io/celo-org/geth-all:${{ needs.replace-tag-v.outputs.replaced-tag }}
+      destination-image: us.gcr.io/celo-org/geth-all:${{ needs.replace-tag-v.outputs.major-minor }}

@@ -3,27 +3,23 @@ name: Add Tags to Blockchain Release Images
 on:
   workflow_dispatch:
     inputs:
-      origin-tag:
-        description: 'Original tag'
+      source-image:
+        description: Container source image (registry/image:tag)
         required: true
         type: string
-      destination-tag:
-        description: 'Tag to add'
+      destination-image:
+        description: Container destination image (registry/image:tag)
         required: true
-        type: choice
-        options:
-          - alfajores
-          - mainnet
+        type: string
   workflow_call:
     inputs:
-      origin-tag:
-        description: 'Original tag'
+      source-image:
+        description: Container source image (registry/image:tag)
         required: true
         type: string
-      destination-tag:
-        description: 'Tag to add'
+      destination-image:
+        description: Container destination image (registry/image:tag)
         required: true
-        default: 'baklava'
         type: string
 
 jobs:
@@ -33,23 +29,32 @@ jobs:
       contents: 'read'
       id-token: 'write'
     steps:
+<<<<<<< HEAD
       - id: 'auth-gcp-master'
         name: 'Authenticate to Google Cloud'
         uses: 'google-github-actions/auth@v2'
+=======
+      - id: auth-gcp-master
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+>>>>>>> 74c5f920c (Refactor container workflows)
         with:
           workload_identity_provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-add-tag/providers/github-by-repos'
           service_account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
-          access_token_lifetime: '20m'
+          access_token_lifetime: '10m'
 
+<<<<<<< HEAD
       - name: 'Set up Cloud SDK'
         uses: 'google-github-actions/setup-gcloud@v2'
 
       - id: add-tag-devopsre
+=======
+      - name: Install regctl
+>>>>>>> 74c5f920c (Refactor container workflows)
         run: |
-          gcloud container images add-tag us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth:${{ inputs.origin-tag }} us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth:${{ inputs.destination-tag }}
-          gcloud container images add-tag us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-all:${{ inputs.origin-tag }} us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-all:${{ inputs.destination-tag }}
+          curl -L https://github.com/regclient/regclient/releases/latest/download/regctl-linux-amd64 > regctl
+          chmod 755 regctl
 
-      - id: add-tag-celo-org
+      - name: Use regctl to copy images (add tags)
         run: |
-          gcloud container images add-tag us-docker.pkg.dev/celo-org/us.gcr.io/geth:${{ inputs.origin-tag }} us-docker.pkg.dev/celo-org/us.gcr.io/geth:${{ inputs.destination-tag }}
-          gcloud container images add-tag us-docker.pkg.dev/celo-org/us.gcr.io/geth-all:${{ inputs.origin-tag }} us-docker.pkg.dev/celo-org/us.gcr.io/geth-all:${{ inputs.destination-tag }}
+          regctl image copy {{ inputs.source-image }} {{ inputs.destination-image }}
