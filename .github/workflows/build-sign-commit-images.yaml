@@ -49,7 +49,7 @@ jobs:
         uses: celo-org/reusable-workflows/.github/actions/build-container@v2.0.1
         with:
           platforms: linux/amd64,linux/arm64
-          registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-all
+          registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth-all
           tags: ${{ github.sha }}
           context: .
           dockerfile: Dockerfile.alltools
@@ -71,4 +71,4 @@ jobs:
       - build-container-geth-all
     with:
       source-image: us-west1-docker.pkg.dev/devopsre/dev-images/geth-all:${{ github.sha }}
-      destination-image: us-west1-docker.pkg.dev/devopsre/dev-images/geth:master
+      destination-image: us-west1-docker.pkg.dev/devopsre/dev-images/geth-all:master
