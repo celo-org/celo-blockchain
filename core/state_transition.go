@@ -589,10 +589,17 @@ func (st *StateTransition) creditTxFees(feeCurrencyRate *currency.ExchangeRate) 
 
 	if st.msg.MaxFeeInFeeCurrency() != nil {
 		// Celo Denominated
+
+		// We want to ensure that
+		// 		st.erc20FeeDebited = tipTxFee + baseTxFee + refund
+		// so that debit and credit totals match. Since the exchange rate
+		// conversions have limited accuracy, the only way to achieve this
+		// is to calculate one of the three credit values based on the two
+		// others after the exchange rate conversion.
 		tipTxFee = feeCurrencyRate.FromBase(tipTxFee)
 		baseTxFee = feeCurrencyRate.FromBase(baseTxFee)
-		totalTxFee = feeCurrencyRate.FromBase(totalTxFee)
-		refund.Sub(st.erc20FeeDebited, totalTxFee)
+		totalTxFee.Add(tipTxFee, baseTxFee)
+		refund.Sub(st.erc20FeeDebited, totalTxFee) // refund = debited - tip - basefee
 		// No need to exchange gateway fee since it's it's deprecated on G fork,
 		// and MaxFeeInFeeCurrency can only be present in H fork (which implies G fork)
 	}
