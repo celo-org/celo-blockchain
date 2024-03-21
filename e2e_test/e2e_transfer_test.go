@@ -113,30 +113,6 @@ func TestTransferCELO(t *testing.T) {
 			expectedErr: nil,
 		},
 		{
-			name: "CeloDynamicFeeTxType - gas = MaxFeePerGas - BaseFee",
-			txArgs: &ethapi.TransactionArgs{
-				To:                   &recipient.Address,
-				Value:                (*hexutil.Big)(new(big.Int).SetInt64(oneCelo)),
-				MaxFeePerGas:         (*hexutil.Big)(datum.Mul(datum, new(big.Int).SetInt64(4))),
-				MaxPriorityFeePerGas: (*hexutil.Big)(datum.Mul(datum, new(big.Int).SetInt64(4))),
-				GatewayFee:           (*hexutil.Big)(new(big.Int).SetInt64(oneCelo / 10)),
-				GatewayFeeRecipient:  &gateWayFeeRecipient.Address,
-			},
-			expectedErr: core.ErrGatewayFeeDeprecated,
-		},
-		{
-			name: "CeloDynamicFeeTxType - MaxPriorityFeePerGas",
-			txArgs: &ethapi.TransactionArgs{
-				To:                   &recipient.Address,
-				Value:                (*hexutil.Big)(new(big.Int).SetInt64(oneCelo)),
-				MaxFeePerGas:         (*hexutil.Big)(datum.Mul(datum, new(big.Int).SetInt64(4))),
-				MaxPriorityFeePerGas: (*hexutil.Big)(datum),
-				GatewayFee:           (*hexutil.Big)(new(big.Int).SetInt64(oneCelo / 10)),
-				GatewayFeeRecipient:  &gateWayFeeRecipient.Address,
-			},
-			expectedErr: core.ErrGatewayFeeDeprecated,
-		},
-		{
 			name: "CeloDynamicFeeTxV2Type - gas = MaxFeePerGas - BaseFee",
 			txArgs: &ethapi.TransactionArgs{
 				To:                   &recipient.Address,
