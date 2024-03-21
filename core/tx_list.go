@@ -316,7 +316,6 @@ func toCELO(amount *big.Int, feeCurrency *common.Address, txCtx *txPoolContext) 
 // If the new transaction is accepted into the list, the lists' cost, gas and
 // gasPriceMinimum thresholds are also potentially updated.
 func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Transaction) {
-	txCtx := l.ctx.Load().(txPoolContext)
 	// If there's an older better transaction, abort
 	old := l.txs.Get(tx.Nonce())
 	if old != nil {
@@ -333,6 +332,7 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 			newGasFeeCap = tx.GasFeeCap()
 			newGasTipCap = tx.GasTipCap()
 		} else {
+			txCtx := l.ctx.Load().(txPoolContext)
 			// Convert old values into tx fee currency
 			var err error
 			if oldGasFeeCap, err = toCELO(old.GasFeeCap(), old.DenominatedFeeCurrency(), &txCtx); err != nil {
@@ -376,6 +376,7 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 	} else {
 		var fee *big.Int = tx.Fee()
 		if tx.Type() == types.CeloDenominatedTxType {
+			txCtx := l.ctx.Load().(txPoolContext)
 			var err error
 			fee, err = toCurrency(fee, feeCurrency, &txCtx)
 			if err != nil {
