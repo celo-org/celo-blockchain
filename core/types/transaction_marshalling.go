@@ -46,6 +46,7 @@ type txJSON struct {
 	FeeCurrency         *common.Address `json:"feeCurrency"`         // nil means native currency
 	GatewayFeeRecipient *common.Address `json:"gatewayFeeRecipient"` // nil means no gateway fee is paid
 	GatewayFee          *hexutil.Big    `json:"gatewayFee"`
+	MaxFeeInFeeCurrency *hexutil.Big    `json:"maxFeeInFeeCurrency"` // max fee for CELO denominated txs
 
 	// Access list transaction fields:
 	ChainID    *hexutil.Big `json:"chainId,omitempty"`
@@ -130,6 +131,21 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		enc.MaxFeePerGas = (*hexutil.Big)(tx.GasFeeCap)
 		enc.MaxPriorityFeePerGas = (*hexutil.Big)(tx.GasTipCap)
 		enc.FeeCurrency = t.FeeCurrency()
+		enc.Value = (*hexutil.Big)(tx.Value)
+		enc.Data = (*hexutil.Bytes)(&tx.Data)
+		enc.To = t.To()
+		enc.V = (*hexutil.Big)(tx.V)
+		enc.R = (*hexutil.Big)(tx.R)
+		enc.S = (*hexutil.Big)(tx.S)
+	case *CeloDenominatedTx:
+		enc.ChainID = (*hexutil.Big)(tx.ChainID)
+		enc.AccessList = &tx.AccessList
+		enc.Nonce = (*hexutil.Uint64)(&tx.Nonce)
+		enc.Gas = (*hexutil.Uint64)(&tx.Gas)
+		enc.MaxFeePerGas = (*hexutil.Big)(tx.GasFeeCap)
+		enc.MaxPriorityFeePerGas = (*hexutil.Big)(tx.GasTipCap)
+		enc.FeeCurrency = t.FeeCurrency()
+		enc.MaxFeeInFeeCurrency = (*hexutil.Big)(tx.MaxFeeInFeeCurrency)
 		enc.Value = (*hexutil.Big)(tx.Value)
 		enc.Data = (*hexutil.Bytes)(&tx.Data)
 		enc.To = t.To()
@@ -462,6 +478,10 @@ func (t *Transaction) UnmarshalJSON(input []byte) error {
 		}
 		itx.Gas = uint64(*dec.Gas)
 		itx.FeeCurrency = dec.FeeCurrency
+		if dec.MaxFeeInFeeCurrency == nil {
+			return errors.New("missing required field 'maxFeeInFeeCurrency' in transaction")
+		}
+		itx.MaxFeeInFeeCurrency = (*big.Int)(dec.MaxFeeInFeeCurrency)
 		if dec.Value == nil {
 			return errors.New("missing required field 'value' in transaction")
 		}
