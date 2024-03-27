@@ -235,6 +235,7 @@ func (s hforkSigner) Hash(tx *Transaction) common.Hash {
 				tx.Data(),
 				tx.AccessList(),
 				tx.FeeCurrency(),
+				tx.MaxFeeInFeeCurrency(),
 			})
 	}
 	return s.gingerbreadSigner.Hash(tx)
