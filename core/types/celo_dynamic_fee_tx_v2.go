@@ -94,3 +94,4 @@ func (tx *CeloDynamicFeeTxV2) feeCurrency() *common.Address         { return tx.
 func (tx *CeloDynamicFeeTxV2) gatewayFeeRecipient() *common.Address { return nil }
 func (tx *CeloDynamicFeeTxV2) gatewayFee() *big.Int                 { return nil }
 func (tx *CeloDynamicFeeTxV2) ethCompatible() bool                  { return false }
+func (tx *CeloDynamicFeeTxV2) maxFeeInFeeCurrency() *big.Int        { return nil }

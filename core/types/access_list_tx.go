@@ -119,3 +119,4 @@ func (tx *AccessListTx) feeCurrency() *common.Address         { return nil }
 func (tx *AccessListTx) gatewayFeeRecipient() *common.Address { return nil }
 func (tx *AccessListTx) gatewayFee() *big.Int                 { return nil }
 func (tx *AccessListTx) ethCompatible() bool                  { return false }
+func (tx *AccessListTx) maxFeeInFeeCurrency() *big.Int        { return nil }

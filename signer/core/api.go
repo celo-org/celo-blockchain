@@ -565,9 +565,8 @@ func (api *SignerAPI) SignTransaction(ctx context.Context, args apitypes.SendTxA
 	if err != nil {
 		return nil, err
 	}
-	// TODO Change flag after gingerbreadP2 activation
 	// Convert fields into a real transaction
-	var unsignedTx = result.Transaction.ToTransaction(false)
+	var unsignedTx = result.Transaction.ToTransaction()
 	// Get the password for the transaction
 	pw, err := api.lookupOrQueryPassword(acc.Address, "Account password",
 		fmt.Sprintf("Please enter the password for account %s", acc.Address.String()))

@@ -73,7 +73,7 @@ func newMultiCurrencyPriceHeap(currencyCmp CurrencyCmpFn, gpm GasPriceMinimums) 
 // if it's not available in the currencyHeaps
 func (h *multiCurrencyPriceHeap) getHeapFor(tx *types.Transaction) *priceHeap {
 	fc := tx.FeeCurrency()
-	if fc == nil {
+	if fc == nil || tx.Type() == types.CeloDenominatedTxType {
 		return h.nativeCurrencyHeap
 	}
 	if _, ok := h.currencyHeaps[*fc]; !ok {

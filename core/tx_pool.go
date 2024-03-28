@@ -279,6 +279,7 @@ type TxPool struct {
 	espresso      bool // Fork indicator for the Espresso fork.
 	gingerbread   bool // Fork indicator for the Gingerbread fork.
 	gingerbreadP2 bool // Fork indicator for the Gingerbread P2 fork.
+	hfork         bool // Fork indicator for the HFork.
 
 	currentState    *state.StateDB // Current state in the blockchain head
 	currentVMRunner vm.EVMRunner   // Current EVMRunner
@@ -679,6 +680,10 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if !pool.gingerbreadP2 && tx.Type() == types.CeloDynamicFeeTxV2Type {
 		return ErrTxTypeNotSupported
 	}
+	// Reject celo denominated fee until h fork
+	if !pool.hfork && tx.Type() == types.CeloDenominatedTxType {
+		return ErrTxTypeNotSupported
+	}
 	// Reject transactions over defined size to prevent DOS attacks
 	if uint64(tx.Size()) > txMaxSize {
 		return ErrOversizedData
@@ -715,8 +720,22 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrNonWhitelistedFeeCurrency
 	}
 
+	// Celo denominated checks
+	if tx.Type() == types.CeloDenominatedTxType {
+		if tx.FeeCurrency() == nil {
+			return ErrDenominatedNoCurrency
+		}
+		if tx.MaxFeeInFeeCurrency() == nil {
+			return ErrDenominatedNoMax
+		}
+		// Celo denominated tx fee is over maxFeeInFeeCurrency
+		if pool.ctx().CmpValues(tx.Fee(), nil, tx.MaxFeeInFeeCurrency(), tx.FeeCurrency()) > 0 {
+			return ErrDenominatedLowMaxFee
+		}
+	}
+
 	// Drop non-local transactions under our own minimal accepted gas price or tip
-	if !local && pool.ctx().CmpValues(tx.GasTipCap(), tx.FeeCurrency(), pool.gasPrice, nil) < 0 {
+	if !local && pool.ctx().CmpValues(tx.GasTipCap(), tx.DenominatedFeeCurrency(), pool.gasPrice, nil) < 0 {
 		return ErrUnderpriced
 	}
 	// Ensure the transaction adheres to nonce ordering
@@ -741,7 +760,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	ctx := pool.currentCtx.Load().(txPoolContext)
-	if ctx.CmpValues(ctx.celoGasPriceMinimumFloor, nil, tx.GasPrice(), tx.FeeCurrency()) > 0 {
+	if ctx.CmpValues(ctx.celoGasPriceMinimumFloor, nil, tx.GasPrice(), tx.DenominatedFeeCurrency()) > 0 {
 		log.Debug("gasPrice less than the minimum floor", "gasPrice", tx.GasPrice(), "feeCurrency", tx.FeeCurrency(), "gasPriceMinimumFloor (Celo)", ctx.celoGasPriceMinimumFloor)
 		return ErrGasPriceDoesNotExceedMinimumFloor
 	}
@@ -1425,6 +1444,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	pool.espresso = pool.chainconfig.IsEspresso(next)
 	pool.gingerbread = pool.chainconfig.IsGingerbread(next)
 	pool.gingerbreadP2 = pool.chainconfig.IsGingerbreadP2(next)
+	pool.hfork = pool.chainconfig.IsHFork(next)
 }
 
 // promoteExecutables moves transactions that have become processable from the
@@ -1729,9 +1749,7 @@ func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Addres
 	balance := currentState.GetBalance(from)
 
 	// cost = GasFeeCap * gas + value
-	cost := new(big.Int).SetUint64(tx.Gas())
-	cost.Mul(cost, tx.GasFeeCap())
-	cost.Add(cost, tx.Value())
+	cost := tx.Cost()
 
 	if balance.Cmp(cost) < 0 {
 		log.Debug("ValidateTransactorBalanceCoversTx: insufficient CELO funds",
@@ -1996,7 +2014,7 @@ func (t *txLookup) RemoteToLocals(locals *accountSet) int {
 func (t *txLookup) RemotesBelowTip(threshold *big.Int, txCtx *txPoolContext) types.Transactions {
 	found := make(types.Transactions, 0, 128)
 	t.Range(func(hash common.Hash, tx *types.Transaction, local bool) bool {
-		curr, _ := txCtx.GetCurrency(tx.FeeCurrency())
+		curr, _ := txCtx.GetCurrency(tx.DenominatedFeeCurrency())
 		if tx.GasTipCapIntCmp(curr.FromCELO(threshold)) < 0 {
 			found = append(found, tx)
 		}

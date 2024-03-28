@@ -41,6 +41,7 @@ type TransactionArgs struct {
 	MaxFeePerGas         *hexutil.Big    `json:"maxFeePerGas"`
 	MaxPriorityFeePerGas *hexutil.Big    `json:"maxPriorityFeePerGas"`
 	FeeCurrency          *common.Address `json:"feeCurrency"`
+	MaxFeeInFeeCurrency  *hexutil.Big    `json:"maxFeeInFeeCurrency"`
 	GatewayFeeRecipient  *common.Address `json:"gatewayFeeRecipient"`
 	GatewayFee           *hexutil.Big    `json:"gatewayFee"`
 	Value                *hexutil.Big    `json:"value"`
@@ -260,13 +261,14 @@ func (args *TransactionArgs) ToMessage(globalGasCap uint64, baseFee *big.Int) (t
 	if args.AccessList != nil {
 		accessList = *args.AccessList
 	}
-	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, gasFeeCap, gasTipCap, args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee.ToInt(), data, accessList, args.EthCompatible, true)
+	maxFeeInFeeCurrency := args.MaxFeeInFeeCurrency.ToInt()
+	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, gasFeeCap, gasTipCap, args.FeeCurrency, maxFeeInFeeCurrency, args.GatewayFeeRecipient, args.GatewayFee.ToInt(), data, accessList, args.EthCompatible, true)
 	return msg, nil
 }
 
 // toTransaction converts the arguments to a transaction.
 // This assumes that setDefaults has been called.
-func (args *TransactionArgs) toTransaction(isGingerbreadP2 bool) *types.Transaction {
+func (args *TransactionArgs) toTransaction() *types.Transaction {
 	var data types.TxData
 	switch {
 	case args.MaxFeePerGas != nil:
@@ -274,8 +276,9 @@ func (args *TransactionArgs) toTransaction(isGingerbreadP2 bool) *types.Transact
 		if args.AccessList != nil {
 			al = *args.AccessList
 		}
-		if args.GatewayFeeRecipient != nil || args.GatewayFee != nil || (!isGingerbreadP2 && args.FeeCurrency != nil) {
-			data = &types.CeloDynamicFeeTx{
+
+		if args.FeeCurrency != nil && args.MaxFeeInFeeCurrency != nil {
+			data = &types.CeloDenominatedTx{
 				To:                  args.To,
 				ChainID:             (*big.Int)(args.ChainID),
 				Nonce:               uint64(*args.Nonce),
@@ -283,13 +286,12 @@ func (args *TransactionArgs) toTransaction(isGingerbreadP2 bool) *types.Transact
 				GasFeeCap:           (*big.Int)(args.MaxFeePerGas),
 				GasTipCap:           (*big.Int)(args.MaxPriorityFeePerGas),
 				FeeCurrency:         args.FeeCurrency,
-				GatewayFeeRecipient: args.GatewayFeeRecipient,
-				GatewayFee:          (*big.Int)(args.GatewayFee),
+				MaxFeeInFeeCurrency: (*big.Int)(args.MaxFeeInFeeCurrency),
 				Value:               (*big.Int)(args.Value),
 				Data:                args.data(),
 				AccessList:          al,
 			}
-		} else if isGingerbreadP2 && args.FeeCurrency != nil {
+		} else if args.FeeCurrency != nil {
 			data = &types.CeloDynamicFeeTxV2{
 				To:          args.To,
 				ChainID:     (*big.Int)(args.ChainID),
@@ -347,8 +349,8 @@ func (args *TransactionArgs) toTransaction(isGingerbreadP2 bool) *types.Transact
 
 // ToTransaction converts the arguments to a transaction.
 // This assumes that setDefaults has been called.
-func (args *TransactionArgs) ToTransaction(isGingerbread bool) *types.Transaction {
-	return args.toTransaction(isGingerbread)
+func (args *TransactionArgs) ToTransaction() *types.Transaction {
+	return args.toTransaction()
 }
 
 func (args *TransactionArgs) checkEthCompatibility() error {

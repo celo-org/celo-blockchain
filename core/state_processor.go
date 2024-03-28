@@ -141,6 +141,10 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, gp *GasPool
 		return nil, ErrTxTypeNotSupported
 	}
 
+	if tx.Type() == types.CeloDenominatedTxType && !config.IsHFork(blockNumber) {
+		return nil, ErrTxTypeNotSupported
+	}
+
 	// Create a new context to be used in the EVM environment
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
