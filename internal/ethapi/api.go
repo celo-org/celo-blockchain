@@ -2133,12 +2133,12 @@ func generateReceiptResponse(ctx context.Context, backend Backend, receipt *type
 			fields["effectiveGasPrice"] = hexutil.Uint64(tx.GasPrice().Uint64())
 		} else {
 			// var gasPrice *big.Int = new(big.Int)
-			if tx.Type() == types.DynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxV2Type {
+			if tx.Type() == types.DynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxV2Type || tx.Type() == types.CeloDenominatedTxType {
 				header, err := backend.HeaderByHash(ctx, blockHash)
 				if err != nil {
 					return nil, err
 				}
-				gasPriceMinimum, err := backend.GasPriceMinimumForHeader(ctx, tx.FeeCurrency(), header)
+				gasPriceMinimum, err := backend.GasPriceMinimumForHeader(ctx, tx.DenominatedFeeCurrency(), header)
 				if err == nil {
 					fields["effectiveGasPrice"] = hexutil.Uint64(new(big.Int).Add(gasPriceMinimum, tx.EffectiveGasTipValue(gasPriceMinimum)).Uint64())
 				}
