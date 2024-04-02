@@ -170,6 +170,78 @@ type Signer interface {
 	Equal(Signer) bool
 }
 
+type hforkSigner struct{ gingerbreadSigner }
+
+// NewHForkSigner returns a signer that accepts
+// - CIP-66 celo denominated fee transactions
+// - CIP-64 celo dynamic fee transactions v2
+// - CIP-42 celo dynamic fee transactions
+// - EIP-1559 dynamic fee transactions
+// - EIP-2930 access list transactions,
+// - EIP-155 replay protected transactions, and
+// - legacy Homestead transactions.
+func NewHForkSigner(chainId *big.Int) Signer {
+	return hforkSigner{gingerbreadSigner{londonSigner{eip2930Signer{NewEIP155Signer(chainId)}}}}
+}
+
+func (s hforkSigner) Sender(tx *Transaction) (common.Address, error) {
+	if tx.Type() != CeloDenominatedTxType {
+		return s.gingerbreadSigner.Sender(tx)
+	}
+	V, R, S := tx.RawSignatureValues()
+	// DynamicFee txs are defined to use 0 and 1 as their recovery
+	// id, add 27 to become equivalent to unprotected Homestead signatures.
+	V = new(big.Int).Add(V, big.NewInt(27))
+	if tx.ChainId().Cmp(s.chainId) != 0 {
+		return common.Address{}, ErrInvalidChainId
+	}
+	return recoverPlain(s.Hash(tx), R, S, V, true)
+}
+
+func (s hforkSigner) Equal(s2 Signer) bool {
+	x, ok := s2.(hforkSigner)
+	return ok && x.chainId.Cmp(s.chainId) == 0
+}
+
+func (s hforkSigner) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big.Int, err error) {
+	txdata, ok := tx.inner.(*CeloDenominatedTx)
+	if !ok {
+		return s.gingerbreadSigner.SignatureValues(tx, sig)
+	}
+	// Check that chain ID of tx matches the signer. We also accept ID zero here,
+	// because it indicates that the chain ID was not specified in the tx.
+	if txdata.ChainID.Sign() != 0 && txdata.ChainID.Cmp(s.chainId) != 0 {
+		return nil, nil, nil, ErrInvalidChainId
+	}
+	R, S, _ = decodeSignature(sig)
+	V = big.NewInt(int64(sig[64]))
+	return R, S, V, nil
+}
+
+// Hash returns the hash to be signed by the sender.
+// It does not uniquely identify the transaction.
+func (s hforkSigner) Hash(tx *Transaction) common.Hash {
+	if tx.Type() == CeloDenominatedTxType {
+		return prefixedRlpHash(
+			tx.Type(),
+			[]interface{}{
+				s.chainId,
+				tx.Nonce(),
+				tx.GasTipCap(),
+				tx.GasFeeCap(),
+				tx.Gas(),
+				tx.To(),
+				tx.Value(),
+				tx.Data(),
+				tx.AccessList(),
+				tx.FeeCurrency(),
+				tx.MaxFeeInFeeCurrency(),
+			})
+	}
+	return s.gingerbreadSigner.Hash(tx)
+
+}
+
 type gingerbreadSigner struct{ londonSigner }
 
 // NewGingerbreadSigner returns a signer that accepts

@@ -174,3 +174,4 @@ func (tx *LegacyTx) feeCurrency() *common.Address         { return tx.FeeCurrenc
 func (tx *LegacyTx) gatewayFeeRecipient() *common.Address { return tx.GatewayFeeRecipient }
 func (tx *LegacyTx) gatewayFee() *big.Int                 { return tx.GatewayFee }
 func (tx *LegacyTx) ethCompatible() bool                  { return tx.EthCompatible }
+func (tx *LegacyTx) maxFeeInFeeCurrency() *big.Int        { return nil }
