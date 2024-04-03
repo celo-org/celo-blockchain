@@ -453,6 +453,11 @@ web3._extend({
 			outputFormatter: web3._extend.formatters.outputTransactionReceiptFormatter
 		}),
 		new web3._extend.Method({
+			name: 'getBlockReceipts',
+			call: 'eth_getBlockReceipts',
+			params: 1,
+		}),
+		new web3._extend.Method({
 			name: 'getRawTransaction',
 			call: 'eth_getRawTransactionByHash',
 			params: 1

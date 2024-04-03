@@ -824,6 +824,36 @@ func (s *PublicBlockChainAPI) GetStorageAt(ctx context.Context, address common.A
 	return res[:], state.Error()
 }
 
+// GetBlockReceipts returns the block receipts for the given block hash or number or tag.
+func (s *PublicBlockChainAPI) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]map[string]interface{}, error) {
+	block, err := s.b.BlockByNumberOrHash(ctx, blockNrOrHash)
+	if block == nil || err != nil {
+		// When the block doesn't exist, the RPC method should return JSON null
+		// as per specification.
+		return nil, nil
+	}
+	receipts, err := s.b.GetReceipts(ctx, block.Hash())
+	if err != nil {
+		return nil, err
+	}
+	txs := block.Transactions()
+	if len(txs) != len(receipts) {
+		return nil, fmt.Errorf("receipts length mismatch: %d vs %d", len(txs), len(receipts))
+	}
+
+	// Derive the sender.
+	signer := types.MakeSigner(s.b.ChainConfig(), block.Number())
+	result := make([]map[string]interface{}, len(receipts))
+	for i, receipt := range receipts {
+		result[i], err = generateReceiptResponse(ctx, s.b, receipt, signer, txs[i], block.Hash(), block.NumberU64(), uint64(i))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return result, nil
+}
+
 // OverrideAccount indicates the overriding fields of account during the execution
 // of a message call.
 // Note, state and stateDiff can't be specified at the same time. If state is
@@ -1666,25 +1696,9 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 	bigblock := new(big.Int).SetUint64(blockNumber)
 	signer := types.MakeSigner(s.b.ChainConfig(), bigblock)
 
-	fields := generateReceiptResponse(receipt, signer, tx, blockHash, blockNumber, index)
-	// Assign the effective gas price paid
-	if !s.b.ChainConfig().IsLondon(bigblock) {
-		fields["effectiveGasPrice"] = hexutil.Uint64(tx.GasPrice().Uint64())
-	} else {
-		// var gasPrice *big.Int = new(big.Int)
-		if tx.Type() == types.DynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxV2Type || tx.Type() == types.CeloDenominatedTxType {
-			header, err := s.b.HeaderByHash(ctx, blockHash)
-			if err != nil {
-				return nil, err
-			}
-			gasPriceMinimum, err := s.b.GasPriceMinimumForHeader(ctx, tx.DenominatedFeeCurrency(), header)
-			if err == nil {
-				fields["effectiveGasPrice"] = hexutil.Uint64(new(big.Int).Add(gasPriceMinimum, tx.EffectiveGasTipValue(gasPriceMinimum)).Uint64())
-			}
-			// if err != nil, it's due to a state prune. In this case no effectiveGasPrice will be returned.
-		} else {
-			fields["effectiveGasPrice"] = hexutil.Uint64(tx.GasPrice().Uint64())
-		}
+	fields, err := generateReceiptResponse(ctx, s.b, receipt, signer, tx, blockHash, blockNumber, index)
+	if err != nil {
+		return nil, err
 	}
 	return fields, nil
 }
@@ -1714,7 +1728,10 @@ func (s *PublicTransactionPoolAPI) GetBlockReceipt(ctx context.Context, hash com
 	} else {
 		receipt = receipts[index]
 	}
-	fields := generateReceiptResponse(receipt, nil, nil, hash, blockNumber, index)
+	fields, err := generateReceiptResponse(ctx, s.b, receipt, nil, nil, hash, blockNumber, index)
+	if err != nil {
+		return nil, err
+	}
 	return fields, nil
 }
 
@@ -2074,8 +2091,8 @@ func toHexSlice(b [][]byte) []string {
 	return r
 }
 
-// generateReceiptResponse is a helper function which generates the response for GetTransactionReceipt() and GetBlockReceipt()
-func generateReceiptResponse(receipt *types.Receipt, signer types.Signer, tx *types.Transaction, blockHash common.Hash, blockNumber uint64, index uint64) map[string]interface{} {
+// generateReceiptResponse is a helper function which generates the response for GetTransactionReceipt(), GetBlockReceipt() and GetBlockReceipts()
+func generateReceiptResponse(ctx context.Context, backend Backend, receipt *types.Receipt, signer types.Signer, tx *types.Transaction, blockHash common.Hash, blockNumber uint64, index uint64) (map[string]interface{}, error) {
 	fields := map[string]interface{}{
 		"blockHash":         blockHash,
 		"blockNumber":       hexutil.Uint64(blockNumber),
@@ -2111,7 +2128,26 @@ func generateReceiptResponse(receipt *types.Receipt, signer types.Signer, tx *ty
 		// Derive the sender.
 		fields["from"], _ = types.Sender(signer, tx)
 		fields["to"] = tx.To()
-
+		// Assign the effective gas price paid
+		if backend.ChainConfig().IsLondon(new(big.Int).SetUint64(blockNumber)) {
+			fields["effectiveGasPrice"] = hexutil.Uint64(tx.GasPrice().Uint64())
+		} else {
+			// var gasPrice *big.Int = new(big.Int)
+			if tx.Type() == types.DynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxType || tx.Type() == types.CeloDynamicFeeTxV2Type || tx.Type() == types.CeloDenominatedTxType {
+				header, err := backend.HeaderByHash(ctx, blockHash)
+				if err != nil {
+					return nil, err
+				}
+				gasPriceMinimum, err := backend.GasPriceMinimumForHeader(ctx, tx.DenominatedFeeCurrency(), header)
+				if err == nil {
+					fields["effectiveGasPrice"] = hexutil.Uint64(new(big.Int).Add(gasPriceMinimum, tx.EffectiveGasTipValue(gasPriceMinimum)).Uint64())
+				}
+				// if err != nil, it's due to a state prune. In this case no effectiveGasPrice will be returned.
+			} else {
+				fields["effectiveGasPrice"] = hexutil.Uint64(tx.GasPrice().Uint64())
+			}
+		}
 	}
-	return fields
+
+	return fields, nil
 }
