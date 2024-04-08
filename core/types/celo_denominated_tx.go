@@ -1,14 +1,9 @@
 package types
 
 import (
-	"errors"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
-)
-
-var (
-	ErrNonCeloDenominated error = errors.New("Tx not CeloDenominated")
 )
 
 type CeloDenominatedTx struct {
@@ -48,6 +43,9 @@ func (tx *CeloDenominatedTx) copy() TxData {
 		R:          new(big.Int),
 		S:          new(big.Int),
 	}
+	if tx.MaxFeeInFeeCurrency != nil {
+		cpy.MaxFeeInFeeCurrency = new(big.Int).Set(tx.MaxFeeInFeeCurrency)
+	}
 	copy(cpy.AccessList, tx.AccessList)
 	if tx.Value != nil {
 		cpy.Value.Set(tx.Value)
@@ -76,7 +74,6 @@ func (tx *CeloDenominatedTx) copy() TxData {
 // accessors for innerTx.
 func (tx *CeloDenominatedTx) txType() byte           { return CeloDenominatedTxType }
 func (tx *CeloDenominatedTx) chainID() *big.Int      { return tx.ChainID }
-func (tx *CeloDenominatedTx) protected() bool        { return true }
 func (tx *CeloDenominatedTx) accessList() AccessList { return tx.AccessList }
 func (tx *CeloDenominatedTx) data() []byte           { return tx.Data }
 func (tx *CeloDenominatedTx) gas() uint64            { return tx.Gas }

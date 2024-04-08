@@ -1289,6 +1289,7 @@ type RPCTransaction struct {
 	GasFeeCap           *hexutil.Big      `json:"maxFeePerGas,omitempty"`
 	GasTipCap           *hexutil.Big      `json:"maxPriorityFeePerGas,omitempty"`
 	FeeCurrency         *common.Address   `json:"feeCurrency"`
+	MaxFeeInFeeCurrency *hexutil.Big      `json:"maxFeeInFeeCurrency,omitempty"`
 	GatewayFeeRecipient *common.Address   `json:"gatewayFeeRecipient"`
 	GatewayFee          *hexutil.Big      `json:"gatewayFee"`
 	Hash                common.Hash       `json:"hash"`
@@ -1331,6 +1332,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		Gas:                 hexutil.Uint64(tx.Gas()),
 		GasPrice:            (*hexutil.Big)(tx.GasPrice()),
 		FeeCurrency:         tx.FeeCurrency(),
+		MaxFeeInFeeCurrency: (*hexutil.Big)(tx.MaxFeeInFeeCurrency()),
 		GatewayFeeRecipient: tx.GatewayFeeRecipient(),
 		GatewayFee:          (*hexutil.Big)(tx.GatewayFee()),
 		Hash:                tx.Hash(),

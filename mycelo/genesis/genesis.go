@@ -19,8 +19,8 @@ import (
 var genesisMsgHash = common.HexToHash("ecc833a7747eaa8327335e8e0c6b6d8aa3a38d0063591e43ce116ccf5c89753e")
 
 // CreateCommonGenesisConfig generates a config starting point which templates can then customize further
-func CreateCommonGenesisConfig(chainID *big.Int, adminAccountAddress common.Address, istanbulConfig params.IstanbulConfig, gingerbreadBlock *big.Int) (*Config, error) {
-	genesisConfig := BaseConfig(gingerbreadBlock)
+func CreateCommonGenesisConfig(chainID *big.Int, adminAccountAddress common.Address, istanbulConfig params.IstanbulConfig, hforkBlock *big.Int) (*Config, error) {
+	genesisConfig := BaseConfig()
 	genesisConfig.ChainID = chainID
 	genesisConfig.GenesisTimestamp = uint64(time.Now().Unix())
 	genesisConfig.Istanbul = istanbulConfig
@@ -28,8 +28,9 @@ func CreateCommonGenesisConfig(chainID *big.Int, adminAccountAddress common.Addr
 		ChurritoBlock:      common.Big0,
 		DonutBlock:         common.Big0,
 		EspressoBlock:      common.Big0,
-		GingerbreadBlock:   gingerbreadBlock,
-		GingerbreadP2Block: gingerbreadBlock,
+		GingerbreadBlock:   common.Big0,
+		GingerbreadP2Block: common.Big0,
+		HForkBlock:         hforkBlock,
 	}
 
 	// Make admin account manager of Governance & Reserve

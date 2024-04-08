@@ -40,6 +40,8 @@ type sigCache struct {
 func MakeSigner(config *params.ChainConfig, blockNumber *big.Int) Signer {
 	var signer Signer
 	switch {
+	case config.IsHFork(blockNumber):
+		signer = NewHForkSigner(config.ChainID)
 	case config.IsGingerbreadP2(blockNumber):
 		signer = NewGingerbreadSigner(config.ChainID)
 	case config.IsEspresso(blockNumber):
@@ -63,6 +65,9 @@ func MakeSigner(config *params.ChainConfig, blockNumber *big.Int) Signer {
 // have the current block number available, use MakeSigner instead.
 func LatestSigner(config *params.ChainConfig) Signer {
 	if config.ChainID != nil {
+		if config.HForkBlock != nil {
+			return NewHForkSigner(config.ChainID)
+		}
 		if config.GingerbreadP2Block != nil {
 			return NewGingerbreadSigner(config.ChainID)
 		}

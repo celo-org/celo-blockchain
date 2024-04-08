@@ -10,16 +10,12 @@ import (
 
 // BaseConfig creates base parameters for celo
 // Callers must complete missing pieces
-func BaseConfig(gingerbreadBlock *big.Int) *Config {
-	baseFeeOpCodeActivationBlock := gingerbreadBlock
+func BaseConfig() *Config {
+	baseFeeOpCodeActivationBlock := big.NewInt(1)
 	bigInt := big.NewInt
 	bigIntStr := common.MustBigInt
 	fixed := fixed.MustNew
 	decimal := decimal.RequireFromString
-
-	if baseFeeOpCodeActivationBlock == nil {
-		baseFeeOpCodeActivationBlock = big.NewInt(0) // deactivated
-	}
 
 	return &Config{
 		SortedOracles: SortedOraclesParameters{

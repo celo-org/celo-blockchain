@@ -36,8 +36,8 @@ const (
 // - validator account has tip fee added.
 func TestTransferCELO(t *testing.T) {
 	ac := test.AccountConfig(1, 3)
-	gingerbreadBlock := common.Big0
-	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	hforkBlock := common.Big0
+	gc, ec, err := test.BuildConfig(ac, hforkBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -258,8 +258,8 @@ func prepareTransaction(txArgs ethapi.TransactionArgs, senderKey *ecdsa.PrivateK
 
 func TestTransferERC20(t *testing.T) {
 	ac := test.AccountConfig(1, 3)
-	gingerbreadBlock := common.Big0
-	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	hforkBlock := common.Big0
+	gc, ec, err := test.BuildConfig(ac, hforkBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -278,6 +278,7 @@ func TestTransferERC20(t *testing.T) {
 	header, err := network[0].WsClient.HeaderByNumber(ctx, nil)
 	require.NoError(t, err)
 	datum := header.BaseFee
+	maxRate, _ := new(big.Int).SetString("1000000000000000000000000", 10)
 	stableTokenAddress := env.MustProxyAddressFor("StableToken")
 	intrinsicGas := hexutil.Uint64(config.IntrinsicGasForAlternativeFeeCurrency + 21000)
 
@@ -295,6 +296,19 @@ func TestTransferERC20(t *testing.T) {
 				MaxPriorityFeePerGas: (*hexutil.Big)(datum),
 				Gas:                  &intrinsicGas,
 				FeeCurrency:          &stableTokenAddress,
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "Celo denominated transfer with fee currency",
+			txArgs: &ethapi.TransactionArgs{
+				To:                   &recipient.Address,
+				Value:                (*hexutil.Big)(new(big.Int).SetInt64(oneCelo)),
+				MaxFeePerGas:         (*hexutil.Big)(datum.Mul(datum, new(big.Int).SetInt64(4))),
+				MaxPriorityFeePerGas: (*hexutil.Big)(datum),
+				Gas:                  &intrinsicGas,
+				FeeCurrency:          &stableTokenAddress,
+				MaxFeeInFeeCurrency:  (*hexutil.Big)(new(big.Int).Mul(new(big.Int).Mul(datum, big.NewInt(int64(intrinsicGas))), maxRate)),
 			},
 			expectedErr: nil,
 		},

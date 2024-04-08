@@ -172,6 +172,7 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 			FeeCurrency:          args.FeeCurrency,
 			GatewayFee:           args.GatewayFee,
 			GatewayFeeRecipient:  args.GatewayFeeRecipient,
+			MaxFeeInFeeCurrency:  args.MaxFeeInFeeCurrency,
 			Value:                args.Value,
 			Data:                 (*hexutil.Bytes)(&data),
 			AccessList:           args.AccessList,
@@ -355,7 +356,7 @@ func (args *TransactionArgs) ToTransaction() *types.Transaction {
 
 func (args *TransactionArgs) checkEthCompatibility() error {
 	// Reject if Celo-only fields set when EthCompatible is true
-	if args.EthCompatible && !(args.FeeCurrency == nil && args.GatewayFeeRecipient == nil && (args.GatewayFee == nil || args.GatewayFee.ToInt().Sign() == 0)) {
+	if args.EthCompatible && !(args.FeeCurrency == nil && args.GatewayFeeRecipient == nil && (args.GatewayFee == nil || args.GatewayFee.ToInt().Sign() == 0) && args.MaxFeeInFeeCurrency == nil) {
 		return types.ErrEthCompatibleTransactionIsntCompatible
 	}
 	return nil
