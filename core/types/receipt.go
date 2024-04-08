@@ -93,12 +93,26 @@ type receiptRLP struct {
 	FeeInFeeCurrency  *big.Int
 }
 
+type preCIP66receiptRLP struct {
+	PostStateOrStatus []byte
+	CumulativeGasUsed uint64
+	Bloom             Bloom
+	Logs              []*Log
+}
+
 // storedReceiptRLP is the storage encoding of a receipt.
 type storedReceiptRLP struct {
 	PostStateOrStatus []byte
 	CumulativeGasUsed uint64
 	Logs              []*LogForStorage
 	FeeInFeeCurrency  *big.Int
+}
+
+// storedPreCIP66ReceiptRLP is the storage encoding of a receipt before adding the FeeInFeeCurrency field
+type storedPreCIP66ReceiptRLP struct {
+	PostStateOrStatus []byte
+	CumulativeGasUsed uint64
+	Logs              []*LogForStorage
 }
 
 // v4StoredReceiptRLP is the storage encoding of a receipt used in database version 4.
@@ -183,7 +197,13 @@ func (r *Receipt) DecodeRLP(s *rlp.Stream) error {
 			return errEmptyTypedReceipt
 		}
 		r.Type = b[0]
-		if r.Type == AccessListTxType || r.Type == DynamicFeeTxType || r.Type == CeloDynamicFeeTxType || r.Type == CeloDynamicFeeTxV2Type || r.Type == CeloDenominatedTxType {
+		if r.Type == AccessListTxType || r.Type == DynamicFeeTxType || r.Type == CeloDynamicFeeTxType || r.Type == CeloDynamicFeeTxV2Type {
+			var dec preCIP66receiptRLP
+			if err := rlp.DecodeBytes(b[1:], &dec); err != nil {
+				return err
+			}
+			return r.setFromPreCIP66RLP(dec)
+		} else if r.Type == CeloDenominatedTxType {
 			var dec receiptRLP
 			if err := rlp.DecodeBytes(b[1:], &dec); err != nil {
 				return err
@@ -194,6 +214,11 @@ func (r *Receipt) DecodeRLP(s *rlp.Stream) error {
 	default:
 		return rlp.ErrExpectedList
 	}
+}
+
+func (r *Receipt) setFromPreCIP66RLP(data preCIP66receiptRLP) error {
+	r.CumulativeGasUsed, r.Bloom, r.Logs = data.CumulativeGasUsed, data.Bloom, data.Logs
+	return r.setStatus(data.PostStateOrStatus)
 }
 
 func (r *Receipt) setFromRLP(data receiptRLP) error {
@@ -272,6 +297,9 @@ func (r *ReceiptForStorage) DecodeRLP(s *rlp.Stream) error {
 	if err := decodeStoredReceiptRLP(r, blob); err == nil {
 		return nil
 	}
+	if err := decodePreCIP66ReceiptRLP(r, blob); err == nil {
+		return nil
+	}
 	if err := decodeV3StoredReceiptRLP(r, blob); err == nil {
 		return nil
 	}
@@ -297,6 +325,23 @@ func decodeStoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 	if stored.FeeInFeeCurrency != nil && stored.FeeInFeeCurrency.Cmp(common.Big0) != 0 {
 		r.FeeInFeeCurrency = stored.FeeInFeeCurrency
 	}
+	return nil
+}
+
+func decodePreCIP66ReceiptRLP(r *ReceiptForStorage, blob []byte) error {
+	var stored storedPreCIP66ReceiptRLP
+	if err := rlp.DecodeBytes(blob, &stored); err != nil {
+		return err
+	}
+	if err := (*Receipt)(r).setStatus(stored.PostStateOrStatus); err != nil {
+		return err
+	}
+	r.CumulativeGasUsed = stored.CumulativeGasUsed
+	r.Logs = make([]*Log, len(stored.Logs))
+	for i, log := range stored.Logs {
+		r.Logs[i] = (*Log)(log)
+	}
+	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
 	return nil
 }
 
