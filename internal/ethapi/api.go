@@ -2113,6 +2113,7 @@ func generateReceiptResponse(ctx context.Context, backend Backend, receipt *type
 		"contractAddress":   nil,
 		"logs":              receipt.Logs,
 		"logsBloom":         receipt.Bloom,
+		"feeInFeeCurrency":  (*hexutil.Big)(receipt.FeeInFeeCurrency),
 		"type":              hexutil.Uint(receipt.Type),
 	}
 

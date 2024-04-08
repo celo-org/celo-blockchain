@@ -60,21 +60,22 @@ import (
 //  5. Run Script section
 //  6. Derive new state root
 type StateTransition struct {
-	gp              *GasPool
-	msg             Message
-	gas             uint64
-	gasPrice        *big.Int
-	gasFeeCap       *big.Int
-	gasTipCap       *big.Int
-	initialGas      uint64
-	value           *big.Int
-	data            []byte
-	state           vm.StateDB
-	evm             *vm.EVM
-	vmRunner        vm.EVMRunner
-	gasPriceMinimum *big.Int
-	sysCtx          *SysContractCallCtx
-	erc20FeeDebited *big.Int
+	gp               *GasPool
+	msg              Message
+	gas              uint64
+	gasPrice         *big.Int
+	gasFeeCap        *big.Int
+	gasTipCap        *big.Int
+	initialGas       uint64
+	value            *big.Int
+	data             []byte
+	state            vm.StateDB
+	evm              *vm.EVM
+	vmRunner         vm.EVMRunner
+	gasPriceMinimum  *big.Int
+	sysCtx           *SysContractCallCtx
+	erc20FeeDebited  *big.Int // Total debited in erc20 gas currencies
+	feeInFeeCurrency *big.Int // total fee paid (debited - credited) in fee currency for CELO deno txs
 }
 
 // Message represents a message sent to a contract.
@@ -118,9 +119,10 @@ func CheckEthCompatibility(msg Message) error {
 // ExecutionResult includes all output after executing given evm
 // message no matter the execution itself is successful or not.
 type ExecutionResult struct {
-	UsedGas    uint64 // Total used gas but include the refunded gas
-	Err        error  // Any error encountered during the execution(listed in core/vm/errors.go)
-	ReturnData []byte // Returned data from evm(function result or data supplied with revert opcode)
+	UsedGas          uint64   // Total used gas but include the refunded gas
+	Err              error    // Any error encountered during the execution(listed in core/vm/errors.go)
+	ReturnData       []byte   // Returned data from evm(function result or data supplied with revert opcode)
+	FeeInFeeCurrency *big.Int // Fee paid (debit - credit) on CELO denominated txs
 }
 
 // Unwrap returns the internal evm error which allows us for further
@@ -558,9 +560,10 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		return nil, err
 	}
 	return &ExecutionResult{
-		UsedGas:    st.gasUsed(),
-		Err:        vmerr,
-		ReturnData: ret,
+		UsedGas:          st.gasUsed(),
+		Err:              vmerr,
+		ReturnData:       ret,
+		FeeInFeeCurrency: st.feeInFeeCurrency,
 	}, nil
 }
 
@@ -602,6 +605,8 @@ func (st *StateTransition) creditTxFees(feeCurrencyRate *currency.ExchangeRate) 
 		refund.Sub(st.erc20FeeDebited, totalTxFee) // refund = debited - tip - basefee
 		// No need to exchange gateway fee since it's it's deprecated on G fork,
 		// and MaxFeeInFeeCurrency can only be present in H fork (which implies G fork)
+		// Set receipt field
+		st.feeInFeeCurrency = totalTxFee
 	}
 
 	feeCurrency := st.msg.FeeCurrency()

@@ -172,6 +172,7 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, gp *GasPool
 	} else {
 		receipt.Status = types.ReceiptStatusSuccessful
 	}
+	receipt.FeeInFeeCurrency = result.FeeInFeeCurrency
 	receipt.TxHash = tx.Hash()
 	receipt.GasUsed = result.UsedGas
 

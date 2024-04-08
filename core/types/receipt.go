@@ -52,12 +52,13 @@ const (
 // Receipt represents the results of a transaction.
 type Receipt struct {
 	// Consensus fields: These fields are defined by the Yellow Paper
-	Type              uint8  `json:"type,omitempty"`
-	PostState         []byte `json:"root"`
-	Status            uint64 `json:"status"`
-	CumulativeGasUsed uint64 `json:"cumulativeGasUsed" gencodec:"required"`
-	Bloom             Bloom  `json:"logsBloom"         gencodec:"required"`
-	Logs              []*Log `json:"logs"              gencodec:"required"`
+	Type              uint8    `json:"type,omitempty"`
+	PostState         []byte   `json:"root"`
+	Status            uint64   `json:"status"`
+	CumulativeGasUsed uint64   `json:"cumulativeGasUsed" gencodec:"required"`
+	Bloom             Bloom    `json:"logsBloom"         gencodec:"required"`
+	Logs              []*Log   `json:"logs"              gencodec:"required"`
+	FeeInFeeCurrency  *big.Int `json:"feeInFeeCurrency,omitempty"`
 
 	// Implementation fields: These fields are added by geth when processing a transaction.
 	// They are stored in the chain database.
@@ -80,6 +81,7 @@ type receiptMarshaling struct {
 	GasUsed           hexutil.Uint64
 	BlockNumber       *hexutil.Big
 	TransactionIndex  hexutil.Uint
+	FeeInFeeCurrency  *hexutil.Big
 }
 
 // receiptRLP is the consensus encoding of a receipt.
@@ -88,6 +90,7 @@ type receiptRLP struct {
 	CumulativeGasUsed uint64
 	Bloom             Bloom
 	Logs              []*Log
+	FeeInFeeCurrency  *big.Int
 }
 
 // storedReceiptRLP is the storage encoding of a receipt.
@@ -95,6 +98,7 @@ type storedReceiptRLP struct {
 	PostStateOrStatus []byte
 	CumulativeGasUsed uint64
 	Logs              []*LogForStorage
+	FeeInFeeCurrency  *big.Int
 }
 
 // v4StoredReceiptRLP is the storage encoding of a receipt used in database version 4.
@@ -137,9 +141,12 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 // EncodeRLP implements rlp.Encoder, and flattens the consensus fields of a receipt
 // into an RLP stream. If no post state is present, byzantium fork is assumed.
 func (r *Receipt) EncodeRLP(w io.Writer) error {
-	data := &receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs}
+	data := &receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs, nil}
 	if r.Type == LegacyTxType {
 		return rlp.Encode(w, data)
+	}
+	if r.Type == CeloDenominatedTxType {
+		data.FeeInFeeCurrency = r.FeeInFeeCurrency
 	}
 	buf := encodeBufferPool.Get().(*bytes.Buffer)
 	defer encodeBufferPool.Put(buf)
@@ -190,7 +197,7 @@ func (r *Receipt) DecodeRLP(s *rlp.Stream) error {
 }
 
 func (r *Receipt) setFromRLP(data receiptRLP) error {
-	r.CumulativeGasUsed, r.Bloom, r.Logs = data.CumulativeGasUsed, data.Bloom, data.Logs
+	r.CumulativeGasUsed, r.Bloom, r.Logs, r.FeeInFeeCurrency = data.CumulativeGasUsed, data.Bloom, data.Logs, data.FeeInFeeCurrency
 	return r.setStatus(data.PostStateOrStatus)
 }
 
@@ -226,6 +233,9 @@ func (r *Receipt) Size() common.StorageSize {
 	for _, log := range r.Logs {
 		size += common.StorageSize(len(log.Topics)*common.HashLength + len(log.Data))
 	}
+	if r.FeeInFeeCurrency != nil {
+		size += common.StorageSize(r.FeeInFeeCurrency.BitLen() / 8)
+	}
 	return size
 }
 
@@ -240,6 +250,7 @@ func (r *ReceiptForStorage) EncodeRLP(w io.Writer) error {
 		PostStateOrStatus: (*Receipt)(r).statusEncoding(),
 		CumulativeGasUsed: r.CumulativeGasUsed,
 		Logs:              make([]*LogForStorage, len(r.Logs)),
+		FeeInFeeCurrency:  r.FeeInFeeCurrency,
 	}
 	for i, log := range r.Logs {
 		enc.Logs[i] = (*LogForStorage)(log)
@@ -282,7 +293,10 @@ func decodeStoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 		r.Logs[i] = (*Log)(log)
 	}
 	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
-
+	// rlp encodes the nil value as a zero instance
+	if stored.FeeInFeeCurrency != nil && stored.FeeInFeeCurrency.Cmp(common.Big0) != 0 {
+		r.FeeInFeeCurrency = stored.FeeInFeeCurrency
+	}
 	return nil
 }
 
@@ -336,7 +350,7 @@ func (rs Receipts) Len() int { return len(rs) }
 // EncodeIndex encodes the i'th receipt to w.
 func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 	r := rs[i]
-	data := &receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs}
+	data := &receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs, r.FeeInFeeCurrency}
 	switch r.Type {
 	case LegacyTxType:
 		rlp.Encode(w, data)
@@ -366,7 +380,6 @@ func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 // data and contextual infos like containing block and transactions.
 func (r Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, number uint64, txs Transactions) error {
 	signer := MakeSigner(config, new(big.Int).SetUint64(number))
-
 	logIndex := uint(0)
 	if len(txs) != len(r) {
 		// The receipts may include an additional "block finalization" receipt (only IBFT)
