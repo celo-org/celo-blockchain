@@ -155,18 +155,21 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 // EncodeRLP implements rlp.Encoder, and flattens the consensus fields of a receipt
 // into an RLP stream. If no post state is present, byzantium fork is assumed.
 func (r *Receipt) EncodeRLP(w io.Writer) error {
-	data := &receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs, nil}
+	data := &preCIP66receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs}
 	if r.Type == LegacyTxType {
 		return rlp.Encode(w, data)
-	}
-	if r.Type == CeloDenominatedTxType {
-		data.FeeInFeeCurrency = r.FeeInFeeCurrency
 	}
 	buf := encodeBufferPool.Get().(*bytes.Buffer)
 	defer encodeBufferPool.Put(buf)
 	buf.Reset()
 	buf.WriteByte(r.Type)
-	if err := rlp.Encode(buf, data); err != nil {
+	var d interface{}
+	if r.Type == CeloDenominatedTxType {
+		d = &receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs, r.FeeInFeeCurrency}
+	} else {
+		d = data
+	}
+	if err := rlp.Encode(buf, d); err != nil {
 		return err
 	}
 	return rlp.Encode(w, buf.Bytes())
