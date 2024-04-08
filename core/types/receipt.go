@@ -186,12 +186,12 @@ func (r *Receipt) DecodeRLP(s *rlp.Stream) error {
 		return err
 	case kind == rlp.List:
 		// It's a legacy receipt.
-		var dec receiptRLP
+		var dec preCIP66receiptRLP
 		if err := s.Decode(&dec); err != nil {
 			return err
 		}
 		r.Type = LegacyTxType
-		return r.setFromRLP(dec)
+		return r.setFromPreCIP66RLP(dec)
 	case kind == rlp.String:
 		// It's an EIP-2718 typed tx receipt.
 		b, err := s.Bytes()
