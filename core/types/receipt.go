@@ -52,13 +52,12 @@ const (
 // Receipt represents the results of a transaction.
 type Receipt struct {
 	// Consensus fields: These fields are defined by the Yellow Paper
-	Type              uint8    `json:"type,omitempty"`
-	PostState         []byte   `json:"root"`
-	Status            uint64   `json:"status"`
-	CumulativeGasUsed uint64   `json:"cumulativeGasUsed" gencodec:"required"`
-	Bloom             Bloom    `json:"logsBloom"         gencodec:"required"`
-	Logs              []*Log   `json:"logs"              gencodec:"required"`
-	FeeInFeeCurrency  *big.Int `json:"feeInFeeCurrency,omitempty"`
+	Type              uint8  `json:"type,omitempty"`
+	PostState         []byte `json:"root"`
+	Status            uint64 `json:"status"`
+	CumulativeGasUsed uint64 `json:"cumulativeGasUsed" gencodec:"required"`
+	Bloom             Bloom  `json:"logsBloom"         gencodec:"required"`
+	Logs              []*Log `json:"logs"              gencodec:"required"`
 
 	// Implementation fields: These fields are added by geth when processing a transaction.
 	// They are stored in the chain database.
@@ -71,6 +70,9 @@ type Receipt struct {
 	BlockHash        common.Hash `json:"blockHash,omitempty"`
 	BlockNumber      *big.Int    `json:"blockNumber,omitempty"`
 	TransactionIndex uint        `json:"transactionIndex"`
+
+	FeeInFeeCurrency *big.Int `json:"feeInFeeCurrency,omitempty"` // CIP-66 receipt field
+
 }
 
 type receiptMarshaling struct {
