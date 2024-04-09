@@ -306,7 +306,7 @@ func TestTransferERC20(t *testing.T) {
 			txArgs: &ethapi.TransactionArgs{
 				To:                   &recipient.Address,
 				Value:                (*hexutil.Big)(new(big.Int).SetInt64(oneCelo)),
-				MaxFeePerGas:         (*hexutil.Big)(datum.Mul(datum, new(big.Int).SetInt64(4))),
+				MaxFeePerGas:         (*hexutil.Big)(datum), // set in previous test
 				MaxPriorityFeePerGas: (*hexutil.Big)(datum),
 				Gas:                  &intrinsicGas,
 				FeeCurrency:          &stableTokenAddress,
@@ -314,6 +314,21 @@ func TestTransferERC20(t *testing.T) {
 			},
 			expectedFeeInFeeCurrency: new(big.Int).Mul(actualRate, new(big.Int).Mul(datum, big.NewInt(int64(intrinsicGas)))),
 			expectedErr:              nil,
+		},
+		{
+			name: "Celo denominated -low MaxFeeInFeeCurrency",
+			txArgs: &ethapi.TransactionArgs{
+				To:                   &recipient.Address,
+				Value:                (*hexutil.Big)(new(big.Int).SetInt64(oneCelo)),
+				MaxFeePerGas:         (*hexutil.Big)(datum), // set in previous test
+				MaxPriorityFeePerGas: (*hexutil.Big)(datum),
+				Gas:                  &intrinsicGas,
+				FeeCurrency:          &stableTokenAddress,
+				MaxFeeInFeeCurrency: (*hexutil.Big)(new(big.Int).Sub(
+					new(big.Int).Mul(actualRate, new(big.Int).Mul(datum, big.NewInt(int64(intrinsicGas)))),
+					common.Big1)),
+			},
+			expectedErr: core.ErrDenominatedLowMaxFee,
 		},
 	}
 
