@@ -1,6 +1,7 @@
 module github.com/celo-org/celo-blockchain
 
 go 1.15
+go 1.19
 
 require (
 	github.com/Azure/azure-pipeline-go v0.2.2 // indirect
