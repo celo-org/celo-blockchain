@@ -836,7 +836,9 @@ func (s *PublicBlockChainAPI) GetBlockReceipts(ctx context.Context, blockNrOrHas
 		return nil, err
 	}
 	txs := block.Transactions()
-	if len(txs) != len(receipts) {
+	// We need to account for the block receipt, which if present will mean
+	// that there is one more receipt than transactions.
+	if len(txs) != len(receipts) && len(txs)+1 != len(receipts) {
 		return nil, fmt.Errorf("receipts length mismatch: %d vs %d", len(txs), len(receipts))
 	}
 
@@ -844,7 +846,11 @@ func (s *PublicBlockChainAPI) GetBlockReceipts(ctx context.Context, blockNrOrHas
 	signer := types.MakeSigner(s.b.ChainConfig(), block.Number())
 	result := make([]map[string]interface{}, len(receipts))
 	for i, receipt := range receipts {
-		result[i], err = generateReceiptResponse(ctx, s.b, receipt, signer, txs[i], block.Hash(), block.NumberU64(), uint64(i))
+		var tx *types.Transaction
+		if i < len(txs) {
+			tx = txs[i]
+		}
+		result[i], err = generateReceiptResponse(ctx, s.b, receipt, signer, tx, block.Hash(), block.NumberU64(), uint64(i))
 		if err != nil {
 			return nil, err
 		}
