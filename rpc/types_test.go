@@ -88,7 +88,7 @@ func TestBlockNumberOrHash_UnmarshalJSON(t *testing.T) {
 		11: {`"pending"`, false, BlockNumberOrHashWithNumber(PendingBlockNumber)},
 		12: {`"latest"`, false, BlockNumberOrHashWithNumber(LatestBlockNumber)},
 		13: {`"earliest"`, false, BlockNumberOrHashWithNumber(EarliestBlockNumber)},
-		14: {`"finalized"`, false, BlockNumberOrHashWithNumber(EarliestBlockNumber)},
+		14: {`"finalized"`, false, BlockNumberOrHashWithNumber(LatestBlockNumber)},
 		15: {`someString`, true, BlockNumberOrHash{}},
 		16: {`""`, true, BlockNumberOrHash{}},
 		17: {``, true, BlockNumberOrHash{}},
