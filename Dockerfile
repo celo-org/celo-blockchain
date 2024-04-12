@@ -28,11 +28,13 @@ RUN apt update && \
       *) echo "Unsupported platform: $platform" && exit 1 ;; \
     esac
 
-# Using debian:bookworm-slim as the base image for the final
-FROM debian:bookworm-slim
+# Using debian:trixie-slim as the base image for the final
+FROM debian:trixie-slim
 ARG COMMIT_SHA
 
+# Install dependecies and update packages to reduce CVEs
 RUN apt update &&\
+    apt upgrade -y &&\
     apt install -y ca-certificates wget &&\
     rm -rf /var/cache/apt &&\
     rm -rf /var/lib/apt/lists/* &&\
