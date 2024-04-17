@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/celo-org/celo-blockchain/cmd/utils"
@@ -22,6 +23,7 @@ var getAccountCommand = cli.Command{
 	Flags: []cli.Flag{
 		idxFlag,
 		accountTypeFlag,
+		jsonFlag,
 	},
 }
 
@@ -35,6 +37,10 @@ var (
 		Name:  "type",
 		Usage: `Account type (validator, developer, txNode, faucet, attestation, priceOracle, proxy, attestationBot, votingBot, txNodePrivate, validatorGroup, admin)`,
 		Value: &env.DeveloperAT,
+	}
+	jsonFlag = cli.BoolFlag{
+		Name:  "json",
+		Usage: "output json",
 	}
 )
 
@@ -52,6 +58,28 @@ func getAccount(ctx *cli.Context) error {
 		return err
 	}
 
-	fmt.Printf("AccountType: %s\nIndex:%d\nAddress: %s\nPrivateKey: %s\n", accountType, idx, account.Address.Hex(), account.PrivateKeyHex())
+	jsonOutput := ctx.Bool(jsonFlag.Name)
+
+	if jsonOutput {
+		output := struct {
+			AccountType string `json:"accountType"`
+			Index       int    `json:"index"`
+			Address     string `json:"address"`
+			PrivateKey  string `json:"privateKey"`
+		}{
+			AccountType: accountType.String(),
+			Index:       idx,
+			Address:     account.Address.Hex(),
+			PrivateKey:  account.PrivateKeyHex(),
+		}
+
+		jsonData, err := json.Marshal(output)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(jsonData))
+	} else {
+		fmt.Printf("AccountType: %s\nIndex:%d\nAddress: %s\nPrivateKey: %s\n", accountType, idx, account.Address.Hex(), account.PrivateKeyHex())
+	}
 	return nil
 }
