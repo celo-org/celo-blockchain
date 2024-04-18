@@ -53,7 +53,7 @@ jobs:
           echo "MAJOR_MINOR=${semver[0]}.${semver[1]}" >> $GITHUB_OUTPUT
 
   build-container-geth-dev:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.1
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.4
     if: startsWith(github.ref, 'refs/heads/release')
     needs:
       - replace-branch-name
@@ -68,8 +68,7 @@ jobs:
       trivy: true
 
   build-container-geth-all-dev:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.1
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.4
     if: startsWith(github.ref, 'refs/heads/release')
     needs:
       - replace-branch-name
@@ -84,7 +83,7 @@ jobs:
       trivy: true
 
   build-container-geth-devopsre:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.1
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.4
     if: startsWith(github.ref, 'refs/tags/v') && false
     needs:
       - replace-tag-v
@@ -99,7 +98,7 @@ jobs:
       trivy: true
 
   build-container-geth-all-devopsre:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.1
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.4
     if: startsWith(github.ref, 'refs/tags/v') && false
     needs:
       - replace-tag-v
@@ -114,7 +113,7 @@ jobs:
       trivy: true
 
   build-container-geth-celo-org:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.1
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.4
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
       - replace-tag-v
@@ -129,7 +128,7 @@ jobs:
       trivy: true
 
   build-container-geth-all-celo-org:
-    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.1
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd.yaml@v2.0.4
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
       - replace-tag-v
