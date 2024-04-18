@@ -75,6 +75,7 @@ type TxPool struct {
 	espresso      bool // Fork indicator whether Espresso has been activated
 	gingerbread   bool // Fork indicator whether Gingerbread has been activated
 	gingerbreadP2 bool // Fork indicator whether Gingerbread has been activated
+	hfork         bool // Fork indicator whether HFork has been activated
 }
 
 // TxRelayBackend provides an interface to the mechanism that forwards transactions to the
@@ -332,7 +333,8 @@ func (pool *TxPool) setNewHead(head *types.Header) {
 	pool.donut = pool.config.IsDonut(next)
 	pool.espresso = pool.config.IsEspresso(next)
 	pool.gingerbread = pool.config.IsGingerbread(next)
-	pool.gingerbreadP2 = pool.config.IsGingerbread(next)
+	pool.gingerbreadP2 = pool.config.IsGingerbreadP2(next)
+	pool.hfork = pool.config.IsHFork(next)
 }
 
 // Stop stops the light transaction pool
@@ -393,6 +395,10 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	}
 	// Reject celo dynamic fee v2 until gingerbreadP2
 	if !pool.gingerbreadP2 && tx.Type() == types.CeloDynamicFeeTxV2Type {
+		return core.ErrTxTypeNotSupported
+	}
+	// Reject celo denominated fee until h fork
+	if !pool.hfork && tx.Type() == types.CeloDenominatedTxType {
 		return core.ErrTxTypeNotSupported
 	}
 

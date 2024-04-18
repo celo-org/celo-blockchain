@@ -84,8 +84,10 @@ type RPCTransaction struct {
 	EthCompatible       bool            `json:"ethCompatible"`
 }
 
-// UnmarshalJSON parses the given JSON fragment into a BlockNumber. It supports:
-// - "latest", "earliest" or "pending" as string arguments
+// UnmarshalJSON parses the given JSON fragment into a BlockNumber. It
+// supports: - "finalized", latest", "earliest" or "pending" as string
+// arguments where finalized is equivalent to latest since all blocks are final
+// in celo.
 // - the block number
 // Returned errors:
 // - an invalid block number error when the given argument isn't a known strings
@@ -105,6 +107,9 @@ func (bn *BlockNumber) UnmarshalJSON(data []byte) error {
 		return nil
 	case "pending":
 		*bn = PendingBlockNumber
+		return nil
+	case "finalized":
+		*bn = LatestBlockNumber
 		return nil
 	}
 
@@ -169,6 +174,10 @@ func (bnh *BlockNumberOrHash) UnmarshalJSON(data []byte) error {
 		bnh.BlockNumber = &bn
 		return nil
 	case "latest":
+		bn := LatestBlockNumber
+		bnh.BlockNumber = &bn
+		return nil
+	case "finalized":
 		bn := LatestBlockNumber
 		bnh.BlockNumber = &bn
 		return nil

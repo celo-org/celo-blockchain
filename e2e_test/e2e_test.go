@@ -881,3 +881,37 @@ func TestSettingGingerbreadOnGenesisBlock(t *testing.T) {
 	require.Greater(t, block.BaseFee().Uint64(), uint64(0))
 	require.Greater(t, block.GasLimit(), uint64(0))
 }
+
+// This test checks that retreiveing the "finalized" block results in the same response as retrieving the "latest" block.
+func TestGetFinalizedBlock(t *testing.T) {
+	ac := test.AccountConfig(2, 2)
+	gingerbreadBlock := common.Big0
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	require.NoError(t, err)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	// Wait for at least one block to be built.
+	err = network.AwaitBlock(ctx, 1)
+	require.NoError(t, err)
+
+	// Stop one of the two validators, so no more blocks can be created.
+	err = network[1].Close()
+	require.NoError(t, err)
+
+	c := network[0].WsClient.GetRPCClient()
+	h := types.Header{}
+	err = c.CallContext(ctx, &h, "eth_getHeaderByNumber", "latest")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, h.Number.Uint64(), uint64(1))
+
+	h2 := types.Header{}
+	err = c.CallContext(ctx, &h2, "eth_getHeaderByNumber", "finalized")
+	require.NoError(t, err)
+
+	// Check latest and finalzed block are the same
+	require.Equal(t, h.Hash(), h2.Hash())
+}

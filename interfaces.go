@@ -117,6 +117,7 @@ type CallMsg struct {
 	To                  *common.Address // the destination contract (nil for contract creation)
 	Gas                 uint64          // if 0, the call executes with near-infinite gas
 	FeeCurrency         *common.Address // 0 for the native currency
+	MaxFeeInFeeCurrency *big.Int        // Set iff it's a celo denominated tx. Maximum value of fees when converted to FeeCurrency.
 	GatewayFeeRecipient *common.Address // 0 for no gateway fee
 	GatewayFee          *big.Int        // 0 for no gateway fee
 	GasPrice            *big.Int        // wei <-> gas exchange ratio

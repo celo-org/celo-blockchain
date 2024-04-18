@@ -107,3 +107,4 @@ func (tx *DynamicFeeTx) feeCurrency() *common.Address         { return nil }
 func (tx *DynamicFeeTx) gatewayFeeRecipient() *common.Address { return nil }
 func (tx *DynamicFeeTx) gatewayFee() *big.Int                 { return nil }
 func (tx *DynamicFeeTx) ethCompatible() bool                  { return false }
+func (tx *DynamicFeeTx) maxFeeInFeeCurrency() *big.Int        { return nil }
