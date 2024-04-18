@@ -33,7 +33,7 @@ FROM debian:bookworm-slim
 ARG COMMIT_SHA
 
 RUN apt update &&\
-    apt install -y ca-certificates wget &&\
+    apt install -y ca-certificates wget curl &&\
     rm -rf /var/cache/apt &&\
     rm -rf /var/lib/apt/lists/* &&\
     ln -sf /bin/bash /bin/sh
