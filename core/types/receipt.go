@@ -92,14 +92,14 @@ type receiptRLP struct {
 	CumulativeGasUsed uint64
 	Bloom             Bloom
 	Logs              []*Log
-	FeeInFeeCurrency  *big.Int
 }
 
-type preCIP66receiptRLP struct {
+type celoDenominatedReceiptRLP struct {
 	PostStateOrStatus []byte
 	CumulativeGasUsed uint64
 	Bloom             Bloom
 	Logs              []*Log
+	FeeInFeeCurrency  *big.Int
 }
 
 // storedReceiptRLP is the storage encoding of a receipt.
@@ -157,7 +157,7 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 // EncodeRLP implements rlp.Encoder, and flattens the consensus fields of a receipt
 // into an RLP stream. If no post state is present, byzantium fork is assumed.
 func (r *Receipt) EncodeRLP(w io.Writer) error {
-	data := &preCIP66receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs}
+	data := &receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs}
 	if r.Type == LegacyTxType {
 		return rlp.Encode(w, data)
 	}
@@ -167,7 +167,7 @@ func (r *Receipt) EncodeRLP(w io.Writer) error {
 	buf.WriteByte(r.Type)
 	var d interface{}
 	if r.Type == CeloDenominatedTxType {
-		d = &receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs, r.FeeInFeeCurrency}
+		d = &celoDenominatedReceiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs, r.FeeInFeeCurrency}
 	} else {
 		d = data
 	}
@@ -186,12 +186,12 @@ func (r *Receipt) DecodeRLP(s *rlp.Stream) error {
 		return err
 	case kind == rlp.List:
 		// It's a legacy receipt.
-		var dec preCIP66receiptRLP
+		var dec receiptRLP
 		if err := s.Decode(&dec); err != nil {
 			return err
 		}
 		r.Type = LegacyTxType
-		return r.setFromPreCIP66RLP(dec)
+		return r.setFromRLP(dec)
 	case kind == rlp.String:
 		// It's an EIP-2718 typed tx receipt.
 		b, err := s.Bytes()
@@ -203,17 +203,17 @@ func (r *Receipt) DecodeRLP(s *rlp.Stream) error {
 		}
 		r.Type = b[0]
 		if r.Type == AccessListTxType || r.Type == DynamicFeeTxType || r.Type == CeloDynamicFeeTxType || r.Type == CeloDynamicFeeTxV2Type {
-			var dec preCIP66receiptRLP
-			if err := rlp.DecodeBytes(b[1:], &dec); err != nil {
-				return err
-			}
-			return r.setFromPreCIP66RLP(dec)
-		} else if r.Type == CeloDenominatedTxType {
 			var dec receiptRLP
 			if err := rlp.DecodeBytes(b[1:], &dec); err != nil {
 				return err
 			}
 			return r.setFromRLP(dec)
+		} else if r.Type == CeloDenominatedTxType {
+			var dec celoDenominatedReceiptRLP
+			if err := rlp.DecodeBytes(b[1:], &dec); err != nil {
+				return err
+			}
+			return r.setFromCeloDenominatedRLP(dec)
 		}
 		return ErrTxTypeNotSupported
 	default:
@@ -221,12 +221,12 @@ func (r *Receipt) DecodeRLP(s *rlp.Stream) error {
 	}
 }
 
-func (r *Receipt) setFromPreCIP66RLP(data preCIP66receiptRLP) error {
+func (r *Receipt) setFromRLP(data receiptRLP) error {
 	r.CumulativeGasUsed, r.Bloom, r.Logs = data.CumulativeGasUsed, data.Bloom, data.Logs
 	return r.setStatus(data.PostStateOrStatus)
 }
 
-func (r *Receipt) setFromRLP(data receiptRLP) error {
+func (r *Receipt) setFromCeloDenominatedRLP(data celoDenominatedReceiptRLP) error {
 	r.CumulativeGasUsed, r.Bloom, r.Logs, r.FeeInFeeCurrency = data.CumulativeGasUsed, data.Bloom, data.Logs, data.FeeInFeeCurrency
 	return r.setStatus(data.PostStateOrStatus)
 }
@@ -400,7 +400,7 @@ func (rs Receipts) Len() int { return len(rs) }
 // EncodeIndex encodes the i'th receipt to w.
 func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 	r := rs[i]
-	data := &preCIP66receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs}
+	data := &receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs}
 	switch r.Type {
 	case LegacyTxType:
 		rlp.Encode(w, data)
@@ -418,7 +418,7 @@ func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 		rlp.Encode(w, data)
 	case CeloDenominatedTxType:
 		w.WriteByte(CeloDenominatedTxType)
-		cip66data := &receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs, r.FeeInFeeCurrency}
+		cip66data := &celoDenominatedReceiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs, r.FeeInFeeCurrency}
 		rlp.Encode(w, cip66data)
 	default:
 		// For unsupported types, write nothing. Since this is for
