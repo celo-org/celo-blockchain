@@ -2,9 +2,12 @@ name: celo-blockchain CI/CD
 run-name: celo-blockchain CI/CD for ${{ github.head_ref || github.ref_name }}
 
 on:
+  workflow_dispatch:
+
   push:
     branches:
       - master
+      - ezdac/release/1.8.3 
 
   pull_request:
     branches:
