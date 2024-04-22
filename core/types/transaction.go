@@ -487,7 +487,13 @@ func (tx *Transaction) GatewaySet() bool {
 func (tx *Transaction) EthCompatible() bool { return tx.inner.ethCompatible() }
 
 // MaxFeeInFeeCurrency returns the max fee in the fee_currency for celo denominated txs.
-func (tx *Transaction) MaxFeeInFeeCurrency() *big.Int { return tx.inner.maxFeeInFeeCurrency() }
+func (tx *Transaction) MaxFeeInFeeCurrency() *big.Int {
+	maxFee := tx.inner.maxFeeInFeeCurrency()
+	if maxFee == nil {
+		return nil
+	}
+	return new(big.Int).Set(maxFee)
+}
 
 // Fee calculates the fess paid by the transaction include the gateway fee.
 func (tx *Transaction) Fee() *big.Int {
