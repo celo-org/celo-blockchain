@@ -264,4 +264,4 @@ Please enter the topic (hexadecimal):
 ```
 
 You can leave the topic empty for now, in which case all the messages will be delivered, regardless of the topic.
-The message should be delivered by the the Server, decrypted by the Client and displayed on the screen.
+The message should be delivered by the Server, decrypted by the Client and displayed on the screen.
