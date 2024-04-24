@@ -36,8 +36,8 @@ const (
 // - validator account has tip fee added.
 func TestTransferCELO(t *testing.T) {
 	ac := test.AccountConfig(1, 3)
-	gingerbreadBlock := common.Big0
-	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	hforkBlock := common.Big0
+	gc, ec, err := test.BuildConfig(ac, hforkBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -258,8 +258,8 @@ func prepareTransaction(txArgs ethapi.TransactionArgs, senderKey *ecdsa.PrivateK
 
 func TestTransferERC20(t *testing.T) {
 	ac := test.AccountConfig(1, 3)
-	gingerbreadBlock := common.Big0
-	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	hforkBlock := common.Big0
+	gc, ec, err := test.BuildConfig(ac, hforkBlock)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -278,13 +278,16 @@ func TestTransferERC20(t *testing.T) {
 	header, err := network[0].WsClient.HeaderByNumber(ctx, nil)
 	require.NoError(t, err)
 	datum := header.BaseFee
+	actualRate, _ := new(big.Int).SetString("1", 10)
+	maxRate, _ := new(big.Int).SetString("1", 10)
 	stableTokenAddress := env.MustProxyAddressFor("StableToken")
 	intrinsicGas := hexutil.Uint64(config.IntrinsicGasForAlternativeFeeCurrency + 21000)
 
 	testCases := []struct {
-		name        string
-		txArgs      *ethapi.TransactionArgs
-		expectedErr error
+		name                     string
+		txArgs                   *ethapi.TransactionArgs
+		expectedFeeInFeeCurrency *big.Int
+		expectedErr              error
 	}{
 		{
 			name: "Celo transfer with fee currency",
@@ -297,6 +300,35 @@ func TestTransferERC20(t *testing.T) {
 				FeeCurrency:          &stableTokenAddress,
 			},
 			expectedErr: nil,
+		},
+		{
+			name: "Celo denominated transfer with fee currency",
+			txArgs: &ethapi.TransactionArgs{
+				To:                   &recipient.Address,
+				Value:                (*hexutil.Big)(new(big.Int).SetInt64(oneCelo)),
+				MaxFeePerGas:         (*hexutil.Big)(datum), // set in previous test
+				MaxPriorityFeePerGas: (*hexutil.Big)(datum),
+				Gas:                  &intrinsicGas,
+				FeeCurrency:          &stableTokenAddress,
+				MaxFeeInFeeCurrency:  (*hexutil.Big)(new(big.Int).Mul(new(big.Int).Mul(datum, big.NewInt(int64(intrinsicGas))), maxRate)),
+			},
+			expectedFeeInFeeCurrency: new(big.Int).Mul(actualRate, new(big.Int).Mul(datum, big.NewInt(int64(intrinsicGas)))),
+			expectedErr:              nil,
+		},
+		{
+			name: "Celo denominated -low MaxFeeInFeeCurrency",
+			txArgs: &ethapi.TransactionArgs{
+				To:                   &recipient.Address,
+				Value:                (*hexutil.Big)(new(big.Int).SetInt64(oneCelo)),
+				MaxFeePerGas:         (*hexutil.Big)(datum), // set in previous test
+				MaxPriorityFeePerGas: (*hexutil.Big)(datum),
+				Gas:                  &intrinsicGas,
+				FeeCurrency:          &stableTokenAddress,
+				MaxFeeInFeeCurrency: (*hexutil.Big)(new(big.Int).Sub(
+					new(big.Int).Mul(actualRate, new(big.Int).Mul(datum, big.NewInt(int64(intrinsicGas)))),
+					common.Big1)),
+			},
+			expectedErr: core.ErrDenominatedLowMaxFee,
 		},
 	}
 
@@ -351,6 +383,11 @@ func TestTransferERC20(t *testing.T) {
 			expected := tx.Value()
 			actual := watcher.Delta(recipient.Address)
 			assert.Equal(t, expected, actual, "Recipient's balance increase unexpected", "expected", expected.Int64(), "actual", actual.Int64())
+
+			// Check for expected FeeInFeeCurrency in receipt for CELO denominated txs
+			expectedFeeInReceipt := tc.expectedFeeInFeeCurrency
+			actualFeeInReceipt := receipt.FeeInFeeCurrency
+			assert.Equal(t, expectedFeeInReceipt, actualFeeInReceipt, "Receipt FeeInFeeCurrency unexpected", "expected", expectedFeeInReceipt.String(), "actual", actualFeeInReceipt.String())
 		})
 	}
 }

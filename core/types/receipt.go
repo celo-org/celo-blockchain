@@ -70,6 +70,9 @@ type Receipt struct {
 	BlockHash        common.Hash `json:"blockHash,omitempty"`
 	BlockNumber      *big.Int    `json:"blockNumber,omitempty"`
 	TransactionIndex uint        `json:"transactionIndex"`
+
+	FeeInFeeCurrency *big.Int `json:"feeInFeeCurrency,omitempty"` // CIP-66 receipt field
+
 }
 
 type receiptMarshaling struct {
@@ -80,6 +83,7 @@ type receiptMarshaling struct {
 	GasUsed           hexutil.Uint64
 	BlockNumber       *hexutil.Big
 	TransactionIndex  hexutil.Uint
+	FeeInFeeCurrency  *hexutil.Big
 }
 
 // receiptRLP is the consensus encoding of a receipt.
@@ -90,8 +94,24 @@ type receiptRLP struct {
 	Logs              []*Log
 }
 
+type celoDenominatedReceiptRLP struct {
+	PostStateOrStatus []byte
+	CumulativeGasUsed uint64
+	Bloom             Bloom
+	Logs              []*Log
+	FeeInFeeCurrency  *big.Int
+}
+
 // storedReceiptRLP is the storage encoding of a receipt.
 type storedReceiptRLP struct {
+	PostStateOrStatus []byte
+	CumulativeGasUsed uint64
+	Logs              []*LogForStorage
+	FeeInFeeCurrency  *big.Int
+}
+
+// storedPreCIP66ReceiptRLP is the storage encoding of a receipt before adding the FeeInFeeCurrency field
+type storedPreCIP66ReceiptRLP struct {
 	PostStateOrStatus []byte
 	CumulativeGasUsed uint64
 	Logs              []*LogForStorage
@@ -145,7 +165,13 @@ func (r *Receipt) EncodeRLP(w io.Writer) error {
 	defer encodeBufferPool.Put(buf)
 	buf.Reset()
 	buf.WriteByte(r.Type)
-	if err := rlp.Encode(buf, data); err != nil {
+	var d interface{}
+	if r.Type == CeloDenominatedTxType {
+		d = &celoDenominatedReceiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs, r.FeeInFeeCurrency}
+	} else {
+		d = data
+	}
+	if err := rlp.Encode(buf, d); err != nil {
 		return err
 	}
 	return rlp.Encode(w, buf.Bytes())
@@ -176,12 +202,18 @@ func (r *Receipt) DecodeRLP(s *rlp.Stream) error {
 			return errEmptyTypedReceipt
 		}
 		r.Type = b[0]
-		if r.Type == AccessListTxType || r.Type == DynamicFeeTxType || r.Type == CeloDynamicFeeTxType || r.Type == CeloDynamicFeeTxV2Type || r.Type == CeloDenominatedTxType {
+		if r.Type == AccessListTxType || r.Type == DynamicFeeTxType || r.Type == CeloDynamicFeeTxType || r.Type == CeloDynamicFeeTxV2Type {
 			var dec receiptRLP
 			if err := rlp.DecodeBytes(b[1:], &dec); err != nil {
 				return err
 			}
 			return r.setFromRLP(dec)
+		} else if r.Type == CeloDenominatedTxType {
+			var dec celoDenominatedReceiptRLP
+			if err := rlp.DecodeBytes(b[1:], &dec); err != nil {
+				return err
+			}
+			return r.setFromCeloDenominatedRLP(dec)
 		}
 		return ErrTxTypeNotSupported
 	default:
@@ -191,6 +223,11 @@ func (r *Receipt) DecodeRLP(s *rlp.Stream) error {
 
 func (r *Receipt) setFromRLP(data receiptRLP) error {
 	r.CumulativeGasUsed, r.Bloom, r.Logs = data.CumulativeGasUsed, data.Bloom, data.Logs
+	return r.setStatus(data.PostStateOrStatus)
+}
+
+func (r *Receipt) setFromCeloDenominatedRLP(data celoDenominatedReceiptRLP) error {
+	r.CumulativeGasUsed, r.Bloom, r.Logs, r.FeeInFeeCurrency = data.CumulativeGasUsed, data.Bloom, data.Logs, data.FeeInFeeCurrency
 	return r.setStatus(data.PostStateOrStatus)
 }
 
@@ -226,6 +263,9 @@ func (r *Receipt) Size() common.StorageSize {
 	for _, log := range r.Logs {
 		size += common.StorageSize(len(log.Topics)*common.HashLength + len(log.Data))
 	}
+	if r.FeeInFeeCurrency != nil {
+		size += common.StorageSize(r.FeeInFeeCurrency.BitLen() / 8)
+	}
 	return size
 }
 
@@ -240,6 +280,7 @@ func (r *ReceiptForStorage) EncodeRLP(w io.Writer) error {
 		PostStateOrStatus: (*Receipt)(r).statusEncoding(),
 		CumulativeGasUsed: r.CumulativeGasUsed,
 		Logs:              make([]*LogForStorage, len(r.Logs)),
+		FeeInFeeCurrency:  r.FeeInFeeCurrency,
 	}
 	for i, log := range r.Logs {
 		enc.Logs[i] = (*LogForStorage)(log)
@@ -259,6 +300,9 @@ func (r *ReceiptForStorage) DecodeRLP(s *rlp.Stream) error {
 	// for old nodes that just upgraded. V4 was an intermediate unreleased format so
 	// we do need to decode it, but it's not common (try last).
 	if err := decodeStoredReceiptRLP(r, blob); err == nil {
+		return nil
+	}
+	if err := decodePreCIP66ReceiptRLP(r, blob); err == nil {
 		return nil
 	}
 	if err := decodeV3StoredReceiptRLP(r, blob); err == nil {
@@ -282,7 +326,27 @@ func decodeStoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 		r.Logs[i] = (*Log)(log)
 	}
 	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
+	// rlp encodes the nil value as a zero instance
+	if stored.FeeInFeeCurrency != nil && stored.FeeInFeeCurrency.Cmp(common.Big0) != 0 {
+		r.FeeInFeeCurrency = stored.FeeInFeeCurrency
+	}
+	return nil
+}
 
+func decodePreCIP66ReceiptRLP(r *ReceiptForStorage, blob []byte) error {
+	var stored storedPreCIP66ReceiptRLP
+	if err := rlp.DecodeBytes(blob, &stored); err != nil {
+		return err
+	}
+	if err := (*Receipt)(r).setStatus(stored.PostStateOrStatus); err != nil {
+		return err
+	}
+	r.CumulativeGasUsed = stored.CumulativeGasUsed
+	r.Logs = make([]*Log, len(stored.Logs))
+	for i, log := range stored.Logs {
+		r.Logs[i] = (*Log)(log)
+	}
+	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
 	return nil
 }
 
@@ -354,7 +418,8 @@ func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 		rlp.Encode(w, data)
 	case CeloDenominatedTxType:
 		w.WriteByte(CeloDenominatedTxType)
-		rlp.Encode(w, data)
+		cip66data := &celoDenominatedReceiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs, r.FeeInFeeCurrency}
+		rlp.Encode(w, cip66data)
 	default:
 		// For unsupported types, write nothing. Since this is for
 		// DeriveSha, the error will be caught matching the derived hash
@@ -366,7 +431,6 @@ func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 // data and contextual infos like containing block and transactions.
 func (r Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, number uint64, txs Transactions) error {
 	signer := MakeSigner(config, new(big.Int).SetUint64(number))
-
 	logIndex := uint(0)
 	if len(txs) != len(r) {
 		// The receipts may include an additional "block finalization" receipt (only IBFT)
