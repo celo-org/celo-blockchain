@@ -2135,7 +2135,7 @@ func generateReceiptResponse(ctx context.Context, backend Backend, receipt *type
 		fields["from"], _ = types.Sender(signer, tx)
 		fields["to"] = tx.To()
 		// Assign the effective gas price paid
-		if backend.ChainConfig().IsLondon(new(big.Int).SetUint64(blockNumber)) {
+		if !backend.ChainConfig().IsLondon(new(big.Int).SetUint64(blockNumber)) {
 			fields["effectiveGasPrice"] = hexutil.Uint64(tx.GasPrice().Uint64())
 		} else {
 			// var gasPrice *big.Int = new(big.Int)
