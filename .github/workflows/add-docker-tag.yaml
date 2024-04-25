@@ -41,6 +41,7 @@ jobs:
         run: |
           curl -L https://github.com/regclient/regclient/releases/latest/download/regctl-linux-amd64 > regctl
           chmod 755 regctl
+          sudo mv regctl /usr/local/sbin
 
       - name: Use regctl to copy images (add tags)
         run: |
