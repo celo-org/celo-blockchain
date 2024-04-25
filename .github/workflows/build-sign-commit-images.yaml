@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-container-geth-sha:
+  build-container-geth:
     runs-on: [self-hosted, blockchain, 8-cpu]
     permissions:
       contents: read
@@ -16,26 +16,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Login at GCP Artifact Registry
-        # v2.0 is main at feb 1 2023
-        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v2.0
+        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v2.0.4
         with:
           workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
           service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
           docker-gcp-registries: us-west1-docker.pkg.dev
       - name: Build and push container
-        uses: celo-org/reusable-workflows/.github/actions/build-container@v2.0
+        uses: celo-org/reusable-workflows/.github/actions/build-container@v2.0.4
         with:
           platforms: linux/amd64,linux/arm64
           registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
           tags: ${{ github.sha }}
           context: .
           dockerfile: Dockerfile
-          push: ${{ fromJSON(true) }}
-          trivy: ${{ fromJSON(true) }}
+          push: true
 
-  build-container-geth-master:
+  build-container-geth-all:
     runs-on: [self-hosted, blockchain, 8-cpu]
-    if: github.ref == 'refs/heads/master'
     permissions:
       contents: read
       id-token: write
@@ -43,44 +40,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Login at GCP Artifact Registry
-        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v2.0
+        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v2.0.4
         with:
-          workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
-          service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
+          workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain-dev/providers/github-by-repos'
+          service-account: 'celo-blockchain-dev@devopsre.iam.gserviceaccount.com'
           docker-gcp-registries: us-west1-docker.pkg.dev
       - name: Build and push container
-        uses: celo-org/reusable-workflows/.github/actions/build-container@v2.0
+        uses: celo-org/reusable-workflows/.github/actions/build-container@v2.0.4
         with:
           platforms: linux/amd64,linux/arm64
-          registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth
-          tags: master
-          context: .
-          dockerfile: Dockerfile
-          push: ${{ fromJSON(true) }}
-          trivy: ${{ fromJSON(true) }}
-
-  build-container-geth-all-master:
-    runs-on: [self-hosted, blockchain, 8-cpu]
-    if: github.ref == 'refs/heads/master'
-    permissions:
-      contents: read
-      id-token: write
-      security-events: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Login at GCP Artifact Registry
-        uses: celo-org/reusable-workflows/.github/actions/auth-gcp-artifact-registry@v2.0
-        with:
-          workload-id-provider: 'projects/1094498259535/locations/global/workloadIdentityPools/gh-celo-blockchain/providers/github-by-repos'
-          service-account: 'celo-blockchain@devopsre.iam.gserviceaccount.com'
-          docker-gcp-registries: us-west1-docker.pkg.dev
-      - name: Build and push container
-        uses: celo-org/reusable-workflows/.github/actions/build-container@v2.0
-        with:
-          platforms: linux/amd64,linux/arm64
-          registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-all
-          tags: master
+          registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth-all
+          tags: ${{ github.sha }}
           context: .
           dockerfile: Dockerfile.alltools
-          push: ${{ fromJSON(true) }}
-          trivy: ${{ fromJSON(true) }}
+          push: true
+
+  add-geth-master-tag:
+    if: github.ref == 'refs/heads/master'
+    uses: ./.github/workflows/add-docker-tag.yaml
+    needs:
+      - build-container-geth
+    with:
+      source-image: us-west1-docker.pkg.dev/devopsre/dev-images/geth:${{ github.sha }}
+      destination-image: us-west1-docker.pkg.dev/devopsre/dev-images/geth:master
+
+  add-geth-all-master-tag:
+    if: github.ref == 'refs/heads/master'
+    uses: ./.github/workflows/add-docker-tag.yaml
+    needs:
+      - build-container-geth-all
+    with:
+      source-image: us-west1-docker.pkg.dev/devopsre/dev-images/geth-all:${{ github.sha }}
+      destination-image: us-west1-docker.pkg.dev/devopsre/dev-images/geth-all:master
+ 
