@@ -1288,9 +1288,9 @@ type RPCTransaction struct {
 	GasPrice            *hexutil.Big      `json:"gasPrice"`
 	GasFeeCap           *hexutil.Big      `json:"maxFeePerGas,omitempty"`
 	GasTipCap           *hexutil.Big      `json:"maxPriorityFeePerGas,omitempty"`
-	FeeCurrency         *common.Address   `json:"feeCurrency"`
-	GatewayFeeRecipient *common.Address   `json:"gatewayFeeRecipient"`
-	GatewayFee          *hexutil.Big      `json:"gatewayFee"`
+	FeeCurrency         *common.Address   `json:"feeCurrency,omitempty"`
+	GatewayFeeRecipient *common.Address   `json:"gatewayFeeRecipient,omitempty"`
+	GatewayFee          *hexutil.Big      `json:"gatewayFee,omitempty"`
 	Hash                common.Hash       `json:"hash"`
 	Input               hexutil.Bytes     `json:"input"`
 	Nonce               hexutil.Uint64    `json:"nonce"`
@@ -1303,7 +1303,7 @@ type RPCTransaction struct {
 	V                   *hexutil.Big      `json:"v"`
 	R                   *hexutil.Big      `json:"r"`
 	S                   *hexutil.Big      `json:"s"`
-	EthCompatible       bool              `json:"ethCompatible"`
+	EthCompatible       *bool             `json:"ethCompatible,omitempty"`
 }
 
 // newRPCTransaction returns a transaction that will serialize to the RPC
@@ -1341,7 +1341,11 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		V:                   (*hexutil.Big)(v),
 		R:                   (*hexutil.Big)(r),
 		S:                   (*hexutil.Big)(s),
-		EthCompatible:       tx.EthCompatible(),
+	}
+	// Set eth compatible for legacy transactions only
+	if tx.Type() == types.LegacyTxType {
+		ec := tx.EthCompatible()
+		result.EthCompatible = &ec
 	}
 	if blockHash != (common.Hash{}) {
 		result.BlockHash = &blockHash
