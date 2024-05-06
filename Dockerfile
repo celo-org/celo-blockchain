@@ -7,7 +7,7 @@
 #
 # Once you are satisfied, build the image using
 # export COMMIT_SHA=$(git rev-parse HEAD)
-# docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile --build-arg COMMIT_SHA=$COMMIT_SHA -t gcr.io/celo-testnet/geth:$COMMIT_SHA .
+# docker build -f Dockerfile --build-arg COMMIT_SHA=$COMMIT_SHA -t gcr.io/celo-testnet/geth:$COMMIT_SHA .
 #
 # push the image to the cloud
 # docker push gcr.io/celo-testnet/geth:$COMMIT_SHA
@@ -15,29 +15,18 @@
 # To use this image for testing, modify GETH_NODE_DOCKER_IMAGE_TAG in celo-monorepo/.env file
 
 # Build Geth in a stock Go builder container
-FROM golang:1.19-bookworm as builder
+FROM golang:1.19-alpine as builder
+
+RUN apk add --no-cache make gcc musl-dev linux-headers git
 
 ADD . /go-ethereum
+RUN cd /go-ethereum && make geth-musl
 
-RUN apt update && \
-    cd /go-ethereum && \
-    platform="$(dpkg --print-architecture)" && \
-    case "$platform" in \
-      "amd64") apt install -y build-essential git linux-headers-$platform && make geth ;; \
-      "arm64") apt install -y build-essential git linux-headers-$platform musl-dev && make geth-musl ;; \
-      *) echo "Unsupported platform: $platform" && exit 1 ;; \
-    esac
-
-# Using debian:bookworm-slim as the base image for the final
-FROM debian:bookworm-slim
+# Pull Geth into a second stage deploy alpine container
+FROM alpine:latest
 ARG COMMIT_SHA
 
-RUN apt update &&\
-    apt install -y ca-certificates wget &&\
-    rm -rf /var/cache/apt &&\
-    rm -rf /var/lib/apt/lists/* &&\
-    ln -sf /bin/bash /bin/sh
-
+RUN apk add --no-cache ca-certificates
 COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
 RUN echo $COMMIT_SHA > /version.txt
 ADD scripts/run_geth_in_docker.sh /
@@ -51,4 +40,3 @@ ARG VERSION=""
 ARG BUILDNUM=""
 
 LABEL commit="$COMMIT" version="$VERSION" buildnum="$BUILDNUM"
-

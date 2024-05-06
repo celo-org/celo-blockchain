@@ -25,7 +25,7 @@ jobs:
       - name: Build and push container
         uses: celo-org/reusable-workflows/.github/actions/build-container@v2.0
         with:
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           registry: us-west1-docker.pkg.dev/devopsre/dev-images/geth
           tags: ${{ github.sha }}
           context: .
@@ -51,7 +51,7 @@ jobs:
       - name: Build and push container
         uses: celo-org/reusable-workflows/.github/actions/build-container@v2.0
         with:
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth
           tags: master
           context: .
@@ -77,7 +77,7 @@ jobs:
       - name: Build and push container
         uses: celo-org/reusable-workflows/.github/actions/build-container@v2.0
         with:
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           registry: us-west1-docker.pkg.dev/devopsre/celo-blockchain-public/geth-all
           tags: master
           context: .
