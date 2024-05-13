@@ -573,7 +573,7 @@ func (c *core) startNewSequence() error {
 	if headBlock.Number().Cmp(c.current.Sequence()) == 0 {
 		logger.Trace("Moving to the next block")
 	} else if headBlock.Number().Cmp(c.current.Sequence()) > 0 {
-		logger.Trace("Catching up the the head block")
+		logger.Trace("Catching up the head block")
 	} else {
 		logger.Warn("New sequence should be larger than current sequence")
 		// TODO(Joshua): figure out if we need to wait for the next block to be mined here

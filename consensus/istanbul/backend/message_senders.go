@@ -107,7 +107,7 @@ func (sb *Backend) Gossip(payload []byte, ethMsgCode uint64) error {
 	return sb.asyncMulticast(peersToSendMsg, payload, ethMsgCode)
 }
 
-// sendMsg will asynchronously send the the Celo messages to all the peers in the destPeers param.
+// sendMsg will asynchronously send the Celo messages to all the peers in the destPeers param.
 func (sb *Backend) asyncMulticast(destPeers map[enode.ID]consensus.Peer, payload []byte, ethMsgCode uint64) error {
 	logger := sb.logger.New("func", "AsyncMulticastCeloMsg", "msgCode", ethMsgCode)
 	// Istanbul was encoding messages before sending it to the peer,
