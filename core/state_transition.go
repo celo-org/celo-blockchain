@@ -217,12 +217,12 @@ func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation b
 func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) *StateTransition {
 	var gasPriceMinimum *big.Int
 	if evm.ChainConfig().IsEspresso(evm.Context.BlockNumber) {
-		var feeCurrency *common.Address = msg.FeeCurrency()
 		if msg.MaxFeeInFeeCurrency() != nil {
 			// Celo denominated tx
-			feeCurrency = nil
+			gasPriceMinimum = sysCtx.GetGasPriceMinimum(nil)
+		} else {
+			gasPriceMinimum = sysCtx.GetGasPriceMinimum(msg.FeeCurrency())
 		}
-		gasPriceMinimum = sysCtx.GetGasPriceMinimum(feeCurrency)
 	} else {
 		gasPriceMinimum, _ = gpm.GetBaseFeeForCurrency(vmRunner, msg.FeeCurrency(), nil)
 	}
@@ -264,7 +264,7 @@ func (st *StateTransition) to() common.Address {
 }
 
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
-func (st *StateTransition) payFees(espresso bool, feeCurrencyRate *currency.ExchangeRate) error {
+func (st *StateTransition) payFees(espresso bool, denominatedCurrencyRate *currency.ExchangeRate) error {
 	var isWhiteListed bool
 	if espresso {
 		isWhiteListed = st.sysCtx.IsWhitelisted(st.msg.FeeCurrency())
@@ -275,7 +275,7 @@ func (st *StateTransition) payFees(espresso bool, feeCurrencyRate *currency.Exch
 		log.Trace("Fee currency not whitelisted", "fee currency address", st.msg.FeeCurrency())
 		return ErrNonWhitelistedFeeCurrency
 	}
-	if err := st.canPayFee(st.msg.From(), st.msg.FeeCurrency(), espresso, feeCurrencyRate); err != nil {
+	if err := st.canPayFee(st.msg.From(), st.msg.FeeCurrency(), espresso, denominatedCurrencyRate); err != nil {
 		return err
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
@@ -284,7 +284,7 @@ func (st *StateTransition) payFees(espresso bool, feeCurrencyRate *currency.Exch
 
 	st.initialGas = st.msg.Gas()
 	st.gas += st.msg.Gas()
-	err := st.debitFee(st.msg.From(), st.msg.FeeCurrency(), feeCurrencyRate)
+	err := st.debitFee(st.msg.From(), st.msg.FeeCurrency(), denominatedCurrencyRate)
 	return err
 }
 
@@ -297,7 +297,7 @@ func (st *StateTransition) payFees(espresso bool, feeCurrencyRate *currency.Exch
 // For non-native tokens(cUSD, cEUR, ...) as feeCurrency:
 //   - Pre-Espresso: it ensures balance > GasPrice * gas + gatewayFee (3)
 //   - Post-Espresso: it ensures balance >= GasFeeCap * gas + gatewayFee (4)
-func (st *StateTransition) canPayFee(accountOwner common.Address, feeCurrency *common.Address, espresso bool, feeCurrencyRate *currency.ExchangeRate) error {
+func (st *StateTransition) canPayFee(accountOwner common.Address, feeCurrency *common.Address, espresso bool, denominatedCurrencyRate *currency.ExchangeRate) error {
 	if feeCurrency == nil {
 		balance := st.state.GetBalance(st.msg.From())
 		if espresso {
@@ -340,7 +340,7 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, feeCurrency *c
 			if st.msg.MaxFeeInFeeCurrency() != nil {
 				// Celo Denominated Tx: max fee is a tx field
 				// Translate fees to feeCurrency
-				feeGap = feeCurrencyRate.FromBase(feeGap)
+				feeGap = denominatedCurrencyRate.FromBase(feeGap)
 				// Check that fee <= MaxFeeInFeeCurrency
 				if feeGap.Cmp(st.msg.MaxFeeInFeeCurrency()) > 0 {
 					return ErrDenominatedLowMaxFee
@@ -363,7 +363,7 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, feeCurrency *c
 	return nil
 }
 
-func (st *StateTransition) debitFee(from common.Address, feeCurrency *common.Address, feeCurrencyRate *currency.ExchangeRate) (err error) {
+func (st *StateTransition) debitFee(from common.Address, feeCurrency *common.Address, denominatedCurrencyRate *currency.ExchangeRate) (err error) {
 	if st.evm.Config.SkipDebitCredit {
 		return nil
 	}
@@ -378,16 +378,12 @@ func (st *StateTransition) debitFee(from common.Address, feeCurrency *common.Add
 		st.state.SubBalance(from, effectiveFee)
 		return nil
 	} else {
-		var currencyFee *big.Int
-		if st.msg.MaxFeeInFeeCurrency() == nil {
-			// Normal feeCurrency tx
-			currencyFee = effectiveFee
+		if st.msg.MaxFeeInFeeCurrency() != nil {
+			st.erc20FeeDebited = denominatedCurrencyRate.FromBase(effectiveFee)
 		} else {
-			// Celo denominated tx
-			currencyFee = feeCurrencyRate.FromBase(effectiveFee)
+			st.erc20FeeDebited = effectiveFee
 		}
-		st.erc20FeeDebited = currencyFee
-		return erc20gas.DebitFees(st.evm, from, currencyFee, feeCurrency)
+		return erc20gas.DebitFees(st.evm, from, st.erc20FeeDebited, feeCurrency)
 	}
 }
 
@@ -482,9 +478,14 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if st.msg.FeeCurrency() == nil && st.msg.MaxFeeInFeeCurrency() != nil {
 		return nil, ErrDenominatedNoCurrency
 	}
-	feeCurrencyRate, err := currency.GetExchangeRate(st.vmRunner, st.msg.FeeCurrency())
-	if err != nil {
-		return nil, err
+	var denominatedCurrencyRate *currency.ExchangeRate
+	// Get rate only for CELO denominated txs (H fork)
+	if st.msg.MaxFeeInFeeCurrency() != nil {
+		var err error
+		denominatedCurrencyRate, err = currency.GetExchangeRate(st.vmRunner, st.msg.FeeCurrency())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Check clauses 1-2
@@ -517,7 +518,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		return nil, fmt.Errorf("%w: have %d, want %d", ErrIntrinsicGas, st.msg.Gas(), gas)
 	}
 	// Check clauses 3-4, pay the fees (which buys gas), and subtract the intrinsic gas
-	err = st.payFees(espresso, feeCurrencyRate)
+	err = st.payFees(espresso, denominatedCurrencyRate)
 	if err != nil {
 		log.Error("Transaction failed to buy gas", "err", err, "gas", gas)
 		return nil, err
@@ -553,7 +554,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		st.refundGas(params.RefundQuotientEIP3529)
 	}
 
-	err = st.creditTxFees(feeCurrencyRate)
+	err = st.creditTxFees(denominatedCurrencyRate)
 	if err != nil {
 		return nil, err
 	}
@@ -565,7 +566,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 }
 
 // creditTxFees calculates the amounts and recipients of transaction fees and credits the accounts.
-func (st *StateTransition) creditTxFees(feeCurrencyRate *currency.ExchangeRate) error {
+func (st *StateTransition) creditTxFees(denominatedCurrencyRate *currency.ExchangeRate) error {
 	if st.evm.Config.SkipDebitCredit {
 		return nil
 	}
@@ -596,8 +597,8 @@ func (st *StateTransition) creditTxFees(feeCurrencyRate *currency.ExchangeRate) 
 		// conversions have limited accuracy, the only way to achieve this
 		// is to calculate one of the three credit values based on the two
 		// others after the exchange rate conversion.
-		tipTxFee = feeCurrencyRate.FromBase(tipTxFee)
-		baseTxFee = feeCurrencyRate.FromBase(baseTxFee)
+		tipTxFee = denominatedCurrencyRate.FromBase(tipTxFee)
+		baseTxFee = denominatedCurrencyRate.FromBase(baseTxFee)
 		totalTxFee.Add(tipTxFee, baseTxFee)
 		refund.Sub(st.erc20FeeDebited, totalTxFee) // refund = debited - tip - basefee
 		// No need to exchange gateway fee since it's it's deprecated on G fork,
