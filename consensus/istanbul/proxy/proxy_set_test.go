@@ -134,7 +134,7 @@ func TestProxySet(t *testing.T) {
 			expectedValProxyAssignments: map[common.Address]*Proxy{remoteVal0Address: proxy1, remoteVal1Address: proxy1, remoteVal2Address: proxy1},
 		},
 
-		// Test the the unpeered proxy getting repeered
+		// Test the unpeered proxy getting repeered
 		{
 			setProxyPeer:                map[enode.ID]consensus.Peer{proxy0ID: proxy0Peer},
 			expectedValProxyAssignments: map[common.Address]*Proxy{remoteVal0Address: proxy0, remoteVal1Address: proxy1, remoteVal2Address: proxy0},
