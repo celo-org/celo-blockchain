@@ -32,6 +32,10 @@ type LegacyTx struct {
 	Data     []byte          // contract invocation input data
 	V, R, S  *big.Int        // signature values
 
+	FeeCurrency         *common.Address // nil means native currency
+	GatewayFeeRecipient *common.Address // nil means no gateway fee is paid
+	GatewayFee          *big.Int
+
 	// This is only used when marshaling to JSON.
 	Hash *common.Hash `rlp:"-"`
 }
@@ -46,6 +50,10 @@ type CeloDynamicFeeTx struct {
 	Value      *big.Int
 	Data       []byte
 	AccessList AccessList
+
+	FeeCurrency         *common.Address `rlp:"nil"` // nil means native currency
+	GatewayFeeRecipient *common.Address `rlp:"nil"` // nil means no gateway fee is paid
+	GatewayFee          *big.Int        `rlp:"nil"`
 
 	// Signature values
 	V *big.Int `json:"v" gencodec:"required"`
@@ -63,6 +71,8 @@ type CeloDynamicFeeTxV2 struct {
 	Value      *big.Int
 	Data       []byte
 	AccessList AccessList
+
+	FeeCurrency *common.Address `rlp:"nil"` // nil means native currency
 
 	// Signature values
 	V *big.Int `json:"v" gencodec:"required"`

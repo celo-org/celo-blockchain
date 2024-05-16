@@ -23,18 +23,15 @@ import (
 )
 
 type CeloDynamicFeeTx struct {
-	ChainID             *big.Int
-	Nonce               uint64
-	GasTipCap           *big.Int
-	GasFeeCap           *big.Int
-	Gas                 uint64
-	FeeCurrency         *common.Address `rlp:"nil"` // nil means native currency
-	GatewayFeeRecipient *common.Address `rlp:"nil"` // nil means no gateway fee is paid
-	GatewayFee          *big.Int        `rlp:"nil"`
-	To                  *common.Address `rlp:"nil"` // nil means contract creation
-	Value               *big.Int
-	Data                []byte
-	AccessList          AccessList
+	ChainID    *big.Int
+	Nonce      uint64
+	GasTipCap  *big.Int
+	GasFeeCap  *big.Int
+	Gas        uint64
+	To         *common.Address `rlp:"nil"` // nil means contract creation
+	Value      *big.Int
+	Data       []byte
+	AccessList AccessList
 
 	// Signature values
 	V *big.Int `json:"v" gencodec:"required"`
