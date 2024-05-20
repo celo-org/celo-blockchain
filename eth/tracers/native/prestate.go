@@ -287,6 +287,9 @@ func (t *prestateTracer) lookupAccount(addr common.Address) {
 // it to the prestate of the given contract. It assumes `lookupAccount`
 // has been performed on the contract before.
 func (t *prestateTracer) lookupStorage(addr common.Address, key common.Hash) {
+	if _, ok := t.pre[addr]; !ok {
+		t.lookupAccount(addr)
+	}
 	if _, ok := t.pre[addr].Storage[key]; ok {
 		return
 	}
