@@ -170,7 +170,8 @@ func (t *prestateTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64,
 	}
 }
 
-func (t *prestateTracer) CaptureTxStart(gasLimit uint64, from common.Address) {
+func (t *prestateTracer) CaptureTxStart(gasLimit uint64, env *vm.EVM, from common.Address) {
+	t.env = env
 	t.gasLimit = gasLimit
 	t.lookupAccount(from)
 }

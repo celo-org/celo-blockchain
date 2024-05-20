@@ -110,7 +110,7 @@ type EVMLogger interface {
 	CaptureExit(output []byte, gasUsed uint64, err error)
 	CaptureFault(pc uint64, op OpCode, gas, cost uint64, scope *ScopeContext, depth int, err error)
 	CaptureEnd(output []byte, gasUsed uint64, t time.Duration, err error)
-	CaptureTxStart(gasLimit uint64, from common.Address)
+	//CaptureTxStart(gasLimit uint64, env *EVM, from common.Address)
 	CaptureTxEnd(restGas uint64)
 }
 
@@ -245,7 +245,7 @@ func (l *StructLogger) Error() error { return l.err }
 // Output returns the VM return value captured by the trace.
 func (l *StructLogger) Output() []byte { return l.output }
 
-func (l *StructLogger) CaptureTxStart(gasLimit uint64, from common.Address) {}
+func (l *StructLogger) CaptureTxStart(gasLimit uint64, _ *EVM, from common.Address) {}
 
 func (l *StructLogger) CaptureTxEnd(restGas uint64) {}
 
@@ -365,6 +365,6 @@ func (t *mdLogger) CaptureEnter(typ OpCode, from common.Address, to common.Addre
 
 func (t *mdLogger) CaptureExit(output []byte, gasUsed uint64, err error) {}
 
-func (t *mdLogger) CaptureTxStart(gasLimit uint64, from common.Address) {}
+func (t *mdLogger) CaptureTxStart(gasLimit uint64, _ *EVM, from common.Address) {}
 
 func (t *mdLogger) CaptureTxEnd(restGas uint64) {}

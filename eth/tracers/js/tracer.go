@@ -847,7 +847,7 @@ func (jst *jsTracer) GetResult() (json.RawMessage, error) {
 	return result, jst.err
 }
 
-func (t *jsTracer) CaptureTxStart(gasLimit uint64, from common.Address) {}
+func (t *jsTracer) CaptureTxStart(gasLimit uint64, _ *vm.EVM, from common.Address) {}
 
 // CaptureTxEnd implements the Tracer interface and is invoked at the end of
 // transaction processing.
