@@ -847,6 +847,14 @@ func (jst *jsTracer) GetResult() (json.RawMessage, error) {
 	return result, jst.err
 }
 
+func (t *jsTracer) CaptureTxStart(gasLimit uint64) {
+}
+
+// CaptureTxEnd implements the Tracer interface and is invoked at the end of
+// transaction processing.
+func (t *jsTracer) CaptureTxEnd(restGas uint64) {
+}
+
 // addToObj pushes a field to a JS object.
 func (jst *jsTracer) addToObj(obj int, key string, val interface{}) {
 	pushValue(jst.vm, val)

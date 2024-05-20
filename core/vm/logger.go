@@ -110,6 +110,8 @@ type EVMLogger interface {
 	CaptureExit(output []byte, gasUsed uint64, err error)
 	CaptureFault(pc uint64, op OpCode, gas, cost uint64, scope *ScopeContext, depth int, err error)
 	CaptureEnd(output []byte, gasUsed uint64, t time.Duration, err error)
+	CaptureTxStart(gasLimit uint64)
+	CaptureTxEnd(restGas uint64)
 }
 
 // StructLogger is an EVM state logger and implements EVMLogger.
@@ -243,6 +245,10 @@ func (l *StructLogger) Error() error { return l.err }
 // Output returns the VM return value captured by the trace.
 func (l *StructLogger) Output() []byte { return l.output }
 
+func (l *StructLogger) CaptureTxStart(gasLimit uint64) {}
+
+func (l *StructLogger) CaptureTxEnd(restGas uint64) {}
+
 // WriteTrace writes a formatted trace to the given writer
 func WriteTrace(writer io.Writer, logs []StructLog) {
 	for _, log := range logs {
@@ -358,3 +364,7 @@ func (t *mdLogger) CaptureEnter(typ OpCode, from common.Address, to common.Addre
 }
 
 func (t *mdLogger) CaptureExit(output []byte, gasUsed uint64, err error) {}
+
+func (t *mdLogger) CaptureTxStart(gasLimit uint64) {}
+
+func (t *mdLogger) CaptureTxEnd(restGas uint64) {}

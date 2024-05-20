@@ -180,3 +180,7 @@ func (a *AccessListTracer) AccessList() types.AccessList {
 func (a *AccessListTracer) Equal(other *AccessListTracer) bool {
 	return a.list.equal(other.list)
 }
+
+func (_ *AccessListTracer) CaptureTxStart(gasLimit uint64) {}
+
+func (_ *AccessListTracer) CaptureTxEnd(restGas uint64) {}

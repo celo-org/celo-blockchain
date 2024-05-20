@@ -72,3 +72,6 @@ func (t *noopTracer) GetResult() (json.RawMessage, error) {
 // Stop terminates execution of the tracer at the first opportune moment.
 func (t *noopTracer) Stop(err error) {
 }
+
+func (t *noopTracer) CaptureTxStart(gasLimit uint64) {}
+func (t *noopTracer) CaptureTxEnd(restGas uint64)    {}
