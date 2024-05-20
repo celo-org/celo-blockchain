@@ -92,7 +92,6 @@ func (t *prestateTracer) CaptureStart(env *vm.EVM, from common.Address, to commo
 	t.create = create
 	t.to = to
 
-	t.lookupAccount(from)
 	t.lookupAccount(to)
 	t.lookupAccount(env.Context.Coinbase)
 
@@ -102,11 +101,6 @@ func (t *prestateTracer) CaptureStart(env *vm.EVM, from common.Address, to commo
 
 	// The sender balance is after reducing: value and gasLimit.
 	// We need to re-add them to get the pre-tx balance.
-	fromBal := new(big.Int).Set(t.pre[from].Balance)
-	gasPrice := env.TxContext.GasPrice
-	consumedGas := new(big.Int).Mul(gasPrice, new(big.Int).SetUint64(t.gasLimit))
-	fromBal.Add(fromBal, new(big.Int).Add(value, consumedGas))
-	t.pre[from].Balance = fromBal
 	t.pre[from].Nonce--
 
 	if create && t.config.DiffMode {
@@ -176,8 +170,9 @@ func (t *prestateTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64,
 	}
 }
 
-func (t *prestateTracer) CaptureTxStart(gasLimit uint64) {
+func (t *prestateTracer) CaptureTxStart(gasLimit uint64, from common.Address) {
 	t.gasLimit = gasLimit
+	t.lookupAccount(from)
 }
 
 func (t *prestateTracer) CaptureTxEnd(restGas uint64) {

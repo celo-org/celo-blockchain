@@ -73,5 +73,5 @@ func (t *noopTracer) GetResult() (json.RawMessage, error) {
 func (t *noopTracer) Stop(err error) {
 }
 
-func (t *noopTracer) CaptureTxStart(gasLimit uint64) {}
-func (t *noopTracer) CaptureTxEnd(restGas uint64)    {}
+func (t *noopTracer) CaptureTxStart(gasLimit uint64, from common.Address) {}
+func (t *noopTracer) CaptureTxEnd(restGas uint64)                         {}
