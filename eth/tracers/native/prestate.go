@@ -99,10 +99,6 @@ func (t *prestateTracer) CaptureStart(env *vm.EVM, from common.Address, to commo
 	toBal := new(big.Int).Sub(t.pre[to].Balance, value)
 	t.pre[to].Balance = toBal
 
-	// The sender balance is after reducing: value and gasLimit.
-	// We need to re-add them to get the pre-tx balance.
-	t.pre[from].Nonce--
-
 	if create && t.config.DiffMode {
 		t.created[to] = true
 	}
