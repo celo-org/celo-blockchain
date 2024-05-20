@@ -110,7 +110,7 @@ type EVMLogger interface {
 	CaptureExit(output []byte, gasUsed uint64, err error)
 	CaptureFault(pc uint64, op OpCode, gas, cost uint64, scope *ScopeContext, depth int, err error)
 	CaptureEnd(output []byte, gasUsed uint64, t time.Duration, err error)
-	//CaptureTxStart(gasLimit uint64, env *EVM, from common.Address)
+	CaptureTxStart(gasLimit uint64, env *EVM, from common.Address)
 	CaptureTxEnd(restGas uint64)
 }
 
