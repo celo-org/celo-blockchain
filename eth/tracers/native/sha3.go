@@ -105,6 +105,13 @@ func (t *sha3Tracer) CaptureTxEnd(restGas uint64) {}
 // GetResult returns the json-encoded nested list of call traces, and any
 // error arising from the encoding or forceful termination (via `Stop`).
 func (t *sha3Tracer) GetResult() (json.RawMessage, error) {
+	// remove empty key
+	for k, v := range t.contracts {
+		if len(v) == 0 {
+			delete(t.contracts, k)
+		}
+	}
+
 	res, err := json.Marshal(t.contracts)
 	if err != nil {
 		return nil, err
