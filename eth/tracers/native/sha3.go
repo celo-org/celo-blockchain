@@ -78,11 +78,10 @@ func (t *sha3Tracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64, sco
 			return
 		}
 		contractAddress := scope.Contract.Address()
-		if states, ok := t.contracts[contractAddress]; !ok {
+		if _, ok := t.contracts[contractAddress]; !ok {
 			t.contracts[contractAddress] = make(map[string]bool)
-		} else {
-			states[hexutil.Encode(data)] = true
 		}
+		t.contracts[contractAddress][hexutil.Encode(data)] = true
 	}
 }
 
