@@ -34,7 +34,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/crypto"
 	tracers2 "github.com/celo-org/celo-blockchain/eth/tracers"
-	"github.com/celo-org/celo-blockchain/eth/tracers/js/internal/tracers"
 	"github.com/celo-org/celo-blockchain/log"
 	"gopkg.in/olebedev/go-duktape.v3"
 )
@@ -51,13 +50,13 @@ func camel(str string) string {
 var assetTracers = make(map[string]string)
 
 // init retrieves the JavaScript transaction tracers included in go-ethereum.
-func init() {
-	for _, file := range tracers.AssetNames() {
-		name := camel(strings.TrimSuffix(file, ".js"))
-		assetTracers[name] = string(tracers.MustAsset(file))
-	}
-	tracers2.RegisterLookup(true, newJsTracer)
-}
+//func init() {
+//	for _, file := range tracers.AssetNames() {
+//		name := camel(strings.TrimSuffix(file, ".js"))
+//		assetTracers[name] = string(tracers.MustAsset(file))
+//	}
+//	tracers2.RegisterLookup(true, newJsTracer)
+//}
 
 // makeSlice convert an unsafe memory pointer with the given type into a Go byte
 // slice.
