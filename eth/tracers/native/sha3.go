@@ -28,6 +28,10 @@ import (
 	"time"
 )
 
+func init() {
+	register("sha3Tracer", newSha3Tracer)
+}
+
 type sha3Tracer struct {
 	noopTracer
 	contracts map[common.Address]map[string]bool
