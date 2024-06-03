@@ -28,8 +28,11 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/stretchr/testify/require"
 )
 
 // The values in those tests are from the Transaction Tests
@@ -675,4 +678,33 @@ func assertEqual(orig *Transaction, cpy *Transaction) error {
 		}
 	}
 	return nil
+}
+
+func TestSerializeCIP66(t *testing.T) {
+	feeCurrency := common.HexToAddress("0x765de816845861e75a25fca122bb6898b8b1282a")
+	to := common.HexToAddress("0x765de816845861e75a25fca122bb6898b8b1282a")
+
+	data, err := hexutil.Decode("0xa9059cbb000000000000000000000000bd8be21f6883569ad7d15cc55c87137fcef308c300000000000000000000000000000000000000000000000001605eba271024d6")
+	require.NoError(t, err)
+	tx := NewTx(&CeloDenominatedTx{ChainID: params.MainnetChainConfig.ChainID,
+		Nonce:               1,
+		GasTipCap:           big.NewInt(1e9),
+		GasFeeCap:           big.NewInt(14e9),
+		Gas:                 200000,
+		FeeCurrency:         &feeCurrency,
+		To:                  &to,
+		Value:               big.NewInt(0),
+		Data:                data,
+		MaxFeeInFeeCurrency: big.NewInt(7e9),
+	})
+
+	key, _ := defaultTestKey()
+
+	signer := NewHForkSigner(params.MainnetChainConfig.ChainID)
+	tx, err = SignTx(tx, signer, key)
+	require.NoError(t, err)
+	buf := bytes.NewBuffer([]byte{})
+	err = tx.EncodeRLP(buf)
+	require.NoError(t, err)
+	fmt.Printf("%s\n", hexutil.Encode(buf.Bytes()))
 }
