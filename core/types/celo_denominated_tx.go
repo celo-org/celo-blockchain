@@ -17,11 +17,11 @@ type CeloDenominatedTx struct {
 	GasTipCap           *big.Int
 	GasFeeCap           *big.Int
 	Gas                 uint64
-	FeeCurrency         *common.Address `rlp:"nil"` // nil means native currency
 	To                  *common.Address `rlp:"nil"` // nil means contract creation
 	Value               *big.Int
 	Data                []byte
 	AccessList          AccessList
+	FeeCurrency         *common.Address `rlp:"nil"` // nil means native currency
 	MaxFeeInFeeCurrency *big.Int
 
 	// Signature values
