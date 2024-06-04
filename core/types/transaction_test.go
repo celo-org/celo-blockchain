@@ -682,7 +682,7 @@ func assertEqual(orig *Transaction, cpy *Transaction) error {
 
 func TestSerializeCIP66(t *testing.T) {
 	feeCurrency := common.HexToAddress("0x765de816845861e75a25fca122bb6898b8b1282a")
-	to := common.HexToAddress("0x765de816845861e75a25fca122bb6898b8b1282a")
+	to := common.HexToAddress("0x43d72ff17701b2da814620735c39c620ce0ea4a1")
 
 	data, err := hexutil.Decode("0xa9059cbb000000000000000000000000bd8be21f6883569ad7d15cc55c87137fcef308c300000000000000000000000000000000000000000000000001605eba271024d6")
 	require.NoError(t, err)
