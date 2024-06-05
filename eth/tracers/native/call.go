@@ -237,7 +237,7 @@ func (t *callTracer) CaptureTxStart(gasLimit uint64, env *vm.EVM, from common.Ad
 }
 
 func (t *callTracer) CaptureTxEnd(restGas uint64) {
-	t.callstack[0].GasUsed = t.gasLimit - restGas
+	t.callstack[0].GasUsed = restGas
 	if t.config.WithLog {
 		// Logs are not emitted when the call fails
 		clearFailedLogs(&t.callstack[0], false)
