@@ -17,11 +17,11 @@ type CeloDenominatedTx struct {
 	GasTipCap           *big.Int
 	GasFeeCap           *big.Int
 	Gas                 uint64
-	FeeCurrency         *common.Address `rlp:"nil"` // nil means native currency
 	To                  *common.Address `rlp:"nil"` // nil means contract creation
 	Value               *big.Int
 	Data                []byte
 	AccessList          AccessList
+	FeeCurrency         *common.Address `rlp:"nil"` // nil means native currency
 	MaxFeeInFeeCurrency *big.Int
 
 	// Signature values
@@ -39,14 +39,15 @@ func (tx *CeloDenominatedTx) copy() TxData {
 		Gas:         tx.Gas,
 		FeeCurrency: copyAddressPtr(tx.FeeCurrency),
 		// These are copied below.
-		AccessList: make(AccessList, len(tx.AccessList)),
-		Value:      new(big.Int),
-		ChainID:    new(big.Int),
-		GasTipCap:  new(big.Int),
-		GasFeeCap:  new(big.Int),
-		V:          new(big.Int),
-		R:          new(big.Int),
-		S:          new(big.Int),
+		AccessList:          make(AccessList, len(tx.AccessList)),
+		Value:               new(big.Int),
+		ChainID:             new(big.Int),
+		GasTipCap:           new(big.Int),
+		GasFeeCap:           new(big.Int),
+		MaxFeeInFeeCurrency: new(big.Int),
+		V:                   new(big.Int),
+		R:                   new(big.Int),
+		S:                   new(big.Int),
 	}
 	copy(cpy.AccessList, tx.AccessList)
 	if tx.Value != nil {
@@ -60,6 +61,9 @@ func (tx *CeloDenominatedTx) copy() TxData {
 	}
 	if tx.GasFeeCap != nil {
 		cpy.GasFeeCap.Set(tx.GasFeeCap)
+	}
+	if tx.MaxFeeInFeeCurrency != nil {
+		cpy.MaxFeeInFeeCurrency.Set(tx.MaxFeeInFeeCurrency)
 	}
 	if tx.V != nil {
 		cpy.V.Set(tx.V)
