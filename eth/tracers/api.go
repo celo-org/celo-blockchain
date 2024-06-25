@@ -759,9 +759,13 @@ func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *C
 
 	abi.ConvertType(contractResult[0], &balances)
 
-	balanceResult := make(map[common.Address][]*big.Int)
+	balanceResult := make(map[common.Address][]string)
 	for index, tokenAddress := range tokens {
-		balanceResult[tokenAddress] = balances[index]
+		tmp := make([]string, 0)
+		for _, bal := range balances[index] {
+			tmp = append(tmp, bal.String())
+		}
+		balanceResult[tokenAddress] = tmp
 	}
 
 	return json.Marshal(balanceResult)
