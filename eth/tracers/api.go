@@ -577,6 +577,49 @@ func (api *API) traceBlockToken(ctx context.Context, block *types.Block, config 
 	return results, nil
 }
 
+func (api *API) TraceTokenTransaction(ctx context.Context, hash common.Hash, config *TraceConfig) (interface{}, error) {
+	_, blockHash, blockNumber, index, err := api.backend.GetTransaction(ctx, hash)
+	if err != nil {
+		return nil, err
+	}
+	// It shouldn't happen in practice.
+	if blockNumber == 0 {
+		return nil, errors.New("genesis is not traceable")
+	}
+	reexec := defaultTraceReexec
+	if config != nil && config.Reexec != nil {
+		reexec = *config.Reexec
+	}
+	block, err := api.blockByNumberAndHash(ctx, rpc.BlockNumber(blockNumber), blockHash)
+	if err != nil {
+		return nil, err
+	}
+
+	var sysCtx *core.SysContractCallCtx
+	if api.backend.ChainConfig().IsEspresso(block.Number()) {
+		parent, err := api.blockByNumber(ctx, rpc.BlockNumber(blockNumber-1))
+		if err != nil {
+			return nil, err
+		}
+		sysStateDB, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false, true)
+		if err != nil {
+			return nil, err
+		}
+		sysCtx = core.NewSysContractCallCtx(block.Header(), sysStateDB, api.backend)
+	}
+
+	msg, vmctx, vmRunner, statedb, err := api.backend.StateAtTransaction(ctx, block, int(index), reexec)
+	if err != nil {
+		return nil, err
+	}
+	txctx := &Context{
+		BlockHash: blockHash,
+		TxIndex:   int(index),
+		TxHash:    hash,
+	}
+	return api.traceTx(ctx, msg, txctx, vmctx, vmRunner, statedb, sysCtx, config)
+}
+
 func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *Context, vmctx vm.BlockContext, vmRunner vm.EVMRunner, statedb *state.StateDB, sysCtx *core.SysContractCallCtx, config *TraceConfig) (interface{}, error) {
 	// Assemble the structured logger or the JavaScript tracer
 	var (
