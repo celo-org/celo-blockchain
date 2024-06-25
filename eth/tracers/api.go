@@ -759,16 +759,25 @@ func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *C
 
 	abi.ConvertType(contractResult[0], &balances)
 
-	balanceResult := make(map[common.Address][]string)
+	balanceResult := make(map[common.Address][]*big.Int)
 	for index, tokenAddress := range tokens {
-		tmp := make([]string, 0)
-		for _, bal := range balances[index] {
-			tmp = append(tmp, bal.String())
-		}
-		balanceResult[tokenAddress] = tmp
+		//tmp := make([]string, 0)
+		//for _, bal := range balances[index] {
+		//	tmp = append(tmp, bal.String())
+		//}
+		//balanceResult[tokenAddress] = tmp
+		balanceResult[tokenAddress] = balances[index]
 	}
 
-	return json.Marshal(balanceResult)
+	return json.Marshal(tokenBalance{
+		TransactionHash: txctx.TxHash,
+		Balance:         balanceResult,
+	})
+}
+
+type tokenBalance struct {
+	TransactionHash common.Hash                   `json:"transaction_hash"`
+	Balance         map[common.Address][]*big.Int `json:"balance"`
 }
 
 // TraceBlockByNumber returns the structured logs created during the execution of
