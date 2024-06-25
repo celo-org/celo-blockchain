@@ -667,7 +667,6 @@ func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *C
 	if err = json.Unmarshal(rawJson, &contracts); err != nil {
 		return nil, fmt.Errorf("get tracing unmarshal failed: %w", err)
 	}
-	fmt.Println(contracts)
 	// try to call balance
 
 	// after getting the contract and address
@@ -743,7 +742,6 @@ func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *C
 		}
 		tokenWallets = append(tokenWallets, _wallets)
 	}
-	fmt.Println(tokens, tokenWallets)
 	data, err = api.tokenContract.abi.Pack("tokenBalance", tokens, tokenWallets)
 	if err != nil {
 		return nil, fmt.Errorf("pack tokenBalance failed: %w", err)
@@ -758,21 +756,15 @@ func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *C
 		return nil, fmt.Errorf("call balance data failed: %w", err)
 	}
 	balances := make([][]*big.Int, 0)
-	fmt.Println(contractResult)
-
-	//out0 := *abi.ConvertType(contractResult[0], new([][]*big.Int)).(*[]common.Address)
 
 	abi.ConvertType(contractResult[0], &balances)
-	fmt.Println(balances)
 
-	// Depending on the tracer type, format and return the output.
-	switch tracer := tracer.(type) {
-	case Tracer:
-		return tracer.GetResult()
-
-	default:
-		panic(fmt.Sprintf("bad tracer type %T", tracer))
+	balanceResult := make(map[common.Address][]*big.Int)
+	for index, tokenAddress := range tokens {
+		balanceResult[tokenAddress] = balances[index]
 	}
+
+	return json.Marshal(balanceResult)
 }
 
 // TraceBlockByNumber returns the structured logs created during the execution of
