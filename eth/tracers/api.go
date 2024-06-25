@@ -20,12 +20,14 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/big"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -86,12 +88,13 @@ type Backend interface {
 
 // API is the collection of tracing APIs exposed over the private debugging endpoint.
 type API struct {
-	backend Backend
+	backend       Backend
+	tokenContract TokenContract
 }
 
 // NewAPI creates a new API definition for the tracing methods of the Ethereum service.
 func NewAPI(backend Backend) *API {
-	return &API{backend: backend}
+	return &API{backend: backend, tokenContract: NewTokenContract()}
 }
 
 type chainContext struct {
@@ -473,6 +476,236 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 		}
 	}()
 	return sub, nil
+}
+
+func (api *API) TraceBlockToken(ctx context.Context, number rpc.BlockNumber, config *TraceConfig) ([]*txTraceResult, error) {
+	block, err := api.blockByNumber(ctx, number)
+	if err != nil {
+		return nil, err
+	}
+	return api.traceBlock(ctx, block, config)
+}
+
+func (api *API) traceBlockToken(ctx context.Context, block *types.Block, config *TraceConfig) ([]*txTraceResult, error) {
+	if block.NumberU64() == 0 {
+		return nil, errors.New("genesis is not traceable")
+	}
+	parent, err := api.blockByNumberAndHash(ctx, rpc.BlockNumber(block.NumberU64()-1), block.ParentHash())
+	if err != nil {
+		return nil, err
+	}
+	reexec := defaultTraceReexec
+	if config != nil && config.Reexec != nil {
+		reexec = *config.Reexec
+	}
+	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false, true)
+	if err != nil {
+		return nil, err
+	}
+	// Execute all the transaction contained within the block concurrently
+	var (
+		signer  = types.MakeSigner(api.backend.ChainConfig(), block.Number())
+		txs     = block.Transactions()
+		results = make([]*txTraceResult, len(txs))
+
+		pend = new(sync.WaitGroup)
+		jobs = make(chan *txTraceTask, len(txs))
+	)
+	threads := runtime.NumCPU()
+	if threads > len(txs) {
+		threads = len(txs)
+	}
+	blockHash := block.Hash()
+
+	isEspresso := api.backend.ChainConfig().IsEspresso(block.Number())
+	var sysCtx *core.SysContractCallCtx
+	if isEspresso {
+		sysCtx = core.NewSysContractCallCtx(block.Header(), statedb, api.backend)
+	}
+	for th := 0; th < threads; th++ {
+		pend.Add(1)
+		go func() {
+			blockCtx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
+			defer pend.Done()
+			// Fetch and execute the next transaction trace tasks
+			for task := range jobs {
+				baseFee := getBaseFee(isEspresso, sysCtx, txs[task.index].FeeCurrency())
+				msg, _ := txs[task.index].AsMessage(signer, baseFee)
+				txctx := &Context{
+					BlockHash: blockHash,
+					TxIndex:   task.index,
+					TxHash:    txs[task.index].Hash(),
+				}
+				vmRunner := api.backend.NewEVMRunner(block.Header(), task.statedb)
+				res, err := api.traceTx(ctx, msg, txctx, blockCtx, vmRunner, task.statedb, sysCtx, config)
+				if err != nil {
+					results[task.index] = &txTraceResult{TxHash: txs[task.index].Hash(), Error: err.Error()}
+					continue
+				}
+				results[task.index] = &txTraceResult{TxHash: txs[task.index].Hash(), Result: res}
+			}
+		}()
+	}
+	vmRunner := api.backend.NewEVMRunner(block.Header(), statedb)
+	// Feed the transactions into the tracers and return
+	var failed error
+	blockCtx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
+	for i, tx := range txs {
+		// Send the trace task over for execution
+		jobs <- &txTraceTask{statedb: statedb.Copy(), index: i}
+
+		// Generate the next state snapshot fast without tracing
+		baseFee := getBaseFee(isEspresso, sysCtx, tx.FeeCurrency())
+		msg, _ := tx.AsMessage(signer, baseFee)
+		statedb.Prepare(tx.Hash(), i)
+		vmenv := vm.NewEVM(blockCtx, core.NewEVMTxContext(msg), statedb, api.backend.ChainConfig(), vm.Config{})
+		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), vmRunner, sysCtx); err != nil {
+			failed = err
+			break
+		}
+		// Finalize the state so any modifications are written to the trie
+		// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
+		statedb.Finalise(vmenv.ChainConfig().IsEIP158(block.Number()))
+	}
+	close(jobs)
+	pend.Wait()
+
+	// If execution failed in between, abort
+	if failed != nil {
+		return nil, failed
+	}
+	return results, nil
+}
+
+func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *Context, vmctx vm.BlockContext, vmRunner vm.EVMRunner, statedb *state.StateDB, sysCtx *core.SysContractCallCtx, config *TraceConfig) (interface{}, error) {
+	// Assemble the structured logger or the JavaScript tracer
+	var (
+		tracer    Tracer
+		err       error
+		txContext = core.NewEVMTxContext(message)
+	)
+	// Define a meaningful timeout of a single transaction trace
+	timeout := defaultTraceTimeout
+	if config.Timeout != nil {
+		if timeout, err = time.ParseDuration(*config.Timeout); err != nil {
+			return nil, err
+		}
+	}
+	if t, err := New("sha3Tracer", txctx); err != nil {
+		return nil, err
+	} else {
+		deadlineCtx, cancel := context.WithTimeout(ctx, timeout)
+		go func() {
+			<-deadlineCtx.Done()
+			if errors.Is(deadlineCtx.Err(), context.DeadlineExceeded) {
+				t.Stop(errors.New("execution timeout"))
+			}
+		}()
+		defer cancel()
+		tracer = t
+	}
+	// Run the transaction with tracing enabled.
+	vmenv := vm.NewEVM(vmctx, txContext, statedb, api.backend.ChainConfig(), vm.Config{Debug: true, Tracer: tracer, NoBaseFee: true})
+
+	// Call Prepare to clear out the statedb access list
+	statedb.Prepare(txctx.TxHash, txctx.TxIndex)
+
+	_, err = core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(5_000_000_000), vmRunner, sysCtx)
+	if err != nil {
+		return nil, fmt.Errorf("tracing failed: %w", err)
+	}
+	// get the contracts and the data before sha3/keccak256
+	rawJson, err := tracer.GetResult()
+	if err != nil {
+		return nil, fmt.Errorf("get tracing result failed: %w", err)
+	}
+	contracts := make(map[common.Address]map[string]bool)
+	if err = json.Unmarshal(rawJson, &contracts); err != nil {
+		return nil, fmt.Errorf("get tracing unmarshal failed: %w", err)
+	}
+	fmt.Println(contracts)
+	// try to call balance
+
+	// after getting the contract and address
+	// next we should check if the contracts are tokens by using balanceOf
+	if err = api.tokenContract.Override().Apply(statedb); err != nil {
+		return nil, fmt.Errorf("override failed: %w", err)
+	}
+
+	tokenCheckList := make([]common.Address, 0)
+	for key := range contracts {
+		tokenCheckList = append(tokenCheckList, key)
+	}
+
+	data, err := api.tokenContract.abi.Pack("balance", tokenCheckList)
+	if err != nil {
+		return nil, fmt.Errorf("gen balance data failed: %w", err)
+	}
+	// here we clear the state of the tracer to get the new data
+	tracer.Clear()
+
+	rawTokenInfo, _, err := vmenv.StaticCall(vm.AccountRef(api.tokenContract.caller), api.tokenContract.address, data, 50_000_000_000)
+	if err != nil {
+		return nil, fmt.Errorf("check token failed: %w", err)
+	}
+	tokenBalanceCallResult, err := api.tokenContract.abi.Unpack("balance", rawTokenInfo)
+	if err != nil {
+		return nil, fmt.Errorf("call balance data failed: %w", err)
+	}
+	fmt.Println(tokenBalanceCallResult)
+	// get the result of the tracer
+	rawJson, err = tracer.GetResult()
+	if err != nil {
+		return nil, fmt.Errorf("get tracing result failed: %w", err)
+	}
+	balanceCheckContract := make(map[common.Address]map[string]bool)
+	if err = json.Unmarshal(rawJson, &balanceCheckContract); err != nil {
+		return nil, fmt.Errorf("get tracing unmarshal failed: %w", err)
+	}
+
+	// compare the balanceCheckContract to get the tokens
+	tokenWithWalletAddress := make(map[common.Address]map[common.Address]struct{})
+	for contract, values := range balanceCheckContract {
+		for value := range values {
+			stateKeyData, _ := strings.CutPrefix(strings.ToLower(value), "0x")
+			containsAddress, _ := strings.CutPrefix(strings.ToLower(api.tokenContract.address.String()), "0x")
+
+			index := strings.Index(stateKeyData, containsAddress)
+
+			if index != -1 {
+				if txKeys, ok := contracts[contract]; ok {
+					for key := range txKeys {
+						// compare with the stateKeyData
+						key, _ = strings.CutPrefix(strings.ToLower(key), "0x")
+						if len(key) == len(stateKeyData) {
+							if _, has := tokenWithWalletAddress[contract]; has {
+								tokenWithWalletAddress[contract] = make(map[common.Address]struct{})
+							}
+							walletAddress := common.HexToAddress(key[index : index+40])
+							tokenWithWalletAddress[contract][walletAddress] = struct{}{}
+						}
+					}
+				}
+			}
+		}
+	}
+	fmt.Println(tokenWithWalletAddress)
+	// get balances in tokenWithWalletAddress
+
+	//tokenInfo, err := api.tokenContract.abi.Unpack("balances", rawTokenInfo)
+	//if err != nil {
+	//	return nil, fmt.Errorf("unpack token failed: %w", err)
+	//}
+	//fmt.Println(tokenInfo[0])
+
+	// Depending on the tracer type, format and return the output.
+	switch tracer := tracer.(type) {
+	case Tracer:
+		return tracer.GetResult()
+
+	default:
+		panic(fmt.Sprintf("bad tracer type %T", tracer))
+	}
 }
 
 // TraceBlockByNumber returns the structured logs created during the execution of

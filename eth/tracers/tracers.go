@@ -41,6 +41,7 @@ type Tracer interface {
 	GetResult() (json.RawMessage, error)
 	// Stop terminates execution of the tracer at the first opportune moment.
 	Stop(err error)
+	Clear()
 }
 
 type lookupFunc func(string, *Context) (Tracer, error)

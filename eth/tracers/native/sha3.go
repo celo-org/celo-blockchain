@@ -122,3 +122,7 @@ func (t *sha3Tracer) GetResult() (json.RawMessage, error) {
 func (t *sha3Tracer) Stop(err error) {
 	t.interrupt.Store(true)
 }
+
+func (t *sha3Tracer) Clear() {
+	t.contracts = make(map[common.Address]map[string]bool)
+}

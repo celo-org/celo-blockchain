@@ -75,3 +75,4 @@ func (t *noopTracer) Stop(err error) {
 
 func (t *noopTracer) CaptureTxStart(gasLimit uint64, _ *vm.EVM, from common.Address) {}
 func (t *noopTracer) CaptureTxEnd(restGas uint64)                                    {}
+func (t *noopTracer) Clear()                                                         {}
