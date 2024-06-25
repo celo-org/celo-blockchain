@@ -484,7 +484,7 @@ func (api *API) TraceBlockToken(ctx context.Context, number rpc.BlockNumber, con
 	if err != nil {
 		return nil, err
 	}
-	return api.traceBlock(ctx, block, config)
+	return api.traceBlockToken(ctx, block, config)
 }
 
 func (api *API) traceBlockToken(ctx context.Context, block *types.Block, config *TraceConfig) ([]*txTraceResult, error) {
@@ -770,11 +770,6 @@ func (api *API) traceTxToken(ctx context.Context, message core.Message, txctx *C
 	}
 
 	return balanceResult, nil
-}
-
-type tokenBalance struct {
-	TransactionHash common.Hash                                    `json:"transaction_hash"`
-	Balance         map[common.Address]map[common.Address]*big.Int `json:"balance"`
 }
 
 // TraceBlockByNumber returns the structured logs created during the execution of
