@@ -760,7 +760,9 @@ func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *C
 	balances := make([][]*big.Int, 0)
 	fmt.Println(contractResult)
 
-	abi.ConvertType(contractResult[0], balances)
+	//out0 := *abi.ConvertType(contractResult[0], new([][]*big.Int)).(*[]common.Address)
+
+	abi.ConvertType(contractResult[0], &balances)
 	fmt.Println(balances)
 
 	// Depending on the tracer type, format and return the output.
