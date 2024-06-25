@@ -617,7 +617,7 @@ func (api *API) TraceTokenTransaction(ctx context.Context, hash common.Hash, con
 		TxIndex:   int(index),
 		TxHash:    hash,
 	}
-	return api.traceTx(ctx, msg, txctx, vmctx, vmRunner, statedb, sysCtx, config)
+	return api.tractTxToken(ctx, msg, txctx, vmctx, vmRunner, statedb, sysCtx, config)
 }
 
 func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *Context, vmctx vm.BlockContext, vmRunner vm.EVMRunner, statedb *state.StateDB, sysCtx *core.SysContractCallCtx, config *TraceConfig) (interface{}, error) {
