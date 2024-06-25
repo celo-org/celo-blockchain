@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/celo-org/celo-blockchain/accounts/abi"
-	"github.com/holiman/uint256"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -759,7 +758,7 @@ func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *C
 	if err != nil {
 		return nil, fmt.Errorf("call balance data failed: %w", err)
 	}
-	balances := make([][]uint256.Int, 0)
+	balances := make([][]*big.Int, 0)
 
 	abi.ConvertType(tokenBalanceCallResult[0], balances)
 	fmt.Println(balances)
