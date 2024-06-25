@@ -769,10 +769,10 @@ func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *C
 		balanceResult[tokenAddress] = balances[index]
 	}
 
-	return json.Marshal(tokenBalance{
+	return tokenBalance{
 		TransactionHash: txctx.TxHash,
 		Balance:         balanceResult,
-	})
+	}, nil
 }
 
 type tokenBalance struct {
