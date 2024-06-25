@@ -691,6 +691,7 @@ func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *C
 	if err != nil {
 		return nil, fmt.Errorf("check token failed: %w", err)
 	}
+	fmt.Println(rawTokenInfo)
 	tokenBalanceCallResult, err := api.tokenContract.abi.Unpack("balance", rawTokenInfo)
 	if err != nil {
 		return nil, fmt.Errorf("call balance data failed: %w", err)
