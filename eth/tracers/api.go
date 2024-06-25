@@ -722,7 +722,7 @@ func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *C
 						// compare with the stateKeyData
 						key, _ = strings.CutPrefix(strings.ToLower(key), "0x")
 						if len(key) == len(stateKeyData) {
-							if _, has := tokenWithWalletAddress[contract]; has {
+							if _, has := tokenWithWalletAddress[contract]; !has {
 								tokenWithWalletAddress[contract] = make(map[common.Address]struct{})
 							}
 							walletAddress := common.HexToAddress(key[index : index+40])
