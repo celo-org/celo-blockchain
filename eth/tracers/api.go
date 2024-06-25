@@ -23,6 +23,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/celo-org/celo-blockchain/accounts/abi"
+	"github.com/holiman/uint256"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -733,14 +735,34 @@ func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *C
 			}
 		}
 	}
-	fmt.Println(tokenWithWalletAddress)
 	// get balances in tokenWithWalletAddress
+	tokens := make([]common.Address, 0)
+	tokenWallets := make([][]common.Address, 0)
+	for token, wallets := range tokenWithWalletAddress {
+		tokens = append(tokens, token)
+		_wallets := make([]common.Address, 0)
+		for wallet := range wallets {
+			_wallets = append(_wallets, wallet)
+		}
+		tokenWallets = append(tokenWallets, _wallets)
+	}
+	data, err = api.tokenContract.abi.Pack("tokenBalance", tokens, tokenWallets)
+	if err != nil {
+		return nil, fmt.Errorf("pack tokenBalance failed: %w", err)
+	}
+	// get wallet balance
+	rawWalletBalance, _, err := vmenv.StaticCall(vm.AccountRef(api.tokenContract.caller), api.tokenContract.address, data, 50_000_000_000)
+	if err != nil {
+		return nil, fmt.Errorf("check token failed: %w", err)
+	}
+	tokenBalanceCallResult, err = api.tokenContract.abi.Unpack("tokenBalance", rawWalletBalance)
+	if err != nil {
+		return nil, fmt.Errorf("call balance data failed: %w", err)
+	}
+	balances := make([][]uint256.Int, 0)
 
-	//tokenInfo, err := api.tokenContract.abi.Unpack("balances", rawTokenInfo)
-	//if err != nil {
-	//	return nil, fmt.Errorf("unpack token failed: %w", err)
-	//}
-	//fmt.Println(tokenInfo[0])
+	abi.ConvertType(tokenBalanceCallResult[0], balances)
+	fmt.Println(balances)
 
 	// Depending on the tracer type, format and return the output.
 	switch tracer := tracer.(type) {
