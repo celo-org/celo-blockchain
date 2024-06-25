@@ -692,12 +692,10 @@ func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *C
 	if err != nil {
 		return nil, fmt.Errorf("check token failed: %w", err)
 	}
-	fmt.Println(rawTokenInfo)
-	tokenBalanceCallResult, err := api.tokenContract.abi.Unpack("balance", rawTokenInfo)
+	contractResult, err := api.tokenContract.abi.Unpack("balance", rawTokenInfo)
 	if err != nil {
 		return nil, fmt.Errorf("call balance data failed: %w", err)
 	}
-	fmt.Println(tokenBalanceCallResult)
 	// get the result of the tracer
 	rawJson, err = tracer.GetResult()
 	if err != nil {
@@ -745,6 +743,7 @@ func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *C
 		}
 		tokenWallets = append(tokenWallets, _wallets)
 	}
+	fmt.Println(tokens, tokenWallets)
 	data, err = api.tokenContract.abi.Pack("tokenBalance", tokens, tokenWallets)
 	if err != nil {
 		return nil, fmt.Errorf("pack tokenBalance failed: %w", err)
@@ -754,13 +753,14 @@ func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *C
 	if err != nil {
 		return nil, fmt.Errorf("check token failed: %w", err)
 	}
-	tokenBalanceCallResult, err = api.tokenContract.abi.Unpack("tokenBalance", rawWalletBalance)
+	contractResult, err = api.tokenContract.abi.Unpack("tokenBalance", rawWalletBalance)
 	if err != nil {
 		return nil, fmt.Errorf("call balance data failed: %w", err)
 	}
 	balances := make([][]*big.Int, 0)
+	fmt.Println(contractResult)
 
-	abi.ConvertType(tokenBalanceCallResult[0], balances)
+	abi.ConvertType(contractResult[0], balances)
 	fmt.Println(balances)
 
 	// Depending on the tracer type, format and return the output.
