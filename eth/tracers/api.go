@@ -538,7 +538,7 @@ func (api *API) traceBlockToken(ctx context.Context, block *types.Block, config 
 					TxHash:    txs[task.index].Hash(),
 				}
 				vmRunner := api.backend.NewEVMRunner(block.Header(), task.statedb)
-				res, err := api.traceTx(ctx, msg, txctx, blockCtx, vmRunner, task.statedb, sysCtx, config)
+				res, err := api.traceTxToken(ctx, msg, txctx, blockCtx, vmRunner, task.statedb, sysCtx, config)
 				if err != nil {
 					results[task.index] = &txTraceResult{TxHash: txs[task.index].Hash(), Error: err.Error()}
 					continue
@@ -618,10 +618,10 @@ func (api *API) TraceTokenTransaction(ctx context.Context, hash common.Hash, con
 		TxIndex:   int(index),
 		TxHash:    hash,
 	}
-	return api.tractTxToken(ctx, msg, txctx, vmctx, vmRunner, statedb, sysCtx, config)
+	return api.traceTxToken(ctx, msg, txctx, vmctx, vmRunner, statedb, sysCtx, config)
 }
 
-func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *Context, vmctx vm.BlockContext, vmRunner vm.EVMRunner, statedb *state.StateDB, sysCtx *core.SysContractCallCtx, config *TraceConfig) (interface{}, error) {
+func (api *API) traceTxToken(ctx context.Context, message core.Message, txctx *Context, vmctx vm.BlockContext, vmRunner vm.EVMRunner, statedb *state.StateDB, sysCtx *core.SysContractCallCtx, config *TraceConfig) (interface{}, error) {
 	// Assemble the structured logger or the JavaScript tracer
 	var (
 		tracer    Tracer
@@ -769,10 +769,7 @@ func (api *API) tractTxToken(ctx context.Context, message core.Message, txctx *C
 		}
 	}
 
-	return tokenBalance{
-		TransactionHash: txctx.TxHash,
-		Balance:         balanceResult,
-	}, nil
+	return balanceResult, nil
 }
 
 type tokenBalance struct {
