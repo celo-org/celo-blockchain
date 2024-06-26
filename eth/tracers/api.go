@@ -720,11 +720,13 @@ func (api *API) traceTxToken(ctx context.Context, message core.Message, txctx *C
 						// compare with the stateKeyData
 						key, _ = strings.CutPrefix(strings.ToLower(key), "0x")
 						if len(key) == len(stateKeyData) {
-							if _, has := tokenWithWalletAddress[contract]; !has {
-								tokenWithWalletAddress[contract] = make(map[common.Address]struct{})
+							if key[:index] == stateKeyData[:index] && key[index+40:] == stateKeyData[index+40:] {
+								if _, has := tokenWithWalletAddress[contract]; !has {
+									tokenWithWalletAddress[contract] = make(map[common.Address]struct{})
+								}
+								walletAddress := common.HexToAddress(key[index : index+40])
+								tokenWithWalletAddress[contract][walletAddress] = struct{}{}
 							}
-							walletAddress := common.HexToAddress(key[index : index+40])
-							tokenWithWalletAddress[contract][walletAddress] = struct{}{}
 						}
 					}
 				}
