@@ -858,6 +858,8 @@ func (jst *jsTracer) addToObj(obj int, key string, val interface{}) {
 	jst.vm.PutPropString(obj, key)
 }
 
+func (jst *jsTracer) Clear() {}
+
 func pushValue(ctx *duktape.Context, val interface{}) {
 	switch val := val.(type) {
 	case uint64:
