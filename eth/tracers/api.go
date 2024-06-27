@@ -733,6 +733,19 @@ func (api *API) traceTxToken(ctx context.Context, message core.Message, txctx *C
 			}
 		}
 	}
+
+	// add transfer log
+	logs := statedb.GetLogs(txctx.TxHash, txctx.BlockHash)
+	for _, transferLog := range logs {
+		if len(transferLog.Topics) == 3 && transferLog.Topics[0] == common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef") {
+			if _, has := tokenWithWalletAddress[transferLog.Address]; !has {
+				tokenWithWalletAddress[transferLog.Address] = make(map[common.Address]struct{})
+			}
+			tokenWithWalletAddress[transferLog.Address][common.BytesToAddress(transferLog.Topics[1].Bytes())] = struct{}{}
+			tokenWithWalletAddress[transferLog.Address][common.BytesToAddress(transferLog.Topics[2].Bytes())] = struct{}{}
+		}
+	}
+
 	// get balances in tokenWithWalletAddress
 	tokens := make([]common.Address, 0)
 	tokenWallets := make([][]common.Address, 0)
