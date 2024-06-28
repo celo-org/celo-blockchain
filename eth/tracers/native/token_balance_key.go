@@ -37,6 +37,7 @@ type tokenBalanceTracer struct {
 	contracts    map[common.Address]map[string]struct{}
 	topContracts map[common.Address]common.Address // contractAddress: topContractAddress
 	interrupt    atomic.Bool                       // Atomic flag to signal execution interruption
+	checkTop     bool
 }
 
 // newCallTracer returns a native go tracer which tracks
@@ -47,11 +48,13 @@ func newTokenBalanceTracer() tracers.Tracer {
 	return &tokenBalanceTracer{
 		contracts:    make(map[common.Address]map[string]struct{}),
 		topContracts: make(map[common.Address]common.Address),
+		checkTop:     false,
 	}
 }
 
 // CaptureStart implements the EVMLogger interface to initialize the tracing operation.
 func (t *tokenBalanceTracer) CaptureStart(env *vm.EVM, from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
+	t.checkTop = from == tracers.TokenContractCaller && to == tracers.TokenContractAddress
 }
 
 // CaptureEnd is called after the call finishes to finalize the tracing.
@@ -67,23 +70,23 @@ func (t *tokenBalanceTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uin
 	if t.interrupt.Load() {
 		return
 	}
-	// set topContract, ignore depth > 2
-	// here if the code only for token_contract.sol
+	// here is the code only for token_contract.sol
 	// when we simulate the balanceOf of the contracts
-	// the topContract of the contracts if under the depth > 2
 	// for other transaction or simulation, we won't use topContract
-	if depth > 2 {
+	contractAddress := scope.Contract.Address()
+	if t.checkTop {
 		caller := scope.Contract.Caller()
-		contractAddress := scope.Contract.Address()
-
-		if _, ok := t.topContracts[contractAddress]; !ok {
-			if topContract, hasCaller := t.topContracts[caller]; !hasCaller {
-				t.topContracts[contractAddress] = caller
-			} else {
-				t.topContracts[contractAddress] = topContract
+		if caller != tracers.TokenContractCaller && caller != tracers.TokenContractAddress {
+			if _, ok := t.topContracts[contractAddress]; !ok {
+				if topContract, hasCaller := t.topContracts[caller]; !hasCaller {
+					t.topContracts[contractAddress] = caller
+				} else {
+					t.topContracts[contractAddress] = topContract
+				}
 			}
 		}
 	}
+
 	switch op {
 	case vm.SHA3:
 		stack := scope.Stack
@@ -96,7 +99,6 @@ func (t *tokenBalanceTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uin
 			log.Warn("failed to copy CREATE2 input", "err", err, "tracer", "callTracer", "offset", offset, "size", size)
 			return
 		}
-		contractAddress := scope.Contract.Address()
 		if _, ok := t.contracts[contractAddress]; !ok {
 			t.contracts[contractAddress] = make(map[string]struct{})
 		}
