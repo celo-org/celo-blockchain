@@ -45,7 +45,8 @@ func newTokenBalanceTracer() tracers.Tracer {
 	// First callframe contains tx context info
 	// and is populated on start and end.
 	return &tokenBalanceTracer{
-		contracts: make(map[common.Address]map[string]struct{}),
+		contracts:    make(map[common.Address]map[string]struct{}),
+		topContracts: make(map[common.Address]common.Address),
 	}
 }
 
