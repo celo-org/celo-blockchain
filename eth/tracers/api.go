@@ -578,6 +578,11 @@ func (api *API) traceBlockToken(ctx context.Context, block *types.Block, config 
 	return results, nil
 }
 
+type TokenBalanceTracerResult struct {
+	Contracts    map[common.Address][]string       `json:"contracts"`
+	TopContracts map[common.Address]common.Address `json:"topContracts"`
+}
+
 func (api *API) TraceTokenTransaction(ctx context.Context, hash common.Hash, config *TraceConfig) (interface{}, error) {
 	_, blockHash, blockNumber, index, err := api.backend.GetTransaction(ctx, hash)
 	if err != nil {
@@ -635,7 +640,7 @@ func (api *API) traceTxToken(ctx context.Context, message core.Message, txctx *C
 			return nil, err
 		}
 	}
-	if t, err := New("sha3Tracer", txctx); err != nil {
+	if t, err := New("tokenBalanceTracer", txctx); err != nil {
 		return nil, err
 	} else {
 		deadlineCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -663,8 +668,8 @@ func (api *API) traceTxToken(ctx context.Context, message core.Message, txctx *C
 	if err != nil {
 		return nil, fmt.Errorf("get tracing result failed: %w", err)
 	}
-	contracts := make(map[common.Address]map[string]bool)
-	if err = json.Unmarshal(rawJson, &contracts); err != nil {
+	contracts := new(TokenBalanceTracerResult)
+	if err = json.Unmarshal(rawJson, contracts); err != nil {
 		return nil, fmt.Errorf("get tracing unmarshal failed: %w", err)
 	}
 	// try to call balance
@@ -676,7 +681,7 @@ func (api *API) traceTxToken(ctx context.Context, message core.Message, txctx *C
 	}
 
 	tokenCheckList := make([]common.Address, 0)
-	for key := range contracts {
+	for key := range contracts.Contracts {
 		tokenCheckList = append(tokenCheckList, key)
 	}
 
@@ -686,11 +691,11 @@ func (api *API) traceTxToken(ctx context.Context, message core.Message, txctx *C
 	}
 	// here we clear the state of the tracer to get the new data
 	tracer.Clear()
-
 	rawTokenInfo, _, err := vmenv.StaticCall(vm.AccountRef(api.tokenContract.caller), api.tokenContract.address, data, 50_000_000_000)
 	if err != nil {
 		return nil, fmt.Errorf("check token failed: %w", err)
 	}
+	// todo, check if the balanceOf success
 	contractResult, err := api.tokenContract.abi.Unpack("balance", rawTokenInfo)
 	if err != nil {
 		return nil, fmt.Errorf("call balance data failed: %w", err)
@@ -700,33 +705,43 @@ func (api *API) traceTxToken(ctx context.Context, message core.Message, txctx *C
 	if err != nil {
 		return nil, fmt.Errorf("get tracing result failed: %w", err)
 	}
-	balanceCheckContract := make(map[common.Address]map[string]bool)
-	if err = json.Unmarshal(rawJson, &balanceCheckContract); err != nil {
+	balanceCheckContract := new(TokenBalanceTracerResult)
+	if err = json.Unmarshal(rawJson, balanceCheckContract); err != nil {
 		return nil, fmt.Errorf("get tracing unmarshal failed: %w", err)
 	}
+	// in order to handle the nonstandard proxy contract (gateway contract + state contract)
+	// we set the data to the gateway contract
 
 	// compare the balanceCheckContract to get the tokens
 	tokenWithWalletAddress := make(map[common.Address]map[common.Address]struct{})
-	for contract, values := range balanceCheckContract {
-		for value := range values {
+	for contract, values := range balanceCheckContract.Contracts {
+		for _, value := range values {
 			stateKeyData, _ := strings.CutPrefix(strings.ToLower(value), "0x")
 			containsAddress, _ := strings.CutPrefix(strings.ToLower(api.tokenContract.address.String()), "0x")
 
 			index := strings.Index(stateKeyData, containsAddress)
 
 			if index != -1 {
-				if txKeys, ok := contracts[contract]; ok {
-					for key := range txKeys {
+				if txKeys, ok := contracts.Contracts[contract]; ok {
+					for _, key := range txKeys {
 						// compare with the stateKeyData
 						key, _ = strings.CutPrefix(strings.ToLower(key), "0x")
-						if len(key) == len(stateKeyData) {
-							if key[:index] == stateKeyData[:index] && key[index+40:] == stateKeyData[index+40:] {
-								if _, has := tokenWithWalletAddress[contract]; !has {
-									tokenWithWalletAddress[contract] = make(map[common.Address]struct{})
+						// check if the key == stateKeyData after remove the address data
+						if len(key) == len(stateKeyData) && key[:index] == stateKeyData[:index] && key[index+40:] == stateKeyData[index+40:] {
+							walletAddress := common.HexToAddress(key[index : index+40])
+
+							// check if the contract has the top contract
+							if topContract, ok := contracts.TopContracts[contract]; !ok {
+								if _, has := tokenWithWalletAddress[topContract]; !has {
+									tokenWithWalletAddress[topContract] = make(map[common.Address]struct{})
 								}
-								walletAddress := common.HexToAddress(key[index : index+40])
-								tokenWithWalletAddress[contract][walletAddress] = struct{}{}
+								tokenWithWalletAddress[contract][topContract] = struct{}{}
 							}
+
+							if _, has := tokenWithWalletAddress[contract]; !has {
+								tokenWithWalletAddress[contract] = make(map[common.Address]struct{})
+							}
+							tokenWithWalletAddress[contract][walletAddress] = struct{}{}
 						}
 					}
 				}
