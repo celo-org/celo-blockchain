@@ -67,8 +67,12 @@ func (t *tokenBalanceTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uin
 	if t.interrupt.Load() {
 		return
 	}
-	// set topContract, ignore depth == 0
-	if depth != 0 {
+	// set topContract, ignore depth > 2
+	// here if the code only for token_contract.sol
+	// when we simulate the balanceOf of the contracts
+	// the topContract of the contracts if under the depth > 2
+	// for other transaction or simulation, we won't use topContract
+	if depth > 2 {
 		caller := scope.Contract.Caller()
 		contractAddress := scope.Contract.Address()
 
