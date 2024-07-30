@@ -600,7 +600,7 @@ func (s *Ethereum) Start() error {
 
 // Stop implements node.Lifecycle, terminating all internal goroutines used by the
 // Ethereum protocol.
-func (s *Ethereum) Stop() error {
+func (s *Ethereum) Stop() error { // TODO(Alec) code pointer
 	// Stop all the peer-related stuff first.
 	s.stopAnnounce()
 	s.ethDialCandidates.Close()

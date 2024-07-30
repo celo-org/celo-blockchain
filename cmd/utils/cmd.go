@@ -66,7 +66,7 @@ func Fatalf(format string, args ...interface{}) {
 	os.Exit(1)
 }
 
-func StartNode(ctx *cli.Context, stack *node.Node) {
+func StartNode(ctx *cli.Context, stack *node.Node) { // TODO(Alec) code pointer
 	if err := stack.Start(); err != nil {
 		Fatalf("Error starting protocol stack: %v", err)
 	}

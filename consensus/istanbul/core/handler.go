@@ -59,7 +59,7 @@ func (c *core) Start() error {
 }
 
 // Stop implements core.Engine.Stop
-func (c *core) Stop() error {
+func (c *core) Stop() error { // TODO(Alec) code pointer
 	c.stopAllTimers()
 	c.unsubscribeEvents()
 
