@@ -215,7 +215,7 @@ func (n *Node) Start() error {
 
 // Close stops the Node and releases resources acquired in
 // Node constructor New.
-func (n *Node) Close() error {
+func (n *Node) Close() error { // TODO(Alec) code pointer
 	n.startStopLock.Lock()
 	defer n.startStopLock.Unlock()
 
