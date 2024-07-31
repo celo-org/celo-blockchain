@@ -30,7 +30,7 @@ go get -u github.com/celo-org/celo-blockchain/cmd/ethkey
 ### Crawling the v4 DHT
 
 Our first step is to compile a list of all reachable nodes. The DHT crawler in cmd/devp2p
-is a batch process which runs for a set amount of time. You should should schedule this command
+is a batch process which runs for a set amount of time. You should schedule this command
 to run at a regular interval. To create a node list, run
 
 ```shell
