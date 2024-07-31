@@ -74,6 +74,7 @@ var (
 		utils.USBFlag,
 		// utils.SmartCardDaemonPathFlag,
 		utils.OverrideHForkFlag,
+		utils.L2ForkFlag,
 		utils.TxPoolLocalsFlag,
 		utils.TxPoolNoLocalsFlag,
 		utils.TxPoolJournalFlag,
@@ -414,7 +415,7 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend) {
 				if timestamp := time.Unix(int64(latest.Time), 0); time.Since(timestamp) < 10*time.Minute {
 					log.Info("Synchronisation completed", "latestnum", latest.Number, "latesthash", latest.Hash(),
 						"age", common.PrettyAge(timestamp))
-					stack.Close()
+					stack.Close() // TODO(Alec) code pointer
 				}
 			}
 		}()

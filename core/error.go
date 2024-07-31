@@ -131,4 +131,7 @@ var (
 	// ErrDenominatedLowMaxFee is returned when a celo denominated transaction, with the current exchange rate,
 	// the MaxFeeInFeeCurrency cannot cover the tx.Fee()
 	ErrDenominatedLowMaxFee = errors.New("CELO denominated tx MaxFeeInCurrency cannot cover gas fee costs")
+
+	// ErrPostL2BlockNumber is returned when the block number is after the L2 migration block
+	ErrPostL2BlockNumber = errors.New("Block number is after the L2 migration block")
 )
