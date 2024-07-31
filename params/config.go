@@ -313,6 +313,7 @@ type ChainConfig struct {
 	GingerbreadBlock   *big.Int `json:"gingerbreadBlock,omitempty"`   // Gingerbread switch block (nil = no fork, 0 = already activated)
 	GingerbreadP2Block *big.Int `json:"gingerbreadP2Block,omitempty"` // GingerbreadP2 switch block (nil = no fork, 0 = already activated)
 	HForkBlock         *big.Int `json:"hforkBlock,omitempty"`         // HFork switch block (nil = no fork, 0 = already activated)
+	L2Block            *big.Int `json:"l2Block,omitempty"`            // l2 switch block (nil = no fork, 0 = already activated)
 
 	Istanbul *IstanbulConfig `json:"istanbul,omitempty"`
 	// This does not belong here but passing it to every function is not possible since that breaks
@@ -464,6 +465,11 @@ func (c *ChainConfig) IsGingerbreadP2(num *big.Int) bool {
 	return isForked(c.GingerbreadP2Block, num)
 }
 
+// IsL2 returns whether num represents a block number after the Cel2 fork
+func (c *ChainConfig) IsL2(num *big.Int) bool {
+	return isForked(c.L2Block, num)
+}
+
 func (c *ChainConfig) IsHFork(num *big.Int) bool {
 	return isForked(c.HForkBlock, num)
 }
@@ -510,6 +516,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "gingerbreadBlock", block: c.GingerbreadBlock},
 		{name: "gingerbreadP2Block", block: c.GingerbreadP2Block},
 		{name: "hforkBlock", block: c.HForkBlock},
+		{name: "l2Block", block: c.L2Block},
 	} {
 		if lastFork.name != "" {
 			// Next one must be higher number
@@ -592,6 +599,9 @@ func (c *ChainConfig) checkCeloCompatible(newcfg *ChainConfig, head *big.Int) *C
 	}
 	if isForkIncompatible(c.HForkBlock, newcfg.HForkBlock, head) {
 		return newCompatError("HFork block", c.HForkBlock, newcfg.HForkBlock)
+	}
+	if isForkIncompatible(c.L2Block, newcfg.L2Block, head) {
+		return newCompatError("L2 block", c.L2Block, newcfg.L2Block)
 	}
 	return nil
 }
@@ -711,6 +721,7 @@ func (c *ChainConfig) DisableGingerbread() *ChainConfig {
 	c.GingerbreadP2Block = nil
 	// Since gingerbread is disabled disable following forks as well
 	c.HForkBlock = nil
+	c.L2Block = nil
 	return c
 }
 
@@ -734,6 +745,7 @@ func (c *ChainConfig) DeepCopy() *ChainConfig {
 		GingerbreadBlock:    copyBigIntOrNil(c.GingerbreadBlock),
 		GingerbreadP2Block:  copyBigIntOrNil(c.GingerbreadP2Block),
 		HForkBlock:          copyBigIntOrNil(c.HForkBlock),
+		L2Block:             copyBigIntOrNil(c.L2Block),
 
 		Istanbul: &IstanbulConfig{
 			Epoch:          c.Istanbul.Epoch,

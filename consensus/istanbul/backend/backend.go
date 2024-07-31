@@ -554,6 +554,10 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		}
 	}
 	sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
+	if sb.chain.Config().IsL2(block.Number()) {
+		sb.logger.Info("L2 hard fork reached, stopping the backend")
+		sb.StopValidating()
+	}
 	return nil
 }
 
@@ -569,6 +573,11 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (*istanbulCore.StateProces
 	if !ok {
 		sb.logger.Error("Invalid proposal, %v", proposal)
 		return nil, 0, errInvalidProposal
+	}
+
+	// Don't verify blocks after the L2 hard fork
+	if sb.chain.Config().IsL2(block.Number()) {
+		return nil, 0, core.ErrPostL2BlockNumber
 	}
 
 	// check bad block
