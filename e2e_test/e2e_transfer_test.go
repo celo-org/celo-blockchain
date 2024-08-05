@@ -37,7 +37,7 @@ const (
 func TestTransferCELO(t *testing.T) {
 	ac := test.AccountConfig(1, 3)
 	gingerbreadBlock := common.Big0
-	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock, nil)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
@@ -259,7 +259,7 @@ func prepareTransaction(txArgs ethapi.TransactionArgs, senderKey *ecdsa.PrivateK
 func TestTransferERC20(t *testing.T) {
 	ac := test.AccountConfig(1, 3)
 	gingerbreadBlock := common.Big0
-	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock)
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock, nil)
 	require.NoError(t, err)
 	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)

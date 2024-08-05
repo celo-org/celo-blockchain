@@ -390,6 +390,28 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend) {
 		}
 	}()
 
+	// if ctx.GlobalIsSet(utils.L2ForkFlag.Name) {
+	// 	go func() {
+	// 		sub := stack.EventMux().Subscribe(ethCore.ChainHeadEvent{})
+	// 		defer sub.Unsubscribe()
+	// 		for {
+	// 			event := <-sub.Chan()
+	// 			if event == nil {
+	// 				continue
+	// 			}
+	// 			var latest *types.Header
+	// 			if done, ok := event.Data.(ethCore.ChainHeadEvent); ok {
+	// 				latest = done.Block.Header()
+	// 			}
+
+	// 			if ctx.GlobalUint64(utils.L2ForkFlag.Name) >= latest.Number.Uint64() {
+	// 				log.Info("L2 Migration Block Reached", "latest", latest.Number.Uint64(), "latesthash", latest.Hash())
+	// 				stack.Close()
+	// 			}
+	// 		}
+	// 	}()
+	// }
+
 	// Spawn a standalone goroutine for status synchronization monitoring,
 	// close the node when synchronization is complete if user required.
 	if ctx.GlobalBool(utils.ExitWhenSyncedFlag.Name) {

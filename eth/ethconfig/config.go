@@ -165,7 +165,7 @@ type Config struct {
 	// HFork block override (TODO: remove after the fork)
 	OverrideHFork *big.Int `toml:",omitempty"`
 
-	// l2 fork block override
+	// l2 fork block
 	L2Fork *big.Int `toml:",omitempty"`
 
 	// The minimum required peers in order for syncing to be initiated, if left

@@ -516,7 +516,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "gingerbreadBlock", block: c.GingerbreadBlock},
 		{name: "gingerbreadP2Block", block: c.GingerbreadP2Block},
 		{name: "hforkBlock", block: c.HForkBlock},
-		{name: "l2Block", block: c.L2Block},
+		// {name: "l2Block", block: c.L2Block},
 	} {
 		if lastFork.name != "" {
 			// Next one must be higher number
@@ -721,7 +721,7 @@ func (c *ChainConfig) DisableGingerbread() *ChainConfig {
 	c.GingerbreadP2Block = nil
 	// Since gingerbread is disabled disable following forks as well
 	c.HForkBlock = nil
-	c.L2Block = nil
+	// c.L2Block = nil
 	return c
 }
 

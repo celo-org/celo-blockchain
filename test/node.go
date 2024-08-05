@@ -344,7 +344,7 @@ func AccountConfig(numValidators, numExternal int) *env.AccountsConfig {
 // NOTE: Do not edit the Istanbul field of the returned genesis config it will
 // be overwritten with the corresponding config from the Istanbul field of the
 // returned eth config.
-func BuildConfig(accounts *env.AccountsConfig, gingerbreadBlock *big.Int) (*genesis.Config, *ethconfig.Config, error) {
+func BuildConfig(accounts *env.AccountsConfig, gingerbreadBlock, l2MigrationBlock *big.Int) (*genesis.Config, *ethconfig.Config, error) {
 	gc, err := genesis.CreateCommonGenesisConfig(
 		big.NewInt(1),
 		accounts.AdminAccount().Address,
@@ -361,6 +361,7 @@ func BuildConfig(accounts *env.AccountsConfig, gingerbreadBlock *big.Int) (*gene
 	// original.
 	ec := &eth.Config{}
 	err = copyObject(BaseEthConfig, ec)
+	ec.L2Fork = l2MigrationBlock
 	return gc, ec, err
 }
 

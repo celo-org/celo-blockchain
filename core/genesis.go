@@ -207,9 +207,9 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	if overrideHFork != nil {
 		newcfg.HForkBlock = overrideHFork
 	}
-	if l2Fork != nil {
-		newcfg.L2Block = l2Fork
-	}
+	// if l2Fork != nil {
+	// 	newcfg.L2Block = l2Fork
+	// }
 	if err := newcfg.CheckConfigForkOrder(); err != nil {
 		return newcfg, common.Hash{}, err
 	}
