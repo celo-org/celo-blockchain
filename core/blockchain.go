@@ -811,6 +811,12 @@ func (bc *BlockChain) ExportN(w io.Writer, first uint64, last uint64) error {
 //
 // Note, this function assumes that the `mu` mutex is held!
 func (bc *BlockChain) writeHeadBlock(block *types.Block) {
+	if bc.Config().IsL2(block.Number()) {
+		log.Info("L2 hard fork reached, stopping the blockchain")
+		bc.StopInsert()
+		// bc.Stop()
+		bc.Engine().Close()
+	}
 	// If the block is on a side chain or an unknown one, force other heads onto it too
 	updateHeads := rawdb.ReadCanonicalHash(bc.db, block.NumberU64()) != block.Hash()
 

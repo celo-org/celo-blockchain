@@ -1058,7 +1058,7 @@ func (sb *Backend) SetStartValidatingBlock(blockNumber *big.Int) error {
 }
 
 // SetStopValidatingBlock sets the block that the validator will stop just before (exclusive range)
-func (sb *Backend) SetStopValidatingBlock(blockNumber *big.Int) error { // TODO(Alec) code pointer
+func (sb *Backend) SetStopValidatingBlock(blockNumber *big.Int) error {
 	if sb.replicaState == nil {
 		return errNotAValidator
 	}
