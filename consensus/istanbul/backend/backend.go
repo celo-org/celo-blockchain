@@ -577,11 +577,6 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (*istanbulCore.StateProces
 		return nil, 0, errInvalidProposal
 	}
 
-	// Don't verify blocks after the L2 hard fork
-	// if sb.chain.Config().IsL2(block.Number()) {
-	// 	return nil, 0, core.ErrPostL2BlockNumber
-	// }
-
 	// check bad block
 	if sb.hasBadProposal(block.Hash()) {
 		return nil, 0, core.ErrBannedHash

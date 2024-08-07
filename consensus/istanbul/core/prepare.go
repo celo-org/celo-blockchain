@@ -23,7 +23,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	celoCore "github.com/celo-org/celo-blockchain/core"
 )
 
 func (c *core) sendPrepare() {
@@ -110,9 +109,6 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 func (c *core) verifyProposalAndPCMessages(proposal istanbul.Proposal, pCMessages []istanbul.Message) (*istanbul.View, error) {
 	// Validate the attached proposal
 	if _, err := c.verifyProposal(proposal); err != nil {
-		if err == celoCore.ErrPostL2BlockNumber {
-			return nil, err
-		}
 		return nil, errInvalidPreparedCertificateProposal
 	}
 

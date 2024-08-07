@@ -369,7 +369,6 @@ func TestStartStopValidators(t *testing.T) {
 
 }
 
-// TODO(Alec)
 func TestStopNetworkAtL2Block(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
 	gingerbreadBlock := common.Big0
