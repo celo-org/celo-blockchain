@@ -400,6 +400,16 @@ func (w *worker) mainLoop() {
 		taskCtx, cancel = context.WithCancel(context.Background())
 		wg.Add(1)
 
+		if w.chainConfig.IsL2Migration(w.chain.CurrentBlock().Number()) {
+			if w.isRunning() {
+				log.Info("L2 Migration block reached, stopping block construction", "block", w.chain.CurrentBlock().NumberU64(), "hash", w.chain.CurrentBlock().Hash())
+				w.stop()
+			}
+			wg.Done()
+			cancel()
+			return
+		}
+
 		if w.isRunning() {
 			// engine.NewWork posts the FinalCommitted Event to IBFT to signal the start of the next round
 			if h, ok := w.engine.(consensus.Handler); ok {

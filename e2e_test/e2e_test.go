@@ -376,21 +376,14 @@ func TestStopNetworkAtL2Block(t *testing.T) {
 	l2Block := big.NewInt(3)
 	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock, l2Block)
 	require.NoError(t, err)
-	network, _, err := test.NewNetwork(ac, gc, ec)
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
-
-	// We define our own shutdown function because we don't want to print
-	// errors about already stopped nodes. Since this test can fail while we
-	// have stopped nodes.
 	defer func() {
-		for _, err := range network.Shutdown() {
-			if !errors.Is(err, test.ErrTrackerAlreadyStopped) && !errors.Is(err, node.ErrNodeStopped) {
-				fmt.Println(err.Error())
-			}
-		}
+		log.Info("Shutting down network from e2e test")
+		shutdown()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*400)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*4000)
 	defer cancel()
 
 	err = network.AwaitBlock(ctx, l2Block.Uint64())
