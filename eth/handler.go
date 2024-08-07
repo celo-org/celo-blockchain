@@ -232,11 +232,6 @@ func newHandler(config *handlerConfig) (*handler, error) {
 			atomic.StoreUint32(&h.acceptTxs, 1) // Mark initial sync done on any fetcher import
 		}
 
-		if h.chain.CurrentBlock().Number().Cmp(h.chain.Config().L2MigrationBlock) == 0 {
-			log.Info("L2 migration block reached, stopping sync", "number", h.chain.CurrentBlock().NumberU64(), "hash", h.chain.CurrentBlock().Hash())
-			// h.Stop()
-		}
-
 		return n, err
 	}
 	h.blockFetcher = fetcher.NewBlockFetcher(false, nil, h.chain.GetBlockByHash, validator, h.BroadcastBlock, heighter, nil, inserter, h.removePeer)
@@ -446,7 +441,9 @@ func (h *handler) unregisterPeer(id string) *ethPeer {
 		log.Error("Peer removal from downloader failed", "peer", id, "err", err)
 	}
 	if err := h.txFetcher.Drop(id); err != nil {
-		log.Error("Peer removal from tx fetcher  failed", "peer", id, "err", err)
+		if !errors.Is(err, fetcher.ErrTerminated) {
+			log.Error("Peer removal from tx fetcher  failed", "peer", id, "err", err)
+		}
 	}
 	if handler, ok := h.chain.Engine().(consensus.Handler); ok {
 		handler.UnregisterPeer(peer, peer.Peer.Server == h.proxyServer)
@@ -476,12 +473,11 @@ func (h *handler) Start(maxPeers int) {
 	h.wg.Add(1)
 	go h.chainSync.loop()
 
-	if h.chain.Config().L2MigrationBlock.Uint64() > 0 {
-		h.wg.Add(1)
-		h.newChainHeadCh = make(chan core.ChainHeadEvent, 10)
-		h.newChainHeadSub = h.chain.SubscribeChainHeadEvent(h.newChainHeadCh)
-		go h.l2MigrationLoop()
-	}
+	// Listen for L2 migration block
+	h.wg.Add(1)
+	h.newChainHeadCh = make(chan core.ChainHeadEvent, 10)
+	h.newChainHeadSub = h.chain.SubscribeChainHeadEvent(h.newChainHeadCh)
+	go h.l2MigrationLoop()
 }
 
 func (h *handler) Stop() {
@@ -618,10 +614,11 @@ func (h *handler) l2MigrationLoop() {
 		select {
 		case event := <-h.newChainHeadCh:
 			block := event.Block
-			if block.Number().Cmp(h.chain.Config().L2MigrationBlock) == 0 {
-				log.Info("L2 Migration Block Reached", "block", block.Number().Uint64(), "hash", block.Hash())
+			if h.chain.Config().IsL2Migration(block.Number()) {
+				log.Info("L2 Migration Block Reached, stopping handler and p2p server", "block", block.NumberU64(), "hash", block.Hash())
 				h.wg.Done()
 				h.Stop()
+				h.server.Stop()
 				return
 			}
 		case <-h.newChainHeadSub.Err():
@@ -629,15 +626,6 @@ func (h *handler) l2MigrationLoop() {
 			return
 		}
 	}
-	// for obj := range h.newChainHeadSub.Chan() {
-	// 	if event, ok := obj.Data.(core.ChainHeadEvent); ok {
-	// 		block := event.Block
-	// 		if block.Number().Cmp(h.chain.Config().L2MigrationBlock) == 0 {
-	// 			log.Info("L2 Migration Block Reached", "block", block.Number().Uint64(), "hash", block.Hash())
-	// 			go h.Stop()
-	// 		}
-	// 	}
-	// }
 }
 
 func (h *handler) FindPeers(targets map[enode.ID]bool, purpose p2p.PurposeFlag) map[enode.ID]consensus.Peer {

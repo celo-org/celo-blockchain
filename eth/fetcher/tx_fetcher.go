@@ -252,7 +252,7 @@ func (f *TxFetcher) Notify(peer string, hashes []common.Hash) error {
 	case f.notify <- announce:
 		return nil
 	case <-f.quit:
-		return errTerminated
+		return ErrTerminated
 	}
 }
 
@@ -316,7 +316,7 @@ func (f *TxFetcher) Enqueue(peer string, txs []*types.Transaction, direct bool) 
 	case f.cleanup <- &txDelivery{origin: peer, hashes: added, direct: direct}:
 		return nil
 	case <-f.quit:
-		return errTerminated
+		return ErrTerminated
 	}
 }
 
@@ -327,7 +327,7 @@ func (f *TxFetcher) Drop(peer string) error {
 	case f.drop <- &txDrop{peer: peer}:
 		return nil
 	case <-f.quit:
-		return errTerminated
+		return ErrTerminated
 	}
 }
 

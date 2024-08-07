@@ -556,12 +556,9 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
 
 	if sb.chain.Config().IsL2Migration(block.Number()) {
-		sb.logger.Info("L2 migration block reached, stopping the backend")
-
-		// sb.StopAnnouncing()
-		// sb.StopValidating()
-		// sb.Close()
-		// sb.core.Stop() causes deadlock istanbul/core/handler.go:Stop
+		sb.logger.Info("L2 migration block reached, closing istanbul backend", "block", block.NumberU64(), "hash", block.Hash())
+		sb.StopAnnouncing()
+		sb.Close()
 	}
 	return nil
 }

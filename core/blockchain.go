@@ -839,12 +839,11 @@ func (bc *BlockChain) writeHeadBlock(block *types.Block) {
 	headBlockGauge.Update(int64(block.NumberU64()))
 
 	if bc.Config().IsL2Migration(block.Number()) {
-		log.Info("L2 migration block reached, stopping the blockchain")
+		log.Info("L2 migration block reached, stopping block insertion", "block", block.NumberU64(), "hash", block.Hash())
 		bc.StopInsert()
+		// The eth handler has a thread that listens for chain head events and stops the eth handler when the l2 migration block is reached.
+		// This stops the node from syncing further blocks.
 		bc.chainHeadFeed.Send(ChainHeadEvent{Block: block})
-		// bc.chainmu.Unlock()
-		// bc.Stop()
-		// bc.Engine().Close() can be called from backend Commit
 	}
 }
 

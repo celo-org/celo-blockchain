@@ -64,7 +64,8 @@ var (
 	bodyFilterOutMeter   = metrics.NewRegisteredMeter("eth/fetcher/block/filter/bodies/out", nil)
 )
 
-var errTerminated = errors.New("terminated")
+// ErrTerminated indicates that the fetcher's peer connection has been terminated.
+var ErrTerminated = errors.New("terminated")
 
 // HeaderRetrievalFn is a callback type for retrieving a header from the local chain.
 type HeaderRetrievalFn func(common.Hash) *types.Header
@@ -254,7 +255,7 @@ func (f *BlockFetcher) Notify(peer string, hash common.Hash, number uint64, time
 	case f.notify <- block:
 		return nil
 	case <-f.quit:
-		return errTerminated
+		return ErrTerminated
 	}
 }
 
@@ -268,7 +269,7 @@ func (f *BlockFetcher) Enqueue(peer string, block *types.Block) error {
 	case f.inject <- op:
 		return nil
 	case <-f.quit:
-		return errTerminated
+		return ErrTerminated
 	}
 }
 
