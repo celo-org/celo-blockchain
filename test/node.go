@@ -361,7 +361,7 @@ func BuildConfig(accounts *env.AccountsConfig, gingerbreadBlock, l2MigrationBloc
 	// original.
 	ec := &eth.Config{}
 	err = copyObject(BaseEthConfig, ec)
-	ec.L2Fork = l2MigrationBlock
+	ec.L2MigrationBlock = l2MigrationBlock
 	return gc, ec, err
 }
 

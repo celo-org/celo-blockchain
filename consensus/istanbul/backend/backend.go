@@ -555,10 +555,13 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	}
 	sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
 
-	if sb.chain.Config().IsL2(block.Number()) {
-		sb.logger.Info("L2 hard fork reached, stopping the backend")
-		sb.Close()
-		//sb.core.Stop()
+	if sb.chain.Config().IsL2Migration(block.Number()) {
+		sb.logger.Info("L2 migration block reached, stopping the backend")
+
+		// sb.StopAnnouncing()
+		// sb.StopValidating()
+		// sb.Close()
+		// sb.core.Stop() causes deadlock istanbul/core/handler.go:Stop
 	}
 	return nil
 }
