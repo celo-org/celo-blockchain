@@ -320,7 +320,7 @@ func prepare(ctx *cli.Context) {
 // geth is the main entry point into the system if no special subcommand is ran.
 // It creates a default node based on the command line arguments and runs it in
 // blocking mode, waiting for it to be shut down.
-func geth(ctx *cli.Context) error { // TODO(Alec) code pointer
+func geth(ctx *cli.Context) error {
 	if args := ctx.Args(); len(args) > 0 {
 		return fmt.Errorf("invalid command: %q", args[0])
 	}
@@ -415,7 +415,7 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend) {
 				if timestamp := time.Unix(int64(latest.Time), 0); time.Since(timestamp) < 10*time.Minute {
 					log.Info("Synchronisation completed", "latestnum", latest.Number, "latesthash", latest.Hash(),
 						"age", common.PrettyAge(timestamp))
-					stack.Close() // TODO(Alec) code pointer
+					stack.Close()
 				}
 			}
 		}()

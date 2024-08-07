@@ -131,7 +131,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
-	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlockWithOverride(chainDb, config.Genesis, config.OverrideHFork, config.L2MigrationBlock)
+	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlockWithOverride(chainDb, config.Genesis, config.OverrideHFork)
 	if _, ok := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !ok {
 		return nil, genesisErr
 	}
@@ -604,7 +604,7 @@ func (s *Ethereum) Start() error {
 
 // Stop implements node.Lifecycle, terminating all internal goroutines used by the
 // Ethereum protocol.
-func (s *Ethereum) Stop() error { // TODO(Alec) code pointer
+func (s *Ethereum) Stop() error {
 	// Stop all the peer-related stuff first.
 	s.stopAnnounce()
 	s.ethDialCandidates.Close()
