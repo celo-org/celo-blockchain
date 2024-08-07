@@ -114,10 +114,12 @@ type handler struct {
 	txFetcher    *fetcher.TxFetcher
 	peers        *peerSet
 
-	eventMux      *event.TypeMux
-	txsCh         chan core.NewTxsEvent
-	txsSub        event.Subscription
-	minedBlockSub *event.TypeMuxSubscription
+	eventMux        *event.TypeMux
+	txsCh           chan core.NewTxsEvent
+	txsSub          event.Subscription
+	minedBlockSub   *event.TypeMuxSubscription
+	newChainHeadCh  chan core.ChainHeadEvent
+	newChainHeadSub event.Subscription
 
 	whitelist map[uint64]common.Hash
 
@@ -229,6 +231,12 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		if err == nil {
 			atomic.StoreUint32(&h.acceptTxs, 1) // Mark initial sync done on any fetcher import
 		}
+
+		if h.chain.CurrentBlock().Number().Cmp(h.chain.Config().L2MigrationBlock) == 0 {
+			log.Info("L2 migration block reached, stopping sync", "number", h.chain.CurrentBlock().NumberU64(), "hash", h.chain.CurrentBlock().Hash())
+			// h.Stop()
+		}
+
 		return n, err
 	}
 	h.blockFetcher = fetcher.NewBlockFetcher(false, nil, h.chain.GetBlockByHash, validator, h.BroadcastBlock, heighter, nil, inserter, h.removePeer)
@@ -467,15 +475,27 @@ func (h *handler) Start(maxPeers int) {
 	// start sync handlers
 	h.wg.Add(1)
 	go h.chainSync.loop()
+
+	if h.chain.Config().L2MigrationBlock.Uint64() > 0 {
+		h.wg.Add(1)
+		h.newChainHeadCh = make(chan core.ChainHeadEvent, 10)
+		h.newChainHeadSub = h.chain.SubscribeChainHeadEvent(h.newChainHeadCh)
+		go h.l2MigrationLoop()
+	}
 }
 
 func (h *handler) Stop() {
-	h.txsSub.Unsubscribe()        // quits txBroadcastLoop
-	h.minedBlockSub.Unsubscribe() // quits blockBroadcastLoop
+	h.txsSub.Unsubscribe()          // quits txBroadcastLoop
+	h.minedBlockSub.Unsubscribe()   // quits blockBroadcastLoop
+	h.newChainHeadSub.Unsubscribe() // quits l2MigrationLoop
 
 	// Quit chainSync and txsync64.
 	// After this is done, no new peers will be accepted.
-	close(h.quitSync)
+	select {
+	case <-h.quitSync:
+	default:
+		close(h.quitSync)
+	}
 	h.wg.Wait()
 
 	// Disconnect existing sessions.
@@ -591,6 +611,33 @@ func (h *handler) txBroadcastLoop() {
 			return
 		}
 	}
+}
+
+func (h *handler) l2MigrationLoop() {
+	for {
+		select {
+		case event := <-h.newChainHeadCh:
+			block := event.Block
+			if block.Number().Cmp(h.chain.Config().L2MigrationBlock) == 0 {
+				log.Info("L2 Migration Block Reached", "block", block.Number().Uint64(), "hash", block.Hash())
+				h.wg.Done()
+				h.Stop()
+				return
+			}
+		case <-h.newChainHeadSub.Err():
+			h.wg.Done()
+			return
+		}
+	}
+	// for obj := range h.newChainHeadSub.Chan() {
+	// 	if event, ok := obj.Data.(core.ChainHeadEvent); ok {
+	// 		block := event.Block
+	// 		if block.Number().Cmp(h.chain.Config().L2MigrationBlock) == 0 {
+	// 			log.Info("L2 Migration Block Reached", "block", block.Number().Uint64(), "hash", block.Hash())
+	// 			go h.Stop()
+	// 		}
+	// 	}
+	// }
 }
 
 func (h *handler) FindPeers(targets map[enode.ID]bool, purpose p2p.PurposeFlag) map[enode.ID]consensus.Peer {

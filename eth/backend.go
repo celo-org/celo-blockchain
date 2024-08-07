@@ -131,15 +131,15 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
-	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlockWithOverride(chainDb, config.Genesis, config.OverrideHFork, config.L2Fork)
+	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlockWithOverride(chainDb, config.Genesis, config.OverrideHFork, config.L2MigrationBlock)
 	if _, ok := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !ok {
 		return nil, genesisErr
 	}
 	log.Info("Initialised chain configuration", "config", chainConfig)
 	chainConfig.FullHeaderChainAvailable = config.SyncMode.SyncFullHeaderChain()
 
-	if config.L2Fork != nil {
-		chainConfig.L2Block = config.L2Fork
+	if config.L2MigrationBlock != nil {
+		chainConfig.L2MigrationBlock = config.L2MigrationBlock
 	}
 
 	if err := pruner.RecoverPruning(stack.ResolvePath(""), chainDb, stack.ResolvePath(config.TrieCleanCacheJournal)); err != nil {

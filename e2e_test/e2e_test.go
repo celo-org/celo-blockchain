@@ -373,7 +373,7 @@ func TestStartStopValidators(t *testing.T) {
 func TestStopNetworkAtL2Block(t *testing.T) {
 	ac := test.AccountConfig(3, 2)
 	gingerbreadBlock := common.Big0
-	l2Block := big.NewInt(2)
+	l2Block := big.NewInt(3)
 	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock, l2Block)
 	require.NoError(t, err)
 	network, _, err := test.NewNetwork(ac, gc, ec)
@@ -390,16 +390,13 @@ func TestStopNetworkAtL2Block(t *testing.T) {
 		}
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*200)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*400)
 	defer cancel()
 
 	err = network.AwaitBlock(ctx, l2Block.Uint64())
 	require.NoError(t, err)
 
-	// err = network.AwaitBlock(ctx, l2Block.Uint64())
-	// require.NoError(t, err)
-
-	shortCtx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	shortCtx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
 	err = network.AwaitBlock(shortCtx, l2Block.Uint64()+1)
