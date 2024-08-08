@@ -615,7 +615,7 @@ func (h *handler) l2MigrationLoop() {
 			block := event.Block
 			if h.chain.Config().IsL2Migration(block.Number()) {
 				log.Info("L2 Migration Block Reached, stopping handler and p2p server", "block", block.NumberU64(), "hash", block.Hash())
-				h.wg.Done()
+				h.wg.Done() // we don't use 'defer' here because we want to decrement the wait group before calling h.Stop(), otherwise we get a deadlock
 				h.Stop()
 				h.server.Stop()
 				return
