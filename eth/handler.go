@@ -114,10 +114,12 @@ type handler struct {
 	txFetcher    *fetcher.TxFetcher
 	peers        *peerSet
 
-	eventMux      *event.TypeMux
-	txsCh         chan core.NewTxsEvent
-	txsSub        event.Subscription
-	minedBlockSub *event.TypeMuxSubscription
+	eventMux        *event.TypeMux
+	txsCh           chan core.NewTxsEvent
+	txsSub          event.Subscription
+	minedBlockSub   *event.TypeMuxSubscription
+	newChainHeadCh  chan core.ChainHeadEvent
+	newChainHeadSub event.Subscription
 
 	whitelist map[uint64]common.Hash
 
@@ -438,7 +440,9 @@ func (h *handler) unregisterPeer(id string) *ethPeer {
 		log.Error("Peer removal from downloader failed", "peer", id, "err", err)
 	}
 	if err := h.txFetcher.Drop(id); err != nil {
-		log.Error("Peer removal from tx fetcher  failed", "peer", id, "err", err)
+		if !errors.Is(err, fetcher.ErrTerminated) {
+			log.Error("Peer removal from tx fetcher  failed", "peer", id, "err", err)
+		}
 	}
 	if handler, ok := h.chain.Engine().(consensus.Handler); ok {
 		handler.UnregisterPeer(peer, peer.Peer.Server == h.proxyServer)
@@ -467,15 +471,26 @@ func (h *handler) Start(maxPeers int) {
 	// start sync handlers
 	h.wg.Add(1)
 	go h.chainSync.loop()
+
+	// Listen for L2 migration block
+	h.wg.Add(1)
+	h.newChainHeadCh = make(chan core.ChainHeadEvent, 10)
+	h.newChainHeadSub = h.chain.SubscribeChainHeadEvent(h.newChainHeadCh)
+	go h.l2MigrationLoop()
 }
 
 func (h *handler) Stop() {
-	h.txsSub.Unsubscribe()        // quits txBroadcastLoop
-	h.minedBlockSub.Unsubscribe() // quits blockBroadcastLoop
+	h.txsSub.Unsubscribe()          // quits txBroadcastLoop
+	h.minedBlockSub.Unsubscribe()   // quits blockBroadcastLoop
+	h.newChainHeadSub.Unsubscribe() // quits l2MigrationLoop
 
 	// Quit chainSync and txsync64.
 	// After this is done, no new peers will be accepted.
-	close(h.quitSync)
+	select {
+	case <-h.quitSync:
+	default:
+		close(h.quitSync)
+	}
 	h.wg.Wait()
 
 	// Disconnect existing sessions.
@@ -588,6 +603,25 @@ func (h *handler) txBroadcastLoop() {
 		case event := <-h.txsCh:
 			h.BroadcastTransactions(event.Txs)
 		case <-h.txsSub.Err():
+			return
+		}
+	}
+}
+
+func (h *handler) l2MigrationLoop() {
+	for {
+		select {
+		case event := <-h.newChainHeadCh:
+			block := event.Block
+			if h.chain.Config().IsL2Migration(block.Number()) {
+				log.Info("L2 Migration Block Reached, stopping handler and p2p server", "block", block.NumberU64(), "hash", block.Hash())
+				h.wg.Done() // we don't use 'defer' here because we want to decrement the wait group before calling h.Stop(), otherwise we get a deadlock
+				h.Stop()
+				h.server.Stop()
+				return
+			}
+		case <-h.newChainHeadSub.Err():
+			h.wg.Done()
 			return
 		}
 	}
