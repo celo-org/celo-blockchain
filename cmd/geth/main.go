@@ -30,6 +30,7 @@ import (
 	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/console/prompt"
+	ethCore "github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
@@ -327,6 +328,11 @@ func geth(ctx *cli.Context) error {
 
 	prepare(ctx)
 	stack, backend := makeFullNode(ctx)
+
+	if backend.ChainConfig().IsL2Migration(backend.CurrentBlock().Number()) {
+		return fmt.Errorf("Attempted to start node with an l2 migration block that has already been reached. latestBlock: %d, hash: %s", backend.CurrentBlock().NumberU64(), backend.CurrentBlock().Hash())
+	}
+
 	defer stack.Close()
 
 	startNode(ctx, stack, backend)
@@ -416,6 +422,30 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend) {
 					log.Info("Synchronisation completed", "latestnum", latest.Number, "latesthash", latest.Hash(),
 						"age", common.PrettyAge(timestamp))
 					stack.Close()
+				}
+			}
+		}()
+	}
+
+	// Spawn a standalone goroutine to monitor the chain head for the l2 migration block.
+	// When the l2 migration block is reached, close the entire stack.
+	if ctx.GlobalIsSet(utils.L2MigrationBlockFlag.Name) && ctx.GlobalUint64(utils.L2MigrationBlockFlag.Name) > 0 {
+		go func() {
+			chainHeadCh := make(chan ethCore.ChainHeadEvent, 10)
+			chainHeadSub := backend.SubscribeChainHeadEvent(chainHeadCh)
+			defer chainHeadSub.Unsubscribe()
+			for {
+				select {
+				case chainHeadEvent := <-chainHeadCh:
+					block := chainHeadEvent.Block
+					if backend.ChainConfig().IsL2Migration(block.Number()) {
+						log.Info("L2 Migration Block Reached, closing entire stack from geth cmd", "block", block.NumberU64(), "hash", block.Hash())
+						stack.Close()
+						return
+					}
+				case err := <-chainHeadSub.Err():
+					log.Error("Error in outer subscription to blockchain's chainhead event listening for l2 migration block", "err", err)
+					return
 				}
 			}
 		}()

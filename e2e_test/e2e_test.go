@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -34,10 +35,10 @@ func init() {
 	// This statement is commented out but left here since its very useful for
 	// debugging problems and its non trivial to construct.
 	//
-	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
+	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
 
 	// This disables all logging which in general we want, because there is a lot
-	log.Root().SetHandler(log.DiscardHandler())
+	// log.Root().SetHandler(log.DiscardHandler())
 }
 
 // This test starts a network submits a transaction and waits for the whole
@@ -382,7 +383,7 @@ func TestStopNetworkAtL2Block(t *testing.T) {
 		shutdown()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*4000)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*200)
 	defer cancel()
 
 	err = network.AwaitBlock(ctx, l2Block.Uint64())

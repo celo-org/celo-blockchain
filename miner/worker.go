@@ -24,6 +24,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
+	istanbulBackend "github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -239,10 +240,12 @@ func (w *worker) start() {
 func (w *worker) stop() {
 	atomic.StoreInt32(&w.running, 0)
 
-	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		err := istanbul.StopValidating()
-		if err != nil {
-			log.Error("Error while calling engine.StopValidating", "err", err)
+	if istanbul, ok := w.engine.(*istanbulBackend.Backend); ok {
+		if istanbul.IsValidating() {
+			err := istanbul.StopValidating()
+			if err != nil {
+				log.Error("Error while calling engine.StopValidating", "err", err)
+			}
 		}
 	}
 }
