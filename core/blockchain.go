@@ -811,6 +811,10 @@ func (bc *BlockChain) ExportN(w io.Writer, first uint64, last uint64) error {
 //
 // Note, this function assumes that the `mu` mutex is held!
 func (bc *BlockChain) writeHeadBlock(block *types.Block) {
+	if bc.Config().IsL2Migration(new(big.Int).Sub(block.Number(), big.NewInt(1))) {
+		bc.StopInsert() // Just for good measure
+		log.Crit("Attempt to insert block beyond L2 migration block. This should never happen.", "block", block.NumberU64(), "hash", block.Hash())
+	}
 	// If the block is on a side chain or an unknown one, force other heads onto it too
 	updateHeads := rawdb.ReadCanonicalHash(bc.db, block.NumberU64()) != block.Hash()
 
@@ -1093,7 +1097,7 @@ func (bc *BlockChain) Stop() {
 		triedb := bc.stateCache.TrieDB()
 		triedb.SaveCache(bc.cacheConfig.TrieCleanJournal)
 	}
-	log.Info("Blockchain stopped")
+	log.Info("Blockchain stopped", "number", bc.CurrentBlock().NumberU64(), "hash", bc.CurrentBlock().Hash())
 }
 
 // StopInsert interrupts all insertion methods, causing them to return
