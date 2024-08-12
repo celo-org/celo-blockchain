@@ -245,7 +245,7 @@ var (
 
 	L2MigrationBlockFlag = cli.Uint64Flag{
 		Name:  "l2migrationblock",
-		Usage: "Block number at which to halt the network for Celo L2 migration. Last block of Celo as an L1. If unset or set to 0, no halt will occur.",
+		Usage: "Block number at which to halt the network for Celo L2 migration. This is the first block of Celo as an L2, and one after the last block of Celo as an L1. If unset or set to 0, no halt will occur.",
 	}
 
 	BloomFilterSizeFlag = cli.Uint64Flag{

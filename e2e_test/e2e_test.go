@@ -386,13 +386,13 @@ func TestStopNetworkAtL2Block(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*200)
 	defer cancel()
 
-	err = network.AwaitBlock(ctx, l2Block.Uint64())
+	err = network.AwaitBlock(ctx, l2Block.Uint64()-1)
 	require.NoError(t, err)
 
 	shortCtx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
-	err = network.AwaitBlock(shortCtx, l2Block.Uint64()+1)
+	err = network.AwaitBlock(shortCtx, l2Block.Uint64())
 	// Expect DeadlineExceeded error
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expecting %q, instead got: %v ", context.DeadlineExceeded.Error(), err)

@@ -18,6 +18,7 @@ package miner
 
 import (
 	"context"
+	"math/big"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -395,23 +396,22 @@ func (w *worker) mainLoop() {
 	defer wg.Wait()
 	txsCh := make(chan core.NewTxsEvent, txChanSize)
 
-	generateNewBlock := func() {
+	generateNewBlock := func(nextBlockNum *big.Int) {
 		if cancel != nil {
 			cancel()
 		}
+
+		if w.chainConfig.IsL2Migration(nextBlockNum) {
+			if w.isRunning() {
+				log.Info("The next block is the L2 migration block, stopping block construction", "currentBlock", w.chain.CurrentBlock().NumberU64(), "hash", w.chain.CurrentBlock().Hash(), "nextBlock", nextBlockNum.Uint64())
+				w.stop()
+			}
+			return
+		}
+
 		wg.Wait()
 		taskCtx, cancel = context.WithCancel(context.Background())
 		wg.Add(1)
-
-		if w.chainConfig.IsL2Migration(w.chain.CurrentBlock().Number()) {
-			if w.isRunning() {
-				log.Info("L2 Migration block reached, stopping block construction", "block", w.chain.CurrentBlock().NumberU64(), "hash", w.chain.CurrentBlock().Hash())
-				w.stop()
-			}
-			wg.Done()
-			cancel()
-			return
-		}
 
 		if w.isRunning() {
 			// engine.NewWork posts the FinalCommitted Event to IBFT to signal the start of the next round
@@ -434,10 +434,12 @@ func (w *worker) mainLoop() {
 	for {
 		select {
 		case <-w.startCh:
-			generateNewBlock()
+			nextBlockNum := new(big.Int).Add(w.chain.CurrentBlock().Number(), big.NewInt(1))
+			generateNewBlock(nextBlockNum)
 
-		case <-w.chainHeadCh:
-			generateNewBlock()
+		case ev := <-w.chainHeadCh:
+			nextBlockNum := new(big.Int).Add(ev.Block.Number(), big.NewInt(1))
+			generateNewBlock(nextBlockNum)
 
 		case ev := <-w.txsCh:
 			// Drain tx sub channel as a validator,

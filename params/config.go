@@ -313,7 +313,7 @@ type ChainConfig struct {
 	GingerbreadBlock   *big.Int `json:"gingerbreadBlock,omitempty"`   // Gingerbread switch block (nil = no fork, 0 = already activated)
 	GingerbreadP2Block *big.Int `json:"gingerbreadP2Block,omitempty"` // GingerbreadP2 switch block (nil = no fork, 0 = already activated)
 	HForkBlock         *big.Int `json:"hforkBlock,omitempty"`         // HFork switch block (nil = no fork, 0 = already activated)
-	L2MigrationBlock   *big.Int `json:"l2MigrationBlock,omitempty"`   // l2 migration block / last block of l1 (nil = no migration, 0 = no migration)
+	L2MigrationBlock   *big.Int `json:"l2MigrationBlock,omitempty"`   // l2 migration block / first block of Celo as L2 / 1 + last block of Celo as L1 (nil = no migration, 0 = no migration)
 
 	Istanbul *IstanbulConfig `json:"istanbul,omitempty"`
 	// This does not belong here but passing it to every function is not possible since that breaks
@@ -465,7 +465,7 @@ func (c *ChainConfig) IsGingerbreadP2(num *big.Int) bool {
 	return isForked(c.GingerbreadP2Block, num)
 }
 
-// IsL2 returns whether num represents a block number greater than or equal to the L2 migration block (last block before L2)
+// IsL2Migration returns whether num represents a block number greater than or equal to the L2 migration block (fist block of Celo as L2 / 1 + last block of Celo as L1)
 func (c *ChainConfig) IsL2Migration(num *big.Int) bool {
 	return isForked(c.L2MigrationBlock, num) && c.L2MigrationBlock.Cmp(big.NewInt(0)) > 0 // return false if L2MigrationBlock is nil or 0
 }
