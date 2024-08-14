@@ -1882,6 +1882,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		// If the chain is terminating, stop processing blocks
 		if bc.insertStopped() {
 			log.Debug("Abort during block processing")
+			if bc.Config().IsL2Migration(block.Number()) {
+				err = errInsertionInterrupted
+			}
 			break
 		}
 		// If the header is a banned one, straight out abort
