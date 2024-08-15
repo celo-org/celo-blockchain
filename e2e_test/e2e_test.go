@@ -412,6 +412,29 @@ func TestStopNetworkAtl2BlockSimple(t *testing.T) {
 	testStopNetworkAtL2Block(t, ctx, network, l2BlockOG)
 }
 
+/*
+Test cases for stopping at L2 migration block:
+
+- [x] (cli/demo) node is syncing, not-validating, hits migration block
+    - [X] (cli/demo) node restarts with same --l2migrationblock, does not produce new blocks
+    - [x] (cli/demo) node restarts with --l2migrationblock + 1, produces one new block
+    - [X] (cli/demo) node restarts with --l2migrationblock - 1, does not produce new blocks, keeps current head at previous migration block, logs error message
+- [x] (e2e test) node is synced and following chain, not-validating, hits migration block
+    - [x] (e2e test) node restarts with same --l2migrationblock, does not produce new blocks
+    - [x] (e2e test) node restarts with --l2migrationblock + 1, produces one new block
+    - [x] (e2e test) node restarts with --l2migrationblock - 1, does not produce new blocks, keeps current head at previous migration block, logs error message
+- [skip? Is this worth testing?] node is syncing, validating, hits migration block
+    - [skip?] node restarts with same --l2migrationblock, does not produce new blocks
+    - [skip?] node restarts with --l2migrationblock + 1, produces one new block
+    - [skip?] node restarts with --l2migrationblock - 1, does not produce new blocks, keeps current head at previous migration block, logs error message
+- [x] (e2e test) node is synced and following chain, validating, hits migration block
+    - [x] (e2e test) node restarts with same --l2migrationblock, does not produce new blocks
+    - [x] (e2e test) node restarts with --l2migrationblock + 1, produces one new block
+    - [x] (e2e test) node restarts with --l2migrationblock - 1, does not produce new blocks, keeps current head at previous migration block, logs error message
+- [x] (e2e test) Thresholds - when majority of validators are at migration block, full nodes CANNOT progress even if they have a higher number configured
+- [x] (e2e test) Thresholds - when minority of validators are at migration block, full nodes CAN progress if they have a higher number configured
+*/
+
 func TestStopNetworkAtL2Block(t *testing.T) {
 	numValidators := 3
 	numFullNodes := 2
@@ -472,17 +495,16 @@ func TestStopNetworkAtL2Block(t *testing.T) {
 	testStopNetworkAtL2Block(t, ctx, network[:1], l2BlockPlusOne)
 	testStopNetworkAtL2Block(t, ctx, network[1:], l2BlockPlusTwo)
 
-	// TODO(Alec)
-
-	// shutdown()
+	shutdown()
 
 	// Restart nodes with --l2-migration-block set to a prev block
-	// err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{-1, -1, -1, -1, -1})
-	// require.NoError(t, err) // TODO(Alec)
+	err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{-1, -1, -1, -1, -1})
+	//  TODO(Alec) it would actually be nice to return errors here, require.Error(t, err, core.ErrL2Migration.Error())
+	require.NoError(t, err)
 
-	// l2BlockMinusOne := new(big.Int).Sub(l2BlockOG, big.NewInt(1))
-
-	// testStopNetworkAtL2Block(t, ctx, network, l2BlockMinusOne)
+	// The network should be unchanged
+	testStopNetworkAtL2Block(t, ctx, network[:1], l2BlockPlusOne)
+	testStopNetworkAtL2Block(t, ctx, network[1:], l2BlockPlusTwo)
 }
 
 // This test was created to reproduce the concurrent map access error in

@@ -33,6 +33,9 @@ var (
 	ErrNoGenesis = errors.New("genesis not found in chain")
 
 	errSideChainReceipts = errors.New("side blocks can't be accepted as ancient chain data")
+
+	// ErrL2Migration is returned when the current block is greater than or equal to the L2 migration block
+	ErrL2Migration = errors.New("chain has migrated to L2, data exists beyond the configured migration block")
 )
 
 // List of evm-call-message pre-checking errors. All state transition messages will

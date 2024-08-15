@@ -581,12 +581,16 @@ func (n Network) RestartNetworkWithMigrationBlockOffsets(l2MigrationBlockOG *big
 		return fmt.Errorf("number of l2BlockMigration offsets must match number of nodes")
 	}
 
+	errors := []error{}
 	for i, node := range n {
 		node.EthConfig.L2MigrationBlock = new(big.Int).Add(l2MigrationBlockOG, big.NewInt(offsets[i]))
 		err := node.Start()
 		if err != nil {
-			return err
+			errors = append(errors, err)
 		}
+	}
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to restart network: %v", errors)
 	}
 
 	for i, node := range n {

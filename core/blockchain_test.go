@@ -216,7 +216,7 @@ func TestNoInsertPastL2MigrationBlock(t *testing.T) {
 	migrationBlock := 2
 	blockchain.chainConfig.L2MigrationBlock = big.NewInt(int64(migrationBlock))
 
-	blocks := makeBlockChain(blockchain.CurrentBlock(), 100, mockEngine.NewFullFaker(), blockchain.db, 0)
+	blocks := makeBlockChain(blockchain.CurrentBlock(), 100000000, mockEngine.NewFullFaker(), blockchain.db, 0)
 	failedBlock, err := blockchain.InsertChain(blocks)
 	require.EqualError(t, err, errInsertionInterrupted.Error())
 	require.EqualValues(t, migrationBlock-1, failedBlock)
