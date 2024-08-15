@@ -370,33 +370,119 @@ func TestStartStopValidators(t *testing.T) {
 
 }
 
-func TestStopNetworkAtL2Block(t *testing.T) {
-	ac := test.AccountConfig(3, 2)
-	gingerbreadBlock := common.Big0
-	l2Block := big.NewInt(3)
-	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock, l2Block)
+func testStopNetworkAtL2Block(t *testing.T, ctx context.Context, network test.Network, l2Block *big.Int) {
+	err := network.AwaitBlock(ctx, l2Block.Uint64()-1)
 	require.NoError(t, err)
-	network, shutdown, err := test.NewNetwork(ac, gc, ec)
-	require.NoError(t, err)
-	defer func() {
-		log.Info("Shutting down network from e2e test")
-		shutdown()
-	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*200)
+	shortCtx, cancel := context.WithTimeout(ctx, time.Second*2)
 	defer cancel()
 
-	err = network.AwaitBlock(ctx, l2Block.Uint64()-1)
-	require.NoError(t, err)
-
-	shortCtx, cancel := context.WithTimeout(context.Background(), time.Second*2)
-	defer cancel()
-
-	err = network.AwaitBlock(shortCtx, l2Block.Uint64())
-	// Expect DeadlineExceeded error
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("expecting %q, instead got: %v ", context.DeadlineExceeded.Error(), err)
+	// fail if any node adds a new block >= the migration block
+	var wg sync.WaitGroup
+	for _, n := range network {
+		wg.Add(1)
+		go func(n *test.Node) {
+			defer wg.Done()
+			err = n.Tracker.AwaitBlock(shortCtx, l2Block.Uint64())
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("expecting %q, instead got: %v ", context.DeadlineExceeded.Error(), err)
+			}
+		}(n)
 	}
+	wg.Wait()
+}
+
+func TestStopNetworkAtl2BlockSimple(t *testing.T) {
+	numValidators := 3
+	numFullNodes := 2
+	ac := test.AccountConfig(numValidators, 2)
+	gingerbreadBlock := common.Big0
+	l2BlockOG := big.NewInt(3)
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock, l2BlockOG)
+	require.NoError(t, err)
+	network, _, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	network, shutdown, err := test.AddNetworkFullNodes(network, ec, uint64(numFullNodes))
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*400)
+	defer cancel()
+
+	testStopNetworkAtL2Block(t, ctx, network, l2BlockOG)
+}
+
+func TestStopNetworkAtL2Block(t *testing.T) {
+	numValidators := 3
+	numFullNodes := 2
+	ac := test.AccountConfig(numValidators, 2)
+	gingerbreadBlock := common.Big0
+	l2BlockOG := big.NewInt(3)
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock, l2BlockOG)
+	require.NoError(t, err)
+	network, _, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	network, shutdown, err := test.AddNetworkFullNodes(network, ec, uint64(numFullNodes))
+	require.NoError(t, err)
+	defer shutdown()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*500)
+	defer cancel()
+
+	testStopNetworkAtL2Block(t, ctx, network, l2BlockOG)
+
+	shutdown()
+
+	// Restart nodes with --l2-migration-block set to the next block
+	err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{1, 1, 1, 1, 1})
+	require.NoError(t, err)
+
+	l2BlockPlusOne := new(big.Int).Add(l2BlockOG, big.NewInt(1))
+
+	testStopNetworkAtL2Block(t, ctx, network, l2BlockPlusOne)
+
+	shutdown()
+
+	// Restart nodes with --l2-migration-block set to the same block
+	err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{1, 1, 1, 1, 1})
+	require.NoError(t, err)
+
+	testStopNetworkAtL2Block(t, ctx, network, l2BlockPlusOne)
+
+	shutdown()
+
+	// Restart nodes with different --l2-migration-block offsets
+	// If 2/3 validators (validators are the first 3 nodes in the network array)
+	// have the same migration block, the network should not be able to add any more blocks
+	err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{1, 1, 2, 2, 2})
+	require.NoError(t, err)
+
+	testStopNetworkAtL2Block(t, ctx, network, l2BlockPlusOne)
+
+	shutdown()
+
+	// Restart nodes with different --l2-migration-block offsets
+	// If 2/3 validators (validators are the first 3 nodes in the network array)
+	// have a greater migration block, the rest of the network should be able to add more blocks
+	err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{1, 2, 2, 2, 2})
+	require.NoError(t, err)
+
+	l2BlockPlusTwo := new(big.Int).Add(l2BlockOG, big.NewInt(2))
+
+	testStopNetworkAtL2Block(t, ctx, network[:1], l2BlockPlusOne)
+	testStopNetworkAtL2Block(t, ctx, network[1:], l2BlockPlusTwo)
+
+	// TODO(Alec)
+
+	// shutdown()
+
+	// Restart nodes with --l2-migration-block set to a prev block
+	// err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{-1, -1, -1, -1, -1})
+	// require.NoError(t, err) // TODO(Alec)
+
+	// l2BlockMinusOne := new(big.Int).Sub(l2BlockOG, big.NewInt(1))
+
+	// testStopNetworkAtL2Block(t, ctx, network, l2BlockMinusOne)
 }
 
 // This test was created to reproduce the concurrent map access error in
