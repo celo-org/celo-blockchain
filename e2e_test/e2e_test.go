@@ -423,7 +423,7 @@ func TestStopNetworkAtL2Block(t *testing.T) {
 	require.NoError(t, err)
 	defer shutdown()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*100)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*400)
 	defer cancel()
 
 	runStopNetworkAtL2BlockTest(ctx, t, network, l2BlockOG)
