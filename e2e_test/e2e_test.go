@@ -15,6 +15,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/eth/tracers"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
@@ -392,6 +393,7 @@ func runStopNetworkAtL2BlockTest(ctx context.Context, t *testing.T, network test
 func TestStopNetworkAtl2BlockSimple(t *testing.T) {
 	numValidators := 3
 	numFullNodes := 2
+	numFastNodes := 1
 	ac := test.AccountConfig(numValidators, 2)
 	gingerbreadBlock := common.Big0
 	l2BlockOG := big.NewInt(3)
@@ -399,8 +401,11 @@ func TestStopNetworkAtl2BlockSimple(t *testing.T) {
 	require.NoError(t, err)
 	network, _, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
-	network, shutdown, err := test.AddNetworkFullNodes(network, ec, uint64(numFullNodes))
+	network, _, err = test.AddNonValidatorNodes(network, ec, uint64(numFullNodes), downloader.FullSync)
 	require.NoError(t, err)
+	network, shutdown, err := test.AddNonValidatorNodes(network, ec, uint64(numFastNodes), downloader.FastSync)
+	require.NoError(t, err)
+
 	defer shutdown()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*40)
@@ -412,6 +417,7 @@ func TestStopNetworkAtl2BlockSimple(t *testing.T) {
 func TestStopNetworkAtL2Block(t *testing.T) {
 	numValidators := 3
 	numFullNodes := 2
+	numFastNodes := 1
 	ac := test.AccountConfig(numValidators, 2)
 	gingerbreadBlock := common.Big0
 	l2BlockOG := big.NewInt(3)
@@ -419,8 +425,11 @@ func TestStopNetworkAtL2Block(t *testing.T) {
 	require.NoError(t, err)
 	network, _, err := test.NewNetwork(ac, gc, ec)
 	require.NoError(t, err)
-	network, shutdown, err := test.AddNetworkFullNodes(network, ec, uint64(numFullNodes))
+	network, _, err = test.AddNonValidatorNodes(network, ec, uint64(numFullNodes), downloader.FullSync)
 	require.NoError(t, err)
+	network, shutdown, err := test.AddNonValidatorNodes(network, ec, uint64(numFastNodes), downloader.FastSync)
+	require.NoError(t, err)
+
 	defer shutdown()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*400)
@@ -431,7 +440,7 @@ func TestStopNetworkAtL2Block(t *testing.T) {
 	shutdown()
 
 	// Restart nodes with --l2-migration-block set to the next block
-	err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{1, 1, 1, 1, 1})
+	err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{1, 1, 1, 1, 1, 1})
 	require.NoError(t, err)
 
 	l2BlockPlusOne := new(big.Int).Add(l2BlockOG, big.NewInt(1))
@@ -441,7 +450,7 @@ func TestStopNetworkAtL2Block(t *testing.T) {
 	shutdown()
 
 	// Restart nodes with --l2-migration-block set to the same block
-	err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{1, 1, 1, 1, 1})
+	err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{1, 1, 1, 1, 1, 1})
 	require.NoError(t, err)
 
 	runStopNetworkAtL2BlockTest(ctx, t, network, l2BlockPlusOne)
@@ -451,7 +460,7 @@ func TestStopNetworkAtL2Block(t *testing.T) {
 	// Restart nodes with different --l2-migration-block offsets
 	// If 2/3 validators (validators are the first 3 nodes in the network array)
 	// have the same migration block, the network should not be able to add any more blocks
-	err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{1, 1, 2, 2, 2})
+	err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{1, 1, 2, 2, 2, 2})
 	require.NoError(t, err)
 
 	runStopNetworkAtL2BlockTest(ctx, t, network, l2BlockPlusOne)
@@ -461,7 +470,7 @@ func TestStopNetworkAtL2Block(t *testing.T) {
 	// Restart nodes with different --l2-migration-block offsets
 	// If 2/3 validators (validators are the first 3 nodes in the network array)
 	// have a greater migration block, the rest of the network should be able to add more blocks
-	err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{1, 2, 2, 2, 2})
+	err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{1, 2, 2, 2, 2, 2})
 	require.NoError(t, err)
 
 	l2BlockPlusTwo := new(big.Int).Add(l2BlockOG, big.NewInt(2))
@@ -472,8 +481,7 @@ func TestStopNetworkAtL2Block(t *testing.T) {
 	shutdown()
 
 	// Restart nodes with --l2-migration-block set to a prev block
-	err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{-1, -1, -1, -1, -1})
-	//  TODO(Alec) it would actually be nice to return errors here, require.Error(t, err, core.ErrL2Migration.Error())
+	err = network.RestartNetworkWithMigrationBlockOffsets(l2BlockOG, []int64{-1, -1, -1, -1, -1, -1})
 	require.NoError(t, err)
 
 	// The network should be unchanged

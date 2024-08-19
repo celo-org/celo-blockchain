@@ -111,11 +111,12 @@ type Node struct {
 	SentTxs []*types.Transaction
 }
 
-// NewFullNode creates a new running (non-validator) node with the provided config.
-func NewFullNode(
+// NewNonValidatorNode creates a new running non-validator node with the provided config.
+func NewNonValidatorNode(
 	nc *node.Config,
 	ec *eth.Config,
 	genesis *core.Genesis,
+	syncmode downloader.SyncMode,
 ) (*Node, error) {
 
 	// Copy the node config so we can modify it without damaging the original
@@ -145,6 +146,14 @@ func NewFullNode(
 	ecCopy.Genesis = genesis
 	ecCopy.NetworkId = genesis.Config.ChainID.Uint64()
 	ecCopy.Istanbul.Validator = false
+	ecCopy.SyncMode = syncmode
+
+	// We set these values here to avoid a panic in the eth service when these values are unset during fast sync
+	if syncmode == downloader.FastSync {
+		ecCopy.TrieCleanCache = 5
+		ecCopy.TrieDirtyCache = 5
+		ecCopy.SnapshotCache = 5
+	}
 
 	node := &Node{
 		Config:    &ncCopy,
@@ -500,25 +509,26 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 	return network, shutdown, nil
 }
 
-func AddNetworkFullNodes(network Network, ec *eth.Config, numFullNodes uint64) (Network, func(), error) {
-	var fullNodes Network = make([]*Node, numFullNodes)
+// AddNonValidatorNodes Adds non-validator nodes to the network with the specified sync mode.
+func AddNonValidatorNodes(network Network, ec *eth.Config, numNodes uint64, syncmode downloader.SyncMode) (Network, func(), error) {
+	var nodes Network = make([]*Node, numNodes)
 	genesis := network[0].EthConfig.Genesis
 
-	for i := uint64(0); i < numFullNodes; i++ {
-		n, err := NewFullNode(baseNodeConfig, ec, genesis)
+	for i := uint64(0); i < numNodes; i++ {
+		n, err := NewNonValidatorNode(baseNodeConfig, ec, genesis, syncmode)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to build full node for network: %v", err)
 		}
-		fullNodes[i] = n
+		nodes[i] = n
 	}
 
 	// Connect nodes to each other
-	for i := range fullNodes {
-		fullNodes[i].AddPeers(network...)
-		fullNodes[i].AddPeers(fullNodes[i+1:]...)
+	for i := range nodes {
+		nodes[i].AddPeers(network...)
+		nodes[i].AddPeers(nodes[i+1:]...)
 	}
 
-	network = append(network, fullNodes...)
+	network = append(network, nodes...)
 
 	// Give nodes some time to connect. Also there is a race condition in
 	// miner.worker its field snapshotBlock is set only when new transactions
