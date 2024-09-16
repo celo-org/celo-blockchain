@@ -383,14 +383,14 @@ func runStopNetworkAtL2BlockTest(ctx context.Context, t *testing.T, network test
 		wg.Add(1)
 		go func(n *test.Node) {
 			defer wg.Done()
-			err = n.Tracker.AwaitBlock(shortCtx, l2Block.Uint64())
+			err := n.Tracker.AwaitBlock(shortCtx, l2Block.Uint64())
 			require.EqualError(t, err, context.DeadlineExceeded.Error())
 		}(n)
 	}
 	wg.Wait()
 }
 
-func TestStopNetworkAtl2BlockSimple(t *testing.T) {
+func TestStopNetworkAtL2BlockSimple(t *testing.T) {
 	numValidators := 3
 	numFullNodes := 2
 	numFastNodes := 1
