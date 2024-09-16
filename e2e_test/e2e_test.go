@@ -379,15 +379,24 @@ func runStopNetworkAtL2BlockTest(ctx context.Context, t *testing.T, network test
 
 	// fail if any node adds a new block >= the migration block
 	var wg sync.WaitGroup
+	errorChan := make(chan error, len(network))
+
 	for _, n := range network {
 		wg.Add(1)
 		go func(n *test.Node) {
 			defer wg.Done()
 			err := n.Tracker.AwaitBlock(shortCtx, l2Block.Uint64())
-			require.EqualError(t, err, context.DeadlineExceeded.Error())
+			errorChan <- err
 		}(n)
 	}
+
 	wg.Wait()
+	close(errorChan)
+
+	// Collect and check errors
+	for err := range errorChan {
+		require.EqualError(t, err, context.DeadlineExceeded.Error())
+	}
 }
 
 func TestStopNetworkAtL2BlockSimple(t *testing.T) {
