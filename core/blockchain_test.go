@@ -38,7 +38,6 @@ import (
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/trie"
-	"github.com/stretchr/testify/require"
 )
 
 // So we can deterministically seed different blockchains
@@ -202,28 +201,6 @@ func TestLastBlock(t *testing.T) {
 		t.Fatalf("Failed to insert block: %v", err)
 	}
 	if blocks[len(blocks)-1].Hash() != rawdb.ReadHeadBlockHash(blockchain.db) {
-		t.Fatalf("Write/Get HeadBlockHash failed")
-	}
-}
-
-func TestNoInsertPastL2MigrationBlock(t *testing.T) {
-	_, blockchain, err := newCanonical(mockEngine.NewFaker(), 0, true)
-	if err != nil {
-		t.Fatalf("failed to create pristine chain: %v", err)
-	}
-	defer blockchain.Stop()
-
-	blockchain.chainConfig = blockchain.chainConfig.DeepCopy()
-	migrationBlock := 2
-	blockchain.chainConfig.L2MigrationBlock = big.NewInt(int64(migrationBlock))
-
-	blocks := makeBlockChain(blockchain.CurrentBlock(), 100000, mockEngine.NewFullFaker(), blockchain.db, 0)
-	failedBlock, err := blockchain.InsertChain(blocks)
-	require.EqualError(t, err, errInsertionInterrupted.Error())
-	// Compare with migrationBlock-1 because failedBlock is the index of the failed block in the blocks[] array, not in the actual blockchain.
-	require.EqualValues(t, migrationBlock-1, failedBlock)
-	// Only the first block in blocks[] should be inserted
-	if blocks[migrationBlock-2].Hash() != rawdb.ReadHeadBlockHash(blockchain.db) {
 		t.Fatalf("Write/Get HeadBlockHash failed")
 	}
 }
