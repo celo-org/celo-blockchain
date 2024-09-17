@@ -125,6 +125,10 @@ func (sb *Backend) verifyHeader(chain consensus.ChainHeaderReader, header *types
 	if header.Number == nil {
 		return errUnknownBlock
 	}
+	if chain.Config().IsL2Migration(header.Number) {
+		sb.logger.Trace("Reject block after L2 migration", "num", header.Number)
+		return fmt.Errorf("Block number %d is after the L2 migration.", header.Number)
+	}
 
 	// If the full chain isn't available (as on mobile devices), don't reject future blocks
 	// This is due to potential clock skew

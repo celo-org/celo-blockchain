@@ -811,14 +811,6 @@ func (bc *BlockChain) ExportN(w io.Writer, first uint64, last uint64) error {
 //
 // Note, this function assumes that the `mu` mutex is held!
 func (bc *BlockChain) writeHeadBlock(block *types.Block) {
-	// Normally the check at the end of the function will pass first, but if a node is restarted
-	// with the same l2-migration-block configured after already reaching and stopping on l2-migration-block,
-	// this check will pass first and log an error.
-	if bc.Config().IsL2Migration(block.Number()) {
-		log.Error("Attempt to insert block number >= l2MigrationBlock, stopping block insertion", "block", block.NumberU64(), "hash", block.Hash())
-		bc.StopInsert()
-		return
-	}
 	// If the block is on a side chain or an unknown one, force other heads onto it too
 	updateHeads := rawdb.ReadCanonicalHash(bc.db, block.NumberU64()) != block.Hash()
 
@@ -845,13 +837,6 @@ func (bc *BlockChain) writeHeadBlock(block *types.Block) {
 	}
 	bc.currentBlock.Store(block)
 	headBlockGauge.Update(int64(block.NumberU64()))
-
-	nextBlockNum := new(big.Int).Add(block.Number(), big.NewInt(1))
-	if bc.Config().IsL2Migration(nextBlockNum) {
-		log.Info("The next block is the L2 migration block, stopping block insertion", "currentBlock", block.NumberU64(), "hash", block.Hash(), "nextBlock", nextBlockNum.Uint64())
-		bc.StopInsert()
-		return
-	}
 }
 
 // Genesis retrieves the chain's genesis block.
