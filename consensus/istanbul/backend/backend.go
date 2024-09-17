@@ -559,7 +559,6 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	if sb.chain.Config().IsL2Migration(nextBlockNum) {
 		sb.logger.Info("The next block is the L2 migration block, stopping announce protocol and closing istanbul backend", "currentBlock", block.NumberU64(), "hash", block.Hash(), "nextBlock", nextBlockNum)
 		sb.StopAnnouncing()
-		sb.Close()
 	}
 	return nil
 }
