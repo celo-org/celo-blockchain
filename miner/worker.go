@@ -18,14 +18,12 @@ package miner
 
 import (
 	"context"
-	"math/big"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
-	istanbulBackend "github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -241,12 +239,10 @@ func (w *worker) start() {
 func (w *worker) stop() {
 	atomic.StoreInt32(&w.running, 0)
 
-	if istanbul, ok := w.engine.(*istanbulBackend.Backend); ok {
-		if istanbul.IsValidating() {
-			err := istanbul.StopValidating()
-			if err != nil {
-				log.Error("Error while calling engine.StopValidating", "err", err)
-			}
+	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
+		err := istanbul.StopValidating()
+		if err != nil {
+			log.Error("Error while calling engine.StopValidating", "err", err)
 		}
 	}
 }
@@ -396,19 +392,10 @@ func (w *worker) mainLoop() {
 	defer wg.Wait()
 	txsCh := make(chan core.NewTxsEvent, txChanSize)
 
-	generateNewBlock := func(nextBlockNum *big.Int) {
+	generateNewBlock := func() {
 		if cancel != nil {
 			cancel()
 		}
-
-		if w.chainConfig.IsL2Migration(nextBlockNum) {
-			if w.isRunning() {
-				log.Info("The next block is the L2 migration block, stopping block construction", "currentBlock", w.chain.CurrentBlock().NumberU64(), "hash", w.chain.CurrentBlock().Hash(), "nextBlock", nextBlockNum.Uint64())
-				w.stop()
-			}
-			return
-		}
-
 		wg.Wait()
 		taskCtx, cancel = context.WithCancel(context.Background())
 		wg.Add(1)
@@ -434,12 +421,10 @@ func (w *worker) mainLoop() {
 	for {
 		select {
 		case <-w.startCh:
-			nextBlockNum := new(big.Int).Add(w.chain.CurrentBlock().Number(), big.NewInt(1))
-			generateNewBlock(nextBlockNum)
+			generateNewBlock()
 
-		case ev := <-w.chainHeadCh:
-			nextBlockNum := new(big.Int).Add(ev.Block.Number(), big.NewInt(1))
-			generateNewBlock(nextBlockNum)
+		case <-w.chainHeadCh:
+			generateNewBlock()
 
 		case ev := <-w.txsCh:
 			// Drain tx sub channel as a validator,

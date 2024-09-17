@@ -554,12 +554,6 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		}
 	}
 	sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
-
-	nextBlockNum := new(big.Int).Add(block.Number(), big.NewInt(1))
-	if sb.chain.Config().IsL2Migration(nextBlockNum) {
-		sb.logger.Info("The next block is the L2 migration block, stopping announce protocol and closing istanbul backend", "currentBlock", block.NumberU64(), "hash", block.Hash(), "nextBlock", nextBlockNum)
-		sb.StopAnnouncing()
-	}
 	return nil
 }
 

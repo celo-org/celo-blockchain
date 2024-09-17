@@ -1085,7 +1085,7 @@ func (bc *BlockChain) Stop() {
 		triedb := bc.stateCache.TrieDB()
 		triedb.SaveCache(bc.cacheConfig.TrieCleanJournal)
 	}
-	log.Info("Blockchain stopped", "number", bc.CurrentBlock().NumberU64(), "hash", bc.CurrentBlock().Hash())
+	log.Info("Blockchain stopped")
 }
 
 // StopInsert interrupts all insertion methods, causing them to return
@@ -1870,9 +1870,6 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		// If the chain is terminating, stop processing blocks
 		if bc.insertStopped() {
 			log.Debug("Abort during block processing")
-			if bc.Config().IsL2Migration(block.Number()) {
-				err = errInsertionInterrupted
-			}
 			break
 		}
 		// If the header is a banned one, straight out abort

@@ -438,9 +438,7 @@ func (h *handler) unregisterPeer(id string) *ethPeer {
 		log.Error("Peer removal from downloader failed", "peer", id, "err", err)
 	}
 	if err := h.txFetcher.Drop(id); err != nil {
-		if !errors.Is(err, fetcher.ErrTerminated) {
-			log.Error("Peer removal from tx fetcher failed", "peer", id, "err", err)
-		}
+		log.Error("Peer removal from tx fetcher  failed", "peer", id, "err", err)
 	}
 	if handler, ok := h.chain.Engine().(consensus.Handler); ok {
 		handler.UnregisterPeer(peer, peer.Peer.Server == h.proxyServer)
