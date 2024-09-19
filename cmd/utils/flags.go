@@ -243,6 +243,11 @@ var (
 		Usage: "Manually specify the hfork block, overriding the bundled setting",
 	}
 
+	L2MigrationBlockFlag = cli.Uint64Flag{
+		Name:  "l2migrationblock",
+		Usage: "Block number at which to halt the network for Celo L2 migration. This is the first block of Celo as an L2, and one after the last block of Celo as an L1. If unset or set to 0, no halt will occur.",
+	}
+
 	BloomFilterSizeFlag = cli.Uint64Flag{
 		Name:  "bloomfilter.size",
 		Usage: "Megabytes of memory allocated to bloom-filter for pruning",
@@ -1723,6 +1728,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	log.Debug("Sanitizing Go's GC trigger", "percent", int(gogc))
 	godebug.SetGCPercent(int(gogc))
 
+	if ctx.GlobalIsSet(L2MigrationBlockFlag.Name) {
+		cfg.L2MigrationBlock = new(big.Int).SetUint64(ctx.GlobalUint64(L2MigrationBlockFlag.Name))
+	}
 	if ctx.GlobalIsSet(SyncModeFlag.Name) {
 		cfg.SyncMode = *GlobalTextMarshaler(ctx, SyncModeFlag.Name).(*downloader.SyncMode)
 	}

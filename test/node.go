@@ -15,6 +15,7 @@ import (
 
 	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/eth/ethconfig"
+	"github.com/celo-org/celo-blockchain/log"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -60,7 +61,7 @@ var (
 	}
 
 	BaseEthConfig = &eth.Config{
-		SyncMode:              downloader.FullSync,
+		SyncMode:              downloader.FullSync, // TODO(Alec) do we need to test different sync modes?
 		MinSyncPeers:          1,
 		DatabaseCache:         256,
 		DatabaseHandles:       256,
@@ -110,7 +111,60 @@ type Node struct {
 	SentTxs []*types.Transaction
 }
 
-// NewNode creates a new running node with the provided config.
+// NewNonValidatorNode creates a new running non-validator node with the provided config.
+func NewNonValidatorNode(
+	nc *node.Config,
+	ec *eth.Config,
+	genesis *core.Genesis,
+	syncmode downloader.SyncMode,
+) (*Node, error) {
+
+	// Copy the node config so we can modify it without damaging the original
+	ncCopy := *nc
+
+	// p2p key and address, this is not the same as the validator key.
+	p2pKey, err := crypto.GenerateKey()
+	if err != nil {
+		return nil, err
+	}
+	ncCopy.P2P.PrivateKey = p2pKey
+
+	// Make temp datadir
+	datadir, err := ioutil.TempDir("", "celo_datadir")
+	if err != nil {
+		return nil, err
+	}
+	ncCopy.DataDir = datadir
+
+	// copy the base eth config, so we can modify it without damaging the
+	// original.
+	ecCopy := &eth.Config{}
+	err = copyObject(ec, ecCopy)
+	if err != nil {
+		return nil, err
+	}
+	ecCopy.Genesis = genesis
+	ecCopy.NetworkId = genesis.Config.ChainID.Uint64()
+	ecCopy.Istanbul.Validator = false
+	ecCopy.SyncMode = syncmode
+
+	// We set these values here to avoid a panic in the eth service when these values are unset during fast sync
+	if syncmode == downloader.FastSync {
+		ecCopy.TrieCleanCache = 5
+		ecCopy.TrieDirtyCache = 5
+		ecCopy.SnapshotCache = 5
+	}
+
+	node := &Node{
+		Config:    &ncCopy,
+		EthConfig: ecCopy,
+		Tracker:   NewTracker(),
+	}
+
+	return node, node.Start()
+}
+
+// NewNode creates a new running validator node with the provided config.
 func NewNode(
 	validatorAccount *env.Account,
 	nc *node.Config,
@@ -201,21 +255,23 @@ func (n *Node) Start() error {
 	// The ListenAddr is set at p2p server startup, save it here.
 	n.P2PListenAddr = n.Node.Server().ListenAddr
 
-	// Import the node key into the keystore and then unlock it, the keystore
-	// is the interface used for signing operations so the node key needs to be
-	// inside it.
-	ks, _, err := n.Config.GetKeyStore()
-	if err != nil {
-		return err
-	}
-	n.AccountManager().AddBackend(ks)
-	account, err := ks.ImportECDSA(n.Key, "")
-	if err != nil {
-		return err
-	}
-	err = ks.TimedUnlock(account, "", 0)
-	if err != nil {
-		return err
+	if n.EthConfig.Istanbul.Validator {
+		// Import the node key into the keystore and then unlock it, the keystore
+		// is the interface used for signing operations so the node key needs to be
+		// inside it.
+		ks, _, err := n.Config.GetKeyStore()
+		if err != nil {
+			return err
+		}
+		n.AccountManager().AddBackend(ks)
+		account, err := ks.ImportECDSA(n.Key, "")
+		if err != nil {
+			return err
+		}
+		err = ks.TimedUnlock(account, "", 0)
+		if err != nil {
+			return err
+		}
 	}
 
 	_, _, err = core.SetupGenesisBlock(n.Eth.ChainDb(), n.EthConfig.Genesis)
@@ -230,9 +286,12 @@ func (n *Node) Start() error {
 	if err != nil {
 		return err
 	}
-	err = n.Eth.StartMining()
-	if err != nil {
-		return err
+
+	if n.EthConfig.Istanbul.Validator {
+		err = n.Eth.StartMining()
+		if err != nil {
+			return err
+		}
 	}
 
 	// Note we need to use the LocalNode from the p2p server because that is
@@ -344,7 +403,7 @@ func AccountConfig(numValidators, numExternal int) *env.AccountsConfig {
 // NOTE: Do not edit the Istanbul field of the returned genesis config it will
 // be overwritten with the corresponding config from the Istanbul field of the
 // returned eth config.
-func BuildConfig(accounts *env.AccountsConfig, gingerbreadBlock *big.Int) (*genesis.Config, *ethconfig.Config, error) {
+func BuildConfig(accounts *env.AccountsConfig, gingerbreadBlock, l2MigrationBlock *big.Int) (*genesis.Config, *ethconfig.Config, error) {
 	gc, err := genesis.CreateCommonGenesisConfig(
 		big.NewInt(1),
 		accounts.AdminAccount().Address,
@@ -361,6 +420,7 @@ func BuildConfig(accounts *env.AccountsConfig, gingerbreadBlock *big.Int) (*gene
 	// original.
 	ec := &eth.Config{}
 	err = copyObject(BaseEthConfig, ec)
+	ec.L2MigrationBlock = l2MigrationBlock
 	return gc, ec, err
 }
 
@@ -440,6 +500,47 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 	}
 
 	shutdown := func() {
+		log.Info("Shutting down network from test")
+		for _, err := range network.Shutdown() {
+			fmt.Println(err.Error())
+		}
+	}
+
+	return network, shutdown, nil
+}
+
+// AddNonValidatorNodes Adds non-validator nodes to the network with the specified sync mode.
+func AddNonValidatorNodes(network Network, ec *eth.Config, numNodes uint64, syncmode downloader.SyncMode) (Network, func(), error) {
+	var nodes Network = make([]*Node, numNodes)
+	genesis := network[0].EthConfig.Genesis
+
+	for i := uint64(0); i < numNodes; i++ {
+		n, err := NewNonValidatorNode(baseNodeConfig, ec, genesis, syncmode)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to build full node for network: %v", err)
+		}
+		nodes[i] = n
+	}
+
+	// Connect nodes to each other
+	for i := range nodes {
+		nodes[i].AddPeers(network...)
+		nodes[i].AddPeers(nodes[i+1:]...)
+	}
+
+	network = append(network, nodes...)
+
+	// Give nodes some time to connect. Also there is a race condition in
+	// miner.worker its field snapshotBlock is set only when new transactions
+	// are received or commitNewWork is called. But both of these happen in
+	// goroutines separate to the call to miner.Start and miner.Start does not
+	// wait for snapshotBlock to be set. Therefore there is currently no way to
+	// know when it is safe to call estimate gas.  What we do here is sleep a
+	// bit and cross our fingers.
+	time.Sleep(25 * time.Millisecond)
+
+	shutdown := func() {
+		log.Info("Shutting down network from test")
 		for _, err := range network.Shutdown() {
 			fmt.Println(err.Error())
 		}
@@ -483,6 +584,39 @@ func (n Network) Shutdown() []error {
 		}
 	}
 	return errors
+}
+
+func (n Network) RestartNetworkWithMigrationBlockOffsets(l2MigrationBlockOG *big.Int, offsets []int64) error {
+	if len(offsets) != len(n) {
+		return fmt.Errorf("number of l2BlockMigration offsets must match number of nodes")
+	}
+
+	errors := []error{}
+	for i, node := range n {
+		node.EthConfig.L2MigrationBlock = new(big.Int).Add(l2MigrationBlockOG, big.NewInt(offsets[i]))
+		err := node.Start()
+		if err != nil {
+			errors = append(errors, err)
+		}
+	}
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to restart network: %v", errors)
+	}
+
+	for i, node := range n {
+		node.AddPeers(n[:i]...)
+	}
+
+	// We need to wait here to allow the call to "Backend.RefreshValPeers" to
+	// complete before adding peers. This is because "Backend.RefreshValPeers"
+	// deletes all peers and then re-adds any peers from the cached
+	// connections, but in the case that peers were recently added there may
+	// not have been enough time to connect to them and populate the connection
+	// cache, and in that case "Backend.RefreshValPeers" simply removes all the
+	// peers.
+	time.Sleep(25 * time.Millisecond)
+
+	return nil
 }
 
 // Uses the client to suggest a gas price and to estimate the gas.
