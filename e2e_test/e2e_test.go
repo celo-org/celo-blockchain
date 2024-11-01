@@ -732,7 +732,7 @@ func testRPCDynamicTxGasPriceWithoutState(t *testing.T, afterGingerbread, altern
 	gasTipCap := big.NewInt(0).Mul(suggestedGasPrice, big.NewInt(2))
 
 	// Send one celo from external account 0 to 1 via node 0.
-	tx, err := accounts[0].SendValueWithDynamicFee(ctx, accounts[1].Address, 1, feeCurrency, gasFeeCap, gasTipCap, network[0])
+	tx, err := accounts[0].SendValueWithDynamicFee(ctx, accounts[1].Address, 1, feeCurrency, gasFeeCap, gasTipCap, network[0], 0)
 	require.NoError(t, err)
 
 	// Wait for the whole network to process the transaction.
@@ -1043,4 +1043,67 @@ func TestGetFinalizedBlock(t *testing.T) {
 
 	// Check latest and finalzed block are the same
 	require.Equal(t, h.Hash(), h2.Hash())
+}
+
+// TestManyFeeCurrencyTransactions is intended to test that we don't have race conditions in the tx pool when handling
+// fee currency transactions. It does this by submitting many fee currency transactions from 3 different goroutines over
+// a period of roughly 5 seconds which with the configured block time of 1 second means that the transactions should
+// span multiple block boundaries with the goal of ensuring that both runReorg and AddRemotes are being called
+// concurrently in the txPool. This issue https://github.com/celo-org/celo-blockchain/issues/2318 is occurring somewhat
+// randomly and could be the result of some race condition in tx pool handling for fee currency transactions. However
+// this test seems to run fairly reliably with the race flag enabled, which seems to indicate that the problem is not a
+// result of racy behavior in the tx pool.
+func TestManyFeeCurrencyTransactions(t *testing.T) {
+	ac := test.AccountConfig(3, 3)
+	gingerbreadBlock := common.Big0
+	gc, ec, err := test.BuildConfig(ac, gingerbreadBlock, nil)
+	require.NoError(t, err)
+	ec.Istanbul.BlockPeriod = 1
+	network, shutdown, err := test.NewNetwork(ac, gc, ec)
+	require.NoError(t, err)
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*200)
+	defer cancel()
+
+	cUSD := common.HexToAddress("0x000000000000000000000000000000000000d008")
+	cEUR := common.HexToAddress("0x000000000000000000000000000000000000D024")
+	cREAL := common.HexToAddress("0x000000000000000000000000000000000000d026")
+
+	accounts := test.Accounts(ac.DeveloperAccounts(), gc.ChainConfig())
+
+	time.Sleep(2 * time.Second)
+	txsChan := make(chan []*types.Transaction, 3)
+	for nodeIndex := 0; nodeIndex < len(network); nodeIndex++ {
+		go func(nodeIndex int) {
+			txs := make([]*types.Transaction, 0, 3000)
+			for i := 0; i < 100; i++ {
+				for _, feeCurrency := range []*common.Address{&cUSD, &cEUR, &cREAL} {
+					baseFee, err := network[nodeIndex].WsClient.SuggestGasPriceInCurrency(ctx, feeCurrency)
+					require.NoError(t, err)
+					tip, err := network[nodeIndex].WsClient.SuggestGasTipCapInCurrency(ctx, feeCurrency)
+					require.NoError(t, err)
+
+					// Send one celo from external account 0 to 1 via node 0.
+					tx, err := accounts[nodeIndex].SendValueWithDynamicFee(ctx, accounts[nodeIndex].Address, 1, feeCurrency, baseFee.Add(baseFee, tip), tip, network[nodeIndex], 71000)
+					require.NoError(t, err)
+					txs = append(txs, tx)
+					time.Sleep(10 * time.Millisecond)
+				}
+			}
+			txsChan <- txs
+		}(nodeIndex)
+	}
+
+	allTxs := make([]*types.Transaction, 0, 3000*len(network))
+	count := 0
+	for txs := range txsChan {
+		allTxs = append(allTxs, txs...)
+		count++
+		if count == len(network) {
+			break
+		}
+	}
+
+	err = network.AwaitTransactions(ctx, allTxs...)
+	require.NoError(t, err)
 }
