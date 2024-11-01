@@ -1,6 +1,7 @@
 package vmcontext
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -20,16 +21,17 @@ type evmRunnerContext interface {
 }
 
 type evmRunner struct {
-	newEVM func(from common.Address) *vm.EVM
-	state  vm.StateDB
+	newEVM   func(from common.Address) *vm.EVM
+	state    vm.StateDB
+	blockNum uint64
 
 	dontMeterGas bool
 }
 
 func NewEVMRunner(chain evmRunnerContext, header *types.Header, state vm.StateDB) vm.EVMRunner {
-
 	return &evmRunner{
-		state: state,
+		blockNum: header.Number.Uint64(),
+		state:    state,
 		newEVM: func(from common.Address) *vm.EVM {
 			// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 			// Putting in zero values for gas price and tx fee recipient
@@ -49,6 +51,9 @@ func (ev *evmRunner) Execute(recipient common.Address, input []byte, gas uint64,
 		evm.StopGasMetering()
 	}
 	ret, _, err = evm.Call(vm.AccountRef(evm.Origin), recipient, input, gas, value)
+	if err != nil {
+		err = fmt.Errorf("execute failed at block %d: %w", ev.blockNum, err)
+	}
 	return ret, err
 }
 
@@ -58,6 +63,9 @@ func (ev *evmRunner) ExecuteFrom(sender, recipient common.Address, input []byte,
 		evm.StopGasMetering()
 	}
 	ret, _, err = evm.Call(vm.AccountRef(sender), recipient, input, gas, value)
+	if err != nil {
+		err = fmt.Errorf("execute from failed at block %d: %w", ev.blockNum, err)
+	}
 	return ret, err
 }
 
@@ -68,6 +76,9 @@ func (ev *evmRunner) ExecuteAndDiscardChanges(recipient common.Address, input []
 		evm.StopGasMetering()
 	}
 	ret, _, err = evm.Call(vm.AccountRef(evm.Origin), recipient, input, gas, value)
+	if err != nil {
+		err = fmt.Errorf("execute and discard changes failed at block %d: %w", ev.blockNum, err)
+	}
 	evm.StateDB.RevertToSnapshot(snapshot)
 	return ret, err
 }
@@ -78,6 +89,9 @@ func (ev *evmRunner) Query(recipient common.Address, input []byte, gas uint64) (
 		evm.StopGasMetering()
 	}
 	ret, _, err = evm.StaticCall(vm.AccountRef(evm.Origin), recipient, input, gas)
+	if err != nil {
+		err = fmt.Errorf("query failed at block %d: %w", ev.blockNum, err)
+	}
 	return ret, err
 }
 

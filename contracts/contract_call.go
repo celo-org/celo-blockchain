@@ -107,15 +107,15 @@ func (bm *BoundMethod) run(vmRunner vm.EVMRunner, result interface{}, readOnly b
 
 	if err != nil {
 		message, _ := unpackError(output)
-		logger.Error("Error invoking evm function: EVM call failure", "input", hexutil.Encode(input), "maxgas", bm.maxGas, "err", err, "message", message)
+		logger.Error("Error invoking evm function: EVM call failure", "input", hexutil.Encode(input), "value", value, "maxgas", bm.maxGas, "err", err, "message", message)
 		return err
 	}
 
 	if err := bm.decodeResult(result, output); err != nil {
-		logger.Error("Error invoking evm function: can't unpack result", "err", err, "maxgas", bm.maxGas)
+		logger.Error("Error invoking evm function: can't unpack result", "input", hexutil.Encode(input), "value", value, "err", err, "maxgas", bm.maxGas)
 		return err
 	}
 
-	logger.Trace("EVM call successful", "input", hexutil.Encode(input), "output", hexutil.Encode(output))
+	logger.Trace("EVM call successful", "input", hexutil.Encode(input), "value", value, "output", hexutil.Encode(output))
 	return nil
 }
