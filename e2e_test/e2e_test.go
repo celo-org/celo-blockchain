@@ -1087,7 +1087,7 @@ func TestManyFeeCurrencyTransactions(t *testing.T) {
 					tx, err := accounts[nodeIndex].SendValueWithDynamicFee(ctx, accounts[nodeIndex].Address, 1, feeCurrency, baseFee.Add(baseFee, tip), tip, network[nodeIndex], 71000)
 					require.NoError(t, err)
 					txs = append(txs, tx)
-					time.Sleep(10 * time.Millisecond)
+					time.Sleep(16 * time.Millisecond)
 				}
 			}
 			txsChan <- txs
