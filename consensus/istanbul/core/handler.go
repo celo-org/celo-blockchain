@@ -36,7 +36,9 @@ func (c *core) Start() error {
 		return err
 	}
 
+	c.currentMu.Lock()
 	c.current = roundState
+	c.currentMu.Unlock()
 	c.roundChangeSetV2 = newRoundChangeSetV2(c.current.ValidatorSet())
 
 	// Reset the Round Change timer for the current round to timeout.

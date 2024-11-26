@@ -665,14 +665,18 @@ func ValueTransferTransactionWithDynamicFee(
 	gasFeeCap *big.Int,
 	gasTipCap *big.Int,
 	signer types.Signer,
+	gasLimit uint64,
 ) (*types.Transaction, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
-	msg := ethereum.CallMsg{From: sender, To: &recipient, Value: value, FeeCurrency: feeCurrency}
-	gasLimit, err := client.EstimateGas(ctx, msg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to estimate gas needed: %v", err)
+	if gasLimit == 0 {
+		msg := ethereum.CallMsg{From: sender, To: &recipient, Value: value, FeeCurrency: feeCurrency}
+		var err error
+		gasLimit, err = client.EstimateGas(ctx, msg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to estimate gas needed: %v", err)
+		}
 	}
 	// Create the transaction and sign it
 	rawTx := types.NewTx(&types.CeloDynamicFeeTx{
