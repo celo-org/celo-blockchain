@@ -31,6 +31,9 @@ jobs:
           dockerfile: Dockerfile
           push: true
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+
   build-container-geth-all:
     runs-on: [self-hosted, blockchain, 8-cpu]
     permissions:
@@ -54,9 +57,6 @@ jobs:
           context: .
           dockerfile: Dockerfile.alltools
           push: true
-
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
 
   add-geth-master-tag:
     if: github.ref == 'refs/heads/master'
