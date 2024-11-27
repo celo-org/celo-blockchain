@@ -45,4 +45,4 @@ jobs:
 
       - name: Use regctl to copy images (add tags)
         run: |
-          regctl image copy {{ inputs.source-image }} {{ inputs.destination-image }}
+          regctl image copy ${{ inputs.source-image }} ${{ inputs.destination-image }}
