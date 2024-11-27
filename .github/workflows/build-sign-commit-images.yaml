@@ -55,6 +55,9 @@ jobs:
           dockerfile: Dockerfile.alltools
           push: true
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+
   add-geth-master-tag:
     if: github.ref == 'refs/heads/master'
     uses: ./.github/workflows/add-docker-tag.yaml
