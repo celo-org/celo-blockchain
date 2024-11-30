@@ -56,7 +56,7 @@ type blockState struct {
 	txFeeRecipient common.Address
 }
 
-// prepareBlock intializes a new blockState that is ready to have transaction included to.
+// prepareBlock initializes a new blockState that is ready to have transaction included to.
 // Note that if blockState is not nil, blockState.close() needs to be called to shut down the state prefetcher.
 func prepareBlock(w *worker) (*blockState, error) {
 	w.mu.RLock()
@@ -324,7 +324,7 @@ loop:
 
 		case errors.Is(err, core.ErrNonceTooHigh):
 			// Reorg notification data race between the transaction pool and miner, skip account =
-			log.Trace("Skipping account with hight nonce", "sender", from, "nonce", tx.Nonce())
+			log.Trace("Skipping account with high nonce", "sender", from, "nonce", tx.Nonce())
 			txs.Pop()
 
 		case errors.Is(err, core.ErrGasPriceDoesNotExceedMinimum):
@@ -384,7 +384,7 @@ loop:
 	return nil
 }
 
-// commitTransaction attempts to appply a single transaction. If the transaction fails, it's modifications are reverted.
+// commitTransaction attempts to apply a single transaction. If the transaction fails, it's modifications are reverted.
 func (b *blockState) commitTransaction(w *worker, tx *types.Transaction, txFeeRecipient common.Address) ([]*types.Log, error) {
 	snap := b.state.Snapshot()
 	vmRunner := w.chain.NewEVMRunner(b.header, b.state)

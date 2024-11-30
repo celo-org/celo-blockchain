@@ -146,7 +146,7 @@ func makeTransaction(nonce uint64, privKey *ecdsa.PrivateKey, signer types.Signe
 	// Generate eip 1559 transaction
 	recipient := crypto.PubkeyToAddress(privKey.PublicKey)
 
-	// Feecap and feetip are limited to 32 bytes. Offer a sightly
+	// Feecap and feetip are limited to 32 bytes. Offer a slightly
 	// larger buffer for creating both valid and invalid transactions.
 	var buf = make([]byte, 32+5)
 	rand.Read(buf)

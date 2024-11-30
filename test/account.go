@@ -130,7 +130,7 @@ func (a *Account) SendCeloTracked(ctx context.Context, recipient common.Address,
 	return node.Tracker.GetProcessedTx(tx.Hash()), nil
 }
 
-// SendCelo submits a transaction to `node` that invokes the equivalent of
+// SendCeloViaGoldToken submits a transaction to `node` that invokes the equivalent of
 // GoldToken.transfer(recipient, value), sent from the calling account.
 // The submitted transaction is returned.
 func (a *Account) SendCeloViaGoldToken(ctx context.Context, recipient common.Address, value int64, node *Node) (*types.Transaction, error) {
