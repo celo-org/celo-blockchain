@@ -147,7 +147,7 @@ func runTransaction(ctx context.Context, client *ethclient.Client, chainID *big.
 		transactor.GasLimit = GasForTransferWithComment
 	}
 
-	tx, err := stableToken.TxObj(transactor, "transferWithComment", txCfg.Recipient, txCfg.Value, "need to proivde some long comment to make it similar to an encrypted comment").Send()
+	tx, err := stableToken.TxObj(transactor, "transferWithComment", txCfg.Recipient, txCfg.Value, "need to provide some long comment to make it similar to an encrypted comment").Send()
 	if err != nil {
 		if err != context.Canceled {
 			fmt.Printf("Error sending transaction: %v\n", err)
