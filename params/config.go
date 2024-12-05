@@ -358,7 +358,7 @@ func (c *ChainConfig) String() string {
 	} else {
 		engine = "MockEngine"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v Churrito: %v, Donut: %v, Espresso: %v, Gingerbread: %v, Gingerbread P2: %v, HForkBlock: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v Churrito: %v, Donut: %v, Espresso: %v, Gingerbread: %v, Gingerbread P2: %v, L2MigrationBlock: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -378,7 +378,7 @@ func (c *ChainConfig) String() string {
 		c.EspressoBlock,
 		c.GingerbreadBlock,
 		c.GingerbreadP2Block,
-		c.HForkBlock,
+		c.L2MigrationBlock,
 		engine,
 	)
 }
