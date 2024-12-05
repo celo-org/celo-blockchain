@@ -230,7 +230,7 @@ Returns the timeout for the given round
 Broadcasts the given message to all connected participants. 
 
 `send(<Commit, H, R, V>, sender(m))`\
-Sends the given message to to the sender of another message.
+Sends the given message to the sender of another message.
 
 #### PCRound
 Asserts that all messages in the given prepared certificate share the same round and returns that round.
