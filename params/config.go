@@ -97,7 +97,7 @@ var (
 		GingerbreadBlock:    big.NewInt(18785000),
 		GingerbreadP2Block:  big.NewInt(19157000),
 		HForkBlock:          nil, // TBD
-		L2MigrationBlock:    big.NewInt(27110000),
+		L2MigrationBlock:    nil,
 
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
