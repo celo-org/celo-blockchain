@@ -72,7 +72,7 @@ func (n *Node) SetStaticNodes(enodeUrls ...string) error {
 	}
 	//nolint:gosec
 	if err = ioutil.WriteFile(n.staticNodesFile(), staticNodesRaw, 0644); err != nil {
-		return fmt.Errorf("Can't serialize static nodes: %w", err)
+		return fmt.Errorf("Can't write file in order to serialize static nodes: %w", err)
 	}
 
 	return nil

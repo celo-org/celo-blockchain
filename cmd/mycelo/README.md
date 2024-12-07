@@ -1,7 +1,7 @@
 
 # Mycelo
 
-`mycelo` is a developer utility to easy running celo blockchain testnets and related jobs around testnets.
+`mycelo` is a developer utility to easily run celo blockchain testnets and related jobs around testnets.
 
 Its main advantage over previous solutions is that it's able to create a `genesis.json` where all core conctracts are already deployed in it. Eventually it can be extended to support other cases, like e2e tests, load tests, and other operations.
 
@@ -10,7 +10,7 @@ Its main advantage over previous solutions is that it's able to create a `genesi
 There are 2 main use cases for mycelo:
 
  1. Run a local tesnet
- 2. Create a genesis.json to be used in another testnet that will be run on a CloudProvider/Kubernetes
+ 2. Create a `genesis.json` to be used in another testnet that will be run on a CloudProvider/Kubernetes
 
 ### Generating a genesis.json
 
@@ -40,7 +40,7 @@ Genesis creation has many configuration options, for that `mycelo` use the conce
 mycelo genesis --template=[local|loadtest|monorepo]
 ```
 
-Additionally, you can override template options via command line, chedk `mycelo genesis --help` for options:
+Additionally, you can override template options via command line, check `mycelo genesis --help` for options:
 
 ```bash
    --validators value    Number of Validators (default: 0)
@@ -52,7 +52,7 @@ Additionally, you can override template options via command line, chedk `mycelo 
 
 ### Configuring Genesis (Advanced)
 
-If that's not enough, you can ask mycelo to generate a genesis-config file that you can then customize and use to generate genesis
+If that's not enough, you can ask mycelo to generate a `genesis-config` file that you can then customize and use to generate genesis
 
 ```bash
 mycelo genesis-config path/to/env
@@ -66,7 +66,7 @@ Next step is to customize those files with your desired options, and then run:
 mycelo genesis-from-config path/to/env
 ```
 
-This command will read those file, and generate a `genesis.json` on the env folder
+This command will read those files, and generate a `genesis.json` on the env folder
 
 
 ### Running a local testnet
@@ -99,7 +99,7 @@ You can run a simple load bot with:
 mycelo load-bot path/to/env
 ```
 
-This will generate cUSD transfer on each of the developers account of the enviroment.
+This will generate cUSD transfer on each of the developers account in the enviroment.
 
 This feature is still experimental and needs more work, but it's already usable.
 

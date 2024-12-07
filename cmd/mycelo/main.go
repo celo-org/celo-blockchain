@@ -103,7 +103,7 @@ var loadTestMixFeeCurrencyFlag = cli.BoolFlag{
 
 var initValidatorsCommand = cli.Command{
 	Name:      "validator-init",
-	Usage:     "Setup all validators nodes",
+	Usage:     "Setup all validator nodes",
 	ArgsUsage: "[envdir]",
 	Action:    validatorInit,
 	Flags:     []cli.Flag{gethPathFlag},
