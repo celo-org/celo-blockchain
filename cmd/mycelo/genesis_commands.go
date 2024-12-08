@@ -67,7 +67,7 @@ var templateFlags = []cli.Flag{
 
 var buildpathFlag = cli.StringFlag{
 	Name:  "buildpath",
-	Usage: "Directory where smartcontract truffle build file live",
+	Usage: "Directory where smartcontract truffle build file resides",
 }
 
 var newEnvFlag = cli.StringFlag{

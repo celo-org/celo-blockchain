@@ -20,7 +20,7 @@ import (
 func readABI(truffleJsonFile string) (string, error) {
 	jsonData, err := ioutil.ReadFile(truffleJsonFile)
 	if err != nil {
-		return "", fmt.Errorf("Can't read build fild for %s: %w", truffleJsonFile, err)
+		return "", fmt.Errorf("Can't read build file for %s: %w", truffleJsonFile, err)
 	}
 
 	var data struct {
@@ -71,7 +71,7 @@ var contractNames = []string{
 	"FeeHandler",
 }
 
-var buildPath = flag.String("buildpath", "", "the folder where truffle contract build live (on monorepo ./packages/protocol/build/contracts )")
+var buildPath = flag.String("buildpath", "", "the folder where truffle contract build resides (on monorepo ./packages/protocol/build/contracts )")
 var outPath = flag.String("outpath", "./mycelo/contract", "relative path to mycelo/contract package")
 
 func main() {

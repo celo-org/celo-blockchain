@@ -4,14 +4,14 @@ The `evm t8n` tool is a stateless state transition utility. It is a utility
 which can
 
 1. Take a prestate, including
-- Accounts,
-- Block context information,
+- Accounts
+- Block context information
 - Previous blockshashes (*optional)
-2. Apply a set of transactions,
-3. Apply a mining-reward (*optional),
-4. And generate a post-state, including
-- State root, transaction root, receipt root,
-- Information about rejected transactions,
+2. Apply a set of transactions
+3. Apply a mining-reward (*optional)
+4. Generate a post-state, including
+- State root, transaction root, receipt root
+- Information about rejected transactions
 - Optionally: a full or partial post-state dump
 
 ## Specification
@@ -53,10 +53,10 @@ There are a few (not many) errors that can occur, those are defined below.
 #### EVM-based errors (`2` to `9`)
 
 - Other EVM error. Exit code `2`
-- Failed configuration: when a non-supported or invalid fork was specified. Exit code `3`.
+- Failed configuration: when a non-supported or invalid fork was specified. Exit code `3`
 - Block history is not supplied, but needed for a `BLOCKHASH` operation. If `BLOCKHASH`
   is invoked targeting a block which history has not been provided for, the program will
-  exit with code `4`.
+  exit with code `4`
 
 #### IO errors (`10`-`20`)
 
@@ -319,7 +319,7 @@ rlpdump -hex $(cat signed_txs.rlp | jq -r )
   02f864010280820fa08284d09411111111111111111111111111111111111111118080c080a0d4ec563b6568cd42d998fc4134b36933c6568d01533b5adf08769270243c6c7fa072bf7c21eac6bbeae5143371eef26d5e279637f3bd73482b55979d76d935b1e9,
 ]
 ```
-Now, we can now use those (or any other already signed transactions), as input, like so:
+Now, we can use those (or any other already signed transactions), as input, like so:
 ```
 ./evm t8n --state.fork=London --input.alloc=./testdata/13/alloc.json --input.txs=./signed_txs.rlp --input.env=./testdata/13/env.json --output.result=alloc_rlptx.json
 INFO [07-27|11:53:41.253] Trie dumping started                     root=e4b924..6aef61

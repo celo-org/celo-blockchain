@@ -111,7 +111,7 @@ func Libraries() []string { return libraries }
 func LibraryAddressFor(name string) (common.Address, error) {
 	address, ok := libraryAddresses[name]
 	if !ok {
-		return common.ZeroAddress, fmt.Errorf("can't find genesis address for %s", name)
+		return common.ZeroAddress, fmt.Errorf("can't find library address for %s", name)
 	}
 	return address, nil
 }

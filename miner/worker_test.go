@@ -276,7 +276,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 
 func TestEmptyWorkIstanbul(t *testing.T) {
 	// TODO(nambrot): Fix this
-	t.Skip("Disabled due to flakyness")
+	t.Skip("Disabled due to flakiness")
 	testEmptyWork(t, istanbulChainConfig, getAuthorizedIstanbulEngine(), false, true)
 	testEmptyWork(t, istanbulChainConfig, getAuthorizedIstanbulEngine(), true, false)
 }
