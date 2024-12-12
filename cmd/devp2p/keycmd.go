@@ -17,6 +17,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
 
@@ -82,7 +83,7 @@ func genkey(ctx *cli.Context) error {
 
 func keyToURL(ctx *cli.Context) error {
 	if ctx.NArg() != 1 {
-		return fmt.Errorf("need key file as argument")
+		return errors.New("need key file as argument")
 	}
 
 	var (

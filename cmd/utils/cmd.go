@@ -19,6 +19,7 @@ package utils
 
 import (
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -186,7 +187,7 @@ func ImportChain(chain *core.BlockChain, fn string) error {
 		}
 		// Import the batch.
 		if checkInterrupt() {
-			return fmt.Errorf("interrupted")
+			return errors.New("interrupted")
 		}
 		missing := missingBlocks(chain, blocks[:i])
 		if len(missing) == 0 {
