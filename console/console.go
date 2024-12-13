@@ -17,6 +17,7 @@
 package console
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -373,7 +374,7 @@ func (c *Console) Interactive() {
 			return
 
 		case err := <-inputErr:
-			if err == liner.ErrPromptAborted {
+			if errors.Is(err, liner.ErrPromptAborted) {
 				// When prompting for multi-line input, the first Ctrl-C resets
 				// the multi-line state.
 				prompt, indents, input = c.prompt, 0, ""

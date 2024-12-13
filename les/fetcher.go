@@ -17,6 +17,7 @@
 package les
 
 import (
+	"errors"
 	"math/big"
 	"math/rand"
 	"sync"
@@ -175,7 +176,7 @@ func newLightFetcher(chain *light.LightChain, engine consensus.Engine, peers *se
 			checkFreq = 0
 		}
 		i, err := chain.InsertHeaderChain(headers, checkFreq, syncMode.SyncFullHeaderChain())
-		if err == consensus.ErrFutureBlock {
+		if errors.Is(err, consensus.ErrFutureBlock) {
 			return i, nil
 		}
 		return i, err
