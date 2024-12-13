@@ -42,9 +42,9 @@ func resolveAddressForCall(caller vm.EVMRunner, registryId common.Hash, method s
 
 	if err != nil {
 		hexRegistryId := hexutil.Encode(registryId[:])
-		if err == ErrSmartContractNotDeployed {
+		if errors.Is(err, ErrSmartContractNotDeployed) {
 			log.Debug("Contract not yet registered", "function", method, "registryId", hexRegistryId)
-		} else if err == ErrRegistryContractNotDeployed {
+		} else if errors.Is(err, ErrRegistryContractNotDeployed) {
 			log.Debug("Registry contract not yet deployed", "function", method, "registryId", hexRegistryId)
 		} else {
 			log.Error("Error in getting registered address", "function", method, "registryId", hexRegistryId, "err", err)

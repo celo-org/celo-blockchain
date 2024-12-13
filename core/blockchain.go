@@ -1370,7 +1370,7 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 	// Write downloaded chain data and corresponding receipt chain data
 	if len(ancientBlocks) > 0 {
 		if n, err := writeAncient(ancientBlocks, ancientReceipts); err != nil {
-			if err == errInsertionInterrupted {
+			if errors.Is(err, errInsertionInterrupted) {
 				return 0, nil
 			}
 			return n, err
@@ -1391,7 +1391,7 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 	}
 	if len(liveBlocks) > 0 {
 		if n, err := writeLive(liveBlocks, liveReceipts); err != nil {
-			if err == errInsertionInterrupted {
+			if errors.Is(err, errInsertionInterrupted) {
 				return 0, nil
 			}
 			return n, err
@@ -1786,7 +1786,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 	block, err := it.next()
 
 	// Left-trim all the known blocks
-	if err == ErrKnownBlock {
+	if errors.Is(err, ErrKnownBlock) {
 		// First block (and state) is known
 		//   1. We did a roll-back, and should now do a re-import
 		//   2. The block is stored as a sidechain, and is lying about it's stateroot, and passes a stateroot
@@ -1879,7 +1879,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		}
 		// In this case, just skip the block we already validated it once fully
 		// (and crashed), since its header and body was already in the database).
-		if err == ErrKnownBlock {
+		if errors.Is(err, ErrKnownBlock) {
 			logger := log.Warn
 			logger("Inserted known block", "number", block.Number(), "hash", block.Hash(), "txs", len(block.Transactions()), "gas", block.GasUsed(),
 				"root", block.Root())
