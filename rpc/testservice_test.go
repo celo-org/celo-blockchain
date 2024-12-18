@@ -159,7 +159,7 @@ func (s *notificationTestService) SomeSubscription(ctx context.Context, n, val i
 		return nil, ErrNotificationsUnsupported
 	}
 
-	// By explicitly creating an subscription we make sure that the subscription id is send
+	// By explicitly creating a subscription we make sure that the subscription id is send
 	// back to the client before the first subscription.Notify is called. Otherwise the
 	// events might be send before the response for the *_subscribe method.
 	subscription := notifier.CreateSubscription()
