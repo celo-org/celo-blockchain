@@ -270,14 +270,14 @@ func (s *Sync) Process(result SyncResult) error {
 	if s.nodeReqs[result.Hash] == nil && s.codeReqs[result.Hash] == nil {
 		return ErrNotRequested
 	}
-	// There is an pending code request for this data, commit directly
+	// There is a pending code request for this data, commit directly
 	var filled bool
 	if req := s.codeReqs[result.Hash]; req != nil && req.data == nil {
 		filled = true
 		req.data = result.Data
 		s.commit(req)
 	}
-	// There is an pending node request for this data, fill it.
+	// There is a pending node request for this data, fill it.
 	if req := s.nodeReqs[result.Hash]; req != nil && req.data == nil {
 		filled = true
 		// Decode the node data content and update the request
