@@ -74,6 +74,7 @@ var (
 		utils.USBFlag,
 		// utils.SmartCardDaemonPathFlag,
 		utils.OverrideHForkFlag,
+		utils.L2MigrationBlockFlag,
 		utils.TxPoolLocalsFlag,
 		utils.TxPoolNoLocalsFlag,
 		utils.TxPoolJournalFlag,

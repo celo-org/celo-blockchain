@@ -546,7 +546,7 @@ func (ec *Client) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
 	return (*big.Int)(&hex), nil
 }
 
-// SuggestGasPrice retrieves the currently suggested gas price to allow a timely
+// SuggestGasPriceInCurrency retrieves the currently suggested gas price to allow a timely
 // execution of a transaction.
 func (ec *Client) SuggestGasPriceInCurrency(ctx context.Context, feeCurrency *common.Address) (*big.Int, error) {
 	var hex hexutil.Big
@@ -561,6 +561,16 @@ func (ec *Client) SuggestGasPriceInCurrency(ctx context.Context, feeCurrency *co
 func (ec *Client) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
 	var hex hexutil.Big
 	if err := ec.c.CallContext(ctx, &hex, "eth_maxPriorityFeePerGas"); err != nil {
+		return nil, err
+	}
+	return (*big.Int)(&hex), nil
+}
+
+// SuggestGasTipCapInCurrency retrieves the currently suggested gas tip cap after 1559 to
+// allow a timely execution of a transaction.
+func (ec *Client) SuggestGasTipCapInCurrency(ctx context.Context, feeCurrency *common.Address) (*big.Int, error) {
+	var hex hexutil.Big
+	if err := ec.c.CallContext(ctx, &hex, "eth_maxPriorityFeePerGas", feeCurrency); err != nil {
 		return nil, err
 	}
 	return (*big.Int)(&hex), nil

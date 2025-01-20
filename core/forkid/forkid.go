@@ -224,6 +224,10 @@ func gatherForks(config *params.ChainConfig) []uint64 {
 		if !strings.HasSuffix(field.Name, "Block") {
 			continue
 		}
+		// Do not include L2MigrationBlock in forkid as doing so will prevent syncing with nodes that have not set the L2MigrationBlock flag
+		if field.Name == "L2MigrationBlock" {
+			continue
+		}
 		if field.Type != reflect.TypeOf(new(big.Int)) {
 			continue
 		}

@@ -287,7 +287,7 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 	}
 	// Ignore max peer and max inbound peer check if:
 	//  - this is a trusted or statically dialed peer
-	//  - the peer is from from the proxy server (e.g. peers connected to this node's internal network interface)
+	//  - the peer is from the proxy server (e.g. peers connected to this node's internal network interface)
 	//  - forcePeer is true
 	if !forcePeer {
 		// KJUE - Remove the server not nil check after restoring peer check in server.go
