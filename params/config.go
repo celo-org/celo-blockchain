@@ -96,8 +96,8 @@ var (
 		EspressoBlock:       big.NewInt(9195000),
 		GingerbreadBlock:    big.NewInt(18785000),
 		GingerbreadP2Block:  big.NewInt(19157000),
-		HForkBlock:          nil, // TBD
-		L2MigrationBlock:    nil,
+		HForkBlock:          nil,
+		L2MigrationBlock:    big.NewInt(28308600),
 
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
@@ -126,7 +126,7 @@ var (
 		EspressoBlock:       big.NewInt(9472000),
 		GingerbreadBlock:    big.NewInt(19814000),
 		GingerbreadP2Block:  big.NewInt(19814000),
-		HForkBlock:          nil, // TBD
+		HForkBlock:          nil,
 		L2MigrationBlock:    big.NewInt(26384000),
 
 		Istanbul: &IstanbulConfig{
