@@ -15,7 +15,7 @@
 # To use this image for testing, modify GETH_NODE_DOCKER_IMAGE_TAG in celo-monorepo/.env file
 
 # Build Geth in a stock Go builder container
-FROM golang:1.19-bookworm as builder
+FROM golang:1.19-bookworm AS builder
 
 ADD . /go-ethereum
 
