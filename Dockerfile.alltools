@@ -1,5 +1,5 @@
 # Build Geth in a stock Go builder container
-FROM golang:1.19-bookworm as builder
+FROM golang:1.19-bookworm AS builder
 
 RUN headers_package="linux-headers-$(dpkg --print-architecture)" && \
   apt update && \
