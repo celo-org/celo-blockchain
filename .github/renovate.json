@@ -7,9 +7,16 @@
     {
       "enabled": false,
       "groupName": "everything",
-      "matchManagers": ["gomod", "dockerfile", "docker-compose", "npm"],
-      "matchPackagePatterns": ["*"],
-      "separateMajorMinor": false
+      "matchManagers": [
+        "gomod",
+        "dockerfile",
+        "docker-compose",
+        "npm"
+      ],
+      "separateMajorMinor": false,
+      "matchPackageNames": [
+        "*"
+      ]
     }
   ],
   "vulnerabilityAlerts": {
