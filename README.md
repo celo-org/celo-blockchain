@@ -15,7 +15,7 @@ Most functionality of this client is similar to `go-ethereum`, also known as `ge
 ## Building the source
 
 Building `geth` requires both Go (min version 1.19) and a C compiler.
-You can install them using your favourite package manager. Once the dependencies are installed, run
+You can install them using your favorite package manager. Once the dependencies are installed, run
 
 ```shell
 make geth
@@ -41,7 +41,7 @@ and
 make android
 ```
 
-Note: The `android` command it applies a git patch (`patches/mobileLibsForBuild.patch`) required to swap some libs from the `go.mod` for the client to work, installs those libs, builds the client, and then reverts the patch.
+Note: The `android` command applies a git patch (`patches/mobileLibsForBuild.patch`) required to swap some libs from the `go.mod` for the client to work, installs those libs, builds the client, and then reverts the patch.
 
 ## Executables
 
@@ -157,7 +157,7 @@ To get an idea of how the file should look like you can use the `dumpconfig` sub
 export your existing configuration:
 
 ```shell
-$ geth --your-favourite-flags dumpconfig
+$ geth --your-favorite-flags dumpconfig
 ```
 
 ### Programmatically interfacing `geth` nodes
