@@ -2,7 +2,7 @@
 
 ## Introduction
 
-We at Celo are committed to ensuring the security of the platfomr by protecting their information. This policy is intended to give security researchers 
+We at Celo are committed to ensuring the security of the platform by protecting their information. This policy is intended to give security researchers 
 clear guidelines for conducting vulnerability discovery activities and to convey our preferences in how to submit discovered vulnerabilities to us.
 
 We encourage you to contact us to report potential vulnerabilities in our systems.
