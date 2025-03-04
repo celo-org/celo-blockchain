@@ -54,6 +54,7 @@ var (
 	_ Error = new(invalidRequestError)
 	_ Error = new(invalidMessageError)
 	_ Error = new(invalidParamsError)
+	_ Error = new(responseTooLargeError)
 )
 
 const defaultErrorCode = -32000
@@ -101,3 +102,9 @@ type invalidParamsError struct{ message string }
 func (e *invalidParamsError) ErrorCode() int { return -32602 }
 
 func (e *invalidParamsError) Error() string { return e.message }
+
+type responseTooLargeError struct{}
+
+func (e *responseTooLargeError) ErrorCode() int { return -32003 }
+
+func (e *responseTooLargeError) Error() string { return "response too large" }
