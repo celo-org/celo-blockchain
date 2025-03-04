@@ -129,7 +129,6 @@ func (h *handler) handleBatch(msgs []*jsonrpcMessage) {
 		answers := make([]*jsonrpcMessage, 0, len(msgs))
 		for idx, msg := range calls {
 			if answer := h.handleCallMsg(cp, msg); answer != nil {
-				answers = append(answers, answer)
 				// Once total size of responses exceeds an allowed maximum,
 				// generate error messages for all remaining calls and stop further processing
 				if responseBytes += len(answer.Result); responseBytes > BatchResponseMaxSize {
@@ -139,6 +138,7 @@ func (h *handler) handleBatch(msgs []*jsonrpcMessage) {
 					}
 					break
 				}
+				answers = append(answers, answer)
 			}
 		}
 		h.addSubscriptions(cp.notifiers)

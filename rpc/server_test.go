@@ -291,16 +291,16 @@ func TestBatchResponseMaxSize(t *testing.T) {
 	mustConsumeAndCompare(t, []byte("["))
 	// Read through each response until the cumulative size limit is exceeded
 	for i := 0; i < BatchRequestLimit; i++ {
-		if i > 0 {
-			mustConsumeAndCompare(t, []byte(","))
-		}
-		mustConsumeAndCompare(t, []byte(successfulResponse))
-
 		if totalResultSize += successfulResultDataLen; totalResultSize > BatchResponseMaxSize {
 			// Record the first index where the error should begin
 			errorBeginsAt = i
 			break
 		}
+
+		if i > 0 {
+			mustConsumeAndCompare(t, []byte(","))
+		}
+		mustConsumeAndCompare(t, []byte(successfulResponse))
 	}
 
 	// From the point where the total size exceeded the limit,
