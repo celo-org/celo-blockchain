@@ -99,7 +99,7 @@ You can run a simple load bot with:
 mycelo load-bot path/to/env
 ```
 
-This will generate cUSD transfer on each of the developers account of the enviroment.
+This will generate cUSD transfer on each of the developers account of the environment.
 
 This feature is still experimental and needs more work, but it's already usable.
 
