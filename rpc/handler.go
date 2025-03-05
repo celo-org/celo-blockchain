@@ -28,6 +28,11 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 )
 
+const (
+	BatchRequestLimit    = 1000
+	BatchResponseMaxSize = 25 * 1000 * 1000
+)
+
 // handler handles JSON-RPC messages. There is one handler per connection. Note that
 // handler is not safe for concurrent use. Message handling never blocks indefinitely
 // because RPCs are processed on background goroutines launched by handler.
@@ -100,6 +105,13 @@ func (h *handler) handleBatch(msgs []*jsonrpcMessage) {
 		})
 		return
 	}
+	// Returns an error if number of requests exceeds an allowed maximum
+	if len(msgs) > BatchRequestLimit {
+		h.startCallProc(func(cp *callProc) {
+			h.conn.writeJSON(cp.ctx, errorMessage(&invalidRequestError{"batch too large"}))
+		})
+		return
+	}
 
 	// Handle non-call messages first:
 	calls := make([]*jsonrpcMessage, 0, len(msgs))
@@ -112,10 +124,20 @@ func (h *handler) handleBatch(msgs []*jsonrpcMessage) {
 		return
 	}
 	// Process calls on a goroutine because they may block indefinitely:
+	responseBytes := 0
 	h.startCallProc(func(cp *callProc) {
 		answers := make([]*jsonrpcMessage, 0, len(msgs))
-		for _, msg := range calls {
+		for idx, msg := range calls {
 			if answer := h.handleCallMsg(cp, msg); answer != nil {
+				// Once total size of responses exceeds an allowed maximum,
+				// generate error messages for all remaining calls and stop further processing
+				if responseBytes += len(answer.Result); responseBytes > BatchResponseMaxSize {
+					for i := idx; i < len(calls); i++ {
+						errMsg := msg.errorResponse(&responseTooLargeError{})
+						answers = append(answers, errMsg)
+					}
+					break
+				}
 				answers = append(answers, answer)
 			}
 		}
