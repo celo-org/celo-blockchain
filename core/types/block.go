@@ -341,7 +341,7 @@ func CopyHeader(h *Header) *Header {
 		TxHash:      h.TxHash,
 		ReceiptHash: h.ReceiptHash,
 		Bloom:       h.Bloom,
-		Difficulty:  h.Difficulty,
+		Difficulty:  new(big.Int),
 		Number:      new(big.Int),
 		GasLimit:    h.GasLimit,
 		GasUsed:     h.GasUsed,
@@ -350,6 +350,9 @@ func CopyHeader(h *Header) *Header {
 		Nonce:       h.Nonce,
 	}
 
+	if h.Difficulty != nil {
+		cpy.Difficulty.Set(h.Difficulty)
+	}
 	if h.Number != nil {
 		cpy.Number.Set(h.Number)
 	}
