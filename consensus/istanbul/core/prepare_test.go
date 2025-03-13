@@ -533,7 +533,7 @@ func TestVerifyPrepare(t *testing.T) {
 	}
 }
 
-// benchMarkHandlePrepare benchmarks handling a prepare message
+// BenchmarkHandlePrepare benchmarks handling a prepare message
 func BenchmarkHandlePrepare(b *testing.B) {
 	N := uint64(2)
 	F := uint64(1) // F does not affect tests

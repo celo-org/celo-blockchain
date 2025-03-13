@@ -125,7 +125,7 @@ func (gdb *GenericDB) Iterate(keyPrefix []byte, onEntry func([]byte, []byte) err
 	return iter.Error()
 }
 
-// newDB creates/opens a leveldb persistent database at the given path.
+// NewDB creates/opens a leveldb persistent database at the given path.
 // If no path is given, an in-memory, temporary database is constructed.
 func NewDB(dbVersion int64, path string, logger log.Logger) (*leveldb.DB, error) {
 	if path == "" {
@@ -134,7 +134,7 @@ func NewDB(dbVersion int64, path string, logger log.Logger) (*leveldb.DB, error)
 	return NewPersistentDB(dbVersion, path, logger)
 }
 
-// newMemoryDB creates a new in-memory node database without a persistent backend.
+// NewMemoryDB creates a new in-memory node database without a persistent backend.
 func NewMemoryDB() (*leveldb.DB, error) {
 	db, err := leveldb.Open(storage.NewMemStorage(), nil)
 	if err != nil {
@@ -143,7 +143,7 @@ func NewMemoryDB() (*leveldb.DB, error) {
 	return db, nil
 }
 
-// newPersistentNodeDB creates/opens a leveldb backed persistent database,
+// NewPersistentDB creates/opens a leveldb backed persistent database,
 // also flushing its contents in case of a version mismatch.
 func NewPersistentDB(dbVersion int64, path string, logger log.Logger) (*leveldb.DB, error) {
 	opts := &opt.Options{OpenFilesCacheCapacity: 5}

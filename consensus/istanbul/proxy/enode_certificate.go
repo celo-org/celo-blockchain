@@ -51,7 +51,7 @@ func (p *proxyEngine) handleEnodeCertificateMsgFromRemoteVal(peer consensus.Peer
 	return true, nil
 }
 
-// handleEnodeCertificateFromProxiedValidator will handle an enode certifcate message sent from the proxied validator
+// handleEnodeCertificateMsgFromProxiedValidator will handle an enode certifcate message sent from the proxied validator
 func (p *proxyEngine) handleEnodeCertificateMsgFromProxiedValidator(peer consensus.Peer, payload []byte) (bool, error) {
 	logger := p.logger.New("func", "handleEnodeCertificateMsgFromProxiedValidator")
 
