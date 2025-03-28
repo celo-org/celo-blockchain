@@ -1879,13 +1879,6 @@ func (d *Downloader) importBlockResults(results []*fetchResult) error {
 	return nil
 }
 
-func max(a uint64, b uint64) uint64 {
-	if a < b {
-		return b
-	}
-	return a
-}
-
 func computePivot(height uint64, epochSize uint64) uint64 {
 	if height <= fsMinFullBlocks {
 		return 0
