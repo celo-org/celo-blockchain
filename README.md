@@ -1,9 +1,11 @@
 ## Celo Blockchain
 
+> [!IMPORTANT]
+> celo-blockchain is in maintainance mode and will only be updated for critical issues. Do not use it for new projects and please migrate to the [op-geth](https://github.com/celo-org/op-geth/) implementation.
+
+
 Official golang implementation of the Celo blockchain, based off of the [official golang implementation of the Ethereum protocol](https://github.com/ethereum/go-ethereum).
 
-[![CircleCI](https://img.shields.io/circleci/build/github/celo-org/celo-blockchain/master)](https://circleci.com/gh/celo-org/celo-blockchain/tree/master)
-[![Codecov](https://img.shields.io/codecov/c/github/celo-org/celo-blockchain)](https://codecov.io/gh/celo-org/celo-blockchain)
 [![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://chat.celo.org)
 
 Prebuilt [Docker](https://en.wikipedia.org/wiki/Docker_\(software\)) images are available for immediate use: [us.gcr.io/celo-org/geth](https://us.gcr.io/celo-org/geth). See [docs.celo.org/getting-started](https://docs.celo.org/getting-started/choosing-a-network) for a guide to the Celo networks and how to get started.
