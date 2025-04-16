@@ -32,7 +32,6 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/contracts/gold_token"
-	"github.com/celo-org/celo-blockchain/core"
 	ethCore "github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -587,7 +586,7 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 
 	sb.Finalize(chain, header, state, txs)
 	// Add the block receipt with logs from the non-transaction core contract calls (if there were any)
-	receipts = core.AddBlockReceipt(receipts, state, header.Hash())
+	receipts = ethCore.AddBlockReceipt(receipts, state, header.Hash())
 
 	// Assemble and return the final block for sealing
 	block := types.NewBlock(header, txs, receipts, randomness, new(trie.Trie))
@@ -1231,13 +1230,13 @@ func waitCoreToReachSequence(core istanbulCore.Engine, expectedSequence *big.Int
 	for {
 		select {
 		case <-ticker.C:
-			view := core.CurrentView()
+			view := ethCore.CurrentView()
 			if view != nil && view.Sequence != nil && view.Sequence.Cmp(expectedSequence) == 0 {
 				logger.Trace("Current sequence matches header", "cur_seq", view.Sequence)
 				return view.Sequence
 			}
 		case <-timeout:
-			log.Trace("Timed out while waiting for core to sequence change, unable to combine commit messages with ParentAggregatedSeal", "cur_view", core.CurrentView())
+			log.Trace("Timed out while waiting for core to sequence change, unable to combine commit messages with ParentAggregatedSeal", "cur_view", ethCore.CurrentView())
 			return nil
 		}
 	}
