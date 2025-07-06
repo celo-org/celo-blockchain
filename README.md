@@ -1,10 +1,10 @@
 ## Celo Blockchain
 
 > [!IMPORTANT]
-> celo-blockchain is in maintainance mode and will only be updated for critical issues. Do not use it for new projects and please migrate to the [op-geth](https://github.com/celo-org/op-geth/) implementation.
+> celo-blockchain is in maintenance mode and will only be updated for critical issues. Do not use it for new projects and please migrate to the [op-geth](https://github.com/celo-org/op-geth/) implementation.
 
 
-Official golang implementation of the Celo blockchain, based off of the [official golang implementation of the Ethereum protocol](https://github.com/ethereum/go-ethereum).
+Official golang implementation of the Celo blockchain, based on the [official golang implementation of the Ethereum protocol](https://github.com/ethereum/go-ethereum).
 
 [![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://chat.celo.org)
 
@@ -56,7 +56,7 @@ The Celo blockchain client comes with several wrappers/executables found in the 
 | `bootnode` | Stripped down version of the Celo client implementation that only takes part in the network node discovery protocol, but does not run any of the higher level application protocols. It can be used as a lightweight bootstrap node to aid in finding peers in private networks. |
 | `evm` | Developer utility version of the EVM (Ethereum Virtual Machine) that is capable of running bytecode snippets within a configurable environment and execution mode. Its purpose is to allow isolated, fine-grained debugging of EVM opcodes (e.g. `evm --code 60ff60ff --debug run`). |
 | `gethrpctest` | Developer utility tool to support the [ethereum/rpc-test](https://github.com/ethereum/rpc-tests) test suite which validates baseline conformity to the [Ethereum JSON RPC](https://github.com/ethereum/wiki/wiki/JSON-RPC) specs. Please see the [ethereum test suite's readme](https://github.com/ethereum/rpc-tests/blob/master/README.md) for details. |
-| `rlpdump` | Developer utility tool to convert binary RLP ([Recursive Length Prefix](https://github.com/ethereum/wiki/wiki/RLP)) dumps (data encoding used by the Celo protocol both network as well as consensus wise) to user friendlier hierarchical representation (e.g. `rlpdump --hex CE0183FFFFFFC4C304050583616263`). |
+| `rlpdump` | Developer utility tool to convert binary RLP ([Recursive Length Prefix](https://github.com/ethereum/wiki/wiki/RLP)) dumps (data encoding used by the Celo protocol both network as well as consensus wise) to user-friendly hierarchical representation (e.g. `rlpdump --hex CE0183FFFFFFC4C304050583616263`). |
 
 ## Running tests
 
