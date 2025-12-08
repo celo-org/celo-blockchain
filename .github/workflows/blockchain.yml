@@ -45,7 +45,7 @@ jobs:
 
     steps:
     - name: Checkout celo-blockchain repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         path: geth
     # Workaround to error https://github.com/golangci/golangci-lint/issues/4033
@@ -66,7 +66,7 @@ jobs:
     # If there is a cached version, there is no need to rebuild it
     - name: Conditionally checkout monorepo
       if: steps.celo-monorepo-cache.outputs.cache-hit != 'true'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         repository: celo-org/celo-monorepo
         path: celo-monorepo
@@ -98,7 +98,7 @@ jobs:
     runs-on: ["8-cpu","self-hosted","blockchain"]
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Setup go
       uses: actions/setup-go@v5
       with:
@@ -114,7 +114,7 @@ jobs:
     
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Setup golang
       uses: actions/setup-go@v5
       with:
@@ -132,7 +132,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Setup golang
       uses: actions/setup-go@v5
       with:
@@ -154,7 +154,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Setup golang
       uses: actions/setup-go@v5
       with:
@@ -217,7 +217,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Setup golang
       uses: actions/setup-go@v5
       with:
@@ -253,7 +253,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Setup golang
       uses: actions/setup-go@v5
       with:
@@ -285,7 +285,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Setup golang
       uses: actions/setup-go@v5
       with:
@@ -331,7 +331,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Setup golang
       uses: actions/setup-go@v5
       with:
@@ -361,7 +361,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Setup golang
       uses: actions/setup-go@v5
       with:
@@ -399,7 +399,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         path: geth
     - name: Setup golang
@@ -448,7 +448,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         path: geth
     - name: Setup golang
@@ -497,7 +497,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         path: geth
     - name: Setup golang
@@ -545,7 +545,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         path: geth
     - name: Setup golang
@@ -593,7 +593,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         path: geth
     - name: Setup golang
@@ -641,7 +641,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         path: geth
     - name: Setup golang
@@ -689,7 +689,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         path: geth
     - name: Setup golang
@@ -737,7 +737,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         path: geth
     - name: Setup golang
