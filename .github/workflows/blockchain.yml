@@ -193,7 +193,7 @@ jobs:
         show: "fail"
     - name: Post test summary comment on PR
       if: always()
-      uses: mshick/add-pr-comment@v2
+      uses: mshick/add-pr-comment@v3
       with:
         message-path: test-summary.md
         message-id: test-summary
@@ -316,7 +316,7 @@ jobs:
         echo "</pre>" >> $GITHUB_ENV
         echo "$EOF" >> $GITHUB_ENV
     - name: Post summary comment on PR
-      uses: mshick/add-pr-comment@v2
+      uses: mshick/add-pr-comment@v3
       with:
         message: "${{ env.PR_SUMMARY_MESSAGE }}"
         message-id: istanbul-cov-summary
