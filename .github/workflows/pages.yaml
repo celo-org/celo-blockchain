@@ -54,7 +54,7 @@ jobs:
           grep -rl " \{2,\}" ${{ env.GO_ETHEREUM_PATH }}/. --include \*.go | xargs sed -i "s# \{2,\}# #g"
 
       - name: Commit changes locally (${{ env.CELO_BLOCKCHAIN_PATH }})
-        uses: EndBug/add-and-commit@v9
+        uses: EndBug/add-and-commit@v10
         with:
           message: "Replace github.com/celo-org/celo-blockchain and run gofmt locally"
           add: '-u'
@@ -62,7 +62,7 @@ jobs:
           cwd: './${{ env.CELO_BLOCKCHAIN_PATH }}'
 
       - name: Commit changes locally (${{ env.GO_ETHEREUM_PATH }})
-        uses: EndBug/add-and-commit@v9
+        uses: EndBug/add-and-commit@v10
         with:
           message: "Run gofmt locally"
           add: '-u'
