@@ -73,7 +73,7 @@ jobs:
         ref: ${{ env.MONOREPO_COMMIT }}
     - name: Conditionally setup Node.js
       if: steps.celo-monorepo-cache.outputs.cache-hit != 'true'
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v7
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -396,7 +396,7 @@ jobs:
         restore-keys: |
           celo-monorepo-cache-
     - name: Setup Node.js
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v7
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -445,7 +445,7 @@ jobs:
         restore-keys: |
           celo-monorepo-cache-
     - name: Setup Node.js
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v7
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -494,7 +494,7 @@ jobs:
         restore-keys: |
           celo-monorepo-cache-
     - name: Setup Node.js
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v7
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -542,7 +542,7 @@ jobs:
         restore-keys: |
           celo-monorepo-cache-
     - name: Setup Node.js
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v7
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -590,7 +590,7 @@ jobs:
         restore-keys: |
           celo-monorepo-cache-
     - name: Setup Node.js
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v7
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -638,7 +638,7 @@ jobs:
         restore-keys: |
           celo-monorepo-cache-
     - name: Setup Node.js
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v7
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -686,7 +686,7 @@ jobs:
         restore-keys: |
           celo-monorepo-cache-
     - name: Setup Node.js
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v7
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
@@ -734,7 +734,7 @@ jobs:
         restore-keys: |
           celo-monorepo-cache-
     - name: Setup Node.js
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v7
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: yarn
